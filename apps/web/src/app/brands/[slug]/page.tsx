@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { CatalogProductCard } from "../../../components/CatalogProductCard";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
-import { getPublicBrandGuide } from "../../../lib/brand-guide-runtime";
+import { getPublicBrandGuide, type PublicBrandCategory } from "../../../lib/brand-guide-runtime";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { storefrontCategoryForCode, storefrontLeafForSubcategory } from "../../../lib/storefront-taxonomy";
 import styles from "./page.module.css";
@@ -88,14 +88,34 @@ export default async function BrandGuidePage({ params }: Props) {
     .map((profileCategory) => {
       const liveCategory = categoryByCode.get(profileCategory.slug);
       const department = storefrontCategoryForCode(profileCategory.slug, liveCategory?.departmentSlug);
-      return storefrontLeafForSubcategory(
+      return liveCategory?.label ?? storefrontLeafForSubcategory(
         department.slug,
         profileCategory.slug,
-        liveCategory?.label ?? ""
-      )?.label ?? liveCategory?.label ?? department.label;
+        ""
+      )?.label ?? department.label;
     })
     .filter((label, index, all) => all.indexOf(label) === index)
     .slice(0, 3);
+  const categoryGroups = [...brand.categories.reduce((groups, category) => {
+    const key = `${category.departmentSlug}:${category.familyLabel}`;
+    const group = groups.get(key) ?? {
+      key,
+      label: category.familyLabel,
+      departmentLabel: category.departmentLabel,
+      count: 0,
+      categories: [] as PublicBrandCategory[]
+    };
+    group.count += category.productCount;
+    group.categories.push(category);
+    groups.set(key, group);
+    return groups;
+  }, new Map<string, {
+    key: string;
+    label: string;
+    departmentLabel: string;
+    count: number;
+    categories: PublicBrandCategory[];
+  }>()).values()];
   const liveCatalogueHighlights = catalogueHighlights.length
     ? catalogueHighlights
     : brand.categories.slice(0, 3).map((category) => category.label);
@@ -134,7 +154,7 @@ export default async function BrandGuidePage({ params }: Props) {
 
         <aside className={styles.heroAside}>
           <div className={styles.stat}><strong>{brand.liveProductCount.toLocaleString("el-GR")}</strong><span>διαθέσιμα προϊόντα τώρα</span></div>
-          <div className={styles.stat}><strong>{brand.categories.length.toLocaleString("el-GR")}</strong><span>ενεργές κατηγορίες</span></div>
+          <div className={styles.stat}><strong>{brand.categories.length.toLocaleString("el-GR")}</strong><span>ενεργές υποκατηγορίες</span></div>
           {brand.guide.foundedYear ? <div className={styles.stat}><strong>{brand.guide.foundedYear}</strong><span>έτος ίδρυσης</span></div> : null}
         </aside>
       </section>
@@ -183,22 +203,33 @@ export default async function BrandGuidePage({ params }: Props) {
           {brand.departments.map((department) => <Link className={styles.departmentCard} href={department.href} key={department.slug}>
             <span>ΤΟΜΕΑΣ</span>
             <strong>{department.label}</strong>
-            <small>{department.productCount.toLocaleString("el-GR")} προϊόντα · {department.categoryCount.toLocaleString("el-GR")} {department.categoryCount === 1 ? "κατηγορία" : "κατηγορίες"} →</small>
+            <small>{department.productCount.toLocaleString("el-GR")} προϊόντα · {department.categoryCount.toLocaleString("el-GR")} {department.categoryCount === 1 ? "υποκατηγορία" : "υποκατηγορίες"} →</small>
           </Link>)}
         </div>
       </section> : null}
 
       {brand.categories.length ? <section className={styles.section}>
         <div className={styles.sectionHeader}>
-          <div><div className="eyebrow">Πιο συγκεκριμένα</div><h2>Κατηγορίες {brand.name}</h2></div>
+          <div><div className="eyebrow">Πιο συγκεκριμένα</div><h2>Κατηγορίες & υποκατηγορίες {brand.name}</h2></div>
           <p className={styles.copy}>Οι ενότητες δεν είναι στατικές SEO κατηγορίες. Προκύπτουν από τα πραγματικά προϊόντα {brand.name} που είναι αυτή τη στιγμή διαθέσιμα στο ΚΟΝΤΑ ΜΟΥ.</p>
         </div>
-        <div className={styles.categoryGrid}>
-          {brand.categories.map((category) => <Link className={styles.categoryCard} href={category.href} key={category.code}>
-            <small>{category.departmentLabel}</small>
-            <strong>{category.label}</strong>
-            <span>{category.productCount.toLocaleString("el-GR")} διαθέσιμα →</span>
-          </Link>)}
+        <div className={styles.categoryGroups}>
+          {categoryGroups.map((group) => <div className={styles.categoryGroup} key={group.key}>
+            <div className={styles.categoryGroupHeading}>
+              <div>
+                <small>{group.departmentLabel}</small>
+                <h3>{group.label}</h3>
+              </div>
+              <span>{group.count.toLocaleString("el-GR")} διαθέσιμα</span>
+            </div>
+            <div className={styles.categoryGrid}>
+              {group.categories.map((category) => <Link className={styles.categoryCard} href={category.href} key={category.code}>
+                <small>Υποκατηγορία</small>
+                <strong>{category.label}</strong>
+                <span>{category.productCount.toLocaleString("el-GR")} {category.productCount === 1 ? "διαθέσιμο" : "διαθέσιμα"} →</span>
+              </Link>)}
+            </div>
+          </div>)}
         </div>
       </section> : null}
 
