@@ -1,15 +1,18 @@
 import Link from "next/link";
+import { HubClaimMediaUploader } from "./HubClaimMediaUploader";
+import type { HubClaimMedia } from "../lib/hub-claim-media-runtime";
 import type { HubClaimPublicProfile } from "../lib/hub-claim-runtime";
 import styles from "../app/hubs/claim/claim.module.css";
 
 /** One presentation for the actual CLAIM workspace and read-only Admin plan preview. */
 export function HubClaimProfileEditor({
-  profile, csrfToken, onSave, preview = false
+  profile, csrfToken, onSave, preview = false, media = []
 }: {
   profile: HubClaimPublicProfile;
   csrfToken?: string;
   onSave?: (formData: FormData) => Promise<void>;
   preview?: boolean;
+  media?: readonly HubClaimMedia[];
 }) {
   return <section className={styles.panel}>
     <h2>{profile.businessName}</h2>
@@ -31,6 +34,7 @@ export function HubClaimProfileEditor({
         <button className={styles.button + " " + styles.wide} type="submit" disabled={preview}>Αποθήκευση αλλαγών</button>
       </fieldset>
     </form>
+    <HubClaimMediaUploader claimId={profile.id} csrfToken={csrfToken} preview={preview} media={media} />
     <div className={styles.actions}>
       {preview
         ? <><span className={styles.button + " " + styles.secondary} aria-disabled="true">Δημόσια σελίδα ↗</span><span className={styles.button + " " + styles.secondary} aria-disabled="true">Δες περισσότερα προγράμματα</span></>
