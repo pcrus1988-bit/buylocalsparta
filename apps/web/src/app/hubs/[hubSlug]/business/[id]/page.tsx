@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "../../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../../components/SiteFooter";
 import { VendorExternalWebsiteFrame } from "../../../../../components/VendorExternalWebsiteFrame";
+import { listPublicHubClaimMedia } from "../../../../../lib/hub-claim-media-runtime";
 import { getPublicHubClaim } from "../../../../../lib/hub-claim-runtime";
 import styles from "../../../claim/claim.module.css";
 
@@ -28,15 +29,21 @@ export default async function PublicHubClaimPage({ params }: Params) {
   const { hubSlug, id } = await params;
   const profile = await getPublicHubClaim(hubSlug, id);
   if (!profile) notFound();
+  const photos = await listPublicHubClaimMedia(id);
+  const logo = photos.find(photo => photo.role === "logo");
+  const cover = photos.find(photo => photo.role === "storefront");
+  const gallery = photos.filter(photo => photo.role === "gallery");
 
   return <main>
     <SiteHeader compact />
     <section className="shell">
       <div className={styles.hero}>
         <div className={styles.kicker}>KONTA MOY · HUB {profile.hubCity}</div>
+        {logo && <img className={styles.publicLogo} src={"/api/hubs/claim/media/" + encodeURIComponent(logo.id)} alt={logo.altText} />}
         <h1 className={styles.title}>{profile.businessName}</h1>
         <p className={styles.lead}>{profile.category} · {profile.hubCity}, {profile.hubRegion}</p>
       </div>
+      {cover && <img className={styles.publicCover} src={"/api/hubs/claim/media/" + encodeURIComponent(cover.id)} alt={cover.altText} />}
       <div className={styles.grid}>
         <article className={styles.panel}>
           <h2>Στοιχεία επιχείρησης</h2>
@@ -56,6 +63,12 @@ export default async function PublicHubClaimPage({ params }: Params) {
           <div className={styles.actions}><Link className={styles.button + " " + styles.secondary} href="/hubs/join">Γνώρισε το KONTA MOY HUB</Link></div>
         </aside>
       </div>
+      {gallery.length > 0 && <section className={styles.panel} style={{ marginTop: 20 }} aria-label="Φωτογραφίες επιχείρησης">
+        <h2>Φωτογραφίες επιχείρησης</h2>
+        <div className={styles.publicGallery}>{gallery.map(photo =>
+          <img key={photo.id} src={"/api/hubs/claim/media/" + encodeURIComponent(photo.id)} alt={photo.altText} loading="lazy" />
+        )}</div>
+      </section>}
       {profile.websiteEmbedEnabled && profile.website && <section className={styles.panel} style={{ marginTop: 20 }} aria-labelledby="claim-website-title">
         <h2 id="claim-website-title">Ιστοσελίδα επιχείρησης</h2>
         <VendorExternalWebsiteFrame url={profile.website} vendorName={profile.businessName} />
