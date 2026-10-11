@@ -168,7 +168,12 @@ const universalBrandCategoryCases: Array<[string, string, string, string]> =   [
   ];
 for (const [department, code, label, family] of universalBrandCategoryCases) {
   const entry = storefrontSubcategoryPresentationForCode(code);
-  if (entry?.label !== label || entry?.familyLabel !== family) failures.push(`Missing cross-brand label for ${department} / ${code}`);
+  if (entry?.label !== label || entry?.familyLabel !== family || entry?.departmentSlug !== department) {
+    failures.push(`Missing cross-brand label/department for ${department} / ${code}`);
+  }
+  if (storefrontCategoryForCode(code).slug !== department || !categoryCodeMatches(code, department)) {
+    failures.push(`Cross-brand category ${code} must resolve and filter under ${department}`);
+  }
 }
 if (storefrontReadableSubcategoryCode("wireless-chargers") !== "Wireless chargers") {
   failures.push("An unknown, readable leaf must not collapse to the broad parent label");
