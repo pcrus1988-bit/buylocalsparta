@@ -1,0 +1,40 @@
+name: HUB CLAIM Profile and Embed Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "db/migrations/0437_hub_claim_profiles_media_inquiries.sql"
+      - "apps/web/src/lib/hub-claim-**"
+      - "apps/web/src/app/hubs/**"
+      - "apps/web/src/app/vendor/claim/**"
+      - "apps/web/src/app/admin/hubs/**"
+      - "apps/web/src/app/api/hubs/claim/**"
+      - "apps/web/src/components/HubClaim**"
+      - "apps/web/next.config.ts"
+      - "scripts/verify-hub-claim-profile-enrichment.ts"
+      - ".github/workflows/hub-claim-profile-acceptance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "db/migrations/0437_hub_claim_profiles_media_inquiries.sql"
+      - "apps/web/src/lib/hub-claim-**"
+      - "apps/web/src/app/hubs/**"
+      - "apps/web/src/app/vendor/claim/**"
+      - "apps/web/src/app/api/hubs/claim/**"
+      - "apps/web/src/components/HubClaim**"
+      - "scripts/verify-hub-claim-profile-enrichment.ts"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Enforce claims and iframe security
+        run: node --experimental-strip-types scripts/verify-hub-claim-profile-enrichment.ts
+      - name: Install frozen dependencies
+        run: npm ci --ignore-scripts
+      - name: Typecheck web
+        run: npx tsc --noEmit -p apps/web/tsconfig.json
