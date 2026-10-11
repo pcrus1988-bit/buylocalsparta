@@ -6,6 +6,8 @@ export type HubClaimPublicProfile = Readonly<{
   id: string; hubSlug: string; hubCity: string; hubRegion: string;
   businessName: string; category: string; phone: string; website?: string; websiteEmbedEnabled: boolean;
   address: string; postcode: string;
+  description: string; openingHours: string;
+  instagramUrl?: string; facebookUrl?: string;
 }>;
 
 export type HubClaimInvitation = Readonly<{
@@ -18,8 +20,12 @@ const SQL_PROFILE = `
   SELECT h.public_id AS id,h.hub_slug,h.hub_city,h.hub_region,
          h.business_name,h.primary_category,h.phone,h.website_url,
          COALESCE((to_jsonb(h)->>'website_embed_enabled')::boolean,false) AS website_embed_enabled,
-         h.address_line,h.postal_code
+         h.address_line,h.postal_code,
+         COALESCE(cp.description,'') AS claim_description,
+         COALESCE(cp.opening_hours,'') AS claim_opening_hours,
+         cp.instagram_url AS claim_instagram_url, cp.facebook_url AS claim_facebook_url
   FROM hub_expansion_prospects h
+  LEFT JOIN hub_claim_profiles cp ON cp.prospect_id=h.id
   WHERE h.plan_code='claim' AND h.status='converted'
     AND h.owner_user_id IS NOT NULL
 `;
@@ -31,7 +37,10 @@ function asProfile(row: SqlRow): HubClaimPublicProfile {
     businessName: String(row.business_name), category: String(row.primary_category),
     phone: String(row.phone), website: row.website_url ? String(row.website_url) : undefined,
     websiteEmbedEnabled: Boolean(publicVendorExternalWebsiteUrl({ enabled: row.website_embed_enabled === true, url: row.website_url })),
-    address: String(row.address_line), postcode: String(row.postal_code)
+    address: String(row.address_line), postcode: String(row.postal_code),
+    description: String(row.claim_description ?? ""), openingHours: String(row.claim_opening_hours ?? ""),
+    instagramUrl: row.claim_instagram_url ? String(row.claim_instagram_url) : undefined,
+    facebookUrl: row.claim_facebook_url ? String(row.claim_facebook_url) : undefined
   };
 }
 
