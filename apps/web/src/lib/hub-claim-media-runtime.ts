@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import sharp from "sharp";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { serverObjectStorageFromEnv } from "@buy-local-sparta/object-storage";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
@@ -91,12 +92,34 @@ export async function uploadOwnedHubClaimMedia(principal: SessionPrincipal, inpu
     LIMIT 1
   `, [id, principal.userId]);
   if (!owner.rowCount) throw new Error("CLAIM_NOT_OWNED");
+
+  // Decode and re-encode every claimant upload before it can reach an admin preview
+  // or a public image endpoint. This discards original metadata and embedded payloads.
+  // Cap decompressed pixels to avoid image decompression bombs.
+  let safeBytes: Buffer;
+  try {
+    const decoder = sharp(Buffer.from(input.bytes), {
+      failOn: "error", limitInputPixels: 16_000_000, sequentialRead: true
+    });
+    const meta = await decoder.metadata();
+    if (!meta.width || !meta.height || (meta.pages ?? 1) !== 1 ||
+        !["jpeg", "png", "webp"].includes(meta.format)) {
+      throw new Error("Unsupported or invalid image");
+    }
+    safeBytes = await decoder.rotate()
+      .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 85, effort: 4 }).toBuffer();
+    if (!safeBytes.length || safeBytes.length > MAX_BYTES) throw new Error("Converted image is too large");
+  } catch {
+    throw new Error("Image could not be safely validated and converted");
+  }
+  const safeType = "image/webp";
   const key = "private/hub-claim/" + id + "/" + randomUUID();
   const object = storage();
-  await object.put({ objectKey: key, contentType: input.contentType, body: input.bytes });
+  await object.put({ objectKey: key, contentType: safeType, body: safeBytes });
   try {
     const head = await object.head(key);
-    if (!head || head.byteSize !== input.bytes.length || head.contentType !== input.contentType) {
+    if (!head || head.byteSize !== safeBytes.length || head.contentType !== safeType) {
       throw new Error("Private upload verification failed");
     }
     const uow = new PostgresUnitOfWork(pool);
@@ -117,7 +140,7 @@ export async function uploadOwnedHubClaimMedia(principal: SessionPrincipal, inpu
           (public_id,prospect_id,role,content_type,object_key,alt_text,rights_owner)
         VALUES ($1,$2::uuid,$3,$4,$5,$6,$7)
       `, ["hcm_" + randomUUID().replaceAll("-", ""), owner.rows[0].id, role,
-        input.contentType, key, altText, rightsOwner]);
+        safeType, key, altText, rightsOwner]);
     }, { isolation: "serializable" });
   } catch (error) {
     await object.delete(key).catch(() => undefined);
