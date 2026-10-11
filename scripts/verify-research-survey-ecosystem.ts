@@ -222,7 +222,7 @@ if (releaseArchiveChecksums["0433_research_release_archive.sql"] !== releaseArch
   errors.push("0433 checksum does not match migration bytes");
 }
 // Research schema evidence was introduced through 0433; newer unrelated migrations are allowed.
-const runtimeHead = Number(runtime.match(/EXPECTED_SCHEMA_VERSION\\s*=\\s*(\\d+)/)?.[1]);
+const runtimeHead = Number(runtime.match(/EXPECTED_SCHEMA_VERSION\s*=\s*(\d+)/)?.[1]);
 if (!Number.isSafeInteger(runtimeHead) || runtimeHead < 433) errors.push("runtime schema head predates research 0433");
 if (!qualityV3Migration.includes("ADD COLUMN quality_score")) errors.push("research quality score column missing");
 if (!qualityV3Migration.includes("ADD COLUMN answer_pattern_sha256")) errors.push("research answer-pattern fingerprint column missing");
