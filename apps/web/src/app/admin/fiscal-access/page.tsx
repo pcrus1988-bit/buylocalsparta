@@ -17,10 +17,17 @@ export default async function FiscalAccess(){
     <p>Use your existing super-admin account to access the independent KONTA MOY FISCAL administration workspace.</p>
     <p>Signed in as <strong>{admin.email}</strong>. Fiscal will create its own time-limited session; it will not share the marketplace database or browser login cookie.</p>
     {!transfer?<p>The separate Fiscal admin sign-in is not configured. FISCAL_SERVICE_BASE_URL and FISCAL_SUPERADMIN_SSO_SECRET are required.</p>:
-      <form action={transfer.targetUrl} method="post">
-        <input type="hidden" name="ticket" value={transfer.ticket}/>
-        <button type="submit" style={{padding:"13px 20px",borderRadius:10,cursor:"pointer"}}>Continue to FISCAL Admin</button>
-      </form>}
+      <div>
+        <p><strong>1. Open the protected FISCAL website.</strong> If Vercel requests authentication, complete that sign-in in the separate tab. Then return here and refresh this page to obtain a new 60-second assertion.</p>
+        <p><a href={new URL("/timologio-admin/login",transfer.targetUrl).toString()}
+          target="_blank" rel="noopener noreferrer">Open protected FISCAL portal</a></p>
+        <p><strong>2. Continue with your KONTA MOY super-admin authorization.</strong> The one-use assertion is carried in the browser URL fragment, not the HTTP request URL, and redeemed by FISCAL using a same-origin POST.</p>
+        <p><a href={new URL("/timologio-admin/sso/bridge",transfer.targetUrl).toString()+"#ticket="+encodeURIComponent(transfer.ticket)}
+          referrerPolicy="no-referrer" style={{display:"inline-block",padding:"13px 20px",borderRadius:10,background:"#171717",color:"#fff",textDecoration:"none"}}>
+          Continue securely to FISCAL Admin
+        </a></p>
+        <p style={{fontSize:13,color:"#666"}}>The assertion is valid for 60 seconds. If it expires, refresh this page and try again.</p>
+      </div>}
     <p><Link href="/admin">Return to KONTA MOY</Link></p>
   </main>;
 }
