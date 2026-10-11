@@ -36,6 +36,7 @@ for(const expected of [
  "timologio/api/console/counterparties/route.ts",
  "timologio-admin/page.tsx","timologio-admin/invitations/page.tsx",
  "timologio-admin/api/invitations/route.ts",
+ "timologio-admin/api/kyb-evidence/route.ts",
  "timologio-admin/accounts/[id]/page.tsx","timologio-admin/sso/callback/route.ts"
 ])assert.ok(routes.includes(expected),"Missing Fiscal route: "+expected);
 // Route re-exports do not inherit Next.js static segment configuration.
