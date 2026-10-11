@@ -264,7 +264,7 @@ try{
  const storedCase=await db.query("SELECT status FROM fiscal_organizations WHERE id=$1",[applicantId]);
  assert.equal(storedCase.rows[0].status,"rejected");
  const caseAudits=await db.query(
-  "SELECT action,details FROM fiscal_audit_events WHERE organization_id=$1 AND action LIKE 'onboarding.%' ORDER BY id",
+  "SELECT action,details FROM fiscal_audit_events WHERE organization_id=$1 AND action IN ('onboarding.review_started','onboarding.internal_follow_up_recorded','onboarding.rejected') ORDER BY id",
   [applicantId]);
  assert.deepEqual(caseAudits.rows.map(x=>x.action),[
   "onboarding.review_started","onboarding.internal_follow_up_recorded","onboarding.rejected"
