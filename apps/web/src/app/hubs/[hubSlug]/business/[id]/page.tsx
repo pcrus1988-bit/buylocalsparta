@@ -44,6 +44,10 @@ export default async function PublicHubClaimPage({ params }: Params) {
           <p className={styles.details}><strong>Περιοχή:</strong> {profile.hubCity} · {profile.postcode}</p>
           <p className={styles.details}><strong>Διεύθυνση:</strong> {profile.address}</p>
           <p className={styles.details}><strong>Τηλέφωνο:</strong> {profile.phone}</p>
+          {profile.description && <div className={styles.details}><h3>Σχετικά με την επιχείρηση</h3><p style={{ whiteSpace: "pre-wrap" }}>{profile.description}</p></div>}
+          {profile.openingHours && <div className={styles.details}><h3>Ωράριο λειτουργίας</h3><p style={{ whiteSpace: "pre-wrap" }}>{profile.openingHours}</p></div>}
+          {profile.instagramUrl && <p className={styles.details}><a href={profile.instagramUrl} target="_blank" rel="noopener noreferrer nofollow">Instagram ↗</a></p>}
+          {profile.facebookUrl && <p className={styles.details}><a href={profile.facebookUrl} target="_blank" rel="noopener noreferrer nofollow">Facebook ↗</a></p>}
           {profile.website && <p className={styles.details}><a href={profile.website} target="_blank" rel="noopener noreferrer nofollow">Ιστοσελίδα επιχείρησης ↗</a></p>}
         </article>
         <aside className={styles.panel}>
