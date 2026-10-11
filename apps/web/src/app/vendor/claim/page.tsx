@@ -41,13 +41,14 @@ export default async function ClaimVendorDashboard() {
         <h1 className={styles.title}>Το δωρεάν CLAIM σου.</h1>
         <p className={styles.lead}>Ενημέρωσε την παρουσία της επιχείρησής σου στο τοπικό HUB. Δεν απαιτείται συνδρομή και δεν υπάρχει πρόσβαση σε παραγγελίες, εισπράξεις ή κατάλογο προϊόντων.</p>
       </div>
+      <nav className={styles.actions} aria-label="Ενότητες CLAIM"><a href="#claim-profile">Προφίλ</a><a href="#claim-media">Εικόνες</a><a href="#claim-inquiries">Μηνύματα</a></nav>
       {!claims.length ? <section className={styles.panel}><h2>Δεν υπάρχει ενεργή δωρεάν καταχώριση</h2><p>Μετά τον έλεγχο και την έγκριση της αίτησης CLAIM, άνοιξε τον σύνδεσμο επιβεβαίωσης που θα λάβεις στο επαληθευμένο email.</p><Link className={styles.button} href="/hubs/join">Προγράμματα HUB →</Link></section>
       : <>{claims.map(profile => <div key={profile.id}>
         <div className={styles.grid}>
-          <HubClaimProfileEditor profile={profile} csrfToken={principal.csrfToken} onSave={saveClaim} />
-          <HubClaimMediaUpload claimId={profile.id} csrfToken={principal.csrfToken} items={extraById.get(profile.id)?.media??[]}/>
+          <div id="claim-profile"><HubClaimProfileEditor profile={profile} csrfToken={principal.csrfToken} onSave={saveClaim}/></div>
+          <div id="claim-media"><HubClaimMediaUpload claimId={profile.id} csrfToken={principal.csrfToken} items={extraById.get(profile.id)?.media??[]}/></div>
         </div>
-        <section className={styles.panel}>
+        <section id="claim-inquiries" className={styles.panel}>
           <h2>Αιτήματα πελατών · {extraById.get(profile.id)?.inquiries.length??0}</h2>
           <p className={styles.hint}>Μηνύματα μέσω της δημόσιας σελίδας σου. Απάντησε απευθείας στο email του ενδιαφερομένου. Δεν ενεργοποιούνται πωλήσεις ή παραγγελίες.</p>
           {(extraById.get(profile.id)?.inquiries??[]).length===0
