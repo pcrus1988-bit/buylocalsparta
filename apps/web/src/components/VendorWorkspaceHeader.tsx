@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { VENDOR_WORKSPACE_NAVIGATION } from "../lib/workspace-navigation";
+import { vendorStorefrontThemeTokens } from "../lib/vendor-storefront-theme";
 import { VendorBreadcrumbs, VendorContextNavigation, VendorDomainNavigation } from "./VendorDomainNavigation";
 import trialStyles from "./VendorTrial.module.css";
 
@@ -40,6 +41,45 @@ export function VendorWorkspaceHeader() {
     operatingModel: "MANAGED" | "SELF_GOVERNED";
     capabilities: readonly string[];
   }>();
+
+  // Keep the workspace neutral KONTA MOY chrome, but reuse this vendor's exact
+  // saved storefront colors for accents. A save event updates them immediately.
+  useEffect(() => {
+    let active = true;
+    async function syncStorefrontAccent() {
+      try {
+        const response = await fetch("/api/vendor/storefront-settings", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.json() as { settings?: { primaryColor?: string; secondaryColor?: string } };
+        if (!active || !payload.settings) return;
+        const host = document.querySelector<HTMLElement>(".vendor-app");
+        if (!host) return;
+        const tokens = vendorStorefrontThemeTokens({
+          primaryColor: payload.settings.primaryColor ?? "",
+          secondaryColor: payload.settings.secondaryColor ?? ""
+        });
+        host.style.setProperty("--vendor-workspace-primary", tokens.primaryColor);
+        host.style.setProperty("--vendor-workspace-secondary", tokens.secondaryColor);
+        host.style.setProperty("--vendor-workspace-on-primary", tokens.onPrimary);
+        host.dataset.vendorBranded = "true";
+      } catch {
+        // Theme loading is decorative; it must never block workspace navigation.
+      }
+    }
+    void syncStorefrontAccent();
+    window.addEventListener("vendor-storefront-settings-saved", syncStorefrontAccent);
+    return () => {
+      active = false;
+      window.removeEventListener("vendor-storefront-settings-saved", syncStorefrontAccent);
+      const host = document.querySelector<HTMLElement>(".vendor-app");
+      if (host?.dataset.vendorBranded === "true") {
+        host.style.removeProperty("--vendor-workspace-primary");
+        host.style.removeProperty("--vendor-workspace-secondary");
+        host.style.removeProperty("--vendor-workspace-on-primary");
+        delete host.dataset.vendorBranded;
+      }
+    };
+  }, []);
 
   // Mobile navigation should behave like a real app drawer: route changes close it,
   // Escape closes overlays, and the underlying page does not continue scrolling.
