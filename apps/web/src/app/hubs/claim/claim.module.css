@@ -2,3 +2,20 @@
 .publicLogo{display:block;max-width:140px;max-height:105px;object-fit:contain;margin:0 0 12px}.publicCover{display:block;object-fit:cover;width:100%;max-height:420px;aspect-ratio:16/7;border-radius:16px;margin:0 0 18px}.publicGallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px}.publicGallery img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px}
 
 .field>span{display:flex;align-items:center;gap:10px;line-height:1.4}.field input[type="checkbox"]{width:19px;height:19px;flex:0 0 19px;accent-color:#143e32;padding:0;margin:0;cursor:pointer}
+
+
+/* CLAIM owner and Admin View-as-Vendor intentionally share this whole workspace. */
+.workspaceTitle{font-size:clamp(1.7rem,4vw,2.5rem);line-height:1.14;margin:.6rem 0 1rem;color:#153c31}
+.workspaceNav{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+.workspaceNav a,.workspaceNav span{display:inline-flex;align-items:center;min-height:40px;padding:9px 12px;border:1px solid #c9d7cf;border-radius:12px;color:#173c32;text-decoration:none;background:#f7faf8;font-weight:600;font-size:.9rem}
+.workspaceNav span[aria-disabled="true"]{opacity:.65;cursor:default}
+.dashboardGrid{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.15fr);gap:24px;align-items:start;margin-bottom:30px}
+.dashboardGrid>*{min-width:0}
+.publicPreview{min-width:0;border-radius:20px;background:#f7f9f7;border:1px solid #d7dfd8;padding:clamp(12px,2vw,22px)}
+.previewHeading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:0 0 12px;border-bottom:1px solid #d7dfd8}
+.previewHeading h2{font-size:1.15rem;margin:8px 0 0;color:#173c32}
+.publicPreview .hero{padding-top:20px}
+.publicPreview .title{font-size:clamp(1.5rem,2.5vw,2.2rem)}
+.previewNotice{padding:12px 16px;border-left:3px solid #526f5a;background:#f2f5ef;color:#40564a;border-radius:8px}
+@media(max-width:930px){.dashboardGrid{grid-template-columns:1fr}}
+@media(max-width:600px){.workspaceNav{display:grid;grid-template-columns:1fr}.workspaceNav a,.workspaceNav span{justify-content:center}.publicPreview{padding:12px}}
