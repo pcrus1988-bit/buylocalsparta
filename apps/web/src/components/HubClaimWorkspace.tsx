@@ -3,6 +3,7 @@ import { HubClaimProfileEditor } from "./HubClaimProfileEditor";
 import { HubClaimPublicContent } from "./HubClaimPublicContent";
 import type { HubClaimMedia } from "../lib/hub-claim-media-runtime";
 import type { HubClaimPublicProfile } from "../lib/hub-claim-runtime";
+import { hubClaimPublicPath } from "../lib/hub-claim-public-url";
 import styles from "../app/hubs/claim/claim.module.css";
 
 type Props = {
@@ -44,7 +45,7 @@ export function HubClaimWorkspace({ profiles, csrfToken, onSave, media = [], pre
             </div>
             {preview || unpublished
               ? <span className={styles.hint}>Προεπισκόπηση · χωρίς δημοσίευση</span>
-              : <Link className={styles.button} href={"/hubs/" + profile.hubSlug + "/business/" + profile.id} target="_blank">Άνοιγμα δημόσιας σελίδας ↗</Link>}
+              : <Link className={styles.button} href={hubClaimPublicPath(profile)} target="_blank">Άνοιγμα δημόσιας σελίδας ↗</Link>}
           </div>
           <HubClaimPublicContent profile={profile} media={ownedMedia} preview unpublished={unpublished} />
         </section>

@@ -20,14 +20,14 @@ type ApplicationSnapshot = Readonly<{
   businessName: string; hubSlug: string; hubCity: string; hubRegion: string;
   category: string; phone: string; address: string; postcode: string;
   website?: string; websiteEmbedEnabled?: boolean; planCode: HubExpansionPlanCode;
-  publicId?: string; status?: string;
+  publicId?: string; publicSlug?: string; status?: string;
   description?: string; openingHours?: string; instagramUrl?: string; facebookUrl?: string;
 }>;
 
 async function applicationSnapshot(publicId: string): Promise<ApplicationSnapshot | undefined> {
   if (!/^[a-zA-Z0-9_-]{8,110}$/.test(publicId)) return undefined;
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
-    SELECT h.public_id,h.status,h.business_name,h.hub_slug,h.hub_city,h.hub_region,
+    SELECT h.public_id,h.public_slug,h.status,h.business_name,h.hub_slug,h.hub_city,h.hub_region,
            h.primary_category,h.phone,h.address_line,h.postal_code,h.website_url,
            COALESCE((to_jsonb(h)->>'website_embed_enabled')::boolean,false) AS website_embed_enabled,
            h.plan_code,COALESCE(cp.description,'') AS claim_description,
@@ -50,7 +50,7 @@ async function applicationSnapshot(publicId: string): Promise<ApplicationSnapsho
     website: row.website_url ? String(row.website_url) : undefined,
     websiteEmbedEnabled: row.website_embed_enabled === true,
     planCode: planCode as HubExpansionPlanCode,
-    publicId: String(row.public_id), status: String(row.status),
+    publicId: String(row.public_id), publicSlug: row.public_slug ? String(row.public_slug) : undefined, status: String(row.status),
     description: String(row.claim_description ?? ""),
     openingHours: String(row.claim_opening_hours ?? ""),
     instagramUrl: row.claim_instagram_url ? String(row.claim_instagram_url) : undefined,
@@ -80,7 +80,7 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
   const queryPlan = typeof q.plan === "string" ? getHubExpansionPlan(q.plan) : undefined;
   const plan = queryPlan ?? getHubExpansionPlan(business.planCode)!;
   const profile: HubClaimPublicProfile = {
-    id: business.publicId ?? "preview-only", hubSlug: business.hubSlug, hubCity: business.hubCity,
+    id: business.publicId ?? "preview-only", slug: business.publicSlug ?? "preview-only", hubSlug: business.hubSlug, hubCity: business.hubCity,
     hubRegion: business.hubRegion, businessName: business.businessName,
     category: business.category, phone: business.phone, address: business.address,
     postcode: business.postcode, website: business.website,

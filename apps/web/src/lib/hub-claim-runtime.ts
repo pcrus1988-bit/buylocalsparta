@@ -3,7 +3,7 @@ import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { normalizeVendorExternalWebsiteUrl, publicVendorExternalWebsiteUrl } from "./vendor-external-website";
 
 export type HubClaimPublicProfile = Readonly<{
-  id: string; hubSlug: string; hubCity: string; hubRegion: string;
+  id: string; slug: string; hubSlug: string; hubCity: string; hubRegion: string;
   businessName: string; category: string; phone: string; website?: string; websiteEmbedEnabled: boolean;
   address: string; postcode: string;
   description: string; openingHours: string;
@@ -17,7 +17,7 @@ export type HubClaimInvitation = Readonly<{
 }>;
 
 const SQL_PROFILE = `
-  SELECT h.public_id AS id,h.hub_slug,h.hub_city,h.hub_region,
+  SELECT h.public_id AS id,h.public_slug AS slug,h.hub_slug,h.hub_city,h.hub_region,
          h.business_name,h.primary_category,h.phone,h.website_url,
          COALESCE((to_jsonb(h)->>'website_embed_enabled')::boolean,false) AS website_embed_enabled,
          h.address_line,h.postal_code,
@@ -32,7 +32,7 @@ const SQL_PROFILE = `
 
 function asProfile(row: SqlRow): HubClaimPublicProfile {
   return {
-    id: String(row.id), hubSlug: String(row.hub_slug),
+    id: String(row.id), slug: String(row.slug), hubSlug: String(row.hub_slug),
     hubCity: String(row.hub_city), hubRegion: String(row.hub_region),
     businessName: String(row.business_name), category: String(row.primary_category),
     phone: String(row.phone), website: row.website_url ? String(row.website_url) : undefined,
@@ -46,10 +46,15 @@ function asProfile(row: SqlRow): HubClaimPublicProfile {
 
 function validId(id: string): boolean { return /^hubprospect_[a-zA-Z0-9_-]{6,90}$/.test(id); }
 
-export async function getPublicHubClaim(hubSlug: string, id: string): Promise<HubClaimPublicProfile | undefined> {
-  if (!validId(id) || !/^[a-z0-9-]{2,80}$/.test(hubSlug)) return undefined;
+export async function getPublicHubClaim(hubSlug: string, idOrSlug: string): Promise<HubClaimPublicProfile | undefined> {
+  if (!/^[a-z0-9-]{2,80}$/.test(hubSlug)) return undefined;
+  // Legacy public IDs are accepted only for permanent redirects; new links use slugs.
+  // Select a fixed indexed column instead of an OR query to keep canonical lookups fast.
+  const lookupColumn = validId(idOrSlug) ? "h.public_id"
+    : /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(idOrSlug) ? "h.public_slug" : undefined;
+  if (!lookupColumn) return undefined;
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(
-    SQL_PROFILE + " AND h.public_id=$1 AND h.hub_slug=$2 LIMIT 1", [id, hubSlug]
+    SQL_PROFILE + ` AND ${lookupColumn}=$1 AND h.hub_slug=$2 LIMIT 1`, [idOrSlug, hubSlug]
   );
   return result.rowCount ? asProfile(result.rows[0]) : undefined;
 }

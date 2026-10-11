@@ -3,8 +3,12 @@ import Link from "next/link";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { listPublicHubClaims } from "../../../lib/hub-claim-runtime";
+import { hubClaimPublicPath } from "../../../lib/hub-claim-public-url";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 import styles from "../claim/claim.module.css";
+
+// The directory reads live CLAIM records; never prerender it without a database.
+export const dynamic = "force-dynamic";
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/hubs/businesses", {
@@ -32,7 +36,7 @@ export default async function HubClaimDirectoryPage() {
           <div className={styles.kicker}>HUB {business.hubCity}</div>
           <h2>{business.businessName}</h2>
           <p className={styles.details}>{business.category} · {business.hubRegion}</p>
-          <Link className={styles.button} href={"/hubs/" + business.hubSlug + "/business/" + business.id}>Δες την επιχείρηση →</Link>
+          <Link className={styles.button} href={hubClaimPublicPath(business)}>Δες την επιχείρηση →</Link>
         </article>
       )}</div>}
       <p className={styles.footer}>Προβάλλονται έως 100 πρόσφατες εγκεκριμένες καταχωρίσεις. Εκκρεμείς αιτήσεις δεν εμφανίζονται.</p>
