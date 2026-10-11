@@ -43,8 +43,20 @@ BEGIN
     OR OLD.state<>'pending' OR NEW.state='pending' THEN
    RAISE EXCEPTION 'MFA recovery case identity and closed states are immutable';
  END IF;
+ -- A privileged application bug cannot mark a case completed with one vote.
+ -- Approval rows are immutable and UNIQUE per independent marketplace actor.
+ IF NEW.state='completed' THEN
+   IF OLD.expires_at<=now() OR
+     (SELECT count(*) FROM public.fiscal_mfa_recovery_approvals a
+      WHERE a.case_id=OLD.id AND a.approver_kind='marketplace_super_admin'
+        AND a.attested_offline_identity=true AND a.evidence_ref=OLD.evidence_ref
+        AND NOT (OLD.target_kind='marketplace_super_admin' AND a.approver_ref=OLD.target_ref))<>2
+   THEN
+     RAISE EXCEPTION 'MFA recovery completion requires exactly two independent approvals';
+   END IF;
+ END IF;
  RETURN NEW;
-END $$;
+END $;
 CREATE TRIGGER fiscal_mfa_recovery_case_guard
  BEFORE UPDATE OR DELETE ON public.fiscal_mfa_recovery_cases
  FOR EACH ROW EXECUTE FUNCTION public.fiscal_mfa_recovery_case_integrity();
