@@ -7,7 +7,7 @@
 - **Code/deployment root:** fiscal/service
 - **Region:** fra1 (Frankfurt)
 - **Protection:** Vercel SSO applies to all targets. Not a public launch.
-- **Source:** feature branch feat/timologio-fiscal-foundation-20261009 / PR #1431.
+- **Source:** FISCAL foundation PR #1431 was merged into main on 2026-10-11. Follow-on host-routing correction: PR #1463 (draft until integration checks pass).
 - **Database:** Dedicated Supabase Frankfurt project `kcpwxplxqtqdsfwlfsaa` provisioned. Migrations through `0013` are present, and additive `0014` foreign-key indexes are applied. Production database connectivity from the deployed app still requires a live health check.
 - **Custom DNS:** Not configured.
 - **Legal invoice issuance:** Not implemented or activated.
@@ -90,4 +90,22 @@ The standalone app contains only /timologio, /timologio-admin and their declared
 - Advisor verification afterwards reported **no unindexed foreign keys**. The unused-index notices on this empty database do not justify removing performance indexes.
 - The new protected Vercel Preview deployment of commit `4787dfa88a61998ead5d5afd201352fe95352f3d` was **READY**. This confirms the standalone build completed, not that production authentication, issuance, browser journeys or full GitHub CI have passed.
 - Database currently has zero organizations, zero users and zero saved sandbox journals. Do not create artificial customer records on protected production or open public registration until identity, KYB and abuse checks are implemented.
-- Production-target Vercel deployment remains SSO-protected. This GitHub PR remains draft and not mergeable. No lawfully valid Greek invoicing, payment collection, official ERP posting or AADE transmission is enabled.
+- FISCAL's protected production deployment is READY and foundation PR #1431 is merged. This does not authorize public service. No lawfully valid Greek invoicing, payment collection, official ERP posting or AADE transmission is enabled.
+
+
+## Milestone 19 — host routing and SSO entrypoint (2026-10-11)
+
+**Separate origins are mandatory:** `kontamou.site` hosts marketplace authentication and vendor-side consent only; the independent service at `https://konta-moy-fiscal.vercel.app` owns merchant sessions, draft APIs, balances, and its Fiscal database. Never proxy merchant cookies or reuse the marketplace PostgreSQL connection.
+
+The marketplace proxy delegates `GET/HEAD /timologio/*` navigation by a private/no-store 307 to the configured distinct HTTPS `FISCAL_SERVICE_BASE_URL`. The two exceptions are `/timologio/marketplace-link` (marketplace vendor confirmation page) and `POST /timologio/api/marketplace-link/confirm` (vendor-authorized confirmation API). Other marketplace `/timologio/api/*` and `/timologio-admin/api/*` requests return 404, never silently forwarding request bodies. Visiting marketplace `/timologio-admin/*` sends the operator to `/admin/fiscal-access`, where existing `super_admin` privileges authorize a one-use, signed SSO handoff. The FISCAL service itself continues to expose its own real authenticated routes.
+
+**Manual protected-browser acceptance still required** after the PR is merged and marketplace deployment is READY:
+
+1. With an authorized marketplace super-admin session and Vercel Deployment Protection access to the FISCAL origin, open `https://kontamou.site/admin/fiscal-access`; confirm the handoff form appears and posts to the exact allowlisted FISCAL HTTPS origin.
+2. Submit once. Confirm a new independent FISCAL admin session can access `/timologio-admin`, is not scoped as a marketplace vendor, and that the marketplace session remains unaffected.
+3. Attempt a replay of the same 60-second assertion, a wrong Origin and an expired assertion; all must be denied. Confirm logout revokes the FISCAL session and a new handoff still requires marketplace login.
+4. Navigate from marketplace `/timologio/login` to the independent FISCAL origin (307, no-store, no leaked marketplace cookie). Confirm the independent merchant login still requires a FISCAL account and public registration stays disabled.
+5. Confirm vendor consent is still served on the marketplace and that other marketplace FISCAL APIs reject requests. Do not create live invoices, live order sync, taxpayer records or official accounting entries.
+6. Check independent `/timologio/api/health` with appropriate protected access, and verify application and database audit/log monitoring.
+
+**Caution:** Vercel Deployment Protection SSO is additional to marketplace-issued Fiscal SSO. The current protected production cannot serve arbitrary public users. A READY deployment or CI success alone does not prove actual browser SSO success.
