@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminAgreementRenewalForm } from "../../../../components/AdminAgreementRenewalForm";
 import { AdminCommercialAgreementsClient } from "../../../../components/AdminCommercialAgreementsClient";
+import { AdminPlanAgreementPreview } from "../../../../components/AdminPlanAgreementPreview";
 import { AdminStatusStack, type AdminRecordStateTone } from "../../../../components/AdminRecordStatus";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
@@ -85,6 +86,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
         </aside>
       </div>}
     </section>
+
+    <AdminPlanAgreementPreview />
 
     <section className="vendor-section section-tint"><div className="shell">
       <details className="workspace-record-details admin-commercial-controls">
