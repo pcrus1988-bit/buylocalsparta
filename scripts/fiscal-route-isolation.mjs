@@ -28,6 +28,7 @@ for(const path of forbiddenInFiscal)assert.ok(!routes.includes(path),"Forbidden 
 for(const expected of [
  "timologio/page.tsx","timologio/drafts/page.tsx","timologio/drafts/[id]/page.tsx",
  "timologio/counterparties/page.tsx",
+ "timologio/journal/page.tsx","timologio/api/console/journal-preview/route.ts",
  "timologio/api/console/drafts/route.ts","timologio/api/console/preview/route.ts","timologio/api/v1/drafts/route.ts",
  "timologio/api/console/counterparties/route.ts",
  "timologio-admin/page.tsx","timologio-admin/sso/callback/route.ts"
@@ -36,6 +37,7 @@ for(const expected of [
 for(const route of [
  "timologio/dashboard/page.tsx","timologio/developers/page.tsx","timologio/drafts/page.tsx","timologio/drafts/[id]/page.tsx",
  "timologio/counterparties/page.tsx",
+ "timologio/journal/page.tsx",
  "timologio/login/page.tsx","timologio-admin/page.tsx",
  "timologio-admin/login/page.tsx","timologio-admin/compliance/page.tsx"
 ]){
