@@ -513,6 +513,38 @@ try{
  assert.equal(stillPending.rows[0].status,"pending_review",
   "Evidence never promotes a merchant to approved");
  console.log("PASS: immutable KYB references, RLS, foreign-key tenant and no approval");
+ // Step-up MFA factors and sessions never expose secrets to anonymous roles.
+ for(const table of ["fiscal_operator_mfa_factors","fiscal_operator_mfa_sessions"]){
+  const row=await db.query("SELECT relrowsecurity FROM pg_class WHERE oid=$1::regclass",["public."+table]);
+  assert.equal(row.rows[0].relrowsecurity,true);
+ }
+ const mfa=await db.query(
+  `INSERT INTO fiscal_operator_mfa_factors(
+    actor_kind,actor_ref,secret_ciphertext,pending_expires_at)
+   VALUES('fiscal_admin',$1,$2,now()+interval '10 minutes') RETURNING actor_ref`,
+  [uid,"v1:"+"a".repeat(24)+":"+"b".repeat(64)+":"+"c".repeat(32)]);
+ assert.equal(mfa.rows[0].actor_ref,uid);
+ await db.query(
+  `UPDATE fiscal_operator_mfa_factors SET status='active',activated_at=now(),last_used_step=123
+    WHERE actor_kind='fiscal_admin' AND actor_ref=$1`,[uid]);
+ await db.query(
+  `INSERT INTO fiscal_operator_mfa_sessions(
+     actor_kind,actor_ref,session_binding_hash,token_hash,expires_at)
+   VALUES('fiscal_admin',$1,$2,$3,now()+interval '15 minutes')`,
+  [uid,"d".repeat(64),"e".repeat(64)]);
+ await db.query("SAVEPOINT mfa_invalid_ttl");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_operator_mfa_sessions(actor_kind,actor_ref,session_binding_hash,token_hash,expires_at)
+    VALUES('fiscal_admin',$1,$2,$3,now()+interval '1 hour')`,
+  [uid,"f".repeat(64),"1".repeat(64)]));
+ await db.query("ROLLBACK TO SAVEPOINT mfa_invalid_ttl");
+ await db.query("SAVEPOINT mfa_foreign_factor");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_operator_mfa_sessions(actor_kind,actor_ref,session_binding_hash,token_hash,expires_at)
+    VALUES('fiscal_admin','00000000-0000-4000-8000-000000000000',$1,$2,now()+interval '5 minutes')`,
+  ["f".repeat(64),"2".repeat(64)]));
+ await db.query("ROLLBACK TO SAVEPOINT mfa_foreign_factor");
+ console.log("PASS: RLS TOTP factors, tenant bound step-up sessions and 15-minute expiry");
  await db.query("ROLLBACK");
  console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, approved-only console draft creation, immutable tenant-bound item snapshots, unverified counterparty registry, immutable regulatory atlas, disabled candidate tax rules, idempotency, tenant-bound balanced sandbox journals, verified marketplace pairing, SSO replay protection, immutable audit");
 }catch(error){await db.query("ROLLBACK").catch(()=>{});throw error;}
