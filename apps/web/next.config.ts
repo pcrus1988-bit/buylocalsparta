@@ -34,6 +34,12 @@ const VENDOR_SAME_ORIGIN_FRAME_POLICY = CONTENT_SECURITY_POLICY.replace(
   "frame-ancestors 'self'"
 );
 
+// Only verified public CLAIM profiles may embed a consenting visitor's HTTPS external site.
+// Keep X-Frame-Options DENY / frame-ancestors none on the KONTA MOY page itself.
+const CLAIM_EXTERNAL_WEBSITE_FRAME_POLICY = CONTENT_SECURITY_POLICY.replace(
+  /frame-src 'self'(?=;)/, "frame-src 'self' https:"
+);
+
 const SECURITY_HEADERS = [
   { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -187,6 +193,12 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "Content-Security-Policy", value: VENDOR_SAME_ORIGIN_FRAME_POLICY },
           { key: "X-Frame-Options", value: "SAMEORIGIN" }
+        ]
+      },
+      {
+        source: "/hubs/:hubSlug/business/:id",
+        headers: [
+          { key: "Content-Security-Policy", value: CLAIM_EXTERNAL_WEBSITE_FRAME_POLICY }
         ]
       },
       ...SEARCH_EXCLUDED_SOURCES.map((source) => ({ source, headers: [...SEARCH_EXCLUDED_HEADERS] }))
