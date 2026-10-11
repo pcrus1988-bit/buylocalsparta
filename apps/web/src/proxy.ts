@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getActivePublicCmsRedirect } from "./lib/public-cms-redirects";
 import { seoDocumentRobotsHeader } from "./lib/seo-request-indexing";
+import { fiscalMarketplaceRoute } from "./lib/fiscal-service-routing";
 
 const MARKETPLACE_COOKIE = "bls_marketplace";
 const LEGACY_VISITOR_COOKIE = "bls_visitor";
@@ -204,6 +205,28 @@ export async function proxy(request: NextRequest) {
     if (!allowed || marketplaceOnly) return new NextResponse(null,{status:404,headers:{"cache-control":"no-store","x-robots-tag":"noindex"}});
     return NextResponse.next();
   }
+  const fiscalRoute = fiscalMarketplaceRoute({
+    pathname: request.nextUrl.pathname,
+    search: request.nextUrl.search,
+    method: request.method,
+    marketplaceOrigin: request.nextUrl.origin,
+    fiscalBaseUrl: process.env.FISCAL_SERVICE_BASE_URL
+  });
+  if (fiscalRoute.kind === "redirect" || fiscalRoute.kind === "local_admin_sso") {
+    const destination = fiscalRoute.kind === "redirect" ?
+      fiscalRoute.url : new URL(fiscalRoute.path,request.url).toString();
+    const response = NextResponse.redirect(destination,307);
+    response.headers.set("cache-control","private, no-store");
+    response.headers.set("referrer-policy","no-referrer");
+    response.headers.set("x-robots-tag","noindex, nofollow");
+    return response;
+  }
+  if (fiscalRoute.kind === "deny")
+    return NextResponse.json({error:"FISCAL_REQUIRES_INDEPENDENT_SERVICE"},
+      {status:404,headers:{"cache-control":"no-store","x-robots-tag":"noindex"}});
+  if (fiscalRoute.kind === "unavailable")
+    return NextResponse.json({error:"FISCAL_ROUTE_NOT_CONFIGURED"},
+      {status:503,headers:{"cache-control":"no-store","retry-after":"300","x-robots-tag":"noindex"}});
   if (request.nextUrl.pathname.startsWith("/api/health")) return NextResponse.next();
   if (STATIC_ASSET_PATH.test(request.nextUrl.pathname)) return NextResponse.next();
 
