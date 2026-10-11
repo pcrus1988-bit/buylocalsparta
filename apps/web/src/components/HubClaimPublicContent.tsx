@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { VendorExternalWebsiteFrame } from "./VendorExternalWebsiteFrame";
 import type { HubClaimPublicProfile } from "../lib/hub-claim-runtime";
 import styles from "../app/hubs/claim/claim.module.css";
@@ -7,7 +8,9 @@ import styles from "../app/hubs/claim/claim.module.css";
 export function HubClaimPublicContent({ profile }: { profile: HubClaimPublicProfile }) {
   return <>
     <section className="shell">
+      {profile.coverMediaId && <div className={styles.coverImage}><Image src={"/api/hubs/claim/image/" + profile.coverMediaId} width={1280} height={420} alt={"Φωτογραφία επιχείρησης " + profile.businessName} sizes="(max-width: 800px) 100vw, 1200px" /></div>}
       <div className={styles.hero}>
+        {profile.logoMediaId && <div className={styles.brandLogo}><Image src={"/api/hubs/claim/image/" + profile.logoMediaId} width={110} height={110} alt={"Λογότυπο " + profile.businessName} /></div>}
         <div className={styles.kicker}>KONTA MOY · HUB {profile.hubCity}</div>
         <h1 className={styles.title}>{profile.businessName}</h1>
         <p className={styles.lead}>{profile.category} · {profile.hubCity}, {profile.hubRegion}</p>
