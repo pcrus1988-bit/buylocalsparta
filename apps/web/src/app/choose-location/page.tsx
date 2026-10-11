@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { SiteFooter } from "../../components/SiteFooter";
 import { LocationGatewayV2, type LocationGatewayRuntimeHubV2 } from "../../components/LocationGatewayV2";
-import { assertExpansionHubMaster, getExpansionHubById } from "../../lib/expansion-hubs";
+import { assertExpansionHubMaster } from "../../lib/expansion-hubs";
+import { getExpansionHubById } from "../../lib/hub-resolver";
 import { getExpansionHubRuntimeSnapshot } from "../../lib/expansion-hub-runtime";
 import { listPublicClaimHubSlugs } from "../../lib/hub-claim-runtime";
 
