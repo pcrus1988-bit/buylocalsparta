@@ -6,6 +6,33 @@ const digest=x=>createHash("sha256").update(x).digest("hex");
 export async function runFiscalRecoveryHttpAcceptance({send,db,base,reviewer,merchant,federated,mfaPath,suffix,reviewUserEmail}){
  const path="/timologio-admin/api/mfa/recovery";
  const evidenceRef="REC-CI-OFFLINE-"+suffix.toUpperCase();
+ const ownerId=await db.query("SELECT id::text FROM fiscal_users WHERE email=$1",[reviewUserEmail]);
+ assert.equal(ownerId.rowCount,1);
+ const contactOwnerId=ownerId.rows[0].id;
+ await db.query(
+  `INSERT INTO fiscal_security_alert_contacts(
+     audience,recipient_email,verified_at,verified_by,verification_method)
+   VALUES('soc',$1,now(),'ci_independent_security_officer','organization_security_registry')`,
+  ["soc-security-"+suffix+"@example.test"]);
+ const beforeContact=await send(path,{action:"request",evidenceRef},reviewer);
+ assert.equal(beforeContact.status,503,
+  "Recovery must fail closed until the account owner and SOC BOTH have verified contacts");
+ const noPrematureCase=await db.query(
+  "SELECT count(*)::int AS n FROM fiscal_mfa_recovery_cases WHERE target_kind='fiscal_admin' AND target_ref=$1",
+  [contactOwnerId]);
+ assert.equal(noPrematureCase.rows[0].n,0,"A missing alert destination rolls back the recovery case");
+ await db.query(
+  `INSERT INTO fiscal_security_alert_contacts(
+     audience,actor_kind,actor_ref,recipient_email,verified_at,verified_by,verification_method)
+   VALUES('account_owner','fiscal_admin',$1,$2,now(),
+      'ci_independent_security_officer','independent_offline_callback')`,
+  [contactOwnerId,reviewUserEmail]);
+ const unauthorizedDispatch=await fetch(base+"/timologio/api/security-alert-dispatch",{
+  method:"POST",headers:{"Content-Type":"application/json"},
+  body:"{}",signal:AbortSignal.timeout(10000)});
+ assert.equal(unauthorizedDispatch.status,401,
+  "No user session can invoke the private security alert dispatcher");
+
  const unauth=await send(path,{action:"request",evidenceRef},merchant);
  assert.equal(unauth.status,401,"Merchant cannot request administrator recovery");
  const origin=await send(path,{action:"request",evidenceRef},{...reviewer,origin:"https://untrusted.invalid"});
@@ -85,6 +112,19 @@ export async function runFiscalRecoveryHttpAcceptance({send,db,base,reviewer,mer
  const freshCode=fiscalTotp(fresh.body.secret,Math.floor(Date.now()/30000));
  const next=await send(mfaPath,{action:"activate",code:freshCode},reviewer);
  assert.equal(next.status,200);
+ const queue=await db.query(
+  `SELECT o.event_code,o.status,o.attempts,count(*)::int AS count,
+      bool_and(c.verified_at IS NOT NULL AND c.revoked_at IS NULL) AS verified
+   FROM fiscal_security_alert_outbox o
+   JOIN fiscal_security_alert_contacts c ON c.id=o.contact_id
+   WHERE o.case_id=$1 GROUP BY o.event_code,o.status,o.attempts ORDER BY o.event_code`,
+  [caseId]);
+ assert.deepEqual(queue.rows.map(x=>[x.event_code,x.status,x.attempts,x.count]),[
+  ["approval_recorded","pending",0,4],
+  ["completed","pending",0,2],
+  ["requested","pending",0,2]
+ ],"Every recovery event must atomically queue independent SOC and owner notifications");
+ assert.ok(queue.rows.every(x=>x.verified));
  const replacementCookie=next.cookieHeaders.map(x=>x.split(";")[0])
   .find(x=>x.startsWith("km_fiscal_operator_mfa="));
  assert.ok(replacementCookie);
