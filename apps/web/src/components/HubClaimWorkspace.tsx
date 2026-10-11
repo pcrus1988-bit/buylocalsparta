@@ -44,7 +44,7 @@ export function HubClaimWorkspace({ profiles, csrfToken, onSave, media = [], pre
             </div>
             {preview || unpublished
               ? <span className={styles.hint}>Προεπισκόπηση · χωρίς δημοσίευση</span>
-              : <Link className={styles.button} href={"/hubs/" + profile.hubSlug + "/business/" + profile.id} target="_blank">Άνοιγμα δημόσιας σελίδας ↗</Link>}
+              : <Link className={styles.button} href={"/hubs/" + profile.hubSlug + "/business/" + profile.slug} target="_blank">Άνοιγμα δημόσιας σελίδας ↗</Link>}
           </div>
           <HubClaimPublicContent profile={profile} media={ownedMedia} preview unpublished={unpublished} />
         </section>
