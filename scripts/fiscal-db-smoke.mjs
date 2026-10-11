@@ -477,6 +477,42 @@ try{
  await db.query("UPDATE fiscal_email_verification_challenges SET status='revoked',revoked_at=now() WHERE id=$1",
   [otherProof.rows[0].id]);
  console.log("PASS: email proof RLS, one-time use, owner identity immutability and revocation");
+ // KYB source evidence is immutable and does not grant approval.
+ const evidenceSchema=await db.query(
+  "SELECT relrowsecurity FROM pg_class WHERE oid='public.fiscal_kyb_evidence_events'::regclass");
+ assert.equal(evidenceSchema.rows[0].relrowsecurity,true);
+ const evidence=await db.query(
+  `INSERT INTO fiscal_kyb_evidence_events
+   (organization_id,check_type,outcome,source_kind,source_reference,recorded_by_kind,recorded_by_ref)
+   VALUES($1,'business_registration','evidence_recorded','gemi_public_registry','GEMI:CI_TEST_123',
+   'fiscal_admin','ci_fiscal_operator_123') RETURNING id`,[oid]);
+ assert.equal(evidence.rows.length,1);
+ const evId=evidence.rows[0].id;
+ await db.query("SAVEPOINT evidence_update");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_kyb_evidence_events SET outcome='requested' WHERE id=$1",[evId]));
+ await db.query("ROLLBACK TO SAVEPOINT evidence_update");
+ await db.query("SAVEPOINT evidence_delete");
+ await assert.rejects(()=>db.query("DELETE FROM fiscal_kyb_evidence_events WHERE id=$1",[evId]));
+ await db.query("ROLLBACK TO SAVEPOINT evidence_delete");
+ await db.query("SAVEPOINT forbidden_source");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_kyb_evidence_events
+   (organization_id,check_type,outcome,source_kind,source_reference,recorded_by_kind,recorded_by_ref)
+   VALUES($1,'vat_identity','evidence_recorded','none',NULL,'fiscal_admin','ci_fiscal_operator_123')`,
+  [oid]));
+ await db.query("ROLLBACK TO SAVEPOINT forbidden_source");
+ await db.query("SAVEPOINT wrong_tenant_org");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_kyb_evidence_events
+   (organization_id,check_type,outcome,source_kind,source_reference,recorded_by_kind,recorded_by_ref)
+   VALUES('00000000-0000-4000-8000-000000000000','vat_identity','requested','none',NULL,
+   'fiscal_admin','ci_fiscal_operator_123')`));
+ await db.query("ROLLBACK TO SAVEPOINT wrong_tenant_org");
+ const stillPending=await db.query("SELECT status FROM fiscal_organizations WHERE id=$1",[oid]);
+ assert.equal(stillPending.rows[0].status,"pending_review",
+  "Evidence never promotes a merchant to approved");
+ console.log("PASS: immutable KYB references, RLS, foreign-key tenant and no approval");
  await db.query("ROLLBACK");
  console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, approved-only console draft creation, immutable tenant-bound item snapshots, unverified counterparty registry, immutable regulatory atlas, disabled candidate tax rules, idempotency, tenant-bound balanced sandbox journals, verified marketplace pairing, SSO replay protection, immutable audit");
 }catch(error){await db.query("ROLLBACK").catch(()=>{});throw error;}
