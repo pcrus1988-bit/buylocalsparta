@@ -6,7 +6,7 @@ export function validHubClaimWebsite(raw: string): string | undefined {
   try {
     const url = new URL(raw.trim());
     if (url.protocol !== "https:" || url.username || url.password || url.port && url.port !== "443") return undefined;
-    if (!url.hostname || url.hostname.length > 253 || isIP(url.hostname) || /(^|\.)localhost$/.test(url.hostname)) return undefined;
+    if (!url.hostname || url.hostname.length > 253 || isIP(url.hostname.replace(/^\\[|\\]$/g, "")) || /(^|\.)localhost$/.test(url.hostname)) return undefined;
     const host = url.hostname.toLowerCase().replace(/\.$/, "");
     if (host === "kontamou.site" || host.endsWith(".kontamou.site")
       || host === "kontamou.gr" || host.endsWith(".kontamou.gr")
