@@ -140,6 +140,30 @@ try{
  assert.equal(calc.body.preview.issuanceEnabled,false);
  assert.equal(calc.body.preview.legalTaxClassification,false);
 
+
+ const journalEntries=[
+  {account:"cash_test",side:"debit",amountMinor:12500},
+  {account:"sales_test",side:"credit",amountMinor:12500}
+ ];
+ const unauthJournal=await send("/timologio/api/console/journal-preview",{entries:journalEntries});
+ assert.equal(unauthJournal.status,401,"Journal preview must reject anonymous requests");
+ const csrfJournal=await send("/timologio/api/console/journal-preview",{entries:journalEntries},{
+  ...merchant,csrf:"f".repeat(64)
+ });
+ assert.equal(csrfJournal.status,403,"Journal preview must enforce CSRF");
+ const validJournal=await send("/timologio/api/console/journal-preview",{entries:journalEntries},merchant);
+ assert.equal(validJournal.status,200,"Balanced journal must preview");
+ assert.equal(validJournal.body.preview.totalDebitMinor,12500);
+ assert.equal(validJournal.body.preview.totalCreditMinor,12500);
+ assert.equal(validJournal.body.preview.postingEnabled,false);
+ assert.equal(validJournal.body.preview.certifiedBookkeeping,false);
+ const unbalancedJournal=await send("/timologio/api/console/journal-preview",{
+  entries:[journalEntries[0],{...journalEntries[1],amountMinor:12499}]
+ },merchant);
+ assert.equal(unbalancedJournal.status,400,"Unbalanced journal must fail closed");
+ assert.equal(unbalancedJournal.body.error,"JOURNAL_NOT_BALANCED");
+ console.log("PASS: sandbox journal preview, balancing, no posting, auth and CSRF");
+
  const party=await send("/timologio/api/console/counterparties",{
   organizationId:orgId,kind:"business",legalName:"Synthetic Trading "+suffix,vatNumber:"333222111"
  },merchant);
