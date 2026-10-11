@@ -73,7 +73,8 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
     hubRegion: business.hubRegion, businessName: business.businessName,
     category: business.category, phone: business.phone, address: business.address,
     postcode: business.postcode, website: business.website,
-    websiteEmbedEnabled: business.websiteEmbedEnabled ?? false
+    websiteEmbedEnabled: business.websiteEmbedEnabled ?? false,
+    description: "", openingHours: ""
   };
   const isClaim = plan.code === "claim";
   const selling = plan.ecommerce;
@@ -89,6 +90,7 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
         <div className="hero-actions">
           <Link className="button button-secondary" href="/admin/applications">← Αιτήσεις HUB</Link>
           <Link className="button button-secondary" href="/admin/partners">← Partner directory</Link>
+          <Link className="button button-secondary" href="/admin/hubs/claim-media">CLAIM · Εγκρίσεις φωτογραφιών</Link>
         </div>
       </div>
     </section>

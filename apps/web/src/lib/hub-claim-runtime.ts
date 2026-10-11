@@ -6,6 +6,8 @@ export type HubClaimPublicProfile = Readonly<{
   id: string; hubSlug: string; hubCity: string; hubRegion: string;
   businessName: string; category: string; phone: string; website?: string; websiteEmbedEnabled: boolean;
   address: string; postcode: string;
+  description: string; openingHours: string;
+  instagramUrl?: string; facebookUrl?: string;
 }>;
 
 export type HubClaimInvitation = Readonly<{
@@ -18,8 +20,12 @@ const SQL_PROFILE = `
   SELECT h.public_id AS id,h.hub_slug,h.hub_city,h.hub_region,
          h.business_name,h.primary_category,h.phone,h.website_url,
          COALESCE((to_jsonb(h)->>'website_embed_enabled')::boolean,false) AS website_embed_enabled,
-         h.address_line,h.postal_code
+         h.address_line,h.postal_code,
+         COALESCE(cp.description,'') AS claim_description,
+         COALESCE(cp.opening_hours,'') AS claim_opening_hours,
+         cp.instagram_url AS claim_instagram_url, cp.facebook_url AS claim_facebook_url
   FROM hub_expansion_prospects h
+  LEFT JOIN hub_claim_profiles cp ON cp.prospect_id=h.id
   WHERE h.plan_code='claim' AND h.status='converted'
     AND h.owner_user_id IS NOT NULL
 `;
@@ -31,7 +37,10 @@ function asProfile(row: SqlRow): HubClaimPublicProfile {
     businessName: String(row.business_name), category: String(row.primary_category),
     phone: String(row.phone), website: row.website_url ? String(row.website_url) : undefined,
     websiteEmbedEnabled: Boolean(publicVendorExternalWebsiteUrl({ enabled: row.website_embed_enabled === true, url: row.website_url })),
-    address: String(row.address_line), postcode: String(row.postal_code)
+    address: String(row.address_line), postcode: String(row.postal_code),
+    description: String(row.claim_description ?? ""), openingHours: String(row.claim_opening_hours ?? ""),
+    instagramUrl: row.claim_instagram_url ? String(row.claim_instagram_url) : undefined,
+    facebookUrl: row.claim_facebook_url ? String(row.claim_facebook_url) : undefined
   };
 }
 
@@ -130,6 +139,27 @@ function checkedText(value: FormDataEntryValue | null, name: string, max: number
   return text;
 }
 
+function optionalClaimText(value: FormDataEntryValue | null, name: string, max: number): string {
+  if (value === null) return "";
+  if (typeof value !== "string") throw new Error("INVALID_CLAIM_" + name);
+  const normalized = value.trim();
+  if (normalized.length > max) throw new Error("INVALID_CLAIM_" + name);
+  return normalized;
+}
+
+function optionalClaimSocialUrl(value: FormDataEntryValue | null, provider: "instagram" | "facebook"): string | null {
+  const raw = optionalClaimText(value, provider.toUpperCase(), 240);
+  if (!raw) return null;
+  let url: URL;
+  try { url = new URL(raw); } catch { throw new Error("INVALID_CLAIM_" + provider.toUpperCase()); }
+  const allowed = provider === "instagram" ? ["instagram.com"] : ["facebook.com", "fb.com"];
+  const hostname = url.hostname.toLowerCase().replace(/^www[.]/, "");
+  if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== "443") ||
+      !allowed.includes(hostname)) throw new Error("INVALID_CLAIM_" + provider.toUpperCase());
+  url.hash = "";
+  return url.toString();
+}
+
 export async function updateOwnedHubClaim(id: string, principal: SessionPrincipal, form: FormData): Promise<void> {
   if (!validId(id) || !principal.roles.includes("customer")) throw new Error("CLAIM_NOT_ALLOWED");
   const category = checkedText(form.get("category"), "CATEGORY", 100);
@@ -146,6 +176,10 @@ export async function updateOwnedHubClaim(id: string, principal: SessionPrincipa
       website = parsed.toString();
     } catch { throw new Error("INVALID_CLAIM_WEBSITE"); }
   }
+  const description = optionalClaimText(form.get("description"), "DESCRIPTION", 1200);
+  const openingHours = optionalClaimText(form.get("openingHours"), "OPENING_HOURS", 700);
+  const instagramUrl = optionalClaimSocialUrl(form.get("instagramUrl"), "instagram");
+  const facebookUrl = optionalClaimSocialUrl(form.get("facebookUrl"), "facebook");
   const websiteEmbedEnabled = form.get("websiteEmbedEnabled") === "on";
   if (websiteEmbedEnabled) {
     if (!website) throw new Error("CLAIM_WEBSITE_REQUIRED");
@@ -186,6 +220,13 @@ export async function updateOwnedHubClaim(id: string, principal: SessionPrincipa
           WHERE id=$1::uuid
         `, [owner.rows[0].id, category, phone, website]);
       }
+      await tx.query(`
+        INSERT INTO hub_claim_profiles (prospect_id,description,opening_hours,instagram_url,facebook_url,updated_at)
+        VALUES ($1::uuid,$2,$3,$4,$5,now())
+        ON CONFLICT (prospect_id) DO UPDATE SET
+          description=EXCLUDED.description,opening_hours=EXCLUDED.opening_hours,
+          instagram_url=EXCLUDED.instagram_url,facebook_url=EXCLUDED.facebook_url,updated_at=now()
+      `, [owner.rows[0].id, description, openingHours, instagramUrl, facebookUrl]);
       console.info(JSON.stringify({ event: "hub_claim.profile_updated", prospectId: id }));
     },
     { isolation: "serializable" }
