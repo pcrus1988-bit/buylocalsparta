@@ -199,11 +199,66 @@ try{
  });
  assert.equal(reviewedCase.status,200);
  assert.ok((await reviewedCase.text()).includes(followNote),"Internal immutable follow-up must render");
+
+ // Operator-only source-evidence checklist. It does NOT approve or certify the merchant.
+ const kybPath="/timologio-admin/api/kyb-evidence";
+ const baseEvidence={
+  organizationId:applicantId,checkType:"business_registration",
+  outcome:"evidence_recorded",sourceKind:"gemi_public_registry",
+  sourceReference:"GEMI:CI_REGISTRY_123"
+ };
+ const kybMerchant=await send(kybPath,baseEvidence,merchant);
+ assert.equal(kybMerchant.status,401,"Merchants cannot add operator evidence");
+ const kybForeignOrigin=await send(kybPath,baseEvidence,{
+  ...reviewer,origin:"https://untrusted.invalid"});
+ assert.equal(kybForeignOrigin.status,403,"KYB must enforce Origin");
+ const kybInvalidCsrf=await send(kybPath,baseEvidence,{
+  ...reviewer,csrf:"0".repeat(64)});
+ assert.equal(kybInvalidCsrf.status,403,"KYB must enforce CSRF");
+ const kybForgedApproval=await send(kybPath,{...baseEvidence,legalApproval:true},reviewer);
+ assert.equal(kybForgedApproval.status,400,"No KYB self-approval fields");
+ const kybForgedUrl=await send(kybPath,{
+  ...baseEvidence,sourceReference:"https://untrusted.example/id/passport"
+ },reviewer);
+ assert.equal(kybForgedUrl.status,400,"Raw links and document paths are disallowed");
+ const kybRecorded=await send(kybPath,baseEvidence,reviewer);
+ assert.equal(kybRecorded.status,201,"Operator can add a source reference to an active case");
+ assert.equal(kybRecorded.body.issuanceEnabled,false);
+ assert.equal(kybRecorded.body.legalApproval,false);
+ assert.equal(kybRecorded.body.notificationSent,false);
+ const kybSecond=await send(kybPath,{
+  organizationId:applicantId,checkType:"vat_identity",outcome:"discrepancy",
+  sourceKind:"aade_public_check",sourceReference:"AADE:CI_CHECK_123"
+ },reviewer);
+ assert.equal(kybSecond.status,201);
+ const kybCase=await fetch(base+"/timologio-admin/accounts/"+applicantId,{
+  headers:{cookie:reviewer.cookies},signal:AbortSignal.timeout(12000)});
+ assert.equal(kybCase.status,200);
+ const kybMarkup=await kybCase.text();
+ assert.ok(kybMarkup.includes("GEMI:CI_REGISTRY_123"),"Recorded KYB references must render only in operator case");
+ assert.ok(kybMarkup.includes("AADE:CI_CHECK_123"),"Discrepancy must render in operator case");
+ const storedKyb=await db.query(
+  "SELECT check_type,outcome FROM fiscal_kyb_evidence_events WHERE organization_id=$1 ORDER BY recorded_at,id",
+  [applicantId]);
+ assert.equal(storedKyb.rows.length,2);
+ const kybAudit=await db.query(
+  "SELECT count(*)::int AS n FROM fiscal_audit_events WHERE organization_id=$1 AND action='onboarding.kyb_evidence_recorded'",
+  [applicantId]);
+ assert.equal(kybAudit.rows[0].n,2);
+ const kybOrgStatus=await db.query("SELECT status FROM fiscal_organizations WHERE id=$1",[applicantId]);
+ assert.equal(kybOrgStatus.rows[0].status,"under_review","Evidence cannot approve merchants");
+ console.log("PASS: operator KYB checklist strict access, source validation, case audit, no approval");
+
  const reason="Synthetic company review is rejected because KYB evidence was not provided.";
  const rejected=await send(reviewUrl,{action:"reject",organizationId:applicantId,note:reason},reviewer);
  assert.equal(rejected.status,200);
  assert.equal(rejected.body.status,"rejected");
  assert.equal(rejected.body.issuanceEnabled,false);
+ const kybAfterRejection=await send(kybPath,{
+  organizationId:applicantId,checkType:"legal_representation",
+  outcome:"requested",sourceKind:"none",sourceReference:null
+ },reviewer);
+ assert.equal(kybAfterRejection.status,409,"Rejected cases cannot accept new evidence");
  const rejectAgain=await send(reviewUrl,{action:"reject",organizationId:applicantId,note:reason},reviewer);
  assert.equal(rejectAgain.status,409,"Rejected cases cannot be rejected twice");
  const storedCase=await db.query("SELECT status FROM fiscal_organizations WHERE id=$1",[applicantId]);
