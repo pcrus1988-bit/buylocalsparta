@@ -10,6 +10,7 @@ type Role = typeof ROLES[number];
 
 export type HubClaimMedia = Readonly<{
   id: string;
+  claimId?: string;
   role: Role;
   altText: string;
   status: "pending" | "approved" | "rejected";
@@ -32,6 +33,7 @@ function mimeMatches(type: string, bytes: Uint8Array) {
 function asMedia(row: SqlRow): HubClaimMedia {
   return {
     id: String(row.public_id),
+    claimId: row.claim_id ? String(row.claim_id) : undefined,
     role: String(row.role) as Role,
     altText: String(row.alt_text),
     status: String(row.status) as HubClaimMedia["status"],
@@ -42,7 +44,7 @@ function asMedia(row: SqlRow): HubClaimMedia {
 export async function listOwnedHubClaimMedia(principal: SessionPrincipal): Promise<HubClaimMedia[]> {
   if (!principal.roles.includes("customer")) return [];
   const r = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
-    SELECT m.public_id,m.role,m.alt_text,m.status,m.rejection_reason
+    SELECT m.public_id,h.public_id AS claim_id,m.role,m.alt_text,m.status,m.rejection_reason
     FROM hub_claim_media m JOIN hub_expansion_prospects h ON h.id=m.prospect_id
     JOIN users u ON u.id=h.owner_user_id
     WHERE u.public_id=$1 AND u.status='active' AND u.email_verified_at IS NOT NULL
