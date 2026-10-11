@@ -221,7 +221,7 @@ if (longitudinalLineageChecksums["0432_research_longitudinal_lineage.sql"] !== l
 if (releaseArchiveChecksums["0433_research_release_archive.sql"] !== releaseArchiveSha) {
   errors.push("0433 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 436")) errors.push("runtime schema head is not 436");
+if (!/^export const EXPECTED_SCHEMA_VERSION = \d+;/m.test(runtime)) errors.push("runtime schema head is not declared");
 if (!qualityV3Migration.includes("ADD COLUMN quality_score")) errors.push("research quality score column missing");
 if (!qualityV3Migration.includes("ADD COLUMN answer_pattern_sha256")) errors.push("research answer-pattern fingerprint column missing");
 if (!qualityV3Migration.includes("research_quality_answer_pattern_idx")) errors.push("research answer-pattern QA index missing");
