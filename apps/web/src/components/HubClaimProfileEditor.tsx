@@ -1,14 +1,16 @@
 import Link from "next/link";
-import type { HubClaimPublicProfile } from "../lib/hub-claim-runtime";
+import type { HubClaimPublicProfile, HubClaimMediaItem } from "../lib/hub-claim-runtime";
 import styles from "../app/hubs/claim/claim.module.css";
 
 /** One presentation for the actual CLAIM workspace and read-only Admin plan preview. */
 export function HubClaimProfileEditor({
-  profile, csrfToken, onSave, preview = false
+  profile, csrfToken, onSave, onUpload, media = [], preview = false
 }: {
   profile: HubClaimPublicProfile;
   csrfToken?: string;
   onSave?: (formData: FormData) => Promise<void>;
+  onUpload?: (formData: FormData) => Promise<void>;
+  media?: readonly HubClaimMediaItem[];
   preview?: boolean;
 }) {
   return <section className={styles.panel}>
@@ -33,6 +35,31 @@ export function HubClaimProfileEditor({
         <button className={styles.button + " " + styles.wide} type="submit" disabled={preview}>Αποθήκευση αλλαγών</button>
       </fieldset>
     </form>
+    <div className={styles.mediaBox}>
+      <h3>Λογότυπο & φωτογραφία καταστήματος</h3>
+      <p>Ανέβασε JPEG, PNG ή WebP έως 4 MB. Οι εικόνες μένουν ιδιωτικές μέχρι να ολοκληρωθεί ο έλεγχος ασφάλειας, δικαιωμάτων και δημοσίευσης από το KONTA MOY. Το CLAIM περιλαμβάνει 1 λογότυπο και 1 φωτογραφία εξωφύλλου.</p>
+      <form action={preview ? undefined : onUpload}>
+        <fieldset disabled={preview} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+          {!preview && <input type="hidden" name="csrfToken" value={csrfToken ?? ""}/>}
+          {!preview && <input type="hidden" name="claimId" value={profile.id}/>}
+          <label className={styles.field}>Τύπος εικόνας
+            <select name="role" defaultValue="logo"><option value="logo">Λογότυπο</option><option value="cover">Φωτογραφία εξωφύλλου</option></select>
+          </label>
+          <label className={styles.field}>Αρχείο εικόνας<input type="file" name="file" accept="image/jpeg,image/png,image/webp" required /></label>
+          <label className={styles.field}>Περιγραφή εικόνας<input type="text" name="altText" maxLength={240} required placeholder="Πρόσοψη καταστήματος" /></label>
+          <label className={styles.field}>Κάτοχος δικαιωμάτων<input type="text" name="rightsOwner" maxLength={200} required placeholder="Η επιχείρησή μου" /></label>
+          <label className={styles.field}><span><input name="rightsConfirmed" type="checkbox" required /> Επιβεβαιώνω ότι έχω δικαίωμα χρήσης και δημόσιας προβολής αυτής της εικόνας.</span></label>
+          <button className={styles.button + " " + styles.wide} type="submit" disabled={preview}>Υποβολή εικόνας για έγκριση</button>
+        </fieldset>
+      </form>
+      {media.length > 0 ? <ul className={styles.mediaHistory}>
+        {media.filter(item => item.claimId === profile.id).map(item => <li key={item.id}>
+          <strong>{item.role === "logo" ? "Λογότυπο" : "Εξώφυλλο"} · {item.filename}</strong>
+          {item.status === "published" ? "Δημοσιευμένο" : item.status === "rejected" ? "Απορρίφθηκε" : item.status === "archived" ? "Αντικαταστάθηκε" : "Σε έλεγχο"}
+          {" · scan: "}{item.scanStatus}
+        </li>)}
+      </ul> : <p className={styles.hint}>Δεν υπάρχουν ακόμη φωτογραφίες προς έγκριση.</p>}
+    </div>
     <div className={styles.actions}>
       {preview
         ? <><span className={styles.button + " " + styles.secondary} aria-disabled="true">Δημόσια σελίδα ↗</span><span className={styles.button + " " + styles.secondary} aria-disabled="true">Δες περισσότερα προγράμματα</span></>
