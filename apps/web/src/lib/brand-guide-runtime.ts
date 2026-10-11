@@ -12,7 +12,7 @@ import {
   type BrandGuideContent
 } from "./brand-guide";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { storefrontCategoryForCode, storefrontLeafForSubcategory } from "./storefront-taxonomy";
+import { storefrontCategoryForCode, storefrontLeafForSubcategory, storefrontSubcategoryPresentationForCode } from "./storefront-taxonomy";
 
 type BrandRow = Readonly<{
   id: string;
@@ -56,6 +56,7 @@ type RelatedBrandRow = Readonly<{
 export type PublicBrandCategory = Readonly<{
   code: string;
   label: string;
+  familyLabel: string;
   departmentSlug: string;
   departmentLabel: string;
   productCount: number;
@@ -150,9 +151,11 @@ function categoryHref(name: string, departmentSlug: string, code: string): strin
 function mapCategory(row: BrandCategoryRow, brandName: string): PublicBrandCategory {
   const department = storefrontCategoryForCode(row.category_code, row.department_code ?? undefined);
   const leaf = storefrontLeafForSubcategory(department.slug, row.category_code, row.label ?? "");
+  const precise = storefrontSubcategoryPresentationForCode(row.category_code);
   return {
     code: row.category_code,
-    label: optional(row.label) ?? leaf?.label ?? department.label,
+    label: precise?.label ?? optional(row.label) ?? leaf?.label ?? department.label,
+    familyLabel: precise?.familyLabel ?? leaf?.label ?? department.label,
     departmentSlug: department.slug,
     departmentLabel: department.label,
     productCount: count(row.product_count),
@@ -371,7 +374,7 @@ const cachedPublicBrandGuide = unstable_cache(
       shopHref: brandShopHref(row.name)
     };
   },
-  ["public-brand-guide-v3-live-family"],
+  ["public-brand-guide-v4-precise-taxonomy"],
   { revalidate: BRAND_GUIDE_CACHE_SECONDS }
 );
 
