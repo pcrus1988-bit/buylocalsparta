@@ -10,7 +10,7 @@ CLAIM is a free, non-commerce listing in the 130 expansion HUBs. Its existing pr
 4. On approval, the existing transactional email workflow sends the applicant a link to `/hubs/claim/<public_id>`. If delivery fails, the approved row exposes **Resend CLAIM activation email**. Admin cannot manually convert a CLAIM prospect.
 5. Recipient signs in or registers with the exact application contact email **and verifies the KONTA MOY account email**. Client UI never authorizes this action: the server performs a fresh active-user, verified-email, owner, status, and plan check in one serializable PostgreSQL transaction.
 6. On acceptance, `hub_expansion_prospects.owner_user_id` is set and status moves to `converted`. Only **this** combination publishes the dynamic `/hubs/<hubSlug>/business/<public_id>` page.
-7. The owner can open `/vendor/claim` for basic trading name, category, phone and URL changes. ΓΕΜΗ legal name, ΑΦΜ, official address, market routing, commerce enablement, payouts and subscription settings cannot be edited there.
+7. The owner can open `/vendor/claim` for category, phone and URL changes. ΓΕΜΗ legal name, ΑΦΜ, official address, market routing, commerce enablement, payouts and subscription settings cannot be edited there.
 
 ## Operational safety
 - No current applicant has been approved or automatically published by the code change.
