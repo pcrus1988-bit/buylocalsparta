@@ -3,7 +3,9 @@ import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { SiteFooter } from "../../components/SiteFooter";
 import { LocationGatewayV2, type LocationGatewayRuntimeHubV2 } from "../../components/LocationGatewayV2";
 import { assertExpansionHubMaster } from "../../lib/expansion-hubs";
+import { getExpansionHubById } from "../../lib/hub-resolver";
 import { getExpansionHubRuntimeSnapshot } from "../../lib/expansion-hub-runtime";
+import { listPublicClaimHubSlugs } from "../../lib/hub-claim-runtime";
 
 export const dynamic = "force-dynamic";
 
@@ -21,14 +23,21 @@ export default async function ChooseLocationPage() {
   assertExpansionHubMaster();
   const runtime = await getExpansionHubRuntimeSnapshot();
 
-  // Only the three fields required to derive the customer-facing availability state
-  // cross the server/client boundary. Prospect counts, research state and internal
-  // legacy flags stay server-side and are never serialized into the public page.
-  const publicRuntimeHubs = runtime.hubs.map((hub) => ({
+  // CLAIM directory presence must not mark the shopping/checkout market as live.
+  // Use one bounded DISTINCT lookup for all hubs, not a per-hub database query.
+  let claimHubSlugs: string[] = [];
+  try {
+    claimHubSlugs = await listPublicClaimHubSlugs();
+  } catch (error) {
+    console.error(JSON.stringify({ event: "hubs.claim_directory_lookup_failed", message: error instanceof Error ? error.message : String(error) }));
+  }
+  const claimPresence = new Set(claimHubSlugs);
+  const publicRuntimeHubs: readonly LocationGatewayRuntimeHubV2[] = runtime.hubs.map((hub) => ({
     hubId: hub.hubId,
     lifecycleState: hub.lifecycleState,
-    isLive: hub.isLive
-  })) as unknown as readonly LocationGatewayRuntimeHubV2[];
+    isLive: hub.isLive,
+    hasClaimPresence: claimPresence.has(getExpansionHubById(hub.hubId)?.slug ?? "")
+  }));
 
   return (
     <>

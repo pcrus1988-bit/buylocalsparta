@@ -27,7 +27,7 @@ const SQL_PROFILE = `
   FROM hub_expansion_prospects h
   LEFT JOIN hub_claim_profiles cp ON cp.prospect_id=h.id
   WHERE h.plan_code='claim' AND h.status='converted'
-    AND h.owner_user_id IS NOT NULL
+    AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL
 `;
 
 function asProfile(row: SqlRow): HubClaimPublicProfile {
@@ -63,6 +63,29 @@ export async function listPublicHubClaims(limit = 100): Promise<HubClaimPublicPr
   const boundedLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(
     SQL_PROFILE + " ORDER BY h.updated_at DESC LIMIT $1", [boundedLimit]
+  );
+  return result.rows.map(asProfile);
+}
+
+/** Public directory presence is independent of marketplace checkout activation. */
+export async function listPublicClaimHubSlugs(): Promise<string[]> {
+  // Only converted, owner-linked CLAIM registrations count as public presence.
+  // Never infer activity from pending or merely approved applications.
+  const result = await getProductionPostgresRuntime().sqlPool.query<{ hub_slug: string }>(`
+    SELECT DISTINCT h.hub_slug
+    FROM hub_expansion_prospects h
+    WHERE h.plan_code='claim' AND h.status='converted'
+      AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL
+  `);
+  return result.rows.map((row) => row.hub_slug);
+}
+
+export async function listPublicHubClaimsByHub(hubSlug: string, limit = 50): Promise<HubClaimPublicProfile[]> {
+  if (!/^[a-z0-9-]{2,80}$/.test(hubSlug)) return [];
+  const boundedLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(
+    SQL_PROFILE + " AND h.hub_slug=$1 ORDER BY h.updated_at DESC LIMIT $2",
+    [hubSlug, boundedLimit]
   );
   return result.rows.map(asProfile);
 }
