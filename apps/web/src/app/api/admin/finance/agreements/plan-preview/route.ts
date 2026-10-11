@@ -102,11 +102,19 @@ export async function GET(request: Request) {
     }
     const billing = url.searchParams.get("billing") === "annual" ? "annual" : "monthly";
     const plan = vendorAgreementPlanTerms(code, billing);
+    const templateOnly = url.searchParams.get("template") === "1";
     const id = (url.searchParams.get(plan.market === "sparta" ? "vendorId" : "prospectId") || "").trim();
-    if (!/^[A-Za-z0-9_-]{6,120}$/.test(id)) {
+    if (!templateOnly && !/^[A-Za-z0-9_-]{6,120}$/.test(id)) {
       return Response.json({ error: "A valid vendor or prospect reference is required" }, { status: 400 });
     }
-    const source = plan.market === "sparta"
+    const source = templateOnly ? {
+      subject: {
+        legalName: "ΣΥΜΠΛΗΡΩΝΕΤΑΙ — Επωνυμία επιχείρησης",
+        tradingName: "ΣΥΜΠΛΗΡΩΝΕΤΑΙ — Διακριτικός τίτλος",
+        contactEmail: "ΣΥΜΠΛΗΡΩΝΕΤΑΙ — Εmail"
+      },
+      reference: "TEMPLATE-" + code
+    } : plan.market === "sparta"
       ? await previewSpartaVendor(id)
       : await previewProspect(id, code, plan.billingCycle);
     if ("setupFeeMinor" in source && source.setupFeeMinor !== undefined) {
