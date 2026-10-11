@@ -424,7 +424,7 @@ export default async function ApplicationsPage() {
               <div className="workspace-action-buttons">
                 {prospect.trialVendorId && <Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(prospect.trialVendorId)}/catalogue`}>Trial catalogue</Link>}
                 {prospect.trialVendorId && <Link className="button button-secondary" href={`/demo/vendor/${encodeURIComponent(prospect.trialVendorId)}`} target="_blank">Private preview ↗</Link>}
-                {prospect.planCode === "claim" && prospect.status === "converted" && <Link className="button button-secondary" href={"/hubs/" + prospect.hubSlug + "/business/" + prospect.internalId} target="_blank">Published CLAIM profile ↗</Link>
+                {prospect.planCode === "claim" && prospect.status === "converted" && <Link className="button button-secondary" href={"/hubs/" + prospect.hubSlug + "/business/" + prospect.internalId} target="_blank">Published CLAIM profile ↗</Link>}
               </div>
             </div>
 
