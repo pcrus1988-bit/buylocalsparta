@@ -34,7 +34,7 @@ const REDIRECT_PROTECTED_ROOTS = [
 // middleware before every catalogue/product/vendor render. That lookup becomes
 // especially expensive when the database pool is busy with catalogue work.
 const CMS_REDIRECT_BYPASS_ROOTS = [
-  "/shop", "/shops", "/category", "/product", "/vendor", "/bazaar", "/ask-local", "/advice"
+  "/shop", "/shops", "/category", "/product", "/vendor", "/hubs", "/bazaar", "/ask-local", "/advice"
 ] as const;
 
 function validVisitor(value: string | undefined): string | undefined {

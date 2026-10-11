@@ -183,11 +183,17 @@ export async function sendHubProspectApplicationReceiptEmail(input: {
       expiry ? `Λήξη write-enabled Trial: ${expiry}` : undefined,
       "",
       "Επόμενα βήματα",
-      "1. Εξερεύνησε το πραγματικό Vendor Dashboard και το onboarding wizard.",
-      "2. Ρύθμισε storefront, στοιχεία καταστήματος και προϊόντα στο ιδιωτικό Trial.",
-      "3. Η ομάδα KONTA MOY ελέγχει τα στοιχεία επιχείρησης, Γ.Ε.ΜΗ. και εκπροσώπησης.",
-      "4. Μετά το verification, η αίτηση προχωρά σε catalogue onboarding και test readiness.",
-      "5. Δημόσια εμφάνιση, πραγματικές παραγγελίες και πληρωμές παραμένουν κλειδωμένες μέχρι την τελική ενεργοποίηση.",
+      ...(input.planCode === "claim" ? [
+        "1. Η ομάδα KONTA MOY επαληθεύει τα στοιχεία Γ.Ε.ΜΗ. και τη νόμιμη εκπροσώπηση.",
+        "2. Εφόσον εγκριθεί η αίτηση, θα λάβεις σύνδεσμο για να αποδεχθείς την καταχώριση με επαληθευμένο λογαριασμό.",
+        "3. Μετά την αποδοχή δημιουργείται η δημόσια σελίδα και ανοίγει το απλό CLAIM Dashboard.",
+        "Δεν ενεργοποιούνται πωλήσεις, πληρωμές ή εμπορικό Vendor Dashboard."
+      ] : [
+        "1. Εξερεύνησε το Vendor Trial όταν είναι διαθέσιμο.",
+        "2. Ρύθμισε το ιδιωτικό δοκιμαστικό storefront και τα προϊόντα.",
+        "3. Η ομάδα KONTA MOY ελέγχει Γ.Ε.ΜΗ. και εκπροσώπηση.",
+        "4. Δημόσιες πωλήσεις και πληρωμές παραμένουν κλειδωμένες έως την τελική ενεργοποίηση."
+      ]),
       "",
       "Τα ποσά παραπάνω είναι το snapshot του προγράμματος που καταγράφηκε με την αίτηση.",
       "",
@@ -205,6 +211,7 @@ export async function sendHubProspectStateEmail(input: {
   reference: string;
   state: "contacted" | "qualified" | "verified" | "approved" | "declined" | "converted";
   reason: string;
+  claimInvitationId?: string;
 }) {
   const messages: Record<typeof input.state, { subject: string; body: string }> = {
     contacted: { subject: "Η αίτησή σας εξετάζεται", body: "Η ομάδα KONTA MOY ανέλαβε την αίτησή σας και ξεκίνησε τον έλεγχο." },
@@ -214,7 +221,12 @@ export async function sendHubProspectStateEmail(input: {
     declined: { subject: "Ενημέρωση για την αίτησή σας", body: "Η αίτηση δεν μπορεί να προχωρήσει στο επόμενο στάδιο με τα σημερινά στοιχεία." },
     converted: { subject: "Η αίτησή σας πέρασε στο onboarding", body: "Η αίτηση πέρασε από το intake στο onboarding. Η ομάδα θα συνεχίσει με catalogue, agreement και test-readiness βήματα." }
   };
-  const message = messages[input.state];
+  const message = input.state === "approved" && input.claimInvitationId
+    ? { subject: "Το δωρεάν CLAIM εγκρίθηκε", body: "Ο έλεγχος ολοκληρώθηκε. Επιβεβαίωσε την εκπροσώπησή σου με τον επαληθευμένο λογαριασμό σου για να δημοσιευθεί η δωρεάν καταχώριση." }
+    : messages[input.state];
+  const activationUrl = input.state === "approved" && input.claimInvitationId
+    ? "https://kontamou.site/hubs/claim/" + encodeURIComponent(input.claimInvitationId)
+    : undefined;
 
   return sendTransactionalEmailBestEffort({
     to: input.to,
@@ -227,7 +239,8 @@ export async function sendHubProspectStateEmail(input: {
       "",
       message.body,
       "",
-      `Σημείωση ομάδας: ${input.reason}`,
+      activationUrl ? "Ενεργοποίηση δωρεάν CLAIM: " + activationUrl : undefined,
+      activationUrl ? "Απαιτείται σύνδεση με επαληθευμένο email και αποδοχή. Δεν γίνεται χρέωση." : undefined,
       "",
       "Το Vendor Trial, όπου υπάρχει, παραμένει ιδιωτικό και δεν ενεργοποιεί δημόσιες πωλήσεις ή πληρωμές.",
       "",

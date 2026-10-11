@@ -42,6 +42,7 @@ export const SITE_LINKS = {
   joinSparta: { label: "Συνεργασία καταστημάτων · Σπάρτη", href: "/join/sparta", description: "Τα προγράμματα συνεργασίας για επιχειρήσεις του ενεργού HUB Σπάρτης." },
   joinRequirements: { label: "Προϋποθέσεις συνεργασίας", href: "/join/requirements", description: "Readiness checklist πριν από την αίτηση εμπόρου." },
   hubExpansionJoin: { label: "Συνεργασία στα νέα HUB", href: "/hubs/join", description: "AFM-first ένταξη επιχειρήσεων στα 130 HUB επέκτασης του ΚΟΝΤΑ ΜΟΥ." },
+  hubBusinesses: { label: "Επιχειρήσεις των HUB", href: "/hubs/businesses", description: "Εγκεκριμένες και αποδεκτές καταχωρίσεις CLAIM από τα τοπικά HUB." },
   researchObservatory: { label: "Παρατηρητήριο Λιανεμπορίου", href: "/research", description: "Το μόνιμο KONTA MOY Retail Observatory για ετήσιες και θεματικές μελέτες του ελληνικού λιανεμπορίου." },
   researchPrivacy: { label: "Ιδιωτικότητα έρευνας", href: "/research/privacy", description: "Ο διαχωρισμός πρόσκλησης, απαντήσεων, συγκατάθεσης και ερευνητικής επικοινωνίας." },
   researchExternal: { label: "Έρευνες άλλων φορέων & κλίμα αγοράς", href: "/research/market-sentiment", description: "Δημοσιευμένες έρευνες, δείκτες προσδοκιών και στατιστικές αγοράς από ανεξάρτητους φορείς, με σαφείς πηγές και περιορισμούς." },
@@ -85,6 +86,7 @@ export const INDEXABLE_STATIC_ROUTES: ReadonlyArray<IndexableStaticRoute> = [
   { ...SITE_LINKS.joinSparta, changeFrequency: "monthly", priority: 0.58 },
   { ...SITE_LINKS.joinRequirements, changeFrequency: "monthly", priority: 0.55 },
   { ...SITE_LINKS.hubExpansionJoin, changeFrequency: "monthly", priority: 0.6 },
+  { ...SITE_LINKS.hubBusinesses, changeFrequency: "weekly", priority: 0.57 },
   { ...SITE_LINKS.researchObservatory, changeFrequency: "monthly", priority: 0.65 },
   { ...SITE_LINKS.researchExternal, changeFrequency: "monthly", priority: 0.58 },
   { ...SITE_LINKS.researchPrivacy, changeFrequency: "monthly", priority: 0.5 },
@@ -126,7 +128,7 @@ export const HUMAN_SITEMAP_SECTIONS = [
 
 export const ACCOUNT_UTILITY_NAVIGATION: ReadonlyArray<SiteLink> = [SITE_LINKS.login, SITE_LINKS.register];
 
-export const PUBLIC_DYNAMIC_ROUTE_PATTERNS = ["/category/[slug]", "/brands/[slug]", "/product/[id]", "/vendor/[id]", "/collections/[slug]", "/bazaar/product/[slug]", "/look/[code]", "/research/[slug]", "/research/[slug]/methodology", "/research/[slug]/results"] as const;
+export const PUBLIC_DYNAMIC_ROUTE_PATTERNS = ["/category/[slug]", "/brands/[slug]", "/product/[id]", "/vendor/[id]", "/collections/[slug]", "/bazaar/product/[slug]", "/look/[code]", "/research/[slug]", "/research/[slug]/methodology", "/research/[slug]/results", "/hubs/[hubSlug]/business/[id]"] as const;
 
 export const NON_INDEXABLE_PAGE_ROUTES = [
   "/cart",
@@ -144,6 +146,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/terms",
   "/join/apply",
   "/hubs/join/apply",
+  "/hubs/claim/[id]",
   "/account",
   "/account/ask-local",
   "/account/appointments",
@@ -170,6 +173,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/partner",
   "/vendor",
   "/vendor/login",
+  "/vendor/claim",
   "/vendor/advice",
   "/vendor/analytics",
   "/vendor/catalog",
@@ -263,6 +267,8 @@ export const ROBOTS_DISALLOW_PATHS = [
   "/reset-password",
   "/join/apply",
   "/hubs/join/apply",
+  "/hubs/claim",
+  "/vendor/claim",
   "/vendor/login",
   "/vendor/advice",
   "/vendor/analytics",
