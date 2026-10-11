@@ -1,6 +1,7 @@
 import type {Metadata} from "next";
 import Link from "next/link";
-import {redirect,revalidatePath} from "next/navigation";
+import {redirect} from "next/navigation";
+import {revalidatePath} from "next/cache";
 import type {SqlRow} from "@buy-local-sparta/core";
 import {getAdminSession} from "../../../../lib/admin-session";
 import {assertAdminCsrf,recordAdminAudit} from "../../../../lib/admin-runtime";
