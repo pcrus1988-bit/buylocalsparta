@@ -8,6 +8,7 @@ import {
   type ExpansionHub,
   type ExpansionRegionCode
 } from "../lib/expansion-hubs";
+import { publicHubAvailability, type PublicHubAvailability } from "../lib/public-hub-availability";
 import styles from "./LocationGatewayV2.module.css";
 import mobileStyles from "./LocationGatewayV2Mobile.module.css";
 
@@ -15,6 +16,7 @@ export type LocationGatewayRuntimeHubV2 = Readonly<{
   hubId: string;
   lifecycleState: "inactive" | "prospect" | "active";
   isLive: boolean;
+  hasClaimPresence: boolean;
 }>;
 
 type Coordinates = Readonly<{ latitude: number; longitude: number }>;
@@ -42,7 +44,7 @@ type GatewayWindow = Window & typeof globalThis & {
   __kmLocationLeaflet?: Promise<LeafletNamespace>;
 };
 
-type PublicState = "active" | "preparing" | "planned";
+type PublicState = PublicHubAvailability;
 
 const STORAGE_KEY = "konta-mou-locality";
 const COOKIE_KEY = "km_locality";
@@ -50,27 +52,27 @@ const LEAFLET_SCRIPT = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
 const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const MAP_CENTER = [38.35, 23.65] as const;
 const NEAREST_SEARCH_RESULT_COUNT = 5;
-const STATE_ORDER: Record<PublicState, number> = { active: 0, preparing: 1, planned: 2 };
-const STATE_COLOR: Record<PublicState, string> = { active: "#39884b", preparing: "#c8a33b", planned: "#929b96" };
+const STATE_ORDER: Record<PublicState, number> = { active: 0, directory: 1, preparing: 2, planned: 3 };
+const STATE_COLOR: Record<PublicState, string> = { active: "#39884b", directory: "#277e92", preparing: "#c8a33b", planned: "#929b96" };
 
 function normalize(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("el-GR").trim();
 }
 
 function runtimeState(runtime: LocationGatewayRuntimeHubV2 | undefined): PublicState {
-  if (runtime?.lifecycleState === "active" && runtime.isLive) return "active";
-  if (runtime?.lifecycleState === "prospect") return "preparing";
-  return "planned";
+  return publicHubAvailability(runtime);
 }
 
 function stateLabel(state: PublicState): string {
   if (state === "active") return "Αγορά διαθέσιμη";
+  if (state === "directory") return "Ενεργό HUB · Επιχειρήσεις";
   if (state === "preparing") return "Ετοιμάζεται";
   return "Στο πλάνο";
 }
 
 function stateDescription(state: PublicState): string {
   if (state === "active") return "Η τοπική αγορά είναι διαθέσιμη τώρα.";
+  if (state === "directory") return "Στην περιοχή υπάρχουν ήδη επαληθευμένες επιχειρήσεις στο KONTA MOY HUB. Ο κατάλογος λειτουργεί, αλλά οι αγορές και το checkout δεν έχουν ενεργοποιηθεί ακόμη.";
   if (state === "preparing") return "Η τοπική αγορά της περιοχής ετοιμάζεται.";
   return "Η περιοχή είναι μέρος της επόμενης ανάπτυξης του ΚΟΝΤΑ ΜΟΥ.";
 }
@@ -235,9 +237,9 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
 
   function chooseHub(hub: ExpansionHub) {
     const state = runtimeState(runtimeByHub.get(hub.id));
-    if (state === "active") {
+    if (state === "active" || state === "directory") {
       saveLocality(hub);
-      window.location.assign("/");
+      window.location.assign(state === "active" ? "/" : `/hubs/${hub.slug}`);
       return;
     }
     setSelected(hub);
@@ -390,8 +392,8 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
     if (!selected) return;
     saveLocality(selected);
     const state = runtimeState(runtimeByHub.get(selected.id));
-    if (state === "active") {
-      window.location.assign("/");
+    if (state === "active" || state === "directory") {
+      window.location.assign(state === "active" ? "/" : `/hubs/${selected.slug}`);
       return;
     }
     setSavedMessage(`Θα θυμόμαστε την περιοχή ${selected.nameEl}. ${state === "preparing" ? "Η αγορά ετοιμάζεται και θα εμφανιστεί εδώ μόλις είναι διαθέσιμη." : "Θα εμφανιστεί εδώ όταν το ΚΟΝΤΑ ΜΟΥ ενεργοποιηθεί στην περιοχή."}`);
@@ -473,14 +475,14 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
         <div className={`${styles.resultsPanel} ${mobileView === "map" ? styles.mobileHidden : ""}`} data-km-results-panel>
           <div className={styles.resultsHead} data-km-results-head>
             <div><span>{searchLocation ? "Κοντινότερα σημεία" : "Περιοχές"}</span><strong>{hubs.length}</strong></div>
-            <small>{searchLocation ? `Από: ${shortLocationLabel(searchLocation.label)}` : "Πράσινο: διαθέσιμη · Κίτρινο: ετοιμάζεται · Γκρι: στο πλάνο"}</small>
+            <small>{searchLocation ? `Από: ${shortLocationLabel(searchLocation.label)}` : "Πράσινο: αγορά · Μπλε: κατάλογος επιχειρήσεων · Κίτρινο: ετοιμάζεται · Γκρι: στο πλάνο"}</small>
           </div>
           <div className={styles.resultsList} data-km-results-list>
             {hubs.length ? hubs.map(({ hub, state, distance }) => (
-              <button type="button" className={`${styles.hubRow} ${selected?.id === hub.id ? styles.selectedRow : ""}`} key={hub.id} onClick={() => chooseHub(hub)} data-km-hub-row data-km-state={state} aria-label={`${hub.nameEl}, ${hub.regionEl}, ${stateLabel(state)}${state === "active" ? ", άμεση είσοδος" : ""}${distance !== undefined ? `, ${distance < 10 ? distance.toFixed(1) : Math.round(distance)} χιλιόμετρα` : ""}`}>
+              <button type="button" className={`${styles.hubRow} ${selected?.id === hub.id ? styles.selectedRow : ""}`} key={hub.id} onClick={() => chooseHub(hub)} data-km-hub-row data-km-state={state} aria-label={`${hub.nameEl}, ${hub.regionEl}, ${stateLabel(state)}${state === "active" ? ", άμεση είσοδος" : state === "directory" ? ", δες επιχειρήσεις" : ""}${distance !== undefined ? `, ${distance < 10 ? distance.toFixed(1) : Math.round(distance)} χιλιόμετρα` : ""}`}>
                 <i style={{ background: STATE_COLOR[state] }} aria-hidden="true" />
-                <span><strong>{hub.nameEl}</strong><small>{hub.regionEl} · {stateLabel(state)}{state === "active" ? " · Πάτησε για είσοδο" : ""}</small></span>
-                <b>{distance !== undefined ? `${distance < 10 ? distance.toFixed(1) : Math.round(distance)} km` : state === "active" ? "Μπες →" : "›"}</b>
+                <span><strong>{hub.nameEl}</strong><small>{hub.regionEl} · {stateLabel(state)}{state === "active" ? " · Πάτησε για είσοδο" : state === "directory" ? " · Δες επιχειρήσεις" : ""}</small></span>
+                <b>{distance !== undefined ? `${distance < 10 ? distance.toFixed(1) : Math.round(distance)} km` : state === "active" ? "Μπες →" : state === "directory" ? "Δες →" : "›"}</b>
               </button>
             )) : (
               <div className={styles.empty}>
@@ -495,7 +497,7 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
           <div ref={mapNode} className={styles.map} />
           {mapStatus === "loading" ? <div className={styles.mapMessage}>Φόρτωση χάρτη…</div> : null}
           {mapStatus === "error" ? <div className={styles.mapMessage}>Ο χάρτης δεν φορτώθηκε. Η λίστα περιοχών λειτουργεί κανονικά.</div> : null}
-          <div className={styles.legend}><span><i style={{ background: STATE_COLOR.active }} />Αγορά διαθέσιμη</span><span><i style={{ background: STATE_COLOR.preparing }} />Ετοιμάζεται</span><span><i style={{ background: STATE_COLOR.planned }} />Στο πλάνο</span></div>
+          <div className={styles.legend}><span><i style={{ background: STATE_COLOR.active }} />Αγορά διαθέσιμη</span><span><i style={{ background: STATE_COLOR.directory }} />Ενεργός κατάλογος</span><span><i style={{ background: STATE_COLOR.preparing }} />Ετοιμάζεται</span><span><i style={{ background: STATE_COLOR.planned }} />Στο πλάνο</span></div>
         </div>
 
         <aside className={styles.selection} aria-live="polite" data-km-selection>
@@ -508,7 +510,7 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
               {selectedDistance !== undefined ? <span>Περίπου {selectedDistance < 10 ? selectedDistance.toFixed(1) : Math.round(selectedDistance)} km {searchLocation ? "από το σημείο που αναζήτησες" : "από εσένα"}</span> : null}
             </div>
             <p className={styles.selectionCopy}>{stateDescription(selectedState)}</p>
-            <button type="button" className={styles.primary} onClick={confirmSelection}>{selectedState === "active" ? "Μπες στην τοπική αγορά" : "Θυμήσου την περιοχή μου"}<span aria-hidden="true">→</span></button>
+            <button type="button" className={styles.primary} onClick={confirmSelection}>{selectedState === "active" ? "Μπες στην τοπική αγορά" : selectedState === "directory" ? "Δες τις επιχειρήσεις" : "Θυμήσου την περιοχή μου"}<span aria-hidden="true">→</span></button>
             {selectedState !== "active" ? <a className={styles.vendorLink} href="/join">Έχεις κατάστημα εδώ; Δες πώς συμμετέχεις →</a> : null}
           </> : <><span className={styles.selectionState}>Η περιοχή σου</span><h2>Επίλεξε μια πόλη</h2><p className={styles.selectionCopy}>Θα σου δείξουμε καθαρά αν η αγορά είναι διαθέσιμη τώρα ή αν ετοιμάζεται.</p></>}
           {savedMessage ? <div className={styles.saved}>{savedMessage}</div> : null}
