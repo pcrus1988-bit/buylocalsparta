@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { SqlRow } from "@buy-local-sparta/core";
@@ -166,6 +167,11 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
           <span>{item.role === "logo" ? "Λογότυπο" : "Εξώφυλλο"}</span>
           <strong>{item.filename}</strong>
           <small>{item.status} · malware scan: {item.scanStatus}</small>
+          {item.scanStatus === "clean" && <Image unoptimized
+            src={"/api/admin/hubs/claim/image/" + item.mediaId}
+            alt={"Admin preview of " + item.filename} width={280} height={160}
+            style={{ width: "100%", height: "auto", maxHeight: 180, objectFit: "contain", background: "#f6f7f6", borderRadius: 8 }}
+          />}
           {item.status === "pending_review" && <form action={reviewClaimMediaAction}>
             <input type="hidden" name="csrfToken" value={principal.csrfToken} />
             <input type="hidden" name="assignmentId" value={item.id} />
