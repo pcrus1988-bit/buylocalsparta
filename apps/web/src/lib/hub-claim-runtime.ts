@@ -300,8 +300,8 @@ export async function uploadOwnedHubClaimMedia(id: string, principal: SessionPri
   const role = String(form.get("role") ?? "");
   if (role !== "logo" && role !== "cover") throw new Error("INVALID_CLAIM_MEDIA_ROLE");
   const file = form.get("file");
-  if (!(file instanceof File) || file.size <= 0 || file.size > 4 * 1024 * 1024) {
-    throw new Error("CLAIM_IMAGE_4MB_LIMIT");
+  if (!(file instanceof File) || file.size <= 0 || file.size > 3 * 1024 * 1024) {
+    throw new Error("CLAIM_IMAGE_3MB_LIMIT");
   }
   const contentType = file.type.toLowerCase();
   const bytes = new Uint8Array(await file.arrayBuffer());
