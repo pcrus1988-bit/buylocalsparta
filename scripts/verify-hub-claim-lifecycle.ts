@@ -6,6 +6,7 @@ const admin = read("apps/web/src/app/admin/applications/actions.ts");
 const adminPage = read("apps/web/src/app/admin/applications/page.tsx");
 const invite = read("apps/web/src/app/hubs/claim/[id]/page.tsx");
 const publicPage = read("apps/web/src/app/hubs/[hubSlug]/business/[id]/page.tsx");
+const publicContent = read("apps/web/src/components/HubClaimPublicContent.tsx");
 const dashboard = read("apps/web/src/app/vendor/claim/page.tsx");
 const mail = read("apps/web/src/lib/vendor-email-workflows.ts");
 const plan = read("apps/web/src/lib/hub-expansion-plans.ts");
@@ -34,7 +35,8 @@ includes(embedMigration, "hub_claim_website_embed_https_check", "CLAIM HTTPS dat
 includes(app, "websiteEmbedEnabled = form.get", "CLAIM owner opt-in");
 includes(app, "normalizeVendorExternalWebsiteUrl(website)", "CLAIM website HTTPS verification");
 includes(app, "website_embed_enabled=$5", "CLAIM iframe persistence");
-includes(publicPage, "profile.websiteEmbedEnabled && profile.website", "CLAIM visitor-facing opt-in");
+includes(publicPage, "HubClaimPublicContent", "Public page uses the shared public renderer");
+includes(publicContent, "profile.websiteEmbedEnabled && profile.website", "CLAIM visitor-facing opt-in");
 includes(embedEditor, 'name="websiteEmbedEnabled"', "CLAIM owner dashboard toggle");
 includes(embedFrame, "setLoaded(true)", "Visitor permission before iframe");
 
