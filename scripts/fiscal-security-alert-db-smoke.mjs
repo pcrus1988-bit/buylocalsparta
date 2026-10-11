@@ -10,7 +10,7 @@ const db=new pg.Client({connectionString:raw});
 await db.connect();
 try{
  await db.query("BEGIN");
- for(const table of ["fiscal_security_alert_contacts","fiscal_security_alert_outbox"]){
+ for(const table of ["fiscal_security_alert_contacts","fiscal_security_alert_outbox","fiscal_security_alert_delivery_events"]){
   const r=await db.query("SELECT relrowsecurity FROM pg_class WHERE oid=$1::regclass",["public."+table]);
   assert.equal(r.rows[0]?.relrowsecurity,true,table+" requires RLS");
  }
@@ -67,6 +67,29 @@ try{
   `UPDATE fiscal_security_alert_outbox SET status='provider_accepted',
    lease_until=NULL,lease_token_hash=NULL,provider_message_id='ci-provider-12345',
    provider_accepted_at=now() WHERE id=$1`,[id]);
+ const delivery=await db.query(
+  `INSERT INTO fiscal_security_alert_delivery_events(outbox_id,provider_event_id,event_type,provider_event_at)
+   VALUES($1,'ci_svx_event_000001','email.delivered',now()) RETURNING id`,[id]);
+ assert.ok(delivery.rows[0]?.id,"Signed provider delivery receipt is linked to outbox");
+ await db.query("SAVEPOINT duplicate_delivery");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_security_alert_delivery_events(outbox_id,provider_event_id,event_type,provider_event_at)
+   VALUES($1,'ci_svx_event_000001','email.delivered',now())`,[id]));
+ await db.query("ROLLBACK TO SAVEPOINT duplicate_delivery");
+ await db.query("SAVEPOINT receipt_forgery");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_security_alert_delivery_events SET event_type='email.bounced' WHERE id=$1",
+  [delivery.rows[0].id]));
+ await db.query("ROLLBACK TO SAVEPOINT receipt_forgery");
+ await db.query("SAVEPOINT receipt_deletion");
+ await assert.rejects(()=>db.query(
+  "DELETE FROM fiscal_security_alert_delivery_events WHERE id=$1",[delivery.rows[0].id]));
+ await db.query("ROLLBACK TO SAVEPOINT receipt_deletion");
+ await db.query("SAVEPOINT invalid_delivery_type");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_security_alert_delivery_events(outbox_id,provider_event_id,event_type,provider_event_at)
+   VALUES($1,'ci_svx_event_000002','email.opened',now())`,[id]));
+ await db.query("ROLLBACK TO SAVEPOINT invalid_delivery_type");
  await db.query("SAVEPOINT accepted_replay");
  await assert.rejects(()=>db.query(
   "UPDATE fiscal_security_alert_outbox SET status='pending' WHERE id=$1",[id]));
@@ -75,6 +98,6 @@ try{
  await assert.rejects(()=>db.query("DELETE FROM fiscal_security_alert_outbox WHERE id=$1",[id]));
  await db.query("ROLLBACK TO SAVEPOINT accepted_delete");
  await db.query("ROLLBACK");
- console.log("FISCAL SECURITY ALERT OUTBOX PASSED: RLS, unique event/recipient, contact integrity, terminal delivery state");
+ console.log("FISCAL SECURITY ALERT OUTBOX PASSED: RLS, unique event/recipient, append-only signed receipts and terminal delivery state");
 }catch(e){await db.query("ROLLBACK").catch(()=>undefined);throw e;}
 finally{await db.end();}
