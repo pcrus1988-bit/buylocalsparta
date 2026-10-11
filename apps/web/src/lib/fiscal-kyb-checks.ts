@@ -22,7 +22,7 @@ export class FiscalKybInputError extends Error{
  readonly code:string;
  constructor(code:string){super(code);this.code=code;}
 }
-const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const reference=/^[A-Za-z0-9._:-]{5,160}$/;
 export function parseFiscalKybInput(raw:unknown):FiscalKybInput{
  if(!raw||typeof raw!=="object"||Array.isArray(raw))
