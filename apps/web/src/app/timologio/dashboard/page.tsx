@@ -3,12 +3,14 @@ import { redirect } from "next/navigation";
 import { FiscalLogoutButton } from "../../../components/FiscalLogoutButton";
 import { fiscalCsrfValue, fiscalMerchantAccounts, getFiscalActor } from "../../../lib/fiscal-auth";
 import { fiscalLanes } from "../../../lib/fiscal-runtime";
+import { fiscalEmailStatus,fiscalEmailVerificationEnabled } from "../../../lib/fiscal-email-verification";
+import { FiscalEmailVerificationRequest } from "../../../components/FiscalEmailVerification";
 export const dynamic="force-dynamic";
 export default async function FiscalDashboard(){
  const actor=await getFiscalActor();
  if(!actor)redirect("/timologio/login");
  if(actor.role==="fiscal_admin")redirect("/timologio-admin");
- const [accounts,csrf]=await Promise.all([fiscalMerchantAccounts(actor),fiscalCsrfValue()]);
+ const [accounts,csrf,proof]=await Promise.all([fiscalMerchantAccounts(actor),fiscalCsrfValue(),fiscalEmailStatus(actor)]);
  return <main className="fiscal-shell"><div className="fiscal-wrap">
   <header className="fiscal-topbar"><Link href="/timologio" className="fiscal-brand">KONTA MOY <span>FISCAL</span></Link>
    <nav><span>{actor.email}</span>{csrf&&<FiscalLogoutButton csrfToken={csrf}/>}</nav></header>
@@ -21,6 +23,7 @@ export default async function FiscalDashboard(){
     <p>Κατάσταση: <strong>{account.status}</strong></p><p>Ρόλος: {account.role}</p>
    </article>)}</div>}
   </section>
+  {csrf&&<FiscalEmailVerificationRequest csrfToken={csrf} verified={proof.verified} enabled={fiscalEmailVerificationEnabled()}/>}
   <section className="fiscal-panel fiscal-section" style={{marginTop:20}}><h2>Κλάδοι παραστατικών</h2>
    <div className="fiscal-grid">{fiscalLanes.map(lane=><article key={lane.id} className="fiscal-card">
     <h3>{lane.title}</h3><p>{lane.detail}</p><small>Υπό ανάπτυξη / πιστοποίηση</small>
