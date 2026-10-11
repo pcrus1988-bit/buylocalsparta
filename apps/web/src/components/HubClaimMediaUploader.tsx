@@ -6,6 +6,24 @@ import styles from "../app/hubs/claim/claim.module.css";
 
 const LABELS = { logo: "Λογότυπο", storefront: "Φωτογραφία καταστήματος", gallery: "Συλλογή φωτογραφιών" };
 
+async function preparePhoto(file: File): Promise<File> {
+  if (file.size <= 3_500_000) return file;
+  if (typeof createImageBitmap !== "function") throw new Error("Η εικόνα είναι μεγάλη. Μείωσε το μέγεθός της.");
+  const image = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, 1600 / Math.max(image.width, image.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Δεν ήταν δυνατή η προετοιμασία εικόνας.");
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, "image/webp", 0.78));
+    if (!blob || blob.size > 3_500_000) throw new Error("Δοκίμασε εικόνα μικρότερης ανάλυσης.");
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".webp", { type: "image/webp" });
+  } finally { image.close(); }
+}
+
 export function HubClaimMediaUploader({
   claimId, csrfToken, preview = false, media = []
 }: {
@@ -24,9 +42,10 @@ export function HubClaimMediaUploader({
     try {
       const form = new FormData(formEl);
       const file = form.get("file");
-      if (!(file instanceof File) || !file.size || file.size > 4 * 1024 * 1024) {
-        throw new Error("Επίλεξε εικόνα έως 4 MB.");
-      }
+      if (!(file instanceof File) || !file.size) throw new Error("Επίλεξε εικόνα.");
+      const prepared = await preparePhoto(file);
+      if (prepared.size > 4 * 1024 * 1024) throw new Error("Η εικόνα υπερβαίνει τα 4 MB.");
+      form.set("file", prepared);
       form.set("claimId", claimId);
       const response = await fetch("/api/hubs/claim/media", {
         method: "POST", headers: { "x-csrf-token": csrfToken ?? "" }, body: form
