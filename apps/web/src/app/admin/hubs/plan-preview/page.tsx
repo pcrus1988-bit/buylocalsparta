@@ -90,6 +90,7 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
         <div className="hero-actions">
           <Link className="button button-secondary" href="/admin/applications">← Αιτήσεις HUB</Link>
           <Link className="button button-secondary" href="/admin/partners">← Partner directory</Link>
+          <Link className="button button-secondary" href="/admin/hubs/claim-media">CLAIM · Εγκρίσεις φωτογραφιών</Link>
         </div>
       </div>
     </section>
