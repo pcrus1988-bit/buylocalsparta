@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {createHash,randomBytes} from "node:crypto";
+import {createHash,createHmac,randomBytes} from "node:crypto";
 import {fiscalTotp} from "../apps/web/src/lib/fiscal-operator-mfa-crypto.ts";
 const digest=x=>createHash("sha256").update(x).digest("hex");
 /** Runs only inside fiscal-http-e2e's synthetic local DB and server. */
@@ -27,6 +27,20 @@ export async function runFiscalRecoveryHttpAcceptance({send,db,base,reviewer,mer
    VALUES('account_owner','fiscal_admin',$1,$2,now(),
       'ci_independent_security_officer','independent_offline_callback')`,
   [contactOwnerId,reviewUserEmail]);
+ const blockedAlertMonitor=await fetch(base+"/timologio-admin/api/mfa/alerts",{
+  headers:{cookie:reviewer.cookies},signal:AbortSignal.timeout(12000)});
+ assert.equal(blockedAlertMonitor.status,403,"Native fiscal_admin cannot view all security notifications");
+ const deniedMerchantAlerts=await fetch(base+"/timologio-admin/api/mfa/alerts",{
+  headers:{cookie:merchant.cookies},signal:AbortSignal.timeout(12000)});
+ assert.equal(deniedMerchantAlerts.status,401,"Merchants cannot view private security alert operations");
+ const verifiedMonitor=await fetch(base+"/timologio-admin/api/mfa/alerts",{
+  headers:{cookie:federated.cookies},signal:AbortSignal.timeout(12000)});
+ assert.equal(verifiedMonitor.status,200,"Recently stepped-up SSO super-admin may inspect security alert status");
+ const cleanMonitor=await verifiedMonitor.json();
+ assert.equal(cleanMonitor.schemaReady,true);
+ assert.equal(cleanMonitor.deliveryReceiptsReady,true);
+ assert.equal(JSON.stringify(cleanMonitor).includes("@example.test"),false,
+  "The private security dashboard cannot leak owner or SOC email addresses");
  const unauthorizedDispatch=await fetch(base+"/timologio/api/security-alert-dispatch",{
   method:"POST",headers:{"Content-Type":"application/json"},
   body:"{}",signal:AbortSignal.timeout(10000)});
@@ -125,6 +139,68 @@ export async function runFiscalRecoveryHttpAcceptance({send,db,base,reviewer,mer
   ["requested","pending",0,2]
  ],"Every recovery event must atomically queue independent SOC and owner notifications");
  assert.ok(queue.rows.every(x=>x.verified));
+
+ // Resend server acceptance != actual mail server delivery. Synthetic provider
+ // acceptance makes it possible to test the genuinely signed webhook separately
+ // from external email sending (which must never run in disposable CI).
+ const selected=await db.query(
+  `SELECT id FROM fiscal_security_alert_outbox
+    WHERE case_id=$1 AND status='pending' ORDER BY created_at,id LIMIT 1`,[caseId]);
+ assert.ok(selected.rows[0],"Recovery must enqueue private alerts");
+ const notificationId=selected.rows[0].id;
+ const emailId="ci_resend_delivery_"+suffix.replace(/[^a-zA-Z0-9]/g,"").slice(0,25);
+ await db.query(
+  `UPDATE fiscal_security_alert_outbox SET status='sending',
+    attempts=1,last_attempt_at=now(),lease_until=now()+interval '90 seconds',
+    lease_token_hash=$2 WHERE id=$1`,[notificationId,"a".repeat(64)]);
+ await db.query(
+  `UPDATE fiscal_security_alert_outbox SET status='provider_accepted',
+    provider_message_id=$2,provider_accepted_at=now(),
+    lease_until=NULL,lease_token_hash=NULL WHERE id=$1`,[notificationId,emailId]);
+ const webhookPath="/timologio/api/security-alert-webhook";
+ const signingSecret=Buffer.alloc(32,173);
+ let nextEvent=1;
+ async function signedWebhook(type,providerId=emailId,tamper=false,explicitId){
+  const svixId=explicitId??("msg_ci_mfa_"+suffix+"_"+nextEvent++);
+  const timestamp=String(Math.floor(Date.now()/1000));
+  const raw=JSON.stringify({type,created_at:new Date().toISOString(),data:{email_id:providerId}});
+  const validSignature="v1,"+createHmac("sha256",signingSecret)
+   .update(svixId+"."+timestamp+"."+raw).digest("base64");
+  const response=await fetch(base+webhookPath,{method:"POST",headers:{
+   "content-type":"application/json","svix-id":svixId,
+   "svix-timestamp":timestamp,
+   "svix-signature":tamper?"v1,BADSIGNATURE":validSignature
+  },body:raw,signal:AbortSignal.timeout(10000)});
+  let body;
+  try{body=await response.json()}catch{body=null}
+  return {status:response.status,body,svixId};
+ }
+ const badSignature=await signedWebhook("email.delivered",emailId,true);
+ assert.equal(badSignature.status,401,"Forged provider notification must be rejected");
+ const delivered=await signedWebhook("email.delivered");
+ assert.equal(delivered.status,200);
+ assert.equal(delivered.body.ok,true);
+ const duplicate=await signedWebhook("email.delivered",emailId,false,delivered.svixId);
+ assert.equal(duplicate.status,200,"Duplicate signed webhook must be idempotent");
+ assert.equal(duplicate.body.duplicate,true);
+ const unrelated=await signedWebhook("email.delivered","ci_resend_unrelated_12345");
+ assert.equal(unrelated.status,200);
+ assert.equal(unrelated.body.ignored,true,"Other mail streams must not enter FISCAL notification ledger");
+ const bounced=await signedWebhook("email.bounced");
+ assert.equal(bounced.status,200,"A later bounce must record a distinct failure");
+ const receipts=await db.query(
+  "SELECT event_type FROM fiscal_security_alert_delivery_events WHERE outbox_id=$1 ORDER BY event_type",
+  [notificationId]);
+ assert.deepEqual(receipts.rows.map(r=>r.event_type),["email.bounced","email.delivered"]);
+ const monitorAfter=await fetch(base+"/timologio-admin/api/mfa/alerts",{
+  headers:{cookie:federated.cookies},signal:AbortSignal.timeout(12000)});
+ assert.equal(monitorAfter.status,200);
+ const monitorState=await monitorAfter.json();
+ assert.equal(monitorState.counts.deliveryProblem,1,
+  "Signed bounce must take precedence over prior delivery in operations");
+ assert.equal(monitorState.alerts.find(x=>x.id===notificationId)?.deliveryState,"failed");
+ assert.equal(JSON.stringify(monitorState).includes(emailId),false,
+  "Provider identifiers must not leak to security dashboard clients");
  const replacementCookie=next.cookieHeaders.map(x=>x.split(";")[0])
   .find(x=>x.startsWith("km_fiscal_operator_mfa="));
  assert.ok(replacementCookie);
