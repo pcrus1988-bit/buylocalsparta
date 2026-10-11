@@ -9,6 +9,7 @@ import {spawn} from "node:child_process";
 import {createHash,randomBytes,scryptSync} from "node:crypto";
 import {fiscalTotp} from "../apps/web/src/lib/fiscal-operator-mfa-crypto.ts";
 import pg from "pg";
+import {runFiscalRecoveryHttpAcceptance} from "./fiscal-mfa-recovery-http-acceptance.mjs";
 
 if(process.env.CI!=="true"||process.env.FISCAL_STANDALONE_MODE!=="true")
  throw new Error("FISCAL_HTTP_E2E_REQUIRES_EPHEMERAL_CI");
@@ -74,6 +75,7 @@ try{
    FISCAL_INVITATIONS_ENABLED:"true",FISCAL_SERVICE_BASE_URL:"https://fiscal.kontamou.site/",
    FISCAL_EMAIL_VERIFICATION_ENABLED:"true",RESEND_API_KEY:"",FISCAL_VERIFICATION_FROM:"",
    FISCAL_OPERATOR_MFA_SETUP_ENABLED:"true",FISCAL_OPERATOR_MFA_ENFORCED:"true",
+   FISCAL_MFA_RECOVERY_ENABLED:"true",
    FISCAL_OPERATOR_MFA_ENCRYPTION_KEY:"bc".repeat(32)
   },stdio:["ignore","pipe","pipe"]
  });
@@ -251,6 +253,9 @@ try{
  assert.ok([302,303,307,308].includes(crossSession.status),
   "MFA proof cannot be transplanted into a new SSO session for same actor");
  console.log("PASS: federated SSO MFA actor isolation and same-user session binding");
+ await runFiscalRecoveryHttpAcceptance({
+  send,db,base,reviewer,merchant,federated,mfaPath,suffix,reviewUserEmail
+ });
 
  const adminCase=await fetch(base+"/timologio-admin/accounts/"+applicantId,{
   headers:{cookie:reviewer.cookies},signal:AbortSignal.timeout(12000)
