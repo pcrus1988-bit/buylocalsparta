@@ -26,7 +26,9 @@ async function applicationSnapshot(publicId: string): Promise<ApplicationSnapsho
   if (!/^[a-zA-Z0-9_-]{8,110}$/.test(publicId)) return undefined;
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
     SELECT business_name,hub_slug,hub_city,hub_region,primary_category,phone,
-           address_line,postal_code,website_url,website_embed_enabled,plan_code
+           address_line,postal_code,website_url,
+           COALESCE((to_jsonb(hub_expansion_prospects)->>'website_embed_enabled')::boolean,false) AS website_embed_enabled,
+           plan_code
     FROM hub_expansion_prospects
     WHERE public_id=$1
     LIMIT 1
