@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { SiteHeader } from "../../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../../components/SiteFooter";
 import { HubClaimPublicContent } from "../../../../../components/HubClaimPublicContent";
@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { hubSlug, id } = await params;
   const profile = await getPublicHubClaim(hubSlug, id);
   if (!profile) return { title: "Καταχώριση μη διαθέσιμη · KONTA MOY", robots: { index: false, follow: false } };
-  const canonical = "/hubs/" + hubSlug + "/business/" + id;
+  const canonical = "/hubs/" + hubSlug + "/business/" + profile.slug;
   const description = profile.businessName + " · " + profile.category + " στο KONTA MOY HUB " + profile.hubCity + ". Επαληθευμένη δωρεάν καταχώριση επιχείρησης.";
   return {
     title: profile.businessName + " · HUB " + profile.hubCity + " · KONTA MOY",
@@ -27,7 +27,8 @@ export default async function PublicHubClaimPage({ params }: Params) {
   const { hubSlug, id } = await params;
   const profile = await getPublicHubClaim(hubSlug, id);
   if (!profile) notFound();
-  const photos = await listPublicHubClaimMedia(id);
+  if (id !== profile.slug) permanentRedirect("/hubs/" + hubSlug + "/business/" + profile.slug);
+  const photos = await listPublicHubClaimMedia(profile.id);
   return <main>
     <SiteHeader compact />
     <section className="shell"><HubClaimPublicContent profile={profile} media={photos} /></section>
