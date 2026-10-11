@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import type { VendorStorefrontSettings, VendorStorefrontWorkspace } from "../lib/vendor-storefront-settings";
 import { effectiveVendorWorkspaceTheme, hasBespokeVendorStorefront, vendorStorefrontThemeTokens } from "../lib/vendor-storefront-theme";
+import { normalizeVendorExternalWebsiteUrl } from "../lib/vendor-external-website";
 import styles from "./VendorTrial.module.css";
 
 export function VendorStorefrontBuilder(props: {
@@ -88,6 +89,7 @@ export function VendorStorefrontBuilder(props: {
     setError("");
     setMessage("");
     try {
+      if (settings.externalWebsite.enabled) normalizeVendorExternalWebsiteUrl(settings.externalWebsite.url);
       const response = await fetch("/api/vendor/storefront-settings", {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-csrf-token": props.csrfToken },
@@ -179,6 +181,19 @@ export function VendorStorefrontBuilder(props: {
               ["showContact", "Επικοινωνία"]
             ] as const).map(([key, label]) => <label className={styles.toggle} key={key}><span>{label}</span><input type="checkbox" checked={settings[key]} onChange={(event) => patchSettings({ [key]: event.target.checked } as Partial<VendorStorefrontSettings>)} /></label>)}
           </div>
+        </div>
+      </details>
+
+      <details className={styles.editorGroup} open>
+        <summary><span><strong>Εξωτερική ιστοσελίδα · CLAIM</strong><small>Προαιρετική εμφάνιση της ιστοσελίδας σου στο προφίλ.</small></span></summary>
+        <div className={styles.editorGroupBody}>
+          <p className={styles.miniNote}>Η ιστοσελίδα σου λειτουργεί ανεξάρτητα από το checkout του KONTA MOY και εμφανίζεται μόνο με επιλογή του επισκέπτη.</p>
+          <div className={styles.field}>
+            <label htmlFor="vendor-external-website">Διεύθυνση ιστοσελίδας (HTTPS)</label>
+            <input id="vendor-external-website" type="url" inputMode="url" maxLength={2048} value={settings.externalWebsite.url} placeholder="https://www.example.gr" onChange={event => patchSettings({ externalWebsite: { ...settings.externalWebsite, url: event.target.value } })} />
+          </div>
+          <label className={styles.toggle}><span>Εμφάνιση ιστοσελίδας στο δημόσιο προφίλ</span><input type="checkbox" checked={settings.externalWebsite.enabled} onChange={event => patchSettings({ externalWebsite: { ...settings.externalWebsite, enabled: event.target.checked } })} /></label>
+          <p className={styles.miniNote}>Αρχικά απενεργοποιημένο. Αν η ιστοσελίδα δεν επιτρέπει iframe, υπάρχει σύνδεσμος σε νέα καρτέλα.</p>
         </div>
       </details>
 
