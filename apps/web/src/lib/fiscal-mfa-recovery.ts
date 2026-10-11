@@ -15,19 +15,39 @@ type CaseRow={id:string;target_kind:"marketplace_super_admin"|"fiscal_admin";
  target_ref:string;evidence_ref:string;state:string;expires_at:Date};
 const digest=(s:string)=>createHash("sha256").update(s).digest("hex");
 export const fiscalRecoveryEnabled=()=>process.env.FISCAL_MFA_RECOVERY_ENABLED==="true";
-export async function fiscalRecoveryReadiness(){
- const result=await fiscalPool().query<{enrolled_count:number;schema_present:boolean}>(
+export async function fiscalRecoveryReadiness(actor:FiscalAdminActor){
+ const result=await fiscalPool().query<{enrolled_count:number;schema_present:boolean;alert_schema:boolean}>(
   `SELECT (SELECT count(*)::int FROM fiscal_operator_mfa_factors
       WHERE actor_kind='marketplace_super_admin' AND status='active') AS enrolled_count,
     (to_regclass('public.fiscal_mfa_recovery_cases') IS NOT NULL
-     AND to_regclass('public.fiscal_mfa_recovery_approvals') IS NOT NULL) AS schema_present`);
+     AND to_regclass('public.fiscal_mfa_recovery_approvals') IS NOT NULL) AS schema_present,
+    (to_regclass('public.fiscal_security_alert_contacts') IS NOT NULL
+     AND to_regclass('public.fiscal_security_alert_outbox') IS NOT NULL) AS alert_schema`);
  const enrolled=result.rows[0]?.enrolled_count??0;
+ const alertSchemaPresent=result.rows[0]?.alert_schema===true;
+ let verifiedAlertContacts=false;
+ if(alertSchemaPresent){
+  const contacts=await fiscalPool().query<{audience:string;recipient_email:string}>(
+   `SELECT audience,recipient_email FROM fiscal_security_alert_contacts
+    WHERE revoked_at IS NULL AND verified_at<=now()
+    AND (audience='soc' OR (audience='account_owner' AND actor_kind=$1 AND actor_ref=$2))`,
+   [actor.kind,actor.id]);
+  const soc=contacts.rows.filter(x=>x.audience==="soc");
+  const owner=contacts.rows.filter(x=>x.audience==="account_owner");
+  verifiedAlertContacts=soc.length===1&&owner.length===1&&
+   soc[0].recipient_email.toLowerCase()!==owner[0].recipient_email.toLowerCase();
+ }
  return {
   enrolledSuperadminFactors:enrolled,
   minimumForSuperadminRecovery:3,
   enoughDistinctEnrollments:enrolled>=3,
-  // Number of factor records is not proof of independent human identities.
+  // Enrollment counts are not proof of different human beings.
   schemaPresent:result.rows[0]?.schema_present===true,
+  alertSchemaPresent,
+  verifiedAlertContacts,
+  alertDeliveryConfigured:process.env.FISCAL_SECURITY_ALERT_DELIVERY_ENABLED==="true" &&
+   Boolean(process.env.RESEND_API_KEY?.trim()&&process.env.FISCAL_SECURITY_ALERT_FROM?.trim()&&
+    /^[a-f0-9]{64}$/i.test(process.env.FISCAL_SECURITY_ALERT_DISPATCH_TOKEN??"")),
   recoveryEnabled:fiscalRecoveryEnabled(),
   enforced:process.env.FISCAL_OPERATOR_MFA_ENFORCED==="true"
  };
