@@ -2,6 +2,7 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {fiscalCsrfValue,fiscalMerchantAccounts,getFiscalActor} from "../../../lib/fiscal-auth";
 import {listFiscalSandboxJournals} from "../../../lib/fiscal-sandbox-journal-store";
+import {summarizeFiscalSandboxJournals} from "../../../lib/fiscal-sandbox-trial-balance";
 import {FiscalJournalWorkbench} from "../../../components/FiscalJournalWorkbench";
 
 export const dynamic="force-dynamic";
@@ -19,6 +20,7 @@ export default async function FiscalJournalPage({searchParams}:{
  const selected=params.organizationId?accounts.find(x=>x.id===params.organizationId):accounts[0];
  const canSave=selected?.status==="approved"&&["owner","accountant"].includes(selected.role);
  const history=selected?await listFiscalSandboxJournals(actor,selected.id):[];
+ const trialBalance=summarizeFiscalSandboxJournals(history);
  return <main className="fiscal-shell"><div className="fiscal-wrap">
   <header className="fiscal-topbar">
    <Link href="/timologio" className="fiscal-brand">KONTA MOY <span>FISCAL</span></Link>
@@ -43,6 +45,20 @@ export default async function FiscalJournalPage({searchParams}:{
   </section>:<p className="fiscal-muted">Δεν έχει συνδεθεί εγκεκριμένη επιχείρηση. Η προσωρινή προσομοίωση εξακολουθεί να είναι διαθέσιμη.</p>}
   {csrf?<FiscalJournalWorkbench key={selected?.id??"demo"} csrfToken={csrf} organizationId={canSave?selected?.id:undefined}/>
    :<p role="alert">Η συνεδρία δεν επιτρέπει προσομοιώσεις. Συνδεθείτε ξανά.</p>}
+  {selected && history.length>0?<section className="fiscal-panel fiscal-section">
+   <h2>Δοκιμαστικό ισοζύγιο λογαριασμών</h2>
+   <p className="fiscal-muted">Αυτή η συγκεντρωτική προεπισκόπηση καλύπτει αποκλειστικά τα {trialBalance.snapshotCount} πιο πρόσφατα αποθηκευμένα test στιγμιότυπα (μέγιστο 20). Δεν είναι πλήρες ιστορικό, επίσημο ισοζύγιο ή λογιστικό βιβλίο.</p>
+   <div style={{overflowX:"auto"}}>
+    <table className="fiscal-table"><thead><tr><th>Λογαριασμός test</th><th>Χρεώσεις</th><th>Πιστώσεις</th><th>Καθαρή χρέωση</th></tr></thead>
+     <tbody>{trialBalance.rows.map(r=><tr key={r.account}>
+      <td>{r.account}</td><td>{euro(r.debitMinor)}</td><td>{euro(r.creditMinor)}</td><td>{euro(r.netDebitMinor)}</td>
+     </tr>)}</tbody>
+     <tfoot><tr><th>Σύνολο δοκιμής</th><th>{euro(trialBalance.totalDebitMinor)}</th>
+      <th>{euro(trialBalance.totalCreditMinor)}</th>
+      <th>{trialBalance.balanced?"Ισοσκελισμένο":"Ασυμφωνία"}</th></tr></tfoot>
+    </table>
+   </div>
+  </section>:null}
   {selected?<section className="fiscal-panel fiscal-section">
    <h2>Αποθηκευμένα δοκιμαστικά στιγμιότυπα · έως 20 πρόσφατα</h2>
    <p className="fiscal-muted">Οι αποθηκευμένες γραμμές δεν τροποποιούνται και δεν αναγνωρίζονται ως επίσημες συναλλαγές.</p>
