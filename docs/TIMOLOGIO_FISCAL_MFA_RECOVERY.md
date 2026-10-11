@@ -45,6 +45,14 @@ Never enable mandatory MFA just to test recovery.
 - Out-of-band reference attestation is not cryptographically proof of identity.
   Business policy must require actual independent verification by both
   signers before either selects the confirmation checkbox.
+- The approvers' GET API deliberately **does not disclose** the `REC-...`
+  evidence reference. Each approver must independently obtain it through the
+  offline case workflow; copying the requester's evidence from the web screen
+  is not accepted as independent verification.
+- The database trigger itself refuses the `completed` transition without
+  **exactly two immutable, distinct, non-target super-admin approvals** for
+  the matching case and evidence. This supplements, not replaces, the
+  application transaction's authorization, MFA/session binding and audit.
 
 ## Deployment checklist
 - [ ] Verify all relevant Fiscal Foundation CI, Production CI, Browser acceptance,
