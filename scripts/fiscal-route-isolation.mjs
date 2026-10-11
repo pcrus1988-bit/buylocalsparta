@@ -29,6 +29,7 @@ for(const expected of [
  "timologio/page.tsx","timologio/drafts/page.tsx","timologio/drafts/[id]/page.tsx",
  "timologio/counterparties/page.tsx",
  "timologio/journal/page.tsx","timologio/api/console/journal-preview/route.ts",
+ "timologio/api/console/journal/route.ts",
  "timologio/api/console/drafts/route.ts","timologio/api/console/preview/route.ts","timologio/api/v1/drafts/route.ts",
  "timologio/api/console/counterparties/route.ts",
  "timologio-admin/page.tsx","timologio-admin/sso/callback/route.ts"
