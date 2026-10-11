@@ -38,6 +38,11 @@ export function invitedRegistrationEnabled(){
 }
 export async function issueFiscalInvitation(actor:FiscalAdminActor,raw:unknown){
  if(!invitedRegistrationEnabled())throw new FiscalInvitationError("INVITATIONS_DISABLED",403);
+ const origin=process.env.FISCAL_SERVICE_BASE_URL?.trim();
+ if(!origin)throw new FiscalInvitationError("FISCAL_SERVICE_ORIGIN_MISSING",503);
+ const base=new URL(origin);
+ if(base.protocol!=="https:"||base.pathname!=="/"||base.username||base.password||base.search||base.hash)
+  throw new FiscalInvitationError("FISCAL_SERVICE_ORIGIN_INVALID",503);
  const input=parseFiscalInvitationInput(raw),token=randomBytes(32).toString("hex");
  const db=await fiscalPool().connect();
  try{
@@ -62,11 +67,6 @@ export async function issueFiscalInvitation(actor:FiscalAdminActor,raw:unknown){
   await db.query("COMMIT");
   // Fragment never reaches Next.js / CDN request logs or Referer headers.
   // Reveal once to authorized operator. Do not store raw token anywhere.
-  const origin=process.env.FISCAL_SERVICE_BASE_URL?.trim();
-  if(!origin)throw new FiscalInvitationError("FISCAL_SERVICE_ORIGIN_MISSING",503);
-  const base=new URL(origin);
-  if(base.protocol!=="https:"||base.pathname!=="/"||base.username||base.password||base.search||base.hash)
-   throw new FiscalInvitationError("FISCAL_SERVICE_ORIGIN_INVALID",503);
   return {id,expiresAt:result.rows[0].expires_at,
    delivery:"manual",url:new URL("/timologio/invite",base).toString()+"#"+token};
  }catch(error){
