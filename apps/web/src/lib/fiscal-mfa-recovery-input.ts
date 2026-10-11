@@ -1,6 +1,7 @@
 /** Strictly bounded inputs; recovery is never proof of legal identity on its own. */
 export class FiscalRecoveryInputError extends Error {
- constructor(readonly code:string){super(code);}
+ readonly code:string;
+ constructor(code:string){super(code);this.code=code;}
 }
 export const fiscalRecoveryCaseIdPattern=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const evidencePattern=/^REC-[A-Z0-9-]{8,60}$/;
