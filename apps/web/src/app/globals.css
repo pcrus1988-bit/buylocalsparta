@@ -282,3 +282,27 @@ h3 { font-size:27px; line-height:1.04; margin:11px 0; }
     padding-top:12px;
   }
 }
+
+
+/* A vendor's saved brand colors decorate their workspace, without re-theming
+   the platform shell, checkout, navigation or other vendors' pages. */
+.vendor-app[data-vendor-branded="true"] .vendor-header {
+  box-shadow: inset 0 -3px var(--vendor-workspace-primary);
+}
+.vendor-app[data-vendor-branded="true"] .workspace-menu-toggle {
+  border-color: var(--vendor-workspace-secondary);
+}
+.vendor-app[data-vendor-branded="true"] .vendor-hero .dashboard-health-card {
+  border-top: 3px solid var(--vendor-workspace-secondary);
+}
+.vendor-app[data-vendor-branded="true"] .button:not(.button-secondary) {
+  background-color: var(--vendor-workspace-primary);
+  color: var(--vendor-workspace-on-primary);
+  border-color: var(--vendor-workspace-primary);
+}
+.vendor-app[data-vendor-branded="true"] .vendor-hero .eyebrow {
+  text-decoration: underline;
+  text-decoration-color: var(--vendor-workspace-secondary);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 6px;
+}
