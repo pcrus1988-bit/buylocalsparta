@@ -75,11 +75,10 @@ export async function fiscalRecoveryAction(actor:FiscalAdminActor,input:FiscalRe
  try{
   await db.query("BEGIN");
   if(input.action==="request"){
-   // Locking the active factor serializes parallel self-requests for the same actor.
-   const factor=await db.query(
-    "SELECT 1 FROM fiscal_operator_mfa_factors WHERE actor_kind=$1 AND actor_ref=$2 AND status='active' FOR UPDATE",
-    [actor.kind,actor.id]);
-   if(!factor.rowCount)throw error("RECOVERY_ACTIVE_FACTOR_REQUIRED");
+   // Serialize only this actor's self-requests, without taking the factor lock
+   // ahead of the case lock (approval uses case -> factor ordering).
+   await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+     ["fiscal-recovery-request:"+identity(actor)]);
    const existing=await db.query<{id:string;expires_at:Date}>(
     `SELECT id,expires_at FROM fiscal_mfa_recovery_cases
      WHERE target_kind=$1 AND target_ref=$2 AND state='pending' FOR UPDATE`,
@@ -90,6 +89,10 @@ export async function fiscalRecoveryAction(actor:FiscalAdminActor,input:FiscalRe
      "UPDATE fiscal_mfa_recovery_cases SET state='expired',closed_at=now() WHERE id=$1",
      [existing.rows[0].id]);
    }
+   const factor=await db.query(
+    "SELECT 1 FROM fiscal_operator_mfa_factors WHERE actor_kind=$1 AND actor_ref=$2 AND status='active' FOR UPDATE",
+    [actor.kind,actor.id]);
+   if(!factor.rowCount)throw error("RECOVERY_ACTIVE_FACTOR_REQUIRED");
    const fresh=await db.query<{id:string}>(
     `INSERT INTO fiscal_mfa_recovery_cases(target_kind,target_ref,evidence_ref)
      VALUES($1,$2,$3) RETURNING id`,[actor.kind,actor.id,input.evidenceRef]);
