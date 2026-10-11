@@ -40,7 +40,7 @@ export default async function ClaimVendorDashboard() {
           <form action={saveClaim}>
             <input name="csrfToken" type="hidden" value={principal.csrfToken} />
             <input name="claimId" type="hidden" value={profile.id} />
-            <label className={styles.field}>Εμπορική ονομασία<input name="businessName" defaultValue={profile.businessName} required minLength={2} maxLength={120}/></label>
+            <p className={styles.details}><strong>Επαληθευμένη ονομασία:</strong> {profile.businessName}. Για αλλαγή επωνυμίας απαιτείται νέος έλεγχος από την ομάδα.</p>
             <label className={styles.field}>Κατηγορία<input name="category" defaultValue={profile.category} required minLength={2} maxLength={100}/></label>
             <label className={styles.field}>Τηλέφωνο επικοινωνίας<input name="phone" type="tel" defaultValue={profile.phone} required minLength={8} maxLength={32}/></label>
             <label className={styles.field}>Ιστοσελίδα (προαιρετικά)<input name="website" type="url" defaultValue={profile.website ?? ""} maxLength={240} placeholder="https://"/></label>
