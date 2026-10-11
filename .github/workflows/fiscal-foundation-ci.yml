@@ -58,6 +58,12 @@ jobs:
         run: node scripts/fiscal-migrate.mjs
       - name: Verify schema and forbidden fiscal transitions
         run: node scripts/fiscal-db-smoke.mjs
+      - name: Verify isolated dual-approval recovery constraints
+        env:
+          CI: "true"
+        run: node scripts/fiscal-mfa-recovery-db-smoke.mjs
+      - name: Check recovery request and approval input validation
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-mfa-recovery-input.test.ts
       - name: Refuse migration against marketplace database
         run: |
           if FISCAL_DATABASE_URL="$DATABASE_URL" node scripts/fiscal-migrate.mjs; then
