@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
-import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
+import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
 import type { SqlRow } from "@buy-local-sparta/core";
 
 export const runtime="nodejs";
