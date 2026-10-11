@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { HubClaimWorkspace } from "../../../../components/HubClaimWorkspace";
 import { VendorDashboardTools } from "../../../../components/VendorDashboardTools";
 import { getAdminSession } from "../../../../lib/admin-session";
-import { hasAdminPermission } from "../../../../lib/admin-runtime";
+import { hasAdminPermission, assertAdminCsrf } from "../../../../lib/admin-runtime";
 import { getHubExpansionPlan, HUB_EXPANSION_PLANS, type HubExpansionPlanCode } from "../../../../lib/hub-expansion-plans";
 import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
-import type { HubClaimPublicProfile } from "../../../../lib/hub-claim-runtime";
+import { listHubClaimMediaForAdmin, reviewHubClaimMedia, type HubClaimPublicProfile } from "../../../../lib/hub-claim-runtime";
 
 export const metadata: Metadata = { title: "Admin · Vendor plan preview", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ type ApplicationSnapshot = Readonly<{
   category: string; phone: string; address: string; postcode: string;
   website?: string; websiteEmbedEnabled?: boolean; planCode: HubExpansionPlanCode;
   description?: string; openingHours?: string; publicEmail?: string; instagramUrl?: string;
+  logoMediaId?: string; coverMediaId?: string;
 }>;
 
 async function applicationSnapshot(publicId: string): Promise<ApplicationSnapshot | undefined> {
@@ -32,6 +34,8 @@ async function applicationSnapshot(publicId: string): Promise<ApplicationSnapsho
            to_jsonb(hub_expansion_prospects)->>'claim_opening_hours' AS claim_opening_hours,
            to_jsonb(hub_expansion_prospects)->>'claim_public_email' AS claim_public_email,
            to_jsonb(hub_expansion_prospects)->>'claim_instagram_url' AS claim_instagram_url,
+           to_jsonb(hub_expansion_prospects)->>'claim_logo_media_id' AS claim_logo_media_id,
+           to_jsonb(hub_expansion_prospects)->>'claim_cover_media_id' AS claim_cover_media_id,
            plan_code
     FROM hub_expansion_prospects
     WHERE public_id=$1
@@ -52,6 +56,8 @@ async function applicationSnapshot(publicId: string): Promise<ApplicationSnapsho
     openingHours: row.claim_opening_hours ? String(row.claim_opening_hours) : undefined,
     publicEmail: row.claim_public_email ? String(row.claim_public_email) : undefined,
     instagramUrl: row.claim_instagram_url ? String(row.claim_instagram_url) : undefined,
+    logoMediaId: row.claim_logo_media_id ? String(row.claim_logo_media_id) : undefined,
+    coverMediaId: row.claim_cover_media_id ? String(row.claim_cover_media_id) : undefined,
     planCode: planCode as HubExpansionPlanCode
   };
 }
@@ -63,6 +69,20 @@ const fake: ApplicationSnapshot = {
   address: "Δοκιμαστική διεύθυνση", postcode: "38221",
   website: "https://example.com", planCode: "claim"
 };
+
+async function reviewClaimMediaAction(formData: FormData) {
+  "use server";
+  const principal = await getAdminSession();
+  if (!principal || (!principal.roles.includes("super_admin") && !hasAdminPermission(principal, "vendor.manage"))) {
+    throw new Error("CLAIM_ADMIN_REQUIRED");
+  }
+  assertAdminCsrf(principal, String(formData.get("csrfToken") ?? ""));
+  const assignmentId = String(formData.get("assignmentId") ?? "");
+  const action = String(formData.get("action") ?? "");
+  if (action !== "publish" && action !== "reject") throw new Error("CLAIM_ADMIN_INVALID_ACTION");
+  await reviewHubClaimMedia(principal, assignmentId, action);
+  revalidatePath("/admin/hubs/plan-preview");
+}
 
 export default async function AdminHubPlanPreviewPage({ searchParams }: { searchParams: Promise<Search> }) {
   const principal = await getAdminSession();
@@ -83,10 +103,13 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
     postcode: business.postcode, website: business.website,
     websiteEmbedEnabled: business.websiteEmbedEnabled ?? false,
     description: business.description, openingHours: business.openingHours,
-    publicEmail: business.publicEmail, instagramUrl: business.instagramUrl
+    publicEmail: business.publicEmail, instagramUrl: business.instagramUrl,
+    logoMediaId: business.logoMediaId, coverMediaId: business.coverMediaId
   };
   const isClaim = plan.code === "claim";
   const selling = plan.ecommerce;
+  const claimMedia = isClaim && record && business.planCode === "claim"
+    ? await listHubClaimMediaForAdmin(applicationId, principal) : [];
   const eur = (cents: number) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(cents / 100);
 
   return <main className="vendor-app admin-app">
@@ -112,7 +135,7 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
         </label>
         <button className="button" type="submit">Εμφάνιση ως Vendor</button>
       </form>
-      <div className="workspace-inline-note" role="status"><strong>ADMIN PREVIEW · READ ONLY</strong> — Δεν συνδέεσαι σε λογαριασμό vendor. Δεν εκτελούνται παραγγελίες, αλλαγές δεδομένων, δημοσιεύσεις ή χρεώσεις. Η επιχείρηση είναι {record ? "από την πραγματική αίτηση, χωρίς ενεργοποίηση" : "ενδεικτικό DEMO"}. </div>
+      <div className="workspace-inline-note" role="status"><strong>ADMIN VIEW-AS · READ ONLY VENDOR</strong> — Δεν συνδέεσαι σε λογαριασμό vendor. Δεν εκτελούνται παραγγελίες, αλλαγές δεδομένων, δημοσιεύσεις ή χρεώσεις. Η επιχείρηση είναι {record ? "από την πραγματική αίτηση, χωρίς ενεργοποίηση" : "ενδεικτικό DEMO"}. </div>
       <div className="workspace-inline-note"><strong>{plan.name}</strong> · ένταξη {eur(plan.setupFeeCents)} · {plan.monthlyLabel} · {plan.annualLabel} · προμήθεια {plan.commissionLabel} · {plan.ecommerce ? "Marketplace operations" : "Χωρίς marketplace checkout"}</div>
     </section>
 
@@ -135,6 +158,25 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
           </div>
           <VendorDashboardTools metrics={{ orders: 0, overdue: 0, lowStock: 0, activeProducts: 0, purchases30d: 0 }} previewPlan={plan.code} />
         </section>}
+    {isClaim && record && business.planCode === "claim" && <section className="shell vendor-section">
+      <h2>Admin · Έγκριση εικόνων CLAIM</h2>
+      <p>Οι φωτογραφίες των CLAIM χρηστών δεν δημοσιεύονται αυτόματα. Η έγκριση απαιτεί καθαρό αποτέλεσμα από τον υπάρχοντα scanner και ξεχωριστή απόφαση διαχειριστή.</p>
+      {!claimMedia.length ? <p>Δεν έχουν υποβληθεί εικόνες για αυτή την αίτηση.</p> : <div className="partner-record-command-grid">
+        {claimMedia.map(item => <article key={item.id} className="partner-record-command">
+          <span>{item.role === "logo" ? "Λογότυπο" : "Εξώφυλλο"}</span>
+          <strong>{item.filename}</strong>
+          <small>{item.status} · malware scan: {item.scanStatus}</small>
+          {item.status === "pending_review" && <form action={reviewClaimMediaAction}>
+            <input type="hidden" name="csrfToken" value={principal.csrfToken} />
+            <input type="hidden" name="assignmentId" value={item.id} />
+            <div className="hero-actions">
+              <button type="submit" className="button" name="action" value="publish" disabled={item.scanStatus !== "clean"}>Έγκριση & δημοσίευση</button>
+              <button type="submit" className="button button-secondary" name="action" value="reject">Απόρριψη</button>
+            </div>
+          </form>}
+        </article>)}
+      </div>}
+    </section>}
     <section className="shell vendor-section">
       <h2>Περιορισμοί της προεπισκόπησης</h2>
       <p>Η προβολή είναι ασφαλής και μη επεξεργάσιμη. Δεν δημιουργεί dummy χρήστες, passwords ή vendor memberships. Το CLAIM χρησιμοποιεί ακριβώς το ίδιο workspace και το ίδιο δημόσιο component με τον πραγματικό ιδιοκτήτη. Για τα υπόλοιπα πακέτα δείχνουμε τα σημερινά διαθέσιμα UI εργαλεία και τις συμβατικές δυνατότητες· η πλήρης ενεργοποίηση ανά plan απαιτεί ακόμη ενιαίο server-side capability enforcement.</p>
