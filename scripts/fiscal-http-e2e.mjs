@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import {createServer} from "node:net";
 import {spawn} from "node:child_process";
 import {createHash,randomBytes,scryptSync} from "node:crypto";
+import {fiscalTotp} from "../apps/web/src/lib/fiscal-operator-mfa-crypto.ts";
 import pg from "pg";
 
 if(process.env.CI!=="true"||process.env.FISCAL_STANDALONE_MODE!=="true")
@@ -71,7 +72,9 @@ try{
    FISCAL_STANDALONE_MODE:"true",FISCAL_REGISTRATION_ENABLED:"false",
    FISCAL_MARKETPLACE_DRAFT_SYNC_ENABLED:"false",FISCAL_ISSUANCE_ENABLED:"false",
    FISCAL_INVITATIONS_ENABLED:"true",FISCAL_SERVICE_BASE_URL:"https://fiscal.kontamou.site/",
-   FISCAL_EMAIL_VERIFICATION_ENABLED:"true",RESEND_API_KEY:"",FISCAL_VERIFICATION_FROM:""
+   FISCAL_EMAIL_VERIFICATION_ENABLED:"true",RESEND_API_KEY:"",FISCAL_VERIFICATION_FROM:"",
+   FISCAL_OPERATOR_MFA_SETUP_ENABLED:"true",FISCAL_OPERATOR_MFA_ENFORCED:"true",
+   FISCAL_OPERATOR_MFA_ENCRYPTION_KEY:"bc".repeat(32)
   },stdio:["ignore","pipe","pipe"]
  });
  server.stdout?.on("data",appendLog);server.stderr?.on("data",appendLog);
@@ -154,6 +157,52 @@ try{
  assert.ok(adminSession&&adminCsrfCookie);
  const reviewer={cookies:adminSession+"; "+adminCsrfCookie,
   csrf:adminCsrfCookie.slice("km_fiscal_csrf=".length)};
+
+ // MFA gate protects case pages and mutations without disrupting the primary SSO/session.
+ const mfaPath="/timologio-admin/api/mfa";
+ const unverifiedOperation=await send("/timologio-admin/api/accounts",{
+  action:"start_review",organizationId:applicantId
+ },reviewer);
+ assert.equal(unverifiedOperation.status,403,"Admin mutations require a recent MFA proof");
+ assert.equal(unverifiedOperation.body.error,"FISCAL_MFA_REQUIRED");
+ const missingMfaPage=await fetch(base+"/timologio-admin/accounts/"+applicantId,{
+  headers:{cookie:reviewer.cookies},redirect:"manual",signal:AbortSignal.timeout(12000)
+ });
+ assert.ok([302,303,307,308].includes(missingMfaPage.status),"Sensitive operator case redirects to MFA");
+ const badMfaOrigin=await send(mfaPath,{action:"start"},{
+  ...reviewer,origin:"https://untrusted.invalid"
+ });
+ assert.equal(badMfaOrigin.status,403);
+ const noMerchantEnrollment=await send(mfaPath,{action:"start"},merchant);
+ assert.equal(noMerchantEnrollment.status,401);
+ const setup=await send(mfaPath,{action:"start"},reviewer);
+ assert.equal(setup.status,200,"Authenticated operator may begin MFA enrollment");
+ assert.match(setup.body.secret,/^[A-Z2-7]{32}$/);
+ assert.ok(setup.body.uri.startsWith("otpauth://totp/"));
+ const mfaCode=fiscalTotp(setup.body.secret,Math.floor(Date.now()/30000));
+ const wrongFormat=await send(mfaPath,{action:"activate",code:"not-six-digits"},reviewer);
+ assert.equal(wrongFormat.status,400);
+ const activated=await send(mfaPath,{action:"activate",code:mfaCode},reviewer);
+ assert.equal(activated.status,200,"Correct TOTP activates operator MFA");
+ assert.equal(activated.body.active,true);
+ const mfaCookie=activated.cookieHeaders.map(x=>x.split(";")[0]).find(x=>x.startsWith("km_fiscal_operator_mfa="));
+ assert.ok(mfaCookie,"MFA step-up must set HttpOnly session cookie");
+ reviewer.cookies+="; "+mfaCookie;
+ const reuseCode=await send(mfaPath,{action:"step_up",code:mfaCode},reviewer);
+ assert.equal(reuseCode.status,403,"Accepted TOTP codes cannot be replayed");
+ const activeStatus=await fetch(base+mfaPath,{
+  headers:{cookie:reviewer.cookies},signal:AbortSignal.timeout(12000)
+ });
+ assert.equal(activeStatus.status,200);
+ const body=await activeStatus.json();
+ assert.equal(body.active,true);
+ assert.equal(body.steppedUp,true);
+ const authorisationNow=await db.query(
+  "SELECT count(*)::int AS n FROM fiscal_operator_mfa_sessions WHERE actor_kind='fiscal_admin' AND actor_ref=(SELECT id::text FROM fiscal_users WHERE email=$1)",
+  [reviewUserEmail]);
+ assert.equal(authorisationNow.rows[0].n,1);
+ console.log("PASS: operator MFA enrollment, CSRF/Origin, replay protection, session-bound step-up");
+
  const adminCase=await fetch(base+"/timologio-admin/accounts/"+applicantId,{
   headers:{cookie:reviewer.cookies},signal:AbortSignal.timeout(12000)
  });
