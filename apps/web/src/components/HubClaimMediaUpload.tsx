@@ -2,10 +2,10 @@
 import { useState,type FormEvent } from "react";
 import type { HubClaimMedia } from "../lib/hub-claim-runtime";
 import styles from "../app/hubs/claim/claim.module.css";
-export function HubClaimMediaUpload({claimId,csrfToken,items,preview=false}:{claimId:string;csrfToken?:string;items:readonly HubClaimMedia[];preview?:boolean}){
+export function HubClaimMediaUpload({claimId,csrfToken,items,preview=false,uploadReady=true}:{claimId:string;csrfToken?:string;items:readonly HubClaimMedia[];preview?:boolean;uploadReady?:boolean}){
   const [error,setError]=useState(""),[success,setSuccess]=useState(""),[busy,setBusy]=useState(false);
   async function send(e:FormEvent<HTMLFormElement>){
-    e.preventDefault();if(preview)return;
+    e.preventDefault();if(preview||!uploadReady)return;
     setBusy(true);setError("");setSuccess("");
     try{
       const form=new FormData(e.currentTarget);
@@ -29,15 +29,16 @@ export function HubClaimMediaUpload({claimId,csrfToken,items,preview=false}:{cla
         <small>{item.status==="approved"?"Δημοσιευμένο":item.status==="pending"?"Σε έλεγχο":"Απορρίφθηκε"} · {item.altText}</small>
       </div>)}
     </div>
+    {!uploadReady&&<p role="status" className={styles.hint}>Η ασφαλής μεταφόρτωση δεν είναι ακόμα διαθέσιμη. Επικοινώνησε με την υποστήριξη.</p>}
     <form onSubmit={send}>
-      <fieldset disabled={preview||busy} style={{border:0,padding:0,margin:0,minWidth:0}}>
+      <fieldset disabled={preview||busy||!uploadReady} style={{border:0,padding:0,margin:0,minWidth:0}}>
         <label className={styles.field}>Τύπος φωτογραφίας<select name="role" required defaultValue="logo">
           <option value="logo">Λογότυπο</option><option value="storefront">Φωτογραφία καταστήματος</option><option value="gallery">Συλλογή (έως 4)</option>
         </select></label>
         <label className={styles.field}>Εικόνα έως 4 MB<input type="file" name="file" required accept="image/jpeg,image/png,image/webp"/></label>
         <label className={styles.field}>Περιγραφή εικόνας<input name="altText" required minLength={2} maxLength={240}/></label>
         <label className={styles.field}>Κάτοχος δικαιωμάτων<input name="rightsOwner" required minLength={2} maxLength={200}/></label>
-        <button className={styles.button} type="submit" disabled={preview||busy}>{busy?"Μεταφόρτωση…":"Υποβολή για έγκριση"}</button>
+        <button className={styles.button} type="submit" disabled={preview||busy||!uploadReady}>{busy?"Μεταφόρτωση…":"Υποβολή για έγκριση"}</button>
       </fieldset>
     </form>
     {error&&<p role="alert" className={styles.hint}>{error}</p>}
