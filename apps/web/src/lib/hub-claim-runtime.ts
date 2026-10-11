@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { serverObjectStorageFromEnv } from "@buy-local-sparta/object-storage";
+import { hasAdminPermission } from "./admin-runtime";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { normalizeVendorExternalWebsiteUrl, publicVendorExternalWebsiteUrl } from "./vendor-external-website";
@@ -6,6 +9,7 @@ export type HubClaimPublicProfile = Readonly<{
   id: string; hubSlug: string; hubCity: string; hubRegion: string;
   businessName: string; category: string; phone: string; website?: string; websiteEmbedEnabled: boolean;
   description?: string; openingHours?: string; publicEmail?: string; instagramUrl?: string;
+  logoMediaId?: string; coverMediaId?: string;
   address: string; postcode: string;
 }>;
 
@@ -23,7 +27,9 @@ const SQL_PROFILE = `
          to_jsonb(h)->>'claim_description' AS claim_description,
          to_jsonb(h)->>'claim_opening_hours' AS claim_opening_hours,
          to_jsonb(h)->>'claim_public_email' AS claim_public_email,
-         to_jsonb(h)->>'claim_instagram_url' AS claim_instagram_url
+         to_jsonb(h)->>'claim_instagram_url' AS claim_instagram_url,
+         to_jsonb(h)->>'claim_logo_media_id' AS claim_logo_media_id,
+         to_jsonb(h)->>'claim_cover_media_id' AS claim_cover_media_id
   FROM hub_expansion_prospects h
   WHERE h.plan_code='claim' AND h.status='converted'
     AND h.owner_user_id IS NOT NULL
@@ -40,7 +46,9 @@ function asProfile(row: SqlRow): HubClaimPublicProfile {
     description: optionalText(row.claim_description),
     openingHours: optionalText(row.claim_opening_hours),
     publicEmail: optionalText(row.claim_public_email),
-    instagramUrl: optionalText(row.claim_instagram_url)
+    instagramUrl: optionalText(row.claim_instagram_url),
+    logoMediaId: optionalText(row.claim_logo_media_id),
+    coverMediaId: optionalText(row.claim_cover_media_id)
   };
 }
 
@@ -226,4 +234,174 @@ export async function updateOwnedHubClaim(id: string, principal: SessionPrincipa
     },
     { isolation: "serializable" }
   );
+}
+
+export type HubClaimMediaItem = Readonly<{
+  id: string; claimId: string; mediaId: string; role: "logo" | "cover";
+  status: "pending_review" | "published" | "archived" | "rejected";
+  scanStatus: string; filename: string; createdAt: string;
+}>;
+
+function assertClaimAdmin(principal: SessionPrincipal) {
+  if (!principal.roles.includes("super_admin") && !hasAdminPermission(principal, "vendor.manage")) {
+    throw new Error("CLAIM_ADMIN_REQUIRED");
+  }
+}
+
+function mediaRow(row: SqlRow): HubClaimMediaItem {
+  return {
+    id: String(row.public_id), claimId: String(row.claim_public_id),
+    mediaId: String(row.media_public_id), role: String(row.role) as "logo" | "cover",
+    status: String(row.publication_status) as HubClaimMediaItem["status"],
+    scanStatus: String(row.scan_status), filename: String(row.original_filename || "image"),
+    createdAt: new Date(String(row.created_at)).toISOString()
+  };
+}
+
+const CLAIM_MEDIA_QUERY = `
+  SELECT cm.public_id,h.public_id AS claim_public_id,pm.public_id AS media_public_id,
+         cm.role,cm.publication_status,pm.scan_status,pm.original_filename,cm.created_at
+  FROM hub_claim_profile_media cm
+  JOIN hub_expansion_prospects h ON h.id=cm.claim_id
+  JOIN product_media pm ON pm.id=cm.media_id
+`;
+
+export async function listOwnedHubClaimMedia(principal: SessionPrincipal): Promise<HubClaimMediaItem[]> {
+  if (!principal.roles.includes("customer")) return [];
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(CLAIM_MEDIA_QUERY + `
+    JOIN users u ON u.id=h.owner_user_id
+    WHERE h.plan_code='claim' AND h.status='converted'
+      AND u.public_id=$1 AND u.status='active' AND u.email_verified_at IS NOT NULL
+    ORDER BY cm.created_at DESC LIMIT 80`, [principal.userId]);
+  return result.rows.map(mediaRow);
+}
+
+export async function listHubClaimMediaForAdmin(publicId: string, principal: SessionPrincipal): Promise<HubClaimMediaItem[]> {
+  assertClaimAdmin(principal);
+  if (!validId(publicId)) return [];
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(CLAIM_MEDIA_QUERY + `
+    WHERE h.public_id=$1 AND h.plan_code='claim'
+    ORDER BY cm.created_at DESC LIMIT 80`, [publicId]);
+  return result.rows.map(mediaRow);
+}
+
+function authenticImage(type: string, bytes: Uint8Array): boolean {
+  if (type === "image/jpeg") return bytes.length > 3 && bytes[0]===0xff && bytes[1]===0xd8 && bytes[2]===0xff;
+  if (type === "image/png") return bytes.length > 8 && [137,80,78,71,13,10,26,10].every((n,i)=>bytes[i]===n);
+  if (type === "image/webp") return bytes.length > 12
+    && String.fromCharCode(...bytes.slice(0,4))==="RIFF" && String.fromCharCode(...bytes.slice(8,12))==="WEBP";
+  return false;
+}
+
+/** Small verified picture intake. The existing product_media worker scans these assets.
+ * Pending files never become public before the separate admin publication step. */
+export async function uploadOwnedHubClaimMedia(id: string, principal: SessionPrincipal, form: FormData): Promise<void> {
+  if (!validId(id) || !principal.roles.includes("customer")) throw new Error("CLAIM_NOT_ALLOWED");
+  const role = String(form.get("role") ?? "");
+  if (role !== "logo" && role !== "cover") throw new Error("INVALID_CLAIM_MEDIA_ROLE");
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size <= 0 || file.size > 4 * 1024 * 1024) {
+    throw new Error("CLAIM_IMAGE_4MB_LIMIT");
+  }
+  const contentType = file.type.toLowerCase();
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (!authenticImage(contentType, bytes)) throw new Error("CLAIM_IMAGE_MUST_BE_JPEG_PNG_WEBP");
+  const altText = checkedText(form.get("altText"), "IMAGE_ALT", 240);
+  const rightsOwner = checkedText(form.get("rightsOwner"), "IMAGE_RIGHTS", 200);
+  if (form.get("rightsConfirmed") !== "on") throw new Error("CLAIM_IMAGE_RIGHTS_CONFIRMATION_REQUIRED");
+  const filename = file.name.replace(/[\\u0000-\\u001f\\u007f]/g, "").replaceAll("\\\\","/").split("/").pop()?.slice(0, 200) || "claim-image";
+
+  // Check account/ownership before writing to private storage.
+  const owner = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT h.id::text AS claim_uuid,u.id::text AS user_uuid
+    FROM hub_expansion_prospects h JOIN users u ON u.id=h.owner_user_id
+    WHERE h.public_id=$1 AND h.plan_code='claim' AND h.status='converted'
+      AND u.public_id=$2 AND u.status='active' AND u.email_verified_at IS NOT NULL
+    LIMIT 1`, [id, principal.userId]);
+  if (!owner.rowCount) throw new Error("CLAIM_NOT_OWNED");
+
+  const objectKey = "private/hub-claim/" + id + "/" + role + "/" + randomUUID();
+  const storage = serverObjectStorageFromEnv({ defaultBucket: "buy-local-sparta-private" });
+  await storage.put({ objectKey, contentType, body: bytes });
+  try {
+    const metadata = await storage.head(objectKey);
+    if (!metadata || metadata.byteSize !== bytes.length || metadata.contentType !== contentType) {
+      throw new Error("CLAIM_IMAGE_STORAGE_VERIFICATION_FAILED");
+    }
+    const mediaUuid = randomUUID();
+    const mediaPublicId = "media_" + randomUUID().replaceAll("-", "");
+    const uow = new PostgresUnitOfWork(getProductionPostgresRuntime().sqlPool);
+    await uow.withTransaction({ actorUserId: principal.userId, platformAccess: true, marketId: "sparta", requestId: "claim-media:"+id }, async tx => {
+      const locked = await tx.query<SqlRow>(`
+        SELECT h.id::text AS claim_uuid,u.id::text AS user_uuid
+        FROM hub_expansion_prospects h JOIN users u ON u.id=h.owner_user_id
+        WHERE h.public_id=$1 AND h.plan_code='claim' AND h.status='converted'
+          AND u.public_id=$2 AND u.status='active' AND u.email_verified_at IS NOT NULL
+        FOR UPDATE OF h`, [id, principal.userId]);
+      if (!locked.rowCount) throw new Error("CLAIM_NOT_OWNED");
+      const pending = await tx.query<SqlRow>(`
+        SELECT count(*)::integer AS count FROM hub_claim_profile_media
+        WHERE claim_id=$1::uuid AND role=$2 AND publication_status='pending_review'`,
+        [locked.rows[0].claim_uuid, role]);
+      if (Number(pending.rows[0]?.count) >= 3) throw new Error("CLAIM_IMAGE_REVIEW_QUEUE_LIMIT");
+      await tx.query(`
+        INSERT INTO product_media(
+          id,public_id,canonical_variant_id,vendor_id,kind,object_key,alt_text,rights_owner,
+          rights_status,moderation_status,original_filename,content_type,byte_size,
+          scan_status,storage_verified_at,next_scan_at,created_at
+        ) VALUES($1,$2,NULL,NULL,'image',$3,$4,$5,'pending','pending',$6,$7,$8,'pending',now(),now(),now())`,
+        [mediaUuid,mediaPublicId,objectKey,altText,rightsOwner,filename,contentType,bytes.length]);
+      await tx.query(`
+        INSERT INTO hub_claim_profile_media(public_id,claim_id,media_id,role,created_by)
+        VALUES($1,$2::uuid,$3::uuid,$4,$5::uuid)`,
+        ["hcpm_"+randomUUID().replaceAll("-",""),locked.rows[0].claim_uuid,mediaUuid,role,locked.rows[0].user_uuid]);
+    }, { isolation: "serializable" });
+  } catch (error) {
+    await storage.delete(objectKey).catch(()=>undefined);
+    throw error;
+  }
+}
+
+/** Admin publication requires a completed clean worker scan; owner upload alone cannot publish. */
+export async function reviewHubClaimMedia(principal: SessionPrincipal, assignmentId: string, action: "publish" | "reject"): Promise<void> {
+  assertClaimAdmin(principal);
+  if (!/^hcpm_[a-z0-9]{32}$/.test(assignmentId)) throw new Error("CLAIM_IMAGE_NOT_FOUND");
+  const uow = new PostgresUnitOfWork(getProductionPostgresRuntime().sqlPool);
+  await uow.withTransaction({ actorUserId: principal.userId, platformAccess: true, marketId: "sparta", requestId: "review-claim-media:"+assignmentId }, async tx => {
+    const actor = await tx.query<SqlRow>("SELECT id::text AS id FROM users WHERE public_id=$1 LIMIT 1", [principal.userId]);
+    if (!actor.rowCount) throw new Error("CLAIM_ADMIN_USER_NOT_FOUND");
+    const result = await tx.query<SqlRow>(`
+      SELECT cm.id::text AS assignment_uuid,cm.claim_id::text AS claim_uuid,cm.role,cm.publication_status,
+             pm.id::text AS media_uuid,pm.public_id AS media_public_id,pm.scan_status
+      FROM hub_claim_profile_media cm
+      JOIN hub_expansion_prospects h ON h.id=cm.claim_id AND h.plan_code='claim'
+      JOIN product_media pm ON pm.id=cm.media_id
+      WHERE cm.public_id=$1
+      FOR UPDATE OF cm,pm,h`, [assignmentId]);
+    if (!result.rowCount || result.rows[0].publication_status !== "pending_review") throw new Error("CLAIM_MEDIA_NOT_PENDING");
+    const row = result.rows[0];
+    if (action === "publish") {
+      if (row.scan_status !== "clean") throw new Error("CLAIM_MEDIA_SCAN_NOT_CLEAN");
+      await tx.query(`
+        UPDATE product_media SET rights_status='approved',moderation_status='approved',
+          reviewed_by=$2::uuid,reviewed_at=now() WHERE id=$1::uuid`, [row.media_uuid,actor.rows[0].id]);
+      await tx.query(`
+        UPDATE hub_claim_profile_media SET publication_status='archived'
+        WHERE claim_id=$1::uuid AND role=$2 AND publication_status='published'`,
+        [row.claim_uuid,row.role]);
+      await tx.query(`
+        UPDATE hub_claim_profile_media SET publication_status='published',reviewed_by=$2::uuid,reviewed_at=now()
+        WHERE id=$1::uuid`, [row.assignment_uuid,actor.rows[0].id]);
+      const column = row.role === "logo" ? "claim_logo_media_id" : "claim_cover_media_id";
+      await tx.query(`UPDATE hub_expansion_prospects SET ${column}=$2,updated_at=now() WHERE id=$1::uuid`,
+        [row.claim_uuid,row.media_public_id]);
+    } else {
+      await tx.query(`
+        UPDATE product_media SET moderation_status='rejected',reviewed_by=$2::uuid,reviewed_at=now()
+        WHERE id=$1::uuid`, [row.media_uuid,actor.rows[0].id]);
+      await tx.query(`
+        UPDATE hub_claim_profile_media SET publication_status='rejected',reviewed_by=$2::uuid,reviewed_at=now()
+        WHERE id=$1::uuid`, [row.assignment_uuid,actor.rows[0].id]);
+    }
+  }, { isolation: "serializable" });
 }
