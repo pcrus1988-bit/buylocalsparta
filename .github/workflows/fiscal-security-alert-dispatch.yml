@@ -1,0 +1,28 @@
+name: FISCAL security alert dispatch
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dispatch:
+    if: ${{ vars.FISCAL_SECURITY_ALERT_DISPATCH_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Dispatch private standalone security notification outbox
+        env:
+          FISCAL_DISPATCH_TOKEN: ${{ secrets.FISCAL_SECURITY_ALERT_DISPATCH_TOKEN }}
+        run: |
+          set -eu
+          if [ -z "${FISCAL_DISPATCH_TOKEN:-}" ]; then
+            echo "No dispatch credential configured; refusing to send."
+            exit 1
+          fi
+          curl --fail --silent --show-error --max-time 70 \
+            --request POST \
+            --header "Authorization: Bearer ${FISCAL_DISPATCH_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data '{}' \
+            "https://fiscal.kontamou.site/timologio/api/security-alert-dispatch"
