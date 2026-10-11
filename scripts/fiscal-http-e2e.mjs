@@ -70,7 +70,8 @@ try{
    ...process.env,DATABASE_URL:"",POSTGRES_URL:"",
    FISCAL_STANDALONE_MODE:"true",FISCAL_REGISTRATION_ENABLED:"false",
    FISCAL_MARKETPLACE_DRAFT_SYNC_ENABLED:"false",FISCAL_ISSUANCE_ENABLED:"false",
-   FISCAL_INVITATIONS_ENABLED:"true",FISCAL_SERVICE_BASE_URL:"https://fiscal.kontamou.site/"
+   FISCAL_INVITATIONS_ENABLED:"true",FISCAL_SERVICE_BASE_URL:"https://fiscal.kontamou.site/",
+   FISCAL_EMAIL_VERIFICATION_ENABLED:"true",RESEND_API_KEY:"",FISCAL_VERIFICATION_FROM:""
   },stdio:["ignore","pipe","pipe"]
  });
  server.stdout?.on("data",appendLog);server.stderr?.on("data",appendLog);
@@ -280,6 +281,54 @@ try{
   [pendingOrg.rows[0].id]);
  assert.equal(inviteAudit.rows[0].n,1);
  console.log("PASS: invitation creation, fragment-only token, pending merchant, replay, origin and revocation");
+
+ // Email proof requires authenticated merchant + CSRF, and never approves KYB.
+ const verifyPath="/timologio/api/email-verification";
+ const anonymousVerify=await send(verifyPath,{action:"request"});
+ assert.equal(anonymousVerify.status,401,"Anonymous cannot send email verification");
+ const wrongMerchantRequest=await send(verifyPath,{action:"request"},reviewer);
+ assert.equal(wrongMerchantRequest.status,401,"Fiscal operator cannot impersonate merchant verification");
+ const senderMissing=await send(verifyPath,{action:"request"},ownerLogin);
+ assert.equal(senderMissing.status,503,"Provider config must fail closed; no email or token disclosure");
+ assert.equal(senderMissing.body.error,"EMAIL_DELIVERY_NOT_CONFIGURED");
+ const emailToken=randomBytes(32).toString("hex");
+ const emailProof=await db.query(
+  `INSERT INTO fiscal_email_verification_challenges(user_id,token_hash,expires_at)
+   SELECT u.id,$2,now()+interval '20 minutes' FROM fiscal_users u WHERE email=$1
+   RETURNING id`,["invited-"+suffix+"@example.test",digest(emailToken)]);
+ assert.equal(emailProof.rows.length,1);
+ const otherProof=await send(verifyPath,{action:"confirm",token:emailToken},stranger);
+ assert.equal(otherProof.status,403,"Other tenant cannot consume an email proof");
+ const forgedOrigin=await send(verifyPath,{action:"confirm",token:emailToken},
+  {...ownerLogin,origin:"https://untrusted.invalid"});
+ assert.equal(forgedOrigin.status,403,"Email proof requires same Origin");
+ const forgedCsrf=await send(verifyPath,{action:"confirm",token:emailToken},
+  {...ownerLogin,csrf:"f".repeat(64)});
+ assert.equal(forgedCsrf.status,403,"Email proof requires merchant CSRF");
+ const csrfBoot=await fetch(base+verifyPath,{headers:{cookie:ownerLogin.cookies},signal:AbortSignal.timeout(12000)});
+ assert.equal(csrfBoot.status,200);
+ assert.equal((await csrfBoot.json()).csrfToken,ownerLogin.csrf);
+ const proof=await send(verifyPath,{action:"confirm",token:emailToken},ownerLogin);
+ assert.equal(proof.status,200,"Owner can confirm only own valid 20-minute proof");
+ assert.equal(proof.body.emailVerified,true);
+ assert.equal(proof.body.identityVerified,false);
+ assert.equal(proof.body.issuanceEnabled,false);
+ const replayProof=await send(verifyPath,{action:"confirm",token:emailToken},ownerLogin);
+ assert.equal(replayProof.status,403,"Email proof is single-use");
+ const emailSaved=await db.query(
+  "SELECT email_verified_at FROM fiscal_users WHERE email=$1",["invited-"+suffix+"@example.test"]);
+ assert.ok(emailSaved.rows[0].email_verified_at instanceof Date);
+ const noOrgPromotion=await db.query(
+  `SELECT o.status FROM fiscal_organizations o JOIN fiscal_memberships m
+   ON m.organization_id=o.id JOIN fiscal_users u ON u.id=m.user_id WHERE u.email=$1`,
+  ["invited-"+suffix+"@example.test"]);
+ assert.equal(noOrgPromotion.rows[0].status,"pending_review");
+ const verifiedAudits=await db.query(
+  "SELECT count(*)::int AS n FROM fiscal_audit_events WHERE actor_ref=(SELECT id::text FROM fiscal_users WHERE email=$1) AND action='email.ownership_proved'",
+  ["invited-"+suffix+"@example.test"]);
+ assert.equal(verifiedAudits.rows[0].n,1,"Confirmation must record exactly one immutable audit event");
+ console.log("PASS: email proof session, owner binding, CSRF, strict Origin, replay and no KYB promotion");
+
 
 
  const item={description:"Synthetic E2E service",quantityMilli:1000,unitPriceMinor:10000,vatRateBps:2400,discountBps:0};
