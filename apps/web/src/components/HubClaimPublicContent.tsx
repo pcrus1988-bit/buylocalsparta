@@ -34,6 +34,7 @@ export function HubClaimPublicContent({ profile }: { profile: HubClaimPublicProf
       {profile.websiteEmbedEnabled && profile.website && <section className={styles.panel} style={{ marginTop: 20 }} aria-labelledby="claim-website-title">
         <h2 id="claim-website-title">Ιστοσελίδα επιχείρησης</h2>
         <VendorExternalWebsiteFrame url={profile.website} vendorName={profile.businessName} />
-      </section>
+      </section>}
+    </section>
   </>;
 }
