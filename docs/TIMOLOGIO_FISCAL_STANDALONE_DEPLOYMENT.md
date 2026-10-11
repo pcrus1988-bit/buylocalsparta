@@ -8,7 +8,7 @@
 - **Region:** fra1 (Frankfurt)
 - **Protection:** Vercel SSO applies to all targets. Not a public launch.
 - **Source:** feature branch feat/timologio-fiscal-foundation-20261009 / PR #1431.
-- **Database:** No independent Fiscal production database is provisioned.
+- **Database:** Dedicated Supabase Frankfurt project `kcpwxplxqtqdsfwlfsaa` provisioned. Migrations through `0013` are present, and additive `0014` foreign-key indexes are applied. Production database connectivity from the deployed app still requires a live health check.
 - **Custom DNS:** Not configured.
 - **Legal invoice issuance:** Not implemented or activated.
 
@@ -40,7 +40,7 @@ Do not copy marketplace DATABASE_URL, POSTGRES_URL, BLS_AUTH_SECRET, vendor cred
 
 ### Database provisioning
 
-A dedicated EU-region PostgreSQL/Supabase project is a separate decision and may incur charges. Do not repurpose unrelated existing Supabase projects. Once an organization and costs are approved, provision the database and least-privilege roles; set FISCAL_DATABASE_URL in the Fiscal project only.
+The independent EU-region Supabase project has been provisioned. `FISCAL_DATABASE_URL` is configured as a sensitive Vercel **production** variable, not a shared marketplace credential. Confirm least-privilege runtime roles, backups, connection TLS verification and direct protected-production health checks before public onboarding. Do not repurpose unrelated Supabase projects.
 
 Migrate with \`FISCAL_DATABASE_URL=postgres://... node scripts/fiscal-migrate.mjs\` from the repository root in a controlled environment. Do NOT run marketplace db:migrate here. Run \`node scripts/fiscal-db-smoke.mjs\` in CI against a throwaway isolated database only.
 
@@ -66,7 +66,7 @@ The standalone app contains only /timologio, /timologio-admin and their declared
 
 - Run \`node scripts/fiscal-route-isolation.mjs\`.
 - CI builds \`fiscal/service\` separately, with DATABASE_URL and POSTGRES_URL cleared.
-- GET /timologio/api/health reports \`database_not_provisioned\` (503) until dedicated DB exists; returns \`operational_foundation\` only when DB responds; this is **not** a fiscal-certification signal.
+- GET /timologio/api/health must be checked on each target deployment: a provisioned database or a READY build does not prove connectivity. `operational_foundation` means only that the protected foundation is reachable; this is **not** a fiscal-certification signal.
 - Verify SSO one-time replay failure and two-hour session expiry/revocation in staging.
 - Verify all other marketplace routes 404 on the isolated host.
 - Review dependency advisories from npm audit before unprotecting the service.
@@ -79,4 +79,15 @@ The standalone app contains only /timologio, /timologio-admin and their declared
 - The standalone Vercel build runs a fail-closed environment preflight. Use `node scripts/fiscal-deployment-preflight.mjs --staging` from the repository root. A separate `--activation` mode verifies planned secrets and distinct service origins; neither mode prints secret contents.
 - The read-only npm audit reports production advisories for the shared workspace, which is a conservative superset of the standalone Fiscal runtime. Initial findings: Next.js critical (report suggests 16.4.0 as patch), Sharp high and source-map-js high.
 - Do not automatically alter the marketplace Next.js version without regression testing. Remediate or prove non-reachability of vulnerable packages in Fiscal before opening staging to customers.
-- Production launch is blocked until dedicated EU database, verified secrets, persistent service domain, backups, KYB, independent SSO testing and regulatory approval are completed.
+- Public production launch remains blocked until the independent database connection and roles, verified SSO secrets, persistent service domain, backups, KYB, independent SSO/browser tests and regulatory approval are completed.
+
+
+## Milestone 17 — 2026-10-11: sandbox trial balance and FK performance
+
+- Added a **read-only Greek trial-balance view** at `/timologio/journal` with grouped test-account debits, credits and net amounts. Input is limited to the latest 20 immutable, tenant-scoped saved test snapshots; it explicitly excludes full-history and statutory accounting claims.
+- Added `fiscal-sandbox-trial-balance.ts` with strict non-fiscal account/amount validation, BigInt cents and per-snapshot balancing, plus a Node test suite in dedicated Fiscal CI.
+- `0014_fk_lookup_indexes.sql` adds seven idempotent covering indexes recommended by the Supabase performance advisor. This SQL was applied to the dedicated Supabase project via a separately recorded Supabase migration. It can safely be replayed by the repository's checksummed runner with `IF NOT EXISTS`.
+- Advisor verification afterwards reported **no unindexed foreign keys**. The unused-index notices on this empty database do not justify removing performance indexes.
+- The new protected Vercel Preview deployment of commit `4787dfa88a61998ead5d5afd201352fe95352f3d` was **READY**. This confirms the standalone build completed, not that production authentication, issuance, browser journeys or full GitHub CI have passed.
+- Database currently has zero organizations, zero users and zero saved sandbox journals. Do not create artificial customer records on protected production or open public registration until identity, KYB and abuse checks are implemented.
+- Production-target Vercel deployment remains SSO-protected. This GitHub PR remains draft and not mergeable. No lawfully valid Greek invoicing, payment collection, official ERP posting or AADE transmission is enabled.
