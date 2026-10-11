@@ -22,6 +22,11 @@ export type VendorAgreementPdfData = Readonly<{
   }>;
   commercial: Readonly<{
     planName?: string;
+    planCode?: string;
+    billingCycle?: string;
+    templateVersion?: string;
+    legalReviewStatus?: string;
+    entitlements?: readonly string[];
     listingFeeMinor?: number;
     recurringFeeMinor?: number;
     recurringFeePeriod?: string;
@@ -106,6 +111,7 @@ export function buildVendorAgreementDocument(data: VendorAgreementPdfData): Reco
   const noticeDays = commercial.terminationNoticeDays == null ? "όπως συμφωνείται στο Παράρτημα Α" : `${commercial.terminationNoticeDays} ημερών`;
 
   const content: unknown[] = [
+    ...(commercial.legalReviewStatus === "pending_legal_review" ? [{ text: "ΠΡΟΣΧΕΔΙΟ ΣΥΜΒΑΣΗΣ — ΥΠΟ ΝΟΜΙΚΟ ΕΛΕΓΧΟ", bold: true, color: "#A5442F", margin: [0, 0, 0, 9] }] : []),
     { text: "ΣΥΜΒΑΣΗ ΣΥΝΕΡΓΑΣΙΑΣ ΕΜΠΟΡΙΚΟΥ ΣΥΝΕΡΓΑΤΗ", style: "title" },
     { text: "ΠΛΑΤΦΟΡΜΑ KONTA MOY", style: "subtitle", margin: [0, 2, 0, 14] },
     {
@@ -260,6 +266,10 @@ export function buildVendorAgreementDocument(data: VendorAgreementPdfData): Reco
         body: [
           ["Κωδικός Συμφωνίας", data.agreementCode],
           ["Πρόγραμμα", value(commercial.planName)],
+          ...(commercial.planCode ? [["Κωδικός προγράμματος", commercial.planCode]] : []),
+          ...(commercial.billingCycle ? [["Κύκλος πλάνου", commercial.billingCycle]] : []),
+          ...(commercial.templateVersion ? [["Έκδοση συμβατικού προτύπου", commercial.templateVersion]] : []),
+          ...(commercial.entitlements?.length ? [["Παρεχόμενες λειτουργίες", commercial.entitlements.join(" · ")]] : []),
           ["Εφάπαξ τέλος ένταξης / καταχώρισης", euro(commercial.listingFeeMinor)],
           ["Περιοδική χρέωση", `${euro(commercial.recurringFeeMinor)} · ${periodLabel(commercial.recurringFeePeriod)}`],
           ["Προμήθεια επί πωλήσεων", percentage(commercial.commissionRateBps)],
