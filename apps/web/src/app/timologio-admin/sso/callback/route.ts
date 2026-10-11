@@ -13,8 +13,16 @@ export async function POST(request:Request){
     throw Error();origin=candidate.origin;}catch{
     return Response.json({error:"SSO_MARKETPLACE_ORIGIN_INVALID"},{status:503,headers:noStore});
   }
-  if(request.headers.get("origin")!==origin)
+  const callbackOrigin=new URL(request.url).origin;
+  if(callbackOrigin===origin)
+    return Response.json({error:"SSO_INDEPENDENT_ORIGIN_REQUIRED"},{status:503,headers:noStore});
+  // Vercel Authentication can reject cross-site POSTs before this handler.
+  // Accept only same-origin FISCAL browser requests after top-level GET /sso/bridge.
+  // Marketplace authority comes from the signed one-time assertion, not CORS.
+  if(request.headers.get("origin")!==callbackOrigin)
     return Response.json({error:"SSO_ORIGIN_NOT_ALLOWED"},{status:403,headers:noStore});
+  if(request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/x-www-form-urlencoded")
+    return Response.json({error:"SSO_FORM_REQUIRED"},{status:415,headers:noStore});
   if(Number(request.headers.get("content-length")??0)>4096)
     return Response.json({error:"SSO_BODY_TOO_LARGE"},{status:413,headers:noStore});
   try{
