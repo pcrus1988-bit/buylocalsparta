@@ -226,16 +226,16 @@ export function VendorDashboardTools({ metrics, previewPlan }: { metrics: Metric
 
       {filtered.length > 0 ? <div className="vendor-command-grid">
         {filtered.map((item) => {
-          const Card = previewPlan ? "div" : Link;
-          return <Card className={`vendor-tool-card${item.attention ? " is-attention" : ""}`} {...(previewPlan ? { role: "group", "aria-label": "Προεπισκόπηση χωρίς λειτουργική πρόσβαση" } : { href: item.href })} key={item.id}>
-          <span className="vendor-tool-icon" aria-hidden="true">{item.icon}</span>
-          <div>
-            <strong>{item.label}</strong>
-            <small>{item.description}</small>
-          </div>
-          {typeof item.count === "number" && <b>{item.count.toLocaleString("el-GR")}</b>}
-          <span className="vendor-tool-arrow" aria-hidden="true">→</span>
-        </Card>;
+          const body = <>
+            <span className="vendor-tool-icon" aria-hidden="true">{item.icon}</span>
+            <div><strong>{item.label}</strong><small>{item.description}</small></div>
+            {typeof item.count === "number" && <b>{item.count.toLocaleString("el-GR")}</b>}
+            <span className="vendor-tool-arrow" aria-hidden="true">→</span>
+          </>;
+          const className = `vendor-tool-card${item.attention ? " is-attention" : ""}`;
+          return previewPlan
+            ? <div className={className} role="group" aria-label="Προεπισκόπηση χωρίς λειτουργική πρόσβαση" key={item.id}>{body}</div>
+            : <Link className={className} href={item.href} key={item.id}>{body}</Link>;
         })}
       </div> : <div className="workspace-empty-state">
         <strong>Δεν βρέθηκε αντίστοιχο εργαλείο.</strong>
