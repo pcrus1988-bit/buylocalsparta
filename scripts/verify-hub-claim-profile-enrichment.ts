@@ -28,7 +28,7 @@ const checks:Record<keyof typeof files,string[]>={
   home:["HubClaimMediaUpload","listOwnedHubClaimInquiries"],
   public:["HubClaimInquiryForm","VendorExternalWebsiteFrame"],
   editor:['name="websiteEmbedEnabled"','name="openingHours"','name="description"'],
-  embed:[`setExpanded`,`referrerPolicy="no-referrer"`,'sandbox='],
+  embed:['setLoaded(true)','referrerPolicy="strict-origin-when-cross-origin"','sandbox='],
   storage:["PRIVATE_STORAGE_VERIFICATION_FAILED","CLAIM_GALLERY_LIMIT_FOUR","getHubClaimImageAccess"],
   upload:["assertCustomerCsrf","uploadOwnedHubClaimImage"],
   inquiry:["PostgresFixedWindowRateLimiter","INVALID_ORIGIN","body.consent"],
