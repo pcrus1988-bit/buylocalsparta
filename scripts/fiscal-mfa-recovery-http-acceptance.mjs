@@ -22,6 +22,14 @@ export async function runFiscalRecoveryHttpAcceptance({send,db,base,reviewer,mer
    "Only one outstanding self-request per operator");
  assert.equal((await send(path,{action:"approve",caseId,evidenceRef,attested:true},reviewer)).status,403,
    "Fiscal-admin cannot approve; requester must not self-approve");
+ const approvalsView=await fetch(base+path,{headers:{cookie:federated.cookies},
+   signal:AbortSignal.timeout(12000)});
+ assert.equal(approvalsView.status,200,"Recently verified super-admin may view pending cases");
+ const approvalInventory=await approvalsView.json();
+ const caseVisible=approvalInventory.approvable.find((item)=>item.id===caseId);
+ assert.ok(caseVisible,"An eligible reviewer can see the pending case ID");
+ assert.equal(Object.hasOwn(caseVisible,"evidenceRef"),false,
+   "Independent evidence reference must never be disclosed to the approver's browser");
  assert.equal((await send(path,{action:"approve",caseId,evidenceRef:"REC-CI-MISMATCHED",attested:true},federated)).status,403,
    "Evidence must match the offline review identifier");
  assert.equal((await send(path,{action:"approve",caseId,evidenceRef,attested:false},federated)).status,400);
