@@ -5,6 +5,8 @@ on:
       - "apps/web/src/app/timologio/**"
       - "apps/web/src/app/timologio-admin/**"
       - "apps/web/src/lib/fiscal-*.ts"
+      - "apps/web/next.config.ts"
+      - "apps/web/src/app/admin/fiscal-access/**"
       - "apps/web/src/components/Fiscal*.tsx"
       - "fiscal/**"
       - "scripts/fiscal-*.mjs"
@@ -15,6 +17,8 @@ on:
       - "apps/web/src/app/timologio/**"
       - "apps/web/src/app/timologio-admin/**"
       - "apps/web/src/lib/fiscal-*.ts"
+      - "apps/web/next.config.ts"
+      - "apps/web/src/app/admin/fiscal-access/**"
       - "apps/web/src/components/Fiscal*.tsx"
       - "fiscal/**"
       - "scripts/fiscal-*.mjs"
@@ -61,6 +65,8 @@ jobs:
           fi
       - name: Verify integer-only non-fiscal line calculations
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-preview-calculator.test.ts
+      - name: Verify browser Origin policy for super-admin form handoff
+        run: node --test scripts/fiscal-sso-origin-policy.test.mjs
       - name: Verify signed FISCAL super-admin SSO tickets
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-superadmin-tickets.test.ts
       - name: Verify independent FISCAL routing policy
