@@ -50,7 +50,7 @@ export async function issueFiscalInvitation(actor:FiscalAdminActor,raw:unknown){
   const duplicate=await db.query("SELECT id FROM fiscal_users WHERE email=$1 LIMIT 1",[input.email]);
   if(duplicate.rowCount)throw new FiscalInvitationError("INVITATION_ACCOUNT_EXISTS",409);
   const approved=await db.query(
-   "SELECT id FROM fiscal_organizations WHERE vat_number=$1 AND status NOT IN ('rejected') LIMIT 1",
+   "SELECT id FROM fiscal_organizations WHERE vat_number=$1 LIMIT 1",
    [input.vatNumber]);
   if(approved.rowCount)throw new FiscalInvitationError("INVITATION_BUSINESS_EXISTS",409);
   const result=await db.query<{id:string;expires_at:Date}>(
