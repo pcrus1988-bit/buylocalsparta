@@ -4,7 +4,7 @@ import type {FiscalAdminActor} from "./fiscal-auth";
 
 const sha=(value:string)=>createHash("sha256").update(value).digest("hex");
 const emailPattern=/^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 export class FiscalInvitationError extends Error{
  readonly code:string; readonly status:number;
