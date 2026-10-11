@@ -48,7 +48,7 @@ export function HubClaimPublicContent({
           : "Η επιχείρηση έχει επιβεβαιώσει τη δωρεάν παρουσία της στο KONTA MOY. Πρόκειται για καταχώριση καταλόγου, όχι για ενεργό ηλεκτρονικό κατάστημα ή δυνατότητα αγοράς."}</p>
         <div className={styles.actions}>{preview
           ? <span className={styles.button + " " + styles.secondary} aria-disabled="true">Γνώρισε το KONTA MOY HUB</span>
-          : <Link className={styles.button + " " + styles.secondary} href="/hubs/join">Γνώρισε το KONTA MOY HUB</Link>}</div>
+          : <Link className={styles.button + " " + styles.secondary} href={`/hubs/${profile.hubSlug}`}>Γνώρισε το KONTA MOY HUB</Link>}</div>
       </aside>
     </div>
     {gallery.length > 0 && <section className={styles.panel} style={{ marginTop: 20 }} aria-label="Φωτογραφίες επιχείρησης">
