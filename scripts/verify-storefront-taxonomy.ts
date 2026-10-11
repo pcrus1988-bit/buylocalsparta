@@ -6,7 +6,8 @@ import {
   resolveStorefrontSubcategoryIntent,
   STOREFRONT_CATEGORIES,
   storefrontCategoryForCode,
-  storefrontFacetEnabled
+  storefrontFacetEnabled,
+  storefrontSubcategoryPresentationForCode
 } from "../apps/web/src/lib/storefront-taxonomy.ts";
 import {
   catalogAttributeDefinitionsForLeaf,
@@ -89,6 +90,23 @@ for (const query of ["school", "σχολικά", "sxoli", "sxolika", "scholi", "
   if (inferStorefrontTaxonomyIntent(query)) failures.push(`Broad school intent "${query}" must not leak into leaf inference`);
 }
 if (inferStorefrontTaxonomyIntent("gift for child")) failures.push("Ambiguous department intent must not leak into leaf inference");
+
+const brandSubcategoryCases: Array<[string, string, string]> = [
+  ["eye-makeup", "Μακιγιάζ ματιών", "Μακιγιάζ"],
+  ["lip-makeup", "Μακιγιάζ χειλιών", "Μακιγιάζ"],
+  ["nail-care-colour", "Βερνίκια & περιποίηση νυχιών", "Νύχια"],
+  ["face-makeup", "Μακιγιάζ προσώπου", "Μακιγιάζ"],
+  ["serums-treatments", "Οροί & θεραπείες προσώπου", "Περιποίηση προσώπου"]
+];
+for (const [code, label, familyLabel] of brandSubcategoryCases) {
+  const actual = storefrontSubcategoryPresentationForCode(code);
+  if (actual?.label !== label || actual?.familyLabel !== familyLabel) {
+    failures.push(`Brand subcategory ${code} must show ${familyLabel} > ${label}`);
+  }
+}
+if (storefrontSubcategoryPresentationForCode("made-up-subcategory")) {
+  failures.push("Unknown supplier subcategories must not acquire invented labels");
+}
 
 const lightingLeaf = inferStorefrontTaxonomyIntent("lamp")?.leaf;
 const resolvedLighting = resolveStorefrontSubcategoryIntent(lightingLeaf, [
