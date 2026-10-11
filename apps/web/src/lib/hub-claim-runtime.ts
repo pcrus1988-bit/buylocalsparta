@@ -5,6 +5,7 @@ import { normalizeVendorExternalWebsiteUrl, publicVendorExternalWebsiteUrl } fro
 export type HubClaimPublicProfile = Readonly<{
   id: string; hubSlug: string; hubCity: string; hubRegion: string;
   businessName: string; category: string; phone: string; website?: string; websiteEmbedEnabled: boolean;
+  description?: string; openingHours?: string; publicEmail?: string; instagramUrl?: string;
   address: string; postcode: string;
 }>;
 
@@ -18,7 +19,11 @@ const SQL_PROFILE = `
   SELECT h.public_id AS id,h.hub_slug,h.hub_city,h.hub_region,
          h.business_name,h.primary_category,h.phone,h.website_url,
          COALESCE((to_jsonb(h)->>'website_embed_enabled')::boolean,false) AS website_embed_enabled,
-         h.address_line,h.postal_code
+         h.address_line,h.postal_code,
+         to_jsonb(h)->>'claim_description' AS claim_description,
+         to_jsonb(h)->>'claim_opening_hours' AS claim_opening_hours,
+         to_jsonb(h)->>'claim_public_email' AS claim_public_email,
+         to_jsonb(h)->>'claim_instagram_url' AS claim_instagram_url
   FROM hub_expansion_prospects h
   WHERE h.plan_code='claim' AND h.status='converted'
     AND h.owner_user_id IS NOT NULL
@@ -31,9 +36,15 @@ function asProfile(row: SqlRow): HubClaimPublicProfile {
     businessName: String(row.business_name), category: String(row.primary_category),
     phone: String(row.phone), website: row.website_url ? String(row.website_url) : undefined,
     websiteEmbedEnabled: Boolean(publicVendorExternalWebsiteUrl({ enabled: row.website_embed_enabled === true, url: row.website_url })),
-    address: String(row.address_line), postcode: String(row.postal_code)
+    address: String(row.address_line), postcode: String(row.postal_code),
+    description: optionalText(row.claim_description),
+    openingHours: optionalText(row.claim_opening_hours),
+    publicEmail: optionalText(row.claim_public_email),
+    instagramUrl: optionalText(row.claim_instagram_url)
   };
 }
+
+function optionalText(value: unknown): string | undefined { return typeof value === "string" && value.trim() ? value.trim() : undefined; }
 
 function validId(id: string): boolean { return /^hubprospect_[a-zA-Z0-9_-]{6,90}$/.test(id); }
 
@@ -146,6 +157,21 @@ export async function updateOwnedHubClaim(id: string, principal: SessionPrincipa
       website = parsed.toString();
     } catch { throw new Error("INVALID_CLAIM_WEBSITE"); }
   }
+  const description = String(form.get("description") ?? "").trim();
+  const openingHours = String(form.get("openingHours") ?? "").trim();
+  const publicEmail = String(form.get("publicEmail") ?? "").trim().toLowerCase();
+  const instagramInput = String(form.get("instagramUrl") ?? "").trim();
+  if (description.length > 750 || openingHours.length > 500) throw new Error("CLAIM_TEXT_TOO_LONG");
+  if (publicEmail && (publicEmail.length > 160 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(publicEmail))) throw new Error("INVALID_CLAIM_PUBLIC_EMAIL");
+  let instagramUrl: string | null = null;
+  if (instagramInput) {
+    try {
+      const parsed = new URL(instagramInput);
+      if (parsed.protocol !== "https:" || !["instagram.com", "www.instagram.com"].includes(parsed.hostname.toLowerCase()) ||
+          parsed.username || parsed.password || parsed.port || instagramInput.length > 240) throw new Error("INVALID_CLAIM_INSTAGRAM");
+      instagramUrl = parsed.toString();
+    } catch { throw new Error("INVALID_CLAIM_INSTAGRAM"); }
+  }
   const websiteEmbedEnabled = form.get("websiteEmbedEnabled") === "on";
   if (websiteEmbedEnabled) {
     if (!website) throw new Error("CLAIM_WEBSITE_REQUIRED");
@@ -172,19 +198,29 @@ export async function updateOwnedHubClaim(id: string, principal: SessionPrincipa
             AND attname='website_embed_enabled' AND NOT attisdropped
         ) AS available
       `);
+      const profileColumns = await tx.query<SqlRow>(`
+        SELECT count(*)::integer AS available FROM pg_attribute
+        WHERE attrelid='public.hub_expansion_prospects'::regclass
+          AND attname = ANY($1::text[]) AND NOT attisdropped
+      `, [["claim_description", "claim_opening_hours", "claim_public_email", "claim_instagram_url"]]);
+      if (Number(profileColumns.rows[0]?.available) !== 4) throw new Error("CLAIM_PROFILE_MIGRATION_REQUIRED");
+      if (column.rows[0]?.available !== true && websiteEmbedEnabled) throw new Error("CLAIM_IFRAME_PENDING_DATABASE_MIGRATION");
       if (column.rows[0]?.available === true) {
         await tx.query(`
           UPDATE hub_expansion_prospects
-          SET primary_category=$2,phone=$3,website_url=$4,website_embed_enabled=$5,updated_at=now()
+          SET primary_category=$2,phone=$3,website_url=$4,website_embed_enabled=$5,
+              claim_description=$6,claim_opening_hours=$7,claim_public_email=$8,claim_instagram_url=$9,
+              updated_at=now()
           WHERE id=$1::uuid
-        `, [owner.rows[0].id, category, phone, website, websiteEmbedEnabled]);
+        `, [owner.rows[0].id, category, phone, website, websiteEmbedEnabled, description || null, openingHours || null, publicEmail || null, instagramUrl]);
       } else {
-        if (websiteEmbedEnabled) throw new Error("CLAIM_IFRAME_PENDING_DATABASE_MIGRATION");
         await tx.query(`
           UPDATE hub_expansion_prospects
-          SET primary_category=$2,phone=$3,website_url=$4,updated_at=now()
+          SET primary_category=$2,phone=$3,website_url=$4,
+              claim_description=$5,claim_opening_hours=$6,claim_public_email=$7,claim_instagram_url=$8,
+              updated_at=now()
           WHERE id=$1::uuid
-        `, [owner.rows[0].id, category, phone, website]);
+        `, [owner.rows[0].id, category, phone, website, description || null, openingHours || null, publicEmail || null, instagramUrl]);
       }
       console.info(JSON.stringify({ event: "hub_claim.profile_updated", prospectId: id }));
     },
