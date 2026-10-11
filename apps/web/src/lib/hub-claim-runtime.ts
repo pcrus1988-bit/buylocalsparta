@@ -114,7 +114,7 @@ export async function listOwnedHubClaims(principal: SessionPrincipal): Promise<H
 }
 
 function checkedText(value: FormDataEntryValue | null, name: string, max: number): string {
-  const text = typeof value === "string" ? value.trim().replace(/\\s+/g, " ") : "";
+  const text = typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
   if (text.length < 2 || text.length > max) throw new Error("INVALID_CLAIM_" + name);
   return text;
 }
