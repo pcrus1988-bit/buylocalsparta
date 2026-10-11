@@ -129,7 +129,6 @@ function checkedText(value: FormDataEntryValue | null, name: string, max: number
 
 export async function updateOwnedHubClaim(id: string, principal: SessionPrincipal, form: FormData): Promise<void> {
   if (!validId(id) || !principal.roles.includes("customer")) throw new Error("CLAIM_NOT_ALLOWED");
-  const name = checkedText(form.get("businessName"), "NAME", 120);
   const category = checkedText(form.get("category"), "CATEGORY", 100);
   const phone = checkedText(form.get("phone"), "PHONE", 32);
   if (!/^[+0-9 ()-]{8,32}$/.test(phone)) throw new Error("INVALID_CLAIM_PHONE");
@@ -158,9 +157,9 @@ export async function updateOwnedHubClaim(id: string, principal: SessionPrincipa
       if (!owner.rowCount) throw new Error("CLAIM_NOT_OWNED");
       await tx.query(`
         UPDATE hub_expansion_prospects
-        SET business_name=$2,primary_category=$3,phone=$4,website_url=$5,updated_at=now()
+        SET primary_category=$2,phone=$3,website_url=$4,updated_at=now()
         WHERE id=$1::uuid
-      `, [owner.rows[0].id, name, category, phone, website]);
+      `, [owner.rows[0].id, category, phone, website]);
       console.info(JSON.stringify({ event: "hub_claim.profile_updated", prospectId: id }));
     },
     { isolation: "serializable" }
