@@ -273,3 +273,8 @@
     gap:8px
   }
 }
+
+/* Images appear only after the governed profile-media approvals are complete. */
+.editorialPanel{position:relative;overflow:hidden}
+.editorialPanel > :not(.heroImage){position:relative;z-index:1}
+.heroImage{object-fit:cover;opacity:.38}
