@@ -1,4 +1,4 @@
-import {FISCAL_SUPABASE_ROOT_CA} from "./fiscal-supabase-root-ca";
+import {FISCAL_SUPABASE_ROOT_CA} from "./fiscal-supabase-root-ca.ts";
 
 type FiscalPgSsl = {ca:string;rejectUnauthorized:true;servername:string};
 export type FiscalPgConnectionOptions = {connectionString:string;ssl?:FiscalPgSsl};
