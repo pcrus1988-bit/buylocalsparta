@@ -1,4 +1,5 @@
 import {fiscalDatabaseConfigured,fiscalPool} from "../../../../../../../apps/web/src/lib/fiscal-runtime";
+import {classifyFiscalConnectionProfile} from "../../../../../../../apps/web/src/lib/fiscal-connection-diagnostics";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 export async function GET(){
@@ -43,7 +44,7 @@ export async function GET(){
       "UNABLE_TO_VERIFY_LEAF_SIGNATURE":"tls_validation_failed",
       "SELF_SIGNED_CERT_IN_CHAIN":"tls_validation_failed"
     };
-    console.error("FISCAL_HEALTH_POSTGRES_FAILURE",categories[code]??"unclassified");
+    console.error("FISCAL_HEALTH_POSTGRES_FAILURE",categories[code]??"unclassified",classifyFiscalConnectionProfile(process.env.FISCAL_DATABASE_URL));
     return Response.json({service:"konta-moy-fiscal",state:"database_unreachable",issuanceEnabled:false},{status:503,headers});
   }
 }
