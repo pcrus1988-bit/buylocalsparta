@@ -16,7 +16,7 @@ const errors: string[] = [];
 function need(code: string, marker: string, reason: string) {
   if (!code.includes(marker)) errors.push(reason + ": " + marker);
 }
-for (const token of ["getAdminSession()", 'hasAdminPermission(principal, "vendor.manage")', 'principal.roles.includes("super_admin")', 'dynamic = "force-dynamic"', 'WHERE public_id=$1', "previewPlan={plan.code}", "HubClaimWorkspace profiles={[profile]}", 'form method="get"', 'READ ONLY', 'Preview', "HUB_EXPANSION_PLANS.map"]) {
+for (const token of ["getAdminSession()", 'hasAdminPermission(principal, "vendor.manage")', 'principal.roles.includes("super_admin")', 'dynamic = "force-dynamic"', 'WHERE h.public_id=$1', "previewPlan={plan.code}", "HubClaimWorkspace profiles={[profile]}", 'form method="get"', 'READ ONLY', 'Preview', "HUB_EXPANSION_PLANS.map"]) {
   need(admin, token, "Admin preview");
 }
 need(liveClaim, "HubClaimWorkspace profiles={claims}", "Live owner uses identical full workspace");
