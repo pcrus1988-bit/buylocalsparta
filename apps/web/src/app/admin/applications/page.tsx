@@ -293,6 +293,7 @@ export default async function ApplicationsPage() {
         <p className="lead">The operational inbox between acquisition and onboarding. ΓΕΜΗ enrichment now separates legal-business identity evidence from applicant ownership/contact verification; DEMO preparation remains strictly pre-live.</p>
         <div className="hero-actions">
           <Link className="button button-secondary" href="/admin/partners/pipeline">← Partner pipeline</Link>
+          <Link className="button button-secondary" href="/admin/hubs/plan-preview">View as Vendor · Plans ↗</Link>
           <Link className="button button-secondary" href="/admin/research-vendors">Research vendors</Link>
           <Link className="button button-secondary" href="/admin/prospects">Verified prospects</Link>
           <Link className="text-link" href="/admin/vendors">Partner directory →</Link>
@@ -424,6 +425,7 @@ export default async function ApplicationsPage() {
               <div className="workspace-action-buttons">
                 {prospect.trialVendorId && <Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(prospect.trialVendorId)}/catalogue`}>Trial catalogue</Link>}
                 {prospect.trialVendorId && <Link className="button button-secondary" href={`/demo/vendor/${encodeURIComponent(prospect.trialVendorId)}`} target="_blank">Private preview ↗</Link>}
+                <Link className="button button-secondary" href={"/admin/hubs/plan-preview?applicationId=" + encodeURIComponent(prospect.internalId) + "&plan=" + encodeURIComponent(prospect.planCode)}>Preview selected plan ↗</Link>
                 {prospect.planCode === "claim" && prospect.status === "converted" && <Link className="button button-secondary" href={"/hubs/" + prospect.hubSlug + "/business/" + prospect.internalId} target="_blank">Published CLAIM profile ↗</Link>}
               </div>
             </div>
