@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import {createServer} from "node:net";
 import {spawn} from "node:child_process";
 import {createHash,randomBytes,scryptSync} from "node:crypto";
+import {fiscalTotp} from "../apps/web/src/lib/fiscal-operator-mfa-crypto.ts";
 import pg from "pg";
 
 if(process.env.CI!=="true"||process.env.FISCAL_STANDALONE_MODE!=="true")
@@ -71,7 +72,9 @@ try{
    FISCAL_STANDALONE_MODE:"true",FISCAL_REGISTRATION_ENABLED:"false",
    FISCAL_MARKETPLACE_DRAFT_SYNC_ENABLED:"false",FISCAL_ISSUANCE_ENABLED:"false",
    FISCAL_INVITATIONS_ENABLED:"true",FISCAL_SERVICE_BASE_URL:"https://fiscal.kontamou.site/",
-   FISCAL_EMAIL_VERIFICATION_ENABLED:"true",RESEND_API_KEY:"",FISCAL_VERIFICATION_FROM:""
+   FISCAL_EMAIL_VERIFICATION_ENABLED:"true",RESEND_API_KEY:"",FISCAL_VERIFICATION_FROM:"",
+   FISCAL_OPERATOR_MFA_SETUP_ENABLED:"true",FISCAL_OPERATOR_MFA_ENFORCED:"true",
+   FISCAL_OPERATOR_MFA_ENCRYPTION_KEY:"bc".repeat(32)
   },stdio:["ignore","pipe","pipe"]
  });
  server.stdout?.on("data",appendLog);server.stderr?.on("data",appendLog);
@@ -154,6 +157,101 @@ try{
  assert.ok(adminSession&&adminCsrfCookie);
  const reviewer={cookies:adminSession+"; "+adminCsrfCookie,
   csrf:adminCsrfCookie.slice("km_fiscal_csrf=".length)};
+
+ // MFA gate protects case pages and mutations without disrupting the primary SSO/session.
+ const mfaPath="/timologio-admin/api/mfa";
+ const unverifiedOperation=await send("/timologio-admin/api/accounts",{
+  action:"start_review",organizationId:applicantId
+ },reviewer);
+ assert.equal(unverifiedOperation.status,403,"Admin mutations require a recent MFA proof");
+ assert.equal(unverifiedOperation.body.error,"FISCAL_MFA_REQUIRED");
+ const missingMfaPage=await fetch(base+"/timologio-admin/accounts/"+applicantId,{
+  headers:{cookie:reviewer.cookies},redirect:"manual",signal:AbortSignal.timeout(12000)
+ });
+ assert.ok([302,303,307,308].includes(missingMfaPage.status),"Sensitive operator case redirects to MFA");
+ const badMfaOrigin=await send(mfaPath,{action:"start"},{
+  ...reviewer,origin:"https://untrusted.invalid"
+ });
+ assert.equal(badMfaOrigin.status,403);
+ const noMerchantEnrollment=await send(mfaPath,{action:"start"},merchant);
+ assert.equal(noMerchantEnrollment.status,401);
+ const setup=await send(mfaPath,{action:"start"},reviewer);
+ assert.equal(setup.status,200,"Authenticated operator may begin MFA enrollment");
+ assert.match(setup.body.secret,/^[A-Z2-7]{32}$/);
+ assert.ok(setup.body.uri.startsWith("otpauth://totp/"));
+ const mfaCode=fiscalTotp(setup.body.secret,Math.floor(Date.now()/30000));
+ const wrongFormat=await send(mfaPath,{action:"activate",code:"not-six-digits"},reviewer);
+ assert.equal(wrongFormat.status,400);
+ const activated=await send(mfaPath,{action:"activate",code:mfaCode},reviewer);
+ assert.equal(activated.status,200,"Correct TOTP activates operator MFA");
+ assert.equal(activated.body.active,true);
+ const mfaCookie=activated.cookieHeaders.map(x=>x.split(";")[0]).find(x=>x.startsWith("km_fiscal_operator_mfa="));
+ assert.ok(mfaCookie,"MFA step-up must set HttpOnly session cookie");
+ reviewer.cookies+="; "+mfaCookie;
+ const reuseCode=await send(mfaPath,{action:"step_up",code:mfaCode},reviewer);
+ assert.equal(reuseCode.status,403,"Accepted TOTP codes cannot be replayed");
+ const activeStatus=await fetch(base+mfaPath,{
+  headers:{cookie:reviewer.cookies},signal:AbortSignal.timeout(12000)
+ });
+ assert.equal(activeStatus.status,200);
+ const body=await activeStatus.json();
+ assert.equal(body.active,true);
+ assert.equal(body.steppedUp,true);
+ const authorisationNow=await db.query(
+  "SELECT count(*)::int AS n FROM fiscal_operator_mfa_sessions WHERE actor_kind='fiscal_admin' AND actor_ref=(SELECT id::text FROM fiscal_users WHERE email=$1)",
+  [reviewUserEmail]);
+ assert.equal(authorisationNow.rows[0].n,1);
+ console.log("PASS: operator MFA enrollment, CSRF/Origin, replay protection, session-bound step-up");
+
+ // Federation-specific MFA: a native Fiscal operator cookie must not step-up a
+ // marketplace super-admin, and the proof may not cross primary SSO sessions.
+ const federatedRef="marketplace-super-"+suffix;
+ const federatedEmail="federated-"+suffix+"@example.test";
+ const ssoToken=randomBytes(32).toString("hex"),ssoCsrf=randomBytes(32).toString("hex");
+ await db.query(
+  `INSERT INTO fiscal_superadmin_sessions(token_hash,csrf_hash,marketplace_user_id,marketplace_email,expires_at)
+   VALUES($1,$2,$3,$4,now()+interval '2 hours')`,
+  [digest(ssoToken),digest(ssoCsrf),federatedRef,federatedEmail]);
+ const federated={cookies:"km_fiscal_superadmin_sso="+ssoToken+
+  "; km_fiscal_superadmin_csrf="+ssoCsrf,csrf:ssoCsrf};
+ const federationUnverified=await send("/timologio-admin/api/accounts",{
+  action:"start_review",organizationId:applicantId
+ },federated);
+ assert.equal(federationUnverified.status,403);
+ assert.equal(federationUnverified.body.error,"FISCAL_MFA_REQUIRED");
+ const borrowedNativeCookie={...federated,cookies:federated.cookies+"; "+mfaCookie};
+ const crossActor=await fetch(base+"/timologio-admin/accounts/"+applicantId,{
+  headers:{cookie:borrowedNativeCookie.cookies},redirect:"manual",signal:AbortSignal.timeout(12000)
+ });
+ assert.ok([302,303,307,308].includes(crossActor.status),"Native MFA cookie cannot satisfy federated SSO");
+ const federatedSetup=await send(mfaPath,{action:"start"},federated);
+ assert.equal(federatedSetup.status,200,"Federated superadmin can enroll using independent FISCAL SSO");
+ const federatedCode=fiscalTotp(federatedSetup.body.secret,Math.floor(Date.now()/30000));
+ const federatedActivation=await send(mfaPath,{action:"activate",code:federatedCode},federated);
+ assert.equal(federatedActivation.status,200);
+ const federatedMfaCookie=federatedActivation.cookieHeaders.map(x=>x.split(";")[0])
+  .find(x=>x.startsWith("km_fiscal_operator_mfa="));
+ assert.ok(federatedMfaCookie);
+ federated.cookies+="; "+federatedMfaCookie;
+ const federationCase=await fetch(base+"/timologio-admin/accounts/"+applicantId,{
+  headers:{cookie:federated.cookies},signal:AbortSignal.timeout(12000)
+ });
+ assert.equal(federationCase.status,200,"Federated SSO + matching MFA can view private case");
+ const secondSsoToken=randomBytes(32).toString("hex");
+ const secondSsoCsrf=randomBytes(32).toString("hex");
+ await db.query(
+  `INSERT INTO fiscal_superadmin_sessions(token_hash,csrf_hash,marketplace_user_id,marketplace_email,expires_at)
+   VALUES($1,$2,$3,$4,now()+interval '2 hours')`,
+  [digest(secondSsoToken),digest(secondSsoCsrf),federatedRef,federatedEmail]);
+ const crossSession=await fetch(base+"/timologio-admin/accounts/"+applicantId,{
+  headers:{cookie:"km_fiscal_superadmin_sso="+secondSsoToken+
+   "; km_fiscal_superadmin_csrf="+secondSsoCsrf+"; "+federatedMfaCookie},
+  redirect:"manual",signal:AbortSignal.timeout(12000)
+ });
+ assert.ok([302,303,307,308].includes(crossSession.status),
+  "MFA proof cannot be transplanted into a new SSO session for same actor");
+ console.log("PASS: federated SSO MFA actor isolation and same-user session binding");
+
  const adminCase=await fetch(base+"/timologio-admin/accounts/"+applicantId,{
   headers:{cookie:reviewer.cookies},signal:AbortSignal.timeout(12000)
  });

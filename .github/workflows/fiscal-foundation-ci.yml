@@ -69,6 +69,8 @@ jobs:
         run: node --test scripts/fiscal-sso-origin-policy.test.mjs
       - name: Verify strictly bounded KYB evidence checklist and non-approval states
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-checks.test.ts
+      - name: Verify RFC6238 FISCAL operator MFA and AES-GCM sealing
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-operator-mfa-crypto.test.ts
       - name: Verify bounded FISCAL KYB admin review contract
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-admin-review.test.ts
       - name: Verify signed FISCAL super-admin SSO tickets

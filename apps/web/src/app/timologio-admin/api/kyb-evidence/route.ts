@@ -1,3 +1,4 @@
+import {FiscalMfaError,requireFiscalOperatorMfa} from "../../../../lib/fiscal-operator-mfa";
 import {assertFiscalOrigin,requireFiscalAdmin} from "../../../../lib/fiscal-auth";
 import {fiscalPool} from "../../../../lib/fiscal-runtime";
 import {FiscalKybInputError,parseFiscalKybInput} from "../../../../lib/fiscal-kyb-checks";
@@ -8,6 +9,7 @@ export async function POST(request:Request){
  try{
   assertFiscalOrigin(request);
   const actor=await requireFiscalAdmin(request);
+  await requireFiscalOperatorMfa(actor);
   if(request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
    return Response.json({error:"JSON_REQUIRED"},{status:415,headers:noStore});
   if(Number(request.headers.get("content-length")??0)>1250)
@@ -61,6 +63,8 @@ export async function POST(request:Request){
   }catch(error){await db.query("ROLLBACK").catch(()=>undefined);throw error;}
   finally{db.release();}
  }catch(error){
+  if(error instanceof FiscalMfaError)
+   return Response.json({error:error.code},{status:error.status,headers:noStore});
   if(error instanceof FiscalKybInputError)
    return Response.json({error:error.code},{status:400,headers:noStore});
   const code=error instanceof Error?error.message:"KYB_EVIDENCE_UNAVAILABLE";

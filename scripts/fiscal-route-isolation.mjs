@@ -37,6 +37,7 @@ for(const expected of [
  "timologio-admin/page.tsx","timologio-admin/invitations/page.tsx",
  "timologio-admin/api/invitations/route.ts",
  "timologio-admin/api/kyb-evidence/route.ts",
+ "timologio-admin/api/mfa/route.ts","timologio-admin/mfa/page.tsx",
  "timologio-admin/accounts/[id]/page.tsx","timologio-admin/sso/callback/route.ts"
 ])assert.ok(routes.includes(expected),"Missing Fiscal route: "+expected);
 // Route re-exports do not inherit Next.js static segment configuration.
@@ -47,6 +48,7 @@ for(const route of [
  "timologio/login/page.tsx","timologio-admin/page.tsx",
  "timologio/verify-email/page.tsx",
  "timologio-admin/invitations/page.tsx",
+ "timologio-admin/mfa/page.tsx",
  "timologio-admin/login/page.tsx","timologio-admin/compliance/page.tsx",
  "timologio-admin/accounts/[id]/page.tsx"
 ]){

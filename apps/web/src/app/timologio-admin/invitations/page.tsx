@@ -1,3 +1,4 @@
+import {fiscalMfaEnforced,isFiscalMfaSatisfied} from "../../../lib/fiscal-operator-mfa";
 import Link from "next/link";
 import {redirect} from "next/navigation";
 import {fiscalAdminActor} from "../../../lib/fiscal-auth";
@@ -9,6 +10,7 @@ const format=(d:Date)=>new Intl.DateTimeFormat("el-GR",{timeZone:"Europe/Athens"
 export default async function FiscalInvitations(){
  const actor=await fiscalAdminActor();
  if(!actor)redirect("/timologio-admin/login");
+ if(fiscalMfaEnforced()&&!(await isFiscalMfaSatisfied(actor)))redirect("/timologio-admin/mfa");
  const ready=fiscalDatabaseConfigured(),enabled=invitedRegistrationEnabled();
  const invites=ready?await listFiscalInvitations().catch(()=>null):null;
  return <main className="fiscal-shell"><div className="fiscal-wrap">

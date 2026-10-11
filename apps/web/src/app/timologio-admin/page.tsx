@@ -22,6 +22,7 @@ export default async function FiscalAdmin(){
   </section>
   <section className="fiscal-panel">
    <h2>Υποδομή και ενεργοποίηση</h2>
+   <p><Link className="fiscal-button secondary" href="/timologio-admin/mfa">Έλεγχος δύο παραγόντων (MFA)</Link></p>
    {!configured?<p className="fiscal-alert">Απαιτείται ξεχωριστή FISCAL_DATABASE_URL. Δεν χρησιμοποιείται η βάση του marketplace ως εναλλακτική.</p>
    :!status.ready?<p className="fiscal-alert">Η βάση FISCAL δεν είναι ακόμη έτοιμη ή δεν έχουν εφαρμοστεί οι ανεξάρτητες migrations. Οι εργασίες παραμένουν κλειδωμένες.</p>
    :<p>Dedicated Fiscal database: connected · merchant applications: {data?.accounts.length??0} shown (latest 40).</p>}

@@ -1,3 +1,4 @@
+import {fiscalMfaEnforced,isFiscalMfaSatisfied} from "../../../../lib/fiscal-operator-mfa";
 import Link from "next/link";
 import {notFound,redirect} from "next/navigation";
 import {FiscalAccountReviewActions} from "../../../../components/FiscalAccountReviewActions";
@@ -22,6 +23,7 @@ export default async function FiscalAccountCase({params}:{
 }){
  const actor=await fiscalAdminActor();
  if(!actor)redirect("/timologio-admin/login");
+ if(fiscalMfaEnforced()&&!(await isFiscalMfaSatisfied(actor)))redirect("/timologio-admin/mfa");
  const {id}=await params;
  if(!uuid.test(id))notFound();
  const org=await fiscalPool().query<Case>(

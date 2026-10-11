@@ -1,3 +1,4 @@
+import {FiscalMfaError,requireFiscalOperatorMfa} from "../../../../lib/fiscal-operator-mfa";
 import {assertFiscalOrigin,requireFiscalAdmin} from "../../../../lib/fiscal-auth";
 import {FiscalInvitationError,issueFiscalInvitation,revokeFiscalInvitation} from "../../../../lib/fiscal-invitations";
 export const runtime="nodejs";
@@ -7,6 +8,7 @@ export async function POST(request:Request){
  try{
   assertFiscalOrigin(request);
   const actor=await requireFiscalAdmin(request);
+  await requireFiscalOperatorMfa(actor);
   if(request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
    return Response.json({error:"JSON_REQUIRED"},{status:415,headers});
   if(Number(request.headers.get("content-length")??0)>2500)
@@ -31,6 +33,8 @@ export async function POST(request:Request){
   }
   return Response.json({error:"INVITATION_ACTION_INVALID"},{status:400,headers});
  }catch(error){
+  if(error instanceof FiscalMfaError)
+   return Response.json({error:error.code},{status:error.status,headers:headers});
   if(error instanceof FiscalInvitationError)
    return Response.json({error:error.code},{status:error.status,headers});
   const code=error instanceof Error?error.message:"INVITATION_SERVICE_UNAVAILABLE";
