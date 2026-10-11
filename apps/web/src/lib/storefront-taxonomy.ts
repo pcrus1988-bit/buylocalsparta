@@ -390,7 +390,7 @@ export function storefrontSubcategoryPresentationForCode(
  */
 export function storefrontReadableSubcategoryCode(subcategoryCode: string): string | undefined {
   const code = normalize(subcategoryCode);
-  if (!code || code.length > 110 || !/^[\\p{L}\\p{N}]+(?:-[\\p{L}\\p{N}]+)*$/u.test(code)) return undefined;
+  if (!code || code.length > 110 || !/^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(code)) return undefined;
   const parts = code.split("-");
   // Opaque identifiers are identifiers, not customer-readable taxonomy.
   if (parts.some((part) => /^[0-9a-f]{12,}$/i.test(part))) return undefined;
