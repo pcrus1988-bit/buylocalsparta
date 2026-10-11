@@ -438,6 +438,45 @@ try{
  await db.query("UPDATE fiscal_superadmin_sessions SET revoked_at=now() WHERE token_hash=$1",["c".repeat(64)]);
  const ssoAfter=await db.query("SELECT count(*)::int AS count FROM fiscal_superadmin_sessions WHERE token_hash=$1 AND revoked_at IS NULL",["c".repeat(64)]);
  assert.equal(ssoAfter.rows[0].count,0);
+ // Email proof is not identity/KYB verification: challenged user, one use, immutable evidence.
+ const unverified=await db.query("SELECT email_verified_at FROM fiscal_users WHERE id=$1",[uid]);
+ assert.equal(unverified.rows[0].email_verified_at,null);
+ const emailSchema=await db.query("SELECT relrowsecurity FROM pg_class WHERE oid='public.fiscal_email_verification_challenges'::regclass");
+ assert.equal(emailSchema.rows[0].relrowsecurity,true);
+ const proof=await db.query(
+  `INSERT INTO fiscal_email_verification_challenges(user_id,token_hash,expires_at)
+   VALUES($1,$2,now()+interval '20 minutes') RETURNING id`,[uid,'8'.repeat(64)]);
+ assert.equal(proof.rows.length,1);
+ const proofId=proof.rows[0].id;
+ await db.query("SAVEPOINT duplicate_email_proof");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_email_verification_challenges(user_id,token_hash,expires_at)
+   VALUES($1,$2,now()+interval '20 minutes')`,[uid,'9'.repeat(64)]));
+ await db.query("ROLLBACK TO SAVEPOINT duplicate_email_proof");
+ await db.query("SAVEPOINT alter_email_proof_owner");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_email_verification_challenges SET user_id=$2 WHERE id=$1",
+  [proofId,otherUser.rows[0].id]));
+ await db.query("ROLLBACK TO SAVEPOINT alter_email_proof_owner");
+ await db.query("SAVEPOINT delete_email_proof");
+ await assert.rejects(()=>db.query("DELETE FROM fiscal_email_verification_challenges WHERE id=$1",[proofId]));
+ await db.query("ROLLBACK TO SAVEPOINT delete_email_proof");
+ const usedProof=await db.query(
+  "UPDATE fiscal_email_verification_challenges SET status='consumed',consumed_at=now() WHERE id=$1 AND status='pending' RETURNING id",
+  [proofId]);
+ assert.equal(usedProof.rowCount,1);
+ await db.query("SAVEPOINT consume_again");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_email_verification_challenges SET status='revoked',revoked_at=now() WHERE id=$1",[proofId]));
+ await db.query("ROLLBACK TO SAVEPOINT consume_again");
+ const otherProof=await db.query(
+  `INSERT INTO fiscal_email_verification_challenges(user_id,token_hash,expires_at)
+   VALUES($1,$2,now()+interval '10 minutes') RETURNING id`,
+  [otherUser.rows[0].id,'a'.repeat(64)]);
+ assert.equal(otherProof.rows.length,1);
+ await db.query("UPDATE fiscal_email_verification_challenges SET status='revoked',revoked_at=now() WHERE id=$1",
+  [otherProof.rows[0].id]);
+ console.log("PASS: email proof RLS, one-time use, owner identity immutability and revocation");
  await db.query("ROLLBACK");
  console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, approved-only console draft creation, immutable tenant-bound item snapshots, unverified counterparty registry, immutable regulatory atlas, disabled candidate tax rules, idempotency, tenant-bound balanced sandbox journals, verified marketplace pairing, SSO replay protection, immutable audit");
 }catch(error){await db.query("ROLLBACK").catch(()=>{});throw error;}
