@@ -191,3 +191,15 @@ To verify the independent FISCAL application beyond TypeScript checks and direct
 **Still NOT connected:** The independent Vercel `konta-moy-fiscal` project currently has no `FISCAL_DATABASE_URL` environment variable. The connector did not supply or expose a PostgreSQL password or verified pooler connection URL. Do not guess credentials, put secrets in GitHub or chat, reuse `DATABASE_URL`/`POSTGRES_URL`, or enable production/public registration. Use the Supabase project's official **Connect** panel to obtain a TLS-enabled session/transaction-pooler URI appropriate for Vercel, and store it as an encrypted server-side `FISCAL_DATABASE_URL` in the *protected staging/Preview environment only* via Vercel project settings; never prefix it with `NEXT_PUBLIC_`. See https://supabase.com/docs/guides/database/connecting-to-postgres . Redeploy only after the encrypted connection is configured, verify `/timologio/api/health`, and test with synthetic authenticated accounts before any wider launch.
 
 FISCAL retains separate session/authentication, B2C/POS/B2B/B2G laboratory draft flows, permanently blocked legal issuance, and disabled marketplace draft synchronization. PR #1431 remains draft and KONTA MOY production remains unchanged.
+
+## Persistent Preview connection investigation (2026-10-11)
+
+The independent FISCAL Vercel Preview deployment `dpl_9sbu4gMQkqK67JdNSkHSz5GmKwSR` is READY, but the real `/timologio/api/health` endpoint still returns HTTP 503 `database_unreachable`. Vercel runtime logs reported only the **safe** `dns_resolution` category. The Frankfurt Supabase project remains the only authorized persistent FISCAL database. Its schema was already installed and verified; no schema or business data changes are required to diagnose DNS.
+
+The sensitive `FISCAL_DATABASE_URL` is present only in protected Preview; do not copy or log it. Supabase documents two distinct endpoints:
+- Shared Supavisor transaction pooler: Supabase **Connect → Transaction pooler** and the host copied exactly from the project, typically ending `.pooler.supabase.com`, username `postgres.<project-ref>`, port `6543`. Appropriate for IPv4 serverless runtime.
+- Dedicated pooler on `db.<project-ref>.supabase.co:6543`: not interchangeable with the IPv4 shared Supavisor host; IPv6 support or a paid IPv4 add-on may be needed, depending on project configuration. Do not guess or reconstruct the host from the reference alone.
+
+`apps/web/src/lib/fiscal-connection-diagnostics.ts` now categorizes these endpoint forms **without returning credentials, usernames or concrete hostnames**. The standalone health route includes this safe allowlisted profile in server-only logs upon a connection failure. Tests validate that no secret material can enter the classifier output. Continue to keep `FISCAL_ISSUANCE_ENABLED=false`, public registration closed and marketplace sync disabled.
+
+The Vercel project's independent function region was requested as Frankfurt (`fra1`) to align with the EU database; check actual region in the *new deployment's runtime logs* before treating it as verified. Do not modify the marketplace application's Vercel project.
