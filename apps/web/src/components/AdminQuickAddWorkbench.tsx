@@ -95,7 +95,7 @@ export function AdminQuickAddWorkbench({
   vendors: readonly Vendor[];
   categories: readonly Category[];
   csrfToken: string;
-  mediaUploadMode: "direct" | "development_memory" | "gated";
+  mediaUploadMode: "direct" | "server" | "development_memory" | "gated";
   mediaReadinessMessage: string;
 }) {
   const [vendorId, setVendorId] = useState("");

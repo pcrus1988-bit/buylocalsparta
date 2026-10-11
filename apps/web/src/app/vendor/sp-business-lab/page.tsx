@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { SiteFooter } from "../../../components/SiteFooter";
@@ -7,6 +8,7 @@ import { VendorAskLocalPanel } from "../../../components/VendorAskLocalPanel";
 import { VendorCatalogBrowser } from "../../../components/VendorCatalogBrowser";
 import storefrontStyles from "../../../components/VendorStorefront.module.css";
 import { getAccountSession } from "../../../lib/account-session";
+import { approvedVendorProfileMedia } from "../../../lib/public-media-service";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
@@ -83,6 +85,12 @@ export default async function SpBusinessLabStorefront() {
 
   const isResearch = vendor.directoryStatus === "research";
   const principal = isResearch ? undefined : await getAccountSession();
+  // The luxury layout must honor the same approved profile photos as the
+  // standard vendor page; never expose draft or unreviewed media.
+  const profileMedia = isResearch ? [] : await approvedVendorProfileMedia([VENDOR_ID]);
+  const logo = profileMedia.find((item) => item.role === "logo");
+  const heroPhoto = profileMedia.find((item) => item.role === "storefront");
+  const gallery = profileMedia.filter((item) => item.role === "gallery");
   let products = [] as Awaited<ReturnType<typeof getVendorLocalCatalogPage>>["products"];
   let initialNextOffset: number | null = null;
 
@@ -132,6 +140,7 @@ export default async function SpBusinessLabStorefront() {
 
           <div className={styles.heroGrid}>
             <div className={styles.heroCopy}>
+              {logo && <Image src={`/api/media/${encodeURIComponent(logo.mediaId)}`} alt={logo.altText ?? "SP BUSINESS LAB logo"} width={120} height={82} style={{objectFit:"contain",maxWidth:120,height:"auto",marginBottom:14}} />}
               <div className={styles.kicker}>LUXURY · ICONIC BRANDS · HAUTE COUTURE</div>
               <h1 id="sp-business-lab-title">{DISPLAY_NAME}</h1>
               <p className={styles.lead}>
@@ -156,7 +165,8 @@ export default async function SpBusinessLabStorefront() {
               </div>
             </div>
 
-            <div className={styles.editorialPanel} aria-hidden="true">
+            <div className={styles.editorialPanel} aria-label={heroPhoto?.altText ?? "Luxury SP BUSINESS LAB βιτρίνα"}>
+              {heroPhoto && <Image src={`/api/media/${encodeURIComponent(heroPhoto.mediaId)}`} alt={heroPhoto.altText ?? "SP BUSINESS LAB"} fill sizes="(max-width: 980px) 100vw, 40vw" className={styles.heroImage} />}
               <div className={styles.editorialTop}>
                 <span>CURATED</span>
                 <span>PREMIUM</span>
@@ -174,6 +184,14 @@ export default async function SpBusinessLabStorefront() {
           </div>
         </div>
       </section>
+
+      {gallery.length > 0 && <section className="shell" aria-label="Φωτογραφίες SP BUSINESS LAB" style={{ padding: "24px 0 36px" }}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:12}}>
+          {gallery.map((item) => <div key={item.mediaId} style={{position:"relative",aspectRatio:"4 / 3",borderRadius:18,overflow:"hidden"}}>
+            <Image src={`/api/media/${encodeURIComponent(item.mediaId)}`} alt={item.altText ?? "SP BUSINESS LAB φωτογραφία"} fill sizes="(max-width: 640px) 90vw, 33vw" style={{objectFit:"cover"}} />
+          </div>)}
+        </div>
+      </section>}
 
       <section className={storefrontStyles.catalogSection} id="products" aria-labelledby="vendor-products-title">
         <div className="shell">

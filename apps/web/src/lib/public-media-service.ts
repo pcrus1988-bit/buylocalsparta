@@ -1,5 +1,5 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
-import { S3ObjectStorage, objectStorageConfigFromEnv, type StoredObjectRead } from "@buy-local-sparta/object-storage";
+import { S3ObjectStorage, objectStorageConfigFromEnv, serverObjectStorageFromEnv, type StoredObjectRead } from "@buy-local-sparta/object-storage";
 import type { VendorProfileMediaRole } from "@buy-local-sparta/postgres-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
@@ -75,6 +75,13 @@ let storageSingleton: S3ObjectStorage | undefined;
 
 function storage(): S3ObjectStorage {
   return storageSingleton ??= new S3ObjectStorage(objectStorageConfigFromEnv(process.env));
+}
+
+function governedSupabaseProfileMediaEnabled(): boolean {
+  const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)?.trim();
+  const secret = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY)?.trim();
+  if (!url || !secret) return false;
+  try { return new URL(url).hostname.endsWith(".supabase.co"); } catch { return false; }
 }
 
 export function governedPublicMediaEnabled(): boolean {
@@ -270,7 +277,7 @@ export async function approvedVendorImages(vendorIds: readonly string[]): Promis
 
 export async function approvedVendorProfileMedia(vendorIds: readonly string[]): Promise<readonly ApprovedVendorProfileMedia[]> {
   if (!productionDatabaseConfigured() || vendorIds.length === 0) return [];
-  const directStorageEnabled = governedPublicMediaEnabled();
+  const directStorageEnabled = governedPublicMediaEnabled() || governedSupabaseProfileMediaEnabled();
   const unique = [...new Set(vendorIds.map((id) => id.trim()).filter(Boolean))];
   if (unique.length === 0) return [];
   if (unique.length > 250) throw new Error("Public storefront media projection accepts at most 250 vendors per request");
@@ -419,8 +426,16 @@ export async function readApprovedPublicMedia(mediaId: string): Promise<Approved
     };
   }
 
-  if (!directStorageEnabled) return undefined;
-  const object = await storage().read(row.object_key);
+  // In the limited profile-image intake mode, reviewed assets are stored in
+  // the existing private Supabase bucket. All database publication, scan,
+  // rights and moderation gates above remain required before this read.
+  const isSupabaseProfile = !directStorageEnabled
+    && governedSupabaseProfileMediaEnabled()
+    && row.object_key.startsWith("private/vendor-media/");
+  if (!directStorageEnabled && !isSupabaseProfile) return undefined;
+  const object = isSupabaseProfile
+    ? await serverObjectStorageFromEnv({ defaultBucket: "buy-local-sparta-private" }).read(row.object_key)
+    : await storage().read(row.object_key);
   const storedType = object.contentType?.split(";")[0]?.trim().toLowerCase();
   if (storedType && storedType !== contentType) throw new Error("Approved media object content type no longer matches its reviewed metadata");
   if (object.byteSize !== undefined && object.byteSize !== byteSize) throw new Error("Approved media object size no longer matches reviewed metadata");

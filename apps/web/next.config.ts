@@ -26,6 +26,14 @@ const CONTENT_SECURITY_POLICY = [
   "object-src 'none'"
 ].join("; ");
 
+// Public vendor pages can be embedded in their own authenticated first-party
+// dashboard preview. Keep every other route denied, and forbid third-party
+// framing even for vendor pages.
+const VENDOR_SAME_ORIGIN_FRAME_POLICY = CONTENT_SECURITY_POLICY.replace(
+  "frame-ancestors 'none'",
+  "frame-ancestors 'self'"
+);
+
 const SECURITY_HEADERS = [
   { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -173,6 +181,13 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: [...SECURITY_HEADERS]
+      },
+      {
+        source: "/vendor/:vendorId",
+        headers: [
+          { key: "Content-Security-Policy", value: VENDOR_SAME_ORIGIN_FRAME_POLICY },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" }
+        ]
       },
       ...SEARCH_EXCLUDED_SOURCES.map((source) => ({ source, headers: [...SEARCH_EXCLUDED_HEADERS] }))
     ];

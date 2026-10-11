@@ -219,7 +219,9 @@ export function serverObjectStorageFromEnv(
   if (s3Bucket && s3Region) return new S3ObjectStorage(objectStorageConfigFromEnv(env));
 
   const baseUrl = (env.SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL)?.trim();
-  const secretKey = (env.SUPABASE_SECRET_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY)?.trim();
+  // Storage REST Authorization requires a bearer-compatible service-role JWT.
+  // New sb_secret_* API keys may work as an apikey but not as that bearer token.
+  const secretKey = (env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY)?.trim();
   const bucket = s3Bucket || input.defaultBucket?.trim();
   if (baseUrl && secretKey && bucket) {
     return new SupabaseRestObjectStorage({ baseUrl, secretKey, bucket });

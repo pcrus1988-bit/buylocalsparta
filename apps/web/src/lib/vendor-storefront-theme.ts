@@ -6,6 +6,23 @@ export type VendorStorefrontTheme = Readonly<{
   secondaryColor: string;
 }>;
 
+/** This merchant currently has a bespoke luxury storefront. Its public CSS
+ * uses the KONTA MOY ink/brass palette instead of legacy vendor colors. */
+export const BESPOKE_SP_BUSINESS_LAB_VENDOR_ID = "vendor_e8cb57b3c67b469d9a9d";
+export const BESPOKE_SP_BUSINESS_LAB_THEME: VendorStorefrontTheme = {
+  primaryColor: "#183027",
+  secondaryColor: "#b29661"
+};
+
+export function hasBespokeVendorStorefront(vendorId: string): boolean {
+  return vendorId === BESPOKE_SP_BUSINESS_LAB_VENDOR_ID;
+}
+
+export function effectiveVendorWorkspaceTheme(vendorId: string, saved: VendorStorefrontTheme): VendorStorefrontTheme {
+  return hasBespokeVendorStorefront(vendorId) ? BESPOKE_SP_BUSINESS_LAB_THEME : saved;
+}
+
+
 export type VendorStorefrontThemeTokens = Readonly<{
   primaryColor: string;
   secondaryColor: string;

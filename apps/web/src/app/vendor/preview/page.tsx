@@ -20,6 +20,8 @@ export default async function VendorPreviewPage() {
   const principal = trial ? undefined : await getVendorSession();
   const vendorId = trial?.vendorId ?? principal?.vendorId;
   if (!vendorId) redirect("/vendor/login");
+  // Active vendors preview the actual customer-facing page, never a separate mock rendering.
+  if (!trial) redirect(`/vendor/${encodeURIComponent(vendorId)}`);
 
   // Keep the preview reads sequential. Production Vercel instances intentionally
   // use a very small PostgreSQL pool, and parallel cold reads can queue behind one

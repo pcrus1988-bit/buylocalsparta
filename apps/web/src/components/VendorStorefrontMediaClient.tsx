@@ -9,7 +9,7 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, Work
 type Workspace = Readonly<{
   csrfToken: string;
   vendorId: string;
-  mediaUploadMode: "direct" | "development_memory" | "gated";
+  mediaUploadMode: "direct" | "server" | "development_memory" | "gated";
   assignments: readonly VendorProfileMediaAssignment[];
 }>;
 
@@ -63,10 +63,34 @@ function publicMediaUrl(asset: VendorProfileMediaAssignment): string | undefined
   return asset.publicationStatus === "published" && approved(asset) ? `/api/media/${encodeURIComponent(asset.mediaId)}` : undefined;
 }
 
+async function prepareProfileImage(file: File): Promise<File> {
+  if (file.size <= 3_500_000) return file;
+  if (typeof createImageBitmap !== "function") throw new Error("Η εικόνα είναι μεγάλη. Μείωσε το μέγεθός της πριν την αποστολή.");
+  const image = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, 1600 / Math.max(image.width, image.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Δεν ήταν δυνατή η προετοιμασία της εικόνας.");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.78));
+    if (!blob || blob.type !== "image/webp" || blob.size > 3_500_000) {
+      throw new Error("Η εικόνα είναι πολύ μεγάλη. Δοκίμασε μικρότερη ανάλυση.");
+    }
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".webp", { type: "image/webp" });
+  } finally {
+    image.close();
+  }
+}
+
 export function VendorStorefrontMediaClient({ initial }: { initial: Workspace }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const uploadAvailable = initial.mediaUploadMode === "direct" || initial.mediaUploadMode === "server";
   const active = useMemo(() => initial.assignments.filter((asset) => asset.publicationStatus !== "archived"), [initial.assignments]);
   const published = active.filter((asset) => asset.publicationStatus === "published" && approved(asset));
   const pending = active.filter((asset) => asset.publicationStatus !== "published" || !approved(asset));
@@ -77,15 +101,29 @@ export function VendorStorefrontMediaClient({ initial }: { initial: Workspace })
     event.preventDefault();
     setBusy(true);
     setError("");
+    setSuccess("");
+    const formElement = event.currentTarget;
     try {
-      if (initial.mediaUploadMode !== "direct") throw new Error(initial.mediaUploadMode === "gated"
-        ? "Η ασφαλής αποστολή εικόνων είναι προσωρινά απενεργοποιημένη από την πλατφόρμα."
-        : "Η διαχείριση εικόνων καταστήματος απαιτεί ενεργή υπηρεσία επεξεργασίας αρχείων.");
-      const form = new FormData(event.currentTarget);
+      if (!uploadAvailable) throw new Error("Η ασφαλής μεταφόρτωση δεν είναι διαθέσιμη.");
+      const form = new FormData(formElement);
       const file = form.get("file");
       const role = String(form.get("profileRole") ?? "") as Role;
       if (!(file instanceof File) || file.size <= 0) throw new Error("Επίλεξε εικόνα για ανέβασμα.");
       if (!Object.hasOwn(ROLE_LABELS, role)) throw new Error("Επίλεξε έγκυρο ρόλο εικόνας.");
+      if (initial.mediaUploadMode === "server") {
+        form.set("file", await prepareProfileImage(file));
+        const response = await fetch("/api/vendor/storefront/upload", {
+          method: "POST",
+          headers: { "x-csrf-token": initial.csrfToken },
+          body: form
+        });
+        const payload = await response.json().catch(() => ({})) as { error?: string };
+        if (!response.ok) throw new Error(payload.error ?? "Η αποστολή εικόνας απέτυχε.");
+        formElement.reset();
+        setSuccess("Η εικόνα υποβλήθηκε ιδιωτικά και αναμένει ελέγχους πριν δημοσιευθεί.");
+        router.refresh();
+        return;
+      }
       const intentResponse = await fetch("/api/vendor/media/intents", {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": initial.csrfToken },
@@ -111,7 +149,8 @@ export function VendorStorefrontMediaClient({ initial }: { initial: Workspace })
       });
       const result = await complete.json();
       if (!complete.ok) throw new Error(result.error ?? "Δεν ολοκληρώθηκε η υποβολή της εικόνας.");
-      event.currentTarget.reset();
+      formElement.reset();
+      setSuccess("Η εικόνα υποβλήθηκε ιδιωτικά για έλεγχο.");
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Η υποβολή απέτυχε.");
@@ -141,6 +180,7 @@ export function VendorStorefrontMediaClient({ initial }: { initial: Workspace })
 
   return <>
     {error && <div className="shell form-error vendor-error" role="alert">{error}</div>}
+    {success && <div className="shell workspace-inline-note" role="status">{success}</div>}
 
     <WorkspaceMetricStrip items={[
       { label: "Δημοσιευμένες εικόνες", value: published.length, tone: published.length ? "positive" : "default" },
@@ -164,18 +204,19 @@ export function VendorStorefrontMediaClient({ initial }: { initial: Workspace })
 
     <section className="vendor-section section-tint"><div className="shell">
       <WorkspaceSectionHeading eyebrow="Νέα εικόνα" title="Πρόσθεσε ή αντικατάστησε εικόνα καταστήματος" note="Η υπάρχουσα εικόνα παραμένει στη θέση της μέχρι να εγκριθεί η νέα από το ΚΟΝΤΑ ΜΟΥ." />
-      {initial.mediaUploadMode !== "direct" && <div className="workspace-inline-note">Η ασφαλής μεταφόρτωση δεν είναι αυτή τη στιγμή διαθέσιμη. Οι ήδη δημοσιευμένες εικόνες παραμένουν κανονικά ενεργές.</div>}
+      {!uploadAvailable && <div className="workspace-inline-note">Η ασφαλής μεταφόρτωση δεν είναι αυτή τη στιγμή διαθέσιμη. Οι ήδη δημοσιευμένες εικόνες παραμένουν κανονικά ενεργές.</div>}
+      {initial.mediaUploadMode === "server" && <div className="workspace-inline-note">Η φωτογραφία αποστέλλεται σε ιδιωτικό χώρο. Οι μεγάλες εικόνες προσαρμόζονται αυτόματα. Η δημοσίευση προϋποθέτει επιτυχή έλεγχο ασφαλείας, δικαιωμάτων και περιεχομένου.</div>}
       <details className="workspace-tool-panel" open>
         <summary><span><strong>Νέα εικόνα καταστήματος</strong><small>JPEG, PNG ή WebP</small></span></summary>
         <div className="workspace-tool-body">
           <form onSubmit={upload}>
             <div className="workspace-form-grid">
               <label>Ρόλος εικόνας<select name="profileRole" required defaultValue="storefront"><option value="logo">Λογότυπο</option><option value="storefront">Φυσικό κατάστημα</option><option value="team">Άνθρωποι / ομάδα</option><option value="gallery">Συλλογή φωτογραφιών</option></select></label>
-              <label>Αρχείο<input name="file" type="file" accept="image/jpeg,image/png,image/webp" required disabled={initial.mediaUploadMode !== "direct"} /></label>
+              <label>Αρχείο<input name="file" type="file" accept="image/jpeg,image/png,image/webp" required disabled={!uploadAvailable} /></label>
               <label className="workspace-form-span-2">Περιγραφή εικόνας<input name="altText" required maxLength={240} placeholder="π.χ. Η βιτρίνα του καταστήματος στην οδό …" /></label>
               <label className="workspace-form-span-2">Κάτοχος δικαιωμάτων<input name="rightsOwner" required maxLength={200} placeholder="Επωνυμία επιχείρησης ή φωτογράφος / δικαιούχος" /></label>
             </div>
-            <div className="workspace-action-bar"><span>Με την υποβολή δηλώνεις ποιος κατέχει τα δικαιώματα. Η εικόνα δεν γίνεται δημόσια πριν την έγκριση.</span><button className="button" type="submit" disabled={busy || initial.mediaUploadMode !== "direct"}>{busy ? "Αποστολή…" : "Υποβολή για έλεγχο"}</button></div>
+            <div className="workspace-action-bar"><span>Με την υποβολή δηλώνεις ποιος κατέχει τα δικαιώματα. Η εικόνα δεν γίνεται δημόσια πριν την έγκριση.</span><button className="button" type="submit" disabled={busy || !uploadAvailable}>{busy ? "Αποστολή…" : "Υποβολή για έλεγχο"}</button></div>
           </form>
         </div>
       </details>
