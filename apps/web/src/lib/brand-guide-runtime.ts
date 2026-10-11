@@ -12,7 +12,7 @@ import {
   type BrandGuideContent
 } from "./brand-guide";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { storefrontCategoryForCode, storefrontLeafForSubcategory } from "./storefront-taxonomy";
+import { storefrontCategoryForCode, storefrontLeafForSubcategory, storefrontReadableSubcategoryCode, storefrontSubcategoryPresentationForCode } from "./storefront-taxonomy";
 
 type BrandRow = Readonly<{
   id: string;
@@ -56,6 +56,7 @@ type RelatedBrandRow = Readonly<{
 export type PublicBrandCategory = Readonly<{
   code: string;
   label: string;
+  familyLabel: string;
   departmentSlug: string;
   departmentLabel: string;
   productCount: number;
@@ -131,33 +132,62 @@ function brandShopHref(name: string): string {
 }
 
 function departmentHref(name: string, departmentSlug: string): string {
-  const query = new URLSearchParams({
-    brand: name,
-    category: departmentSlug
-  });
+  const query = new URLSearchParams({ brand: name });
+  // local-finds is an unclassified presentation bucket, not a canonical
+  // storefront department. Never issue an invalid shop category filter.
+  if (departmentSlug !== "local-finds") query.set("category", departmentSlug);
   return `/shop?${query.toString()}`;
 }
 
 function categoryHref(name: string, departmentSlug: string, code: string): string {
-  const query = new URLSearchParams({
-    brand: name,
-    category: departmentSlug,
-    subcategory: code
-  });
+  const query = new URLSearchParams({ brand: name, subcategory: code });
+  if (departmentSlug !== "local-finds") query.set("category", departmentSlug);
   return `/shop?${query.toString()}`;
 }
 
 function mapCategory(row: BrandCategoryRow, brandName: string): PublicBrandCategory {
   const department = storefrontCategoryForCode(row.category_code, row.department_code ?? undefined);
   const leaf = storefrontLeafForSubcategory(department.slug, row.category_code, row.label ?? "");
+  const precise = storefrontSubcategoryPresentationForCode(row.category_code);
+  const suppliedLabel = optional(row.label);
+  const genericLabel = suppliedLabel === leaf?.label || suppliedLabel === department.label;
+  // Preserve a meaningful canonical label, but do not promote broad search
+  // intent (e.g. "Μακιγιάζ") to every specific child category.
+  const label = precise?.label
+    ?? (suppliedLabel && !genericLabel ? suppliedLabel : undefined)
+    ?? storefrontReadableSubcategoryCode(row.category_code)
+    ?? suppliedLabel
+    ?? leaf?.label
+    ?? department.label;
   return {
     code: row.category_code,
-    label: optional(row.label) ?? leaf?.label ?? department.label,
+    label,
+    familyLabel: precise?.familyLabel ?? leaf?.label ?? department.label,
     departmentSlug: department.slug,
     departmentLabel: department.label,
     productCount: count(row.product_count),
     href: categoryHref(brandName, department.slug, row.category_code)
   };
+}
+
+/**
+ * All category codes remain navigable. Even independently governed synonyms
+ * occasionally share a translated label, so make the final card labels unique
+ * within the same department without collapsing separate shop filters.
+ */
+function ensureDistinctCategoryLabels(categories: readonly PublicBrandCategory[]): PublicBrandCategory[] {
+  const seen = new Set<string>();
+  return categories.map((category) => {
+    const key = `${category.departmentSlug}:${category.label.toLocaleLowerCase("el-GR")}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      return category;
+    }
+    const codeLabel = storefrontReadableSubcategoryCode(category.code) ?? category.code;
+    const nextLabel = `${category.label} · ${codeLabel}`;
+    seen.add(`${category.departmentSlug}:${nextLabel.toLocaleLowerCase("el-GR")}`);
+    return { ...category, label: nextLabel };
+  });
 }
 
 function departmentSummaries(categories: readonly PublicBrandCategory[], brandName: string): readonly PublicBrandDepartment[] {
@@ -258,7 +288,7 @@ const cachedPublicBrandGuide = unstable_cache(
         GROUP BY category_code
         ORDER BY product_count DESC, category_code
       `, [row.normalized_name]);
-      allCategories = categoryResult.rows.map((category) => mapCategory(category, row.name));
+      allCategories = ensureDistinctCategoryLabels(categoryResult.rows.map((category) => mapCategory(category, row.name)));
     } catch (error) {
       console.warn(JSON.stringify({
         level: "warn",
@@ -349,7 +379,9 @@ const cachedPublicBrandGuide = unstable_cache(
     liveProductCount = Math.max(liveProductCount, products.length);
 
     const signals = guideSignals(row, liveProductCount);
-    const categories = allCategories.slice(0, 10);
+    // Display the full available category tree for every brand, rather than
+    // silently hiding all leaves after the first ten.
+    const categories = allCategories;
 
     return {
       id: row.id,
@@ -371,7 +403,7 @@ const cachedPublicBrandGuide = unstable_cache(
       shopHref: brandShopHref(row.name)
     };
   },
-  ["public-brand-guide-v3-live-family"],
+  ["public-brand-guide-v5-all-brand-taxonomy"],
   { revalidate: BRAND_GUIDE_CACHE_SECONDS }
 );
 

@@ -133,6 +133,12 @@
   color: var(--ink-soft);
   line-height: 1.4;
 }
+.categoryGroups { display: grid; gap: 28px; }
+.categoryGroup { display: grid; gap: 12px; }
+.categoryGroupHeading { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; }
+.categoryGroupHeading small { color: var(--ink-soft); font-size: .78rem; }
+.categoryGroupHeading h3 { margin: 5px 0 0; font-size: clamp(1.3rem, 2.5vw, 1.9rem); line-height: 1.1; }
+.categoryGroupHeading > span { color: var(--ink-soft); font-size: .85rem; }
 .categoryGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -140,8 +146,8 @@
 }
 .categoryCard {
   display: grid;
-  min-height: 138px;
-  padding: 18px;
+  min-height: 112px;
+  padding: 16px;
   border: 1px solid rgba(23,60,52,.12);
   border-radius: 20px;
   background: rgba(255,255,255,.68);
@@ -151,8 +157,9 @@
 .categoryCard small { color: var(--ink-soft); }
 .categoryCard strong {
   align-self: end;
-  margin-top: 18px;
-  font-size: 1.16rem;
+  margin-top: 12px;
+  font-size: 1.08rem;
+  line-height: 1.25;
 }
 .categoryCard span {
   margin-top: 6px;
@@ -262,5 +269,8 @@
   .facts { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
-  .departmentGrid, .categoryGrid, .relatedGrid, .productGrid { grid-template-columns: 1fr; }
+  .departmentGrid, .relatedGrid, .productGrid { grid-template-columns: 1fr; }
+  .categoryGrid { grid-template-columns: 1fr; }
+  .categoryCard { min-height: 96px; padding: 14px 16px; }
+  .categoryGroups { gap: 24px; }
 }

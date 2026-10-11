@@ -6,7 +6,9 @@ import {
   resolveStorefrontSubcategoryIntent,
   STOREFRONT_CATEGORIES,
   storefrontCategoryForCode,
-  storefrontFacetEnabled
+  storefrontFacetEnabled,
+  storefrontReadableSubcategoryCode,
+  storefrontSubcategoryPresentationForCode
 } from "../apps/web/src/lib/storefront-taxonomy.ts";
 import {
   catalogAttributeDefinitionsForLeaf,
@@ -89,6 +91,109 @@ for (const query of ["school", "σχολικά", "sxoli", "sxolika", "scholi", "
   if (inferStorefrontTaxonomyIntent(query)) failures.push(`Broad school intent "${query}" must not leak into leaf inference`);
 }
 if (inferStorefrontTaxonomyIntent("gift for child")) failures.push("Ambiguous department intent must not leak into leaf inference");
+
+const brandSubcategoryCases: Array<[string, string, string]> = [
+  ["eye-makeup", "Μακιγιάζ ματιών", "Μακιγιάζ"],
+  ["lip-makeup", "Μακιγιάζ χειλιών", "Μακιγιάζ"],
+  ["nail-care-colour", "Βερνίκια & περιποίηση νυχιών", "Νύχια"],
+  ["face-makeup", "Μακιγιάζ προσώπου", "Μακιγιάζ"],
+  ["serums-treatments", "Οροί & θεραπείες προσώπου", "Περιποίηση προσώπου"]
+];
+for (const [code, label, familyLabel] of brandSubcategoryCases) {
+  const actual = storefrontSubcategoryPresentationForCode(code);
+  if (actual?.label !== label || actual?.familyLabel !== familyLabel) {
+    failures.push(`Brand subcategory ${code} must show ${familyLabel} > ${label}`);
+  }
+}
+if (storefrontSubcategoryPresentationForCode("made-up-subcategory")) {
+  failures.push("Unknown supplier subcategories must not acquire invented labels");
+}
+
+// Every major department must have genuinely specific, governed brand leaves.
+const universalBrandCategoryCases: Array<[string, string, string, string]> =   [
+    [
+      "home-living",
+      "table-lamps",
+      "Επιτραπέζια φωτιστικά",
+      "Φωτισμός"
+    ],
+    [
+      "fashion",
+      "mens-shoes",
+      "Ανδρικά παπούτσια",
+      "Παπούτσια"
+    ],
+    [
+      "beauty",
+      "lip-makeup",
+      "Μακιγιάζ χειλιών",
+      "Μακιγιάζ"
+    ],
+    [
+      "kids",
+      "construction-toys",
+      "Παιχνίδια κατασκευών",
+      "Παιχνίδια"
+    ],
+    [
+      "tools-diy",
+      "pressure-washers",
+      "Πλυστικά μηχανήματα",
+      "Εργαλεία"
+    ],
+    [
+      "garden-outdoors",
+      "garden-tools",
+      "Εργαλεία κήπου",
+      "Κήπος"
+    ],
+    [
+      "automotive",
+      "car-accessories",
+      "Αξεσουάρ αυτοκινήτου",
+      "Αξεσουάρ οχήματος"
+    ],
+    [
+      "technology",
+      "laptops",
+      "Φορητοί υπολογιστές",
+      "Υπολογιστές"
+    ],
+    [
+      "gifts",
+      "office-supplies",
+      "Είδη γραφείου",
+      "Χαρτικά & γραφείο"
+    ]
+  ];
+for (const [department, code, label, family] of universalBrandCategoryCases) {
+  const entry = storefrontSubcategoryPresentationForCode(code);
+  if (entry?.label !== label || entry?.familyLabel !== family || entry?.departmentSlug !== department) {
+    failures.push(`Missing cross-brand label/department for ${department} / ${code}`);
+  }
+  if (storefrontCategoryForCode(code).slug !== department || !categoryCodeMatches(code, department)) {
+    failures.push(`Cross-brand category ${code} must resolve and filter under ${department}`);
+  }
+}
+if (storefrontReadableSubcategoryCode("wireless-chargers") !== "Wireless chargers") {
+  failures.push("An unknown, readable leaf must not collapse to the broad parent label");
+}
+if (storefrontReadableSubcategoryCode("mens-running-shoes") !== "Ανδρικά running shoes") {
+  failures.push("Unknown structured leaves must retain their differentiating intent");
+}
+if (storefrontReadableSubcategoryCode("vendor-abcdef012345678901") !== undefined) {
+  failures.push("Opaque vendor identifiers must not appear as customer taxonomy labels");
+}
+const brandGuideRuntime = readFileSync(`${root}/apps/web/src/lib/brand-guide-runtime.ts`, "utf8");
+if (!brandGuideRuntime.includes("const categories = allCategories;")) {
+  failures.push("Every brand must expose every discoverable category, not only the top 10");
+}
+if (!brandGuideRuntime.includes("ensureDistinctCategoryLabels(categoryResult.rows.map(")) {
+  failures.push("Brand category cards must disambiguate identical translated labels");
+}
+if (!brandGuideRuntime.includes("storefrontReadableSubcategoryCode(row.category_code)")) {
+  failures.push("Brand category presentation must preserve unknown but meaningful leaf codes");
+}
 
 const lightingLeaf = inferStorefrontTaxonomyIntent("lamp")?.leaf;
 const resolvedLighting = resolveStorefrontSubcategoryIntent(lightingLeaf, [
