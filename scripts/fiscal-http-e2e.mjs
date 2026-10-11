@@ -270,7 +270,7 @@ try{
  const toRevoke=await send(invitationEndpoint,revokeBody,reviewer);
  assert.equal(toRevoke.status,201);
  const revoke=await send(invitationEndpoint,{action:"revoke",id:toRevoke.body.id},reviewer);
- assert.equal(revoke.status,200);assert.equal(revoke.body.revoked,true);
+ assert.equal(revoke.status,200,"Revoke response: "+JSON.stringify(revoke.body));assert.equal(revoke.body.revoked,true);
  const rejectRevoked=await send(redeemEndpoint,{
   token:toRevoke.body.url.split("#")[1],password
  });
