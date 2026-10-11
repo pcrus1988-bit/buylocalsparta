@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {notFound,redirect} from "next/navigation";
 import {FiscalAccountReviewActions} from "../../../../components/FiscalAccountReviewActions";
+import {FiscalKybEvidenceWorkbench} from "../../../../components/FiscalKybEvidenceWorkbench";
 import {fiscalAdminActor} from "../../../../lib/fiscal-auth";
 import {fiscalPool} from "../../../../lib/fiscal-runtime";
 
@@ -10,6 +11,7 @@ type Case={id:string;legal_name:string;vat_number:string;status:string;
 type Member={email:string;role:string;user_role:string;disabled_at:Date|null;email_verified_at:Date|null};
 type Audit={id:string;action:string;actor_kind:string;created_at:Date;note:string};
 type Count={lane:string;count:string};
+type Evidence={id:string;check_type:string;outcome:string;source_kind:string;source_reference:string|null;recorded_at:Date;recorded_by_kind:string};
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const stamp=(value:Date)=>new Intl.DateTimeFormat("el-GR",{
  dateStyle:"medium",timeStyle:"short",timeZone:"Europe/Athens"
@@ -26,7 +28,7 @@ export default async function FiscalAccountCase({params}:{
   "SELECT id,legal_name,vat_number,status,created_at,reviewed_at FROM fiscal_organizations WHERE id=$1 LIMIT 1",[id]);
  const account=org.rows[0];
  if(!account)notFound();
- const [members,audits,drafts]=await Promise.all([
+ const [members,audits,drafts,kybLatest,kybHistory]=await Promise.all([
   fiscalPool().query<Member>(
    `SELECT u.email,m.role,u.role AS user_role,u.disabled_at,u.email_verified_at
     FROM fiscal_memberships m JOIN fiscal_users u ON u.id=m.user_id
@@ -40,7 +42,15 @@ export default async function FiscalAccountCase({params}:{
       'onboarding.internal_follow_up_recorded','onboarding.rejected')
     ORDER BY created_at DESC,id DESC LIMIT 30`,[id]),
   fiscalPool().query<Count>(
-   "SELECT lane,count(*)::text AS count FROM fiscal_document_intakes WHERE organization_id=$1 GROUP BY lane",[id])
+   "SELECT lane,count(*)::text AS count FROM fiscal_document_intakes WHERE organization_id=$1 GROUP BY lane",[id]),
+  fiscalPool().query<Evidence>(
+   `SELECT DISTINCT ON (check_type) id,check_type,outcome,source_kind,source_reference,recorded_at,recorded_by_kind
+    FROM fiscal_kyb_evidence_events WHERE organization_id=$1
+    ORDER BY check_type,recorded_at DESC,id DESC`,[id]),
+  fiscalPool().query<Evidence>(
+   `SELECT id,check_type,outcome,source_kind,source_reference,recorded_at,recorded_by_kind
+    FROM fiscal_kyb_evidence_events WHERE organization_id=$1
+    ORDER BY recorded_at DESC,id DESC LIMIT 30`,[id])
  ]);
  return <main className="fiscal-shell"><div className="fiscal-wrap">
   <header className="fiscal-topbar">
@@ -64,6 +74,8 @@ export default async function FiscalAccountCase({params}:{
    <p className="fiscal-muted">Οι πληροφορίες είναι μόνο για χειροκίνητο εσωτερικό έλεγχο. Η επιβεβαίωση email δεν είναι έλεγχος νόμιμης εκπροσώπησης. Δεν έχουν διασταυρωθεί με ΓΕΜΗ/ΑΑΔΕ.</p>
   </section>
   <FiscalAccountReviewActions organizationId={account.id} status={account.status} csrfToken={actor.csrfToken}/>
+  <FiscalKybEvidenceWorkbench organizationId={account.id} status={account.status} csrfToken={actor.csrfToken}
+   latest={kybLatest.rows} history={kybHistory.rows}/>
   <section className="fiscal-panel fiscal-section">
    <h2>Χρονικό ελέγχου · έως 30 εγγραφές</h2>
    {audits.rows.length===0?<p className="fiscal-muted">Καμία καταγεγραμμένη ενέργεια ελέγχου.</p>:
