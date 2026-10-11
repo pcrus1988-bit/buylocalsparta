@@ -1,16 +1,26 @@
 import { createHash } from "node:crypto";
 import { hostname } from "node:os";
 import { createPostgresRuntimeFromEnv, EXPECTED_SCHEMA_VERSION } from "../packages/postgres-runtime/src/index.ts";
-import { S3ObjectStorage, objectStorageConfigFromEnv } from "../packages/object-storage/src/index.ts";
+import { S3ObjectStorage, SupabaseRestObjectStorage, objectStorageConfigFromEnv } from "../packages/object-storage/src/index.ts";
 import { ClamAvScanner, clamAvConfigFromEnv } from "../packages/media-processing/src/index.ts";
 
 type WorkerMode = "continuous" | "drain";
 
 const runtime=createPostgresRuntimeFromEnv({applicationName:"buy-local-sparta-media-worker"});
 const readiness=await runtime.readiness(EXPECTED_SCHEMA_VERSION);if(!readiness.ok){await runtime.close();throw new Error(`Media worker refused to start: ${readiness.message}`)}
-const storage=new S3ObjectStorage(objectStorageConfigFromEnv(process.env));
+const supabaseBackend=process.env.BLS_MEDIA_STORAGE_BACKEND==="supabase";
+const storage=supabaseBackend
+  ? new SupabaseRestObjectStorage({
+    baseUrl: requiredEnv("SUPABASE_URL"),
+    secretKey: requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
+    bucket: process.env.BLS_MEDIA_SUPABASE_BUCKET?.trim()||"buy-local-sparta-private"
+  })
+  : new S3ObjectStorage(objectStorageConfigFromEnv(process.env));
 const scanner=new ClamAvScanner(clamAvConfigFromEnv(process.env));
-const storageReady=await storage.readiness();if(!storageReady.ok){await runtime.close();throw new Error(`Media worker object storage unavailable: ${storageReady.message}`)}
+if(!supabaseBackend){
+  const storageReady=await (storage as S3ObjectStorage).readiness();
+  if(!storageReady.ok){await runtime.close();throw new Error(`Media worker object storage unavailable: ${storageReady.message}`)}
+}
 if(!await scanner.ping()){await runtime.close();throw new Error("Media worker ClamAV PING failed")}
 const workerId=process.env.BLS_MEDIA_WORKER_ID?.trim()||`media-worker:${hostname()}:${process.pid}`;
 const pollMs=positiveInt(process.env.BLS_MEDIA_WORKER_POLL_MS,5000,"BLS_MEDIA_WORKER_POLL_MS");
@@ -42,7 +52,9 @@ try{
         console.error(JSON.stringify({level:"error",event:"media_worker.infected",assetId:lease.assetId,signature:result.signature}));
       }else{
         const verifiedKey=`private/verified-media/${lease.assetId}/${sha256}`;
-        const verified=await storage.promoteVerified({sourceKey:lease.objectKey,verifiedKey,sourceEtag:source.etag});
+        const verified=supabaseBackend
+          ? await copyScannedSupabaseMedia(storage as SupabaseRestObjectStorage, lease.objectKey, verifiedKey, lease.contentType, bytes, sha256)
+          : await (storage as S3ObjectStorage).promoteVerified({sourceKey:lease.objectKey,verifiedKey,sourceEtag:source.etag});
         if(verified.byteSize!==bytes)throw new Error("Verified media copy size does not match scanned object");
         await runtime.mediaPipeline.finishScan({workerId,assetId:lease.assetId,status:"clean",sha256,verifiedObjectKey:verifiedKey,now:Date.now()});
         await storage.delete(lease.objectKey).catch(()=>undefined);
@@ -61,3 +73,41 @@ try{
 function workerMode(raw:string|undefined):WorkerMode{const value=raw?.trim()||"continuous";if(value==="continuous"||value==="drain")return value;throw new Error("BLS_MEDIA_WORKER_MODE must be continuous or drain")}
 function positiveInt(raw:string|undefined,fallback:number,name:string){if(!raw?.trim())return fallback;const n=Number(raw);if(!Number.isSafeInteger(n)||n<=0)throw new Error(`${name} must be a positive integer`);return n}
 function delay(ms:number){return new Promise<void>(resolve=>setTimeout(resolve,ms))}
+
+function requiredEnv(name: "SUPABASE_URL"|"SUPABASE_SERVICE_ROLE_KEY"):string{
+  const value=process.env[name]?.trim();
+  if(!value)throw new Error(`${name} is required for Supabase-backed media scanning`);
+  return value;
+}
+
+/** The Supabase REST backend does not expose S3's conditional CopyObject API.
+ * Read the immutable upload again, verify the exact bytes already scanned,
+ * and store a second private object addressed by its SHA-256. A failed hash
+ * comparison never marks an asset clean and never publishes it. */
+async function copyScannedSupabaseMedia(
+  storage: SupabaseRestObjectStorage,
+  sourceKey:string,
+  verifiedKey:string,
+  contentType:string,
+  expectedSize:number,
+  expectedSha256:string
+){
+  const source=await storage.read(sourceKey);
+  const parts:Buffer[]=[];
+  const hash=createHash("sha256");
+  let size=0;
+  for await(const chunk of source.stream){
+    size+=chunk.length;
+    if(size>25*1024*1024)throw new Error("Media exceeds scanner copy limit");
+    const bytes=Buffer.from(chunk);
+    parts.push(bytes);
+    hash.update(bytes);
+  }
+  if(size!==expectedSize||hash.digest("hex")!==expectedSha256)throw new Error("Media changed since malware scan");
+  await storage.put({objectKey:verifiedKey,contentType,body:Buffer.concat(parts,size)});
+  const verified=await storage.head(verifiedKey);
+  if(!verified||verified.byteSize!==expectedSize||verified.contentType!==contentType){
+    throw new Error("Scanned Supabase object did not pass verified-copy metadata checks");
+  }
+  return verified;
+}
