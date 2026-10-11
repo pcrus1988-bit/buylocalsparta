@@ -73,7 +73,8 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
     hubRegion: business.hubRegion, businessName: business.businessName,
     category: business.category, phone: business.phone, address: business.address,
     postcode: business.postcode, website: business.website,
-    websiteEmbedEnabled: business.websiteEmbedEnabled ?? false
+    websiteEmbedEnabled: business.websiteEmbedEnabled ?? false,
+    description: "", openingHours: ""
   };
   const isClaim = plan.code === "claim";
   const selling = plan.ecommerce;
