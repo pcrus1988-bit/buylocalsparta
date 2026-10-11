@@ -27,7 +27,7 @@ const SQL_PROFILE = `
   FROM hub_expansion_prospects h
   LEFT JOIN hub_claim_profiles cp ON cp.prospect_id=h.id
   WHERE h.plan_code='claim' AND h.status='converted'
-    AND h.owner_user_id IS NOT NULL
+    AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL
 `;
 
 function asProfile(row: SqlRow): HubClaimPublicProfile {
@@ -75,7 +75,7 @@ export async function listPublicClaimHubSlugs(): Promise<string[]> {
     SELECT DISTINCT h.hub_slug
     FROM hub_expansion_prospects h
     WHERE h.plan_code='claim' AND h.status='converted'
-      AND h.owner_user_id IS NOT NULL
+      AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL
   `);
   return result.rows.map((row) => row.hub_slug);
 }
