@@ -56,7 +56,7 @@ BEGIN
    END IF;
  END IF;
  RETURN NEW;
-END $;
+END $$;
 CREATE TRIGGER fiscal_mfa_recovery_case_guard
  BEFORE UPDATE OR DELETE ON public.fiscal_mfa_recovery_cases
  FOR EACH ROW EXECUTE FUNCTION public.fiscal_mfa_recovery_case_integrity();
