@@ -324,10 +324,9 @@ try{
   ["invited-"+suffix+"@example.test"]);
  assert.equal(noOrgPromotion.rows[0].status,"pending_review");
  const verifiedAudits=await db.query(
-  "SELECT count(*)::int AS n FROM fiscal_audit_events WHERE actor_ref=$1 AND action='email.ownership_proved'",
-  [pendingOrg.rows[0].id]);
- // Organization ID must never impersonate the verified user's actor_ref.
- assert.equal(verifiedAudits.rows[0].n,0);
+  "SELECT count(*)::int AS n FROM fiscal_audit_events WHERE actor_ref=(SELECT id::text FROM fiscal_users WHERE email=$1) AND action='email.ownership_proved'",
+  ["invited-"+suffix+"@example.test"]);
+ assert.equal(verifiedAudits.rows[0].n,1,"Confirmation must record exactly one immutable audit event");
  console.log("PASS: email proof session, owner binding, CSRF, strict Origin, replay and no KYB promotion");
 
 
