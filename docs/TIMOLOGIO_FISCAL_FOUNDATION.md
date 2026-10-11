@@ -213,3 +213,14 @@ The Vercel project's independent function region was requested as Frankfurt (`fr
 - Unit and production-mode HTTP acceptance test additions validate balanced and multi-entry cases, rejected unbalanced transactions, strict input, authentication and CSRF. Dedicated CI checks the engine and standalone route tree.
 
 **Not implemented:** persistent accounting ledger, chart-of-accounts governance, year/period closing, accounting standards certification, VAT law, stock decrement/valuation, document numbering, myDATA mapping, live POS payments or financial statements. No database migration and no FISCAL production activation are part of this milestone.
+
+## Milestone 16 — saved non-fiscal accounting sandbox (11 October 2026)
+
+- Introduces two isolated PostgreSQL tables via `0013_sandbox_journal_snapshots.sql`: `fiscal_sandbox_journals` and `fiscal_sandbox_journal_lines`. Both are RLS-protected, not exposed to anon/authenticated Data API clients, and use only synthetic account codes and bounded EUR-cent values.
+- Each journal has an immutable `saved_test` status, per-organization external ID, SHA-256 payload digest and a composite organization foreign key for its lines. Deferred constraint triggers require exact entry count and equal debit/credit totals at transaction commit, even if an application bug attempts to save incomplete lines.
+- `POST /timologio/api/console/journal` enforces merchant session, origin, CSRF, 8 KiB JSON cap, server-side recalculation and approved owner/accountant authorization inside the write transaction. A retry with the same external ID and digest is idempotent. Conflicting payloads fail with 409. One audit record accompanies the original write.
+- `/timologio/journal` provides a business picker and up to 20 recent immutable test snapshots with per-line details. Owners/accountants of approved companies may save; other authorized members can read, but cannot modify.
+- Database smoke and independent Next.js HTTP tests cover tenant isolation, forged company IDs, duplicate retries, invalid/unbalanced writes, immutable lines, audit deduplication and the permanent issuance-off boundary.
+- Standalone health explicitly requires migration 0013, preventing a partially migrated service from reporting readiness.
+
+**Not legally operational:** No posted accounting ledger, tax classification, bank settlement, official chart of accounts, balances, cashflow statements, POS fiscal integration, invoices, AADE, certified retention or public onboarding. The new migration is for the separate FISCAL database only; it must be tested and applied there before the new preview is operational.
