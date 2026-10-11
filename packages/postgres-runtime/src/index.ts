@@ -143,7 +143,11 @@ export class ProductionPostgresRuntime {
       const postgisVersion = String(row.postgis_version ?? "");
       const appliedSchemaVersion = Number(row.schema_version ?? 0);
       const pendingMigrations = Math.max(0, expectedSchemaVersion - appliedSchemaVersion);
-      const schemaCurrent = appliedSchemaVersion === expectedSchemaVersion;
+      // One-release additive CLAIM migration overlap: old 0437 web runtime may serve
+      // while independent production schema upgrade 0438 is being deployed.
+      // Do not relax schema checks for any other version pair.
+      const schemaCurrent = appliedSchemaVersion === expectedSchemaVersion ||
+        (expectedSchemaVersion === 437 && appliedSchemaVersion === 438);
       const requiredExtensions = [postgisVersion ? "postgis" : "", row.has_pgcrypto === true ? "pgcrypto" : "", row.has_citext === true ? "citext" : ""].filter(Boolean);
       const extensionsReady = requiredExtensions.length === 3;
       const serverMajorReady = serverVersionNumber >= 170000 && serverVersionNumber < 190000;
