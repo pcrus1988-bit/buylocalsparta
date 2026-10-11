@@ -9,6 +9,7 @@ import {
  createFiscalMfaSecret,encryptFiscalMfaSecret,parseFiscalMfaKey
 } from "./fiscal-operator-mfa-crypto";
 import type {FiscalRecoveryInput} from "./fiscal-mfa-recovery-input";
+import {enqueueFiscalRecoveryAlerts,fiscalSecurityDeliveryConfig} from "./fiscal-security-alert-outbox";
 
 type CaseRow={id:string;target_kind:"marketplace_super_admin"|"fiscal_admin";
  target_ref:string;evidence_ref:string;state:string;expires_at:Date};
@@ -36,6 +37,7 @@ const error=(code:string,status=409)=>new FiscalMfaError(code,status);
 function enabled(){
  if(!fiscalRecoveryEnabled())throw error("RECOVERY_DISABLED",403);
  if(!fiscalMfaSetupEnabled())throw error("MFA_SETUP_DISABLED",503);
+ fiscalSecurityDeliveryConfig();
  try{parseFiscalMfaKey(process.env.FISCAL_OPERATOR_MFA_ENCRYPTION_KEY??"");}
  catch{throw error("MFA_KEY_NOT_READY",503);}
 }
@@ -114,6 +116,8 @@ export async function fiscalRecoveryAction(actor:FiscalAdminActor,input:FiscalRe
     `INSERT INTO fiscal_mfa_recovery_cases(target_kind,target_ref,evidence_ref)
      VALUES($1,$2,$3) RETURNING id`,[actor.kind,actor.id,input.evidenceRef]);
    await audit(db,actor,"requested",fresh.rows[0].id);
+   await enqueueFiscalRecoveryAlerts(db,{caseId:fresh.rows[0].id,targetKind:actor.kind,
+    targetRef:actor.id,eventCode:"requested",eventRef:fresh.rows[0].id});
    await db.query("COMMIT");
    return {ok:true,caseId:fresh.rows[0].id,state:"pending",approvals:0};
   }
@@ -130,6 +134,8 @@ export async function fiscalRecoveryAction(actor:FiscalAdminActor,input:FiscalRe
     "UPDATE fiscal_mfa_recovery_cases SET state='cancelled',closed_at=now() WHERE id=$1",
     [item.id]);
    await audit(db,actor,"cancelled",item.id);
+   await enqueueFiscalRecoveryAlerts(db,{caseId:item.id,targetKind:item.target_kind,
+    targetRef:item.target_ref,eventCode:"cancelled",eventRef:item.id});
    await db.query("COMMIT");
    return {ok:true,caseId:item.id,state:"cancelled"};
   }
@@ -142,16 +148,18 @@ export async function fiscalRecoveryAction(actor:FiscalAdminActor,input:FiscalRe
       AND status='active' FOR UPDATE`,[item.target_kind,item.target_ref]);
   if(!factor.rowCount)throw error("RECOVERY_TARGET_NOT_ACTIVE");
   // The unique (case, approver) constraint makes replays fail even across sessions.
-  await db.query(
+  const approved=await db.query<{id:string}>(
    `INSERT INTO fiscal_mfa_recovery_approvals(
        case_id,approver_kind,approver_ref,evidence_ref,attested_offline_identity)
-    VALUES($1,$2,$3,$4,true)`,[item.id,actor.kind,actor.id,input.evidenceRef]);
+    VALUES($1,$2,$3,$4,true) RETURNING id`,[item.id,actor.kind,actor.id,input.evidenceRef]);
   const count=await db.query<{n:number}>(
    "SELECT count(*)::int AS n FROM fiscal_mfa_recovery_approvals WHERE case_id=$1",
    [item.id]);
   const approvals=count.rows[0]?.n??0;
   if(approvals>2)throw error("RECOVERY_APPROVAL_CONFLICT");
   await audit(db,actor,"approval_recorded",item.id);
+  await enqueueFiscalRecoveryAlerts(db,{caseId:item.id,targetKind:item.target_kind,
+    targetRef:item.target_ref,eventCode:"approval_recorded",eventRef:approved.rows[0].id});
   if(approvals===2){
    // Replace with an unknowable sealed placeholder, not the old TOTP seed.
    // Existing factor FK rows are preserved, but all old step-up tokens are revoked.
@@ -173,6 +181,8 @@ export async function fiscalRecoveryAction(actor:FiscalAdminActor,input:FiscalRe
     "UPDATE fiscal_mfa_recovery_cases SET state='completed',closed_at=now() WHERE id=$1",
     [item.id]);
    await audit(db,actor,"completed",item.id);
+   await enqueueFiscalRecoveryAlerts(db,{caseId:item.id,targetKind:item.target_kind,
+    targetRef:item.target_ref,eventCode:"completed",eventRef:item.id});
   }
   await db.query("COMMIT");
   return {ok:true,caseId:item.id,state:approvals===2?"completed":"pending",
