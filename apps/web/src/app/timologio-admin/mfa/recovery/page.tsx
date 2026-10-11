@@ -15,3 +15,4 @@ export default async function FiscalMfaRecovery(){
   </section>
   <FiscalRecoveryWorkbench csrfToken={actor.csrfToken}/>
  </div></main>;
+}
