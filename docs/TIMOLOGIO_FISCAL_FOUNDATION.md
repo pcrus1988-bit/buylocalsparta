@@ -203,3 +203,13 @@ The sensitive `FISCAL_DATABASE_URL` is present only in protected Preview; do not
 `apps/web/src/lib/fiscal-connection-diagnostics.ts` now categorizes these endpoint forms **without returning credentials, usernames or concrete hostnames**. The standalone health route includes this safe allowlisted profile in server-only logs upon a connection failure. Tests validate that no secret material can enter the classifier output. Continue to keep `FISCAL_ISSUANCE_ENABLED=false`, public registration closed and marketplace sync disabled.
 
 The Vercel project's independent function region was requested as Frankfurt (`fra1`) to align with the EU database; check actual region in the *new deployment's runtime logs* before treating it as verified. Do not modify the marketplace application's Vercel project.
+
+## Milestone 15 — bounded, non-posting accounting journal sandbox (11 October 2026)
+
+- Adds a pure EUR-minor-unit balanced double-entry journal preview engine at `apps/web/src/lib/fiscal-sandbox-journal.ts`. Entries use an explicitly synthetic account vocabulary, 2–40 entries, positive bounded safe integers and exact BigInt balancing.
+- Refuses unknown metadata, legal invoice/tax fields, out-of-range amounts, absent counterpart entries, mismatched debits/credits and invalid account codes. Output is always `non_fiscal_test_journal_preview` with posting, official bookkeeping, legal tax classification and fiscal issuance disabled.
+- Adds `POST /timologio/api/console/journal-preview` with merchant-session requirement, same-origin validation, CSRF and 8 KiB JSON cap. In-memory only: no DB write, audit posting, AADE, POS settlement or marketplace connection.
+- Merchant page `/timologio/journal` includes an editable Greek double-entry test journal, balance display and disclaimers. The dedicated service exports only its own merchant routes; the workspace dashboard links to the new workbench.
+- Unit and production-mode HTTP acceptance test additions validate balanced and multi-entry cases, rejected unbalanced transactions, strict input, authentication and CSRF. Dedicated CI checks the engine and standalone route tree.
+
+**Not implemented:** persistent accounting ledger, chart-of-accounts governance, year/period closing, accounting standards certification, VAT law, stock decrement/valuation, document numbering, myDATA mapping, live POS payments or financial statements. No database migration and no FISCAL production activation are part of this milestone.
