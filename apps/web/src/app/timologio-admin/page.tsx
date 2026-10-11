@@ -44,10 +44,10 @@ export default async function FiscalAdmin(){
    <h2>Business applications</h2>
    {!data?.accounts.length?<p className="fiscal-muted">No reviewed merchant applications in the independent Fiscal database yet.</p>:
    <div style={{overflowX:"auto"}}><table className="fiscal-table"><thead><tr><th>Business</th><th>AFM</th><th>State</th><th>Created</th><th>Review</th></tr></thead>
-    <tbody>{data.accounts.map(account=><tr key={account.id}><td>{account.legal_name}</td><td>{account.vat_number}</td>
+    <tbody>{data.accounts.map(account=><tr key={account.id}><td><Link href={"/timologio-admin/accounts/"+account.id}>{account.legal_name}</Link></td><td>{account.vat_number}</td>
     <td>{account.status}</td><td>{new Date(account.created_at).toLocaleDateString("el-GR")}</td>
-    <td>{account.status==="pending_review"?<FiscalReviewButton organizationId={account.id} csrfToken={actor.csrfToken}/>:<span className="fiscal-muted">—</span>}</td></tr>)}</tbody></table></div>}
-   <p className="fiscal-muted">Starting a review is not merchant approval. Identity verification, contracts and issuance authorization are separate compliance steps.</p>
+    <td><Link className="fiscal-button secondary" href={"/timologio-admin/accounts/"+account.id}>Φάκελος ελέγχου</Link></td></tr>)}</tbody></table></div>}
+   <p className="fiscal-muted">Each application has an operator-only case log, follow-up notes and a controlled rejection action. Starting a review or recording notes never approves a merchant, sends a notification or authorizes issuance.</p>
   </section>
  </div></main>;
 }
