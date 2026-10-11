@@ -3,14 +3,15 @@ import Link from "next/link";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { listPublicHubClaims } from "../../../lib/hub-claim-runtime";
+import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 import styles from "../claim/claim.module.css";
 
-export const metadata: Metadata = {
-  title: "Επαληθευμένες επιχειρήσεις HUB · KONTA MOY",
-  description: "Γνώρισε τις επιχειρήσεις που έχουν ενεργοποιήσει τη δωρεάν καταχώρισή τους στα KONTA MOY HUB.",
-  alternates: { canonical: "/hubs/businesses" },
-  robots: { index: true, follow: true }
-};
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/hubs/businesses", {
+    title: "Επαληθευμένες επιχειρήσεις HUB · KONTA MOY",
+    description: "Γνώρισε τις επιχειρήσεις που έχουν ενεργοποιήσει τη δωρεάν καταχώρισή τους στα KONTA MOY HUB."
+  });
+}
 
 export default async function HubClaimDirectoryPage() {
   const businesses = await listPublicHubClaims(100);
