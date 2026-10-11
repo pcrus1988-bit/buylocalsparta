@@ -202,7 +202,11 @@ const nextConfig: NextConfig = {
         source: "/admin/fiscal-access",
         headers: [
           { key: "Content-Security-Policy", value: FISCAL_HANDOFF_CSP },
-          { key: "Referrer-Policy", value: "no-referrer" },
+          // A no-referrer policy makes cross-origin navigation POSTs send Origin: null
+          // in browsers, which the FISCAL callback correctly rejects. Preserve
+          // the exact trusted Origin while never disclosing the admin path, query
+          // or signed ticket to the independent FISCAL host.
+          { key: "Referrer-Policy", value: "origin" },
           { key: "Cache-Control", value: "private, no-store" }
         ]
       }] : []),
