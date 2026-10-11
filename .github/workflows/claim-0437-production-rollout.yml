@@ -1,0 +1,83 @@
+name: CLAIM iframe schema 0437 production rollout
+
+# This is a one-off release repair. Runs only when this workflow file lands on main.
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/claim-0437-production-rollout.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kontamou-production-schema-rollout
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply guarded CLAIM schema migration
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    env:
+      NODE_ENV: production
+      PGSSLMODE: require
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BLS_DB_APPLICATION_NAME: github-actions:claim-0437-schema-rollout
+    steps:
+      - name: Checkout immutable main ref
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Verify production credential is configured
+        shell: bash
+        run: |
+          if [[ -z "${DATABASE_URL:-}" ]]; then
+            echo "::error::Production DATABASE_URL is not available in this protected environment"
+            exit 78
+          fi
+      - name: Verify repository migration manifest
+        run: npm run db:verify
+      - name: Confirm target has precisely prior production schema 0436
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from "pg";
+          const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1, connectionTimeoutMillis: 10000 });
+          try {
+            const result = await pool.query(`
+              SELECT
+                (SELECT max(version) FROM public.schema_migrations)::integer AS head,
+                (SELECT count(*) FROM public.schema_migrations)::integer AS migration_count,
+                to_regclass('public.hub_expansion_prospects') IS NOT NULL AS has_claims,
+                EXISTS (
+                  SELECT 1 FROM information_schema.columns
+                  WHERE table_schema='public'
+                    AND table_name='hub_expansion_prospects'
+                    AND column_name='website_embed_enabled'
+                ) AS has_embed_column
+            `);
+            const row = result.rows[0];
+            // Only accept the known prior production state (0436 / 375 migrations),
+            // or an already-completed, idempotent 0437 rollout.
+            if (!row.has_claims || !(
+              (row.head === 436 && row.migration_count === 375 && !row.has_embed_column) ||
+              (row.head === 437 && row.migration_count === 376 && row.has_embed_column)
+            )) throw new Error("Production schema is not in the known 0436/0437 state; no changes made");
+            console.log(`Schema rollout preflight accepted: head=${row.head}, ledger_count=${row.migration_count}, column_present=${row.has_embed_column}`);
+          } finally { await pool.end(); }
+          NODE
+      - name: Apply only outstanding canonical migrations
+        run: npm run db:migrate
+      - name: Validate production runtime schema
+        run: npm run db:ready
+      - name: Verify production ledger matches source
+        run: node --experimental-strip-types scripts/verify-production-schema-head.ts
