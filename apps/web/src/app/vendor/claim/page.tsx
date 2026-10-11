@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HubClaimProfileEditor } from "../../../components/HubClaimProfileEditor";
+import { HubClaimMediaUpload } from "../../../components/HubClaimMediaUpload";
+import { listHubClaimMedia, listOwnedHubClaimInquiries } from "../../../lib/hub-claim-runtime";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { SiteHeader } from "../../../components/SiteHeader";
@@ -25,6 +27,12 @@ export default async function ClaimVendorDashboard() {
   const principal = await getAccountSession();
   if (!principal || !principal.roles.includes("customer")) redirect("/login?next=%2Fvendor%2Fclaim");
   const claims = await listOwnedHubClaims(principal);
+  const extra = await Promise.all(claims.map(async claim => ({
+    id:claim.id,
+    media:await listHubClaimMedia(claim.id),
+    inquiries:await listOwnedHubClaimInquiries(claim.id,principal)
+  })));
+  const extraById=new Map(extra.map(x=>[x.id,x]));
   return <main>
     <SiteHeader compact />
     <section className="shell">
@@ -34,9 +42,23 @@ export default async function ClaimVendorDashboard() {
         <p className={styles.lead}>Ενημέρωσε την παρουσία της επιχείρησής σου στο τοπικό HUB. Δεν απαιτείται συνδρομή και δεν υπάρχει πρόσβαση σε παραγγελίες, εισπράξεις ή κατάλογο προϊόντων.</p>
       </div>
       {!claims.length ? <section className={styles.panel}><h2>Δεν υπάρχει ενεργή δωρεάν καταχώριση</h2><p>Μετά τον έλεγχο και την έγκριση της αίτησης CLAIM, άνοιξε τον σύνδεσμο επιβεβαίωσης που θα λάβεις στο επαληθευμένο email.</p><Link className={styles.button} href="/hubs/join">Προγράμματα HUB →</Link></section>
-      : <div className={styles.grid}>{claims.map(profile =>
-        <HubClaimProfileEditor key={profile.id} profile={profile} csrfToken={principal.csrfToken} onSave={saveClaim} />
-      )}</div>}
+      : <>{claims.map(profile => <div key={profile.id}>
+        <div className={styles.grid}>
+          <HubClaimProfileEditor profile={profile} csrfToken={principal.csrfToken} onSave={saveClaim} />
+          <HubClaimMediaUpload claimId={profile.id} csrfToken={principal.csrfToken} items={extraById.get(profile.id)?.media??[]}/>
+        </div>
+        <section className={styles.panel}>
+          <h2>Αιτήματα πελατών · {extraById.get(profile.id)?.inquiries.length??0}</h2>
+          <p className={styles.hint}>Μηνύματα μέσω της δημόσιας σελίδας σου. Απάντησε απευθείας στο email του ενδιαφερομένου. Δεν ενεργοποιούνται πωλήσεις ή παραγγελίες.</p>
+          {(extraById.get(profile.id)?.inquiries??[]).length===0
+            ? <p>Δεν έχεις ακόμη μηνύματα.</p>
+            : (extraById.get(profile.id)?.inquiries??[]).map(inquiry=><article key={inquiry.id} className={styles.inquiry}>
+                <strong>{inquiry.name}</strong><small>{new Date(inquiry.createdAt).toLocaleString("el-GR")}</small>
+                <p>{inquiry.message}</p>
+                <a href={"mailto:"+encodeURIComponent(inquiry.email)}>Απάντηση με email ↗</a>
+              </article>)}
+        </section>
+      </div>)}</>}
       <div className={styles.footer}>Χρειάζεσαι διόρθωση επαληθευμένων στοιχείων ή αλλαγή εκπροσώπου; Επικοινώνησε με το info@kontamou.site για νέο έλεγχο.</div>
     </section>
     <SiteFooter />
