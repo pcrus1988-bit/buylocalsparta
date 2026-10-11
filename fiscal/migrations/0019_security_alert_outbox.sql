@@ -8,7 +8,7 @@ CREATE TABLE public.fiscal_security_alert_contacts (
  actor_kind text CHECK(actor_kind IN ('marketplace_super_admin','fiscal_admin')),
  actor_ref text CHECK(actor_ref IS NULL OR length(actor_ref) BETWEEN 5 AND 160),
  recipient_email text NOT NULL CHECK(length(recipient_email) BETWEEN 6 AND 254
-   AND recipient_email ~ '^[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+),
+   AND recipient_email ~ '^[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+$'),
  verified_at timestamptz NOT NULL,
  verified_by text NOT NULL CHECK(length(verified_by) BETWEEN 5 AND 160),
  verification_method text NOT NULL CHECK(verification_method IN ('independent_offline_callback','organization_security_registry')),
