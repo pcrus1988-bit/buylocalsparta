@@ -1,11 +1,13 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { optionalClaimText, validHubClaimSocial } from "./hub-claim-fields";
 import { normalizeVendorExternalWebsiteUrl, publicVendorExternalWebsiteUrl } from "./vendor-external-website";
 
 export type HubClaimPublicProfile = Readonly<{
   id: string; hubSlug: string; hubCity: string; hubRegion: string;
   businessName: string; category: string; phone: string; website?: string; websiteEmbedEnabled: boolean;
   address: string; postcode: string;
+  description?:string; openingHours?:string;instagramUrl?:string;facebookUrl?:string;
 }>;
 
 export type HubClaimInvitation = Readonly<{
@@ -18,8 +20,11 @@ const SQL_PROFILE = `
   SELECT h.public_id AS id,h.hub_slug,h.hub_city,h.hub_region,
          h.business_name,h.primary_category,h.phone,h.website_url,
          COALESCE((to_jsonb(h)->>'website_embed_enabled')::boolean,false) AS website_embed_enabled,
-         h.address_line,h.postal_code
+         h.address_line,h.postal_code,
+         COALESCE(cp.description, '') AS description,COALESCE(cp.opening_hours, '') AS opening_hours,
+         cp.instagram_url,cp.facebook_url
   FROM hub_expansion_prospects h
+  LEFT JOIN hub_claim_profiles cp ON cp.prospect_id=h.id
   WHERE h.plan_code='claim' AND h.status='converted'
     AND h.owner_user_id IS NOT NULL
 `;
@@ -31,7 +36,10 @@ function asProfile(row: SqlRow): HubClaimPublicProfile {
     businessName: String(row.business_name), category: String(row.primary_category),
     phone: String(row.phone), website: row.website_url ? String(row.website_url) : undefined,
     websiteEmbedEnabled: Boolean(publicVendorExternalWebsiteUrl({ enabled: row.website_embed_enabled === true, url: row.website_url })),
-    address: String(row.address_line), postcode: String(row.postal_code)
+    address: String(row.address_line), postcode: String(row.postal_code),
+    description:String(row.description??""),openingHours:String(row.opening_hours??""),
+    instagramUrl:row.instagram_url?String(row.instagram_url):undefined,
+    facebookUrl:row.facebook_url?String(row.facebook_url):undefined
   };
 }
 
@@ -146,6 +154,13 @@ export async function updateOwnedHubClaim(id: string, principal: SessionPrincipa
       website = parsed.toString();
     } catch { throw new Error("INVALID_CLAIM_WEBSITE"); }
   }
+  const description=optionalClaimText(form.get("description"),1200);
+  const openingHours=optionalClaimText(form.get("openingHours"),700);
+  const instagramRaw=optionalClaimText(form.get("instagramUrl"),240);
+  const facebookRaw=optionalClaimText(form.get("facebookUrl"),240);
+  const instagramUrl=instagramRaw?validHubClaimSocial(instagramRaw,"instagram"):null;
+  const facebookUrl=facebookRaw?validHubClaimSocial(facebookRaw,"facebook"):null;
+  if(instagramRaw&&!instagramUrl || facebookRaw&&!facebookUrl)throw Error("CLAIM_SOCIAL_URL_INVALID");
   const websiteEmbedEnabled = form.get("websiteEmbedEnabled") === "on";
   if (websiteEmbedEnabled) {
     if (!website) throw new Error("CLAIM_WEBSITE_REQUIRED");
@@ -186,8 +201,45 @@ export async function updateOwnedHubClaim(id: string, principal: SessionPrincipa
           WHERE id=$1::uuid
         `, [owner.rows[0].id, category, phone, website]);
       }
+      await tx.query(`
+        INSERT INTO hub_claim_profiles(prospect_id,description,opening_hours,instagram_url,facebook_url,updated_at)
+        VALUES($1::uuid,$2,$3,$4,$5,now())
+        ON CONFLICT(prospect_id) DO UPDATE SET description=EXCLUDED.description,opening_hours=EXCLUDED.opening_hours,
+        instagram_url=EXCLUDED.instagram_url,facebook_url=EXCLUDED.facebook_url,updated_at=now()
+      `,[owner.rows[0].id,description,openingHours,instagramUrl,facebookUrl]);
       console.info(JSON.stringify({ event: "hub_claim.profile_updated", prospectId: id }));
     },
     { isolation: "serializable" }
   );
+}
+
+export type HubClaimMedia = Readonly<{ id: string; role: "logo" | "storefront" | "gallery"; altText: string; status: "pending" | "approved" | "rejected" }>;
+export type HubClaimInquiry = Readonly<{ id: string; name: string; email: string; message: string; createdAt: string; read: boolean }>;
+
+export async function listHubClaimMedia(id: string, publicOnly = false): Promise<HubClaimMedia[]> {
+  if (!validId(id)) return [];
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT m.public_id AS id,m.role,m.alt_text,m.status
+    FROM hub_claim_media m JOIN hub_expansion_prospects h ON h.id=m.prospect_id
+    WHERE h.public_id=$1 AND h.plan_code='claim' AND h.status='converted' AND h.owner_user_id IS NOT NULL
+      ${publicOnly ? "AND m.status='approved'" : ""}
+    ORDER BY m.submitted_at DESC LIMIT 50
+  `, [id]);
+  return result.rows.map(row => ({ id: String(row.id), role: String(row.role) as HubClaimMedia["role"], altText: String(row.alt_text), status: String(row.status) as HubClaimMedia["status"] }));
+}
+
+export async function listOwnedHubClaimInquiries(id: string, principal: SessionPrincipal): Promise<HubClaimInquiry[]> {
+  if (!validId(id) || !principal.roles.includes("customer")) return [];
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT i.id::text AS id,i.sender_name,i.sender_email,i.message,i.created_at,i.read_at
+    FROM hub_claim_inquiries i JOIN hub_expansion_prospects h ON h.id=i.prospect_id
+    JOIN users u ON u.id=h.owner_user_id
+    WHERE h.public_id=$1 AND h.plan_code='claim' AND h.status='converted'
+      AND u.public_id=$2 AND u.status='active' AND u.email_verified_at IS NOT NULL
+    ORDER BY i.created_at DESC LIMIT 50
+  `, [id,principal.userId]);
+  return result.rows.map(row=>({
+    id:String(row.id),name:String(row.sender_name),email:String(row.sender_email),
+    message:String(row.message),createdAt:new Date(String(row.created_at)).toISOString(),read:Boolean(row.read_at)
+  }));
 }
