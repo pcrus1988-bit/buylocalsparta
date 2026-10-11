@@ -14,6 +14,23 @@ type CaseRow={id:string;target_kind:"marketplace_super_admin"|"fiscal_admin";
  target_ref:string;evidence_ref:string;state:string;expires_at:Date};
 const digest=(s:string)=>createHash("sha256").update(s).digest("hex");
 export const fiscalRecoveryEnabled=()=>process.env.FISCAL_MFA_RECOVERY_ENABLED==="true";
+export async function fiscalRecoveryReadiness(){
+ const result=await fiscalPool().query<{enrolled_count:number;schema_present:boolean}>(
+  `SELECT (SELECT count(*)::int FROM fiscal_operator_mfa_factors
+      WHERE actor_kind='marketplace_super_admin' AND status='active') AS enrolled_count,
+    (to_regclass('public.fiscal_mfa_recovery_cases') IS NOT NULL
+     AND to_regclass('public.fiscal_mfa_recovery_approvals') IS NOT NULL) AS schema_present`);
+ const enrolled=result.rows[0]?.enrolled_count??0;
+ return {
+  enrolledSuperadminFactors:enrolled,
+  minimumForSuperadminRecovery:3,
+  enoughDistinctEnrollments:enrolled>=3,
+  // Number of factor records is not proof of independent human identities.
+  schemaPresent:result.rows[0]?.schema_present===true,
+  recoveryEnabled:fiscalRecoveryEnabled(),
+  enforced:process.env.FISCAL_OPERATOR_MFA_ENFORCED==="true"
+ };
+}
 const identity=(a:FiscalAdminActor)=>a.kind+":"+a.id;
 const error=(code:string,status=409)=>new FiscalMfaError(code,status);
 function enabled(){
