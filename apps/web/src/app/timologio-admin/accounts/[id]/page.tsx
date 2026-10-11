@@ -7,7 +7,7 @@ import {fiscalPool} from "../../../../lib/fiscal-runtime";
 export const dynamic="force-dynamic";
 type Case={id:string;legal_name:string;vat_number:string;status:string;
  created_at:Date;reviewed_at:Date|null};
-type Member={email:string;role:string;user_role:string;disabled_at:Date|null};
+type Member={email:string;role:string;user_role:string;disabled_at:Date|null;email_verified_at:Date|null};
 type Audit={id:string;action:string;actor_kind:string;created_at:Date;note:string};
 type Count={lane:string;count:string};
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -28,7 +28,7 @@ export default async function FiscalAccountCase({params}:{
  if(!account)notFound();
  const [members,audits,drafts]=await Promise.all([
   fiscalPool().query<Member>(
-   `SELECT u.email,m.role,u.role AS user_role,u.disabled_at
+   `SELECT u.email,m.role,u.role AS user_role,u.disabled_at,u.email_verified_at
     FROM fiscal_memberships m JOIN fiscal_users u ON u.id=m.user_id
     WHERE m.organization_id=$1 ORDER BY m.role,u.email LIMIT 25`,[id]),
   fiscalPool().query<Audit>(
@@ -57,11 +57,11 @@ export default async function FiscalAccountCase({params}:{
   <section className="fiscal-panel fiscal-section">
    <h2>Συνδεδεμένοι χρήστες · {members.rows.length} (έως 25)</h2>
    {members.rows.length?<div style={{overflowX:"auto"}}><table className="fiscal-table">
-    <thead><tr><th>Email</th><th>Ρόλος στην επιχείρηση</th><th>Κατάσταση</th></tr></thead>
-    <tbody>{members.rows.map((m,i)=><tr key={i}><td>{m.email}</td><td>{m.role}</td>
+    <thead><tr><th>Email</th><th>Επαλήθευση email</th><th>Ρόλος στην επιχείρηση</th><th>Κατάσταση</th></tr></thead>
+    <tbody>{members.rows.map((m,i)=><tr key={i}><td>{m.email}</td><td>{m.email_verified_at?"Επιβεβαιωμένο":"Μη επιβεβαιωμένο"}</td><td>{m.role}</td>
      <td>{m.disabled_at?"Απενεργοποιημένος":"Ενεργός"}</td></tr>)}</tbody></table></div>
     :<p className="fiscal-muted">Δεν υπάρχουν χρήστες στην επιχείρηση.</p>}
-   <p className="fiscal-muted">Οι πληροφορίες είναι μόνο για χειροκίνητο εσωτερικό έλεγχο. Δεν έχουν διασταυρωθεί με ΓΕΜΗ/ΑΑΔΕ.</p>
+   <p className="fiscal-muted">Οι πληροφορίες είναι μόνο για χειροκίνητο εσωτερικό έλεγχο. Η επιβεβαίωση email δεν είναι έλεγχος νόμιμης εκπροσώπησης. Δεν έχουν διασταυρωθεί με ΓΕΜΗ/ΑΑΔΕ.</p>
   </section>
   <FiscalAccountReviewActions organizationId={account.id} status={account.status} csrfToken={actor.csrfToken}/>
   <section className="fiscal-panel fiscal-section">
