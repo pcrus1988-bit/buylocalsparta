@@ -37,7 +37,7 @@ const VENDOR_SAME_ORIGIN_FRAME_POLICY = CONTENT_SECURITY_POLICY.replace(
 // Only verified public CLAIM profiles may embed a consenting visitor's HTTPS external site.
 // Keep X-Frame-Options DENY / frame-ancestors none on the KONTA MOY page itself.
 const CLAIM_EXTERNAL_WEBSITE_FRAME_POLICY = CONTENT_SECURITY_POLICY.replace(
-  /frame-src 'self'(?=;)/, "frame-src 'self' https:"
+  "frame-src 'self'", "frame-src 'self' https:"
 );
 
 const SECURITY_HEADERS = [
