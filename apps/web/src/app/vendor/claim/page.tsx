@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { listOwnedHubClaimMedia } from "../../../lib/hub-claim-media-runtime";
 import { HubClaimProfileEditor } from "../../../components/HubClaimProfileEditor";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -25,6 +26,7 @@ export default async function ClaimVendorDashboard() {
   const principal = await getAccountSession();
   if (!principal || !principal.roles.includes("customer")) redirect("/login?next=%2Fvendor%2Fclaim");
   const claims = await listOwnedHubClaims(principal);
+  const media = claims.length ? await listOwnedHubClaimMedia(principal) : [];
   return <main>
     <SiteHeader compact />
     <section className="shell">
@@ -35,7 +37,7 @@ export default async function ClaimVendorDashboard() {
       </div>
       {!claims.length ? <section className={styles.panel}><h2>Δεν υπάρχει ενεργή δωρεάν καταχώριση</h2><p>Μετά τον έλεγχο και την έγκριση της αίτησης CLAIM, άνοιξε τον σύνδεσμο επιβεβαίωσης που θα λάβεις στο επαληθευμένο email.</p><Link className={styles.button} href="/hubs/join">Προγράμματα HUB →</Link></section>
       : <div className={styles.grid}>{claims.map(profile =>
-        <HubClaimProfileEditor key={profile.id} profile={profile} csrfToken={principal.csrfToken} onSave={saveClaim} />
+        <HubClaimProfileEditor key={profile.id} profile={profile} csrfToken={principal.csrfToken} onSave={saveClaim} media={media.filter(item => item.claimId === profile.id)} />
       )}</div>}
       <div className={styles.footer}>Χρειάζεσαι διόρθωση επαληθευμένων στοιχείων ή αλλαγή εκπροσώπου; Επικοινώνησε με το info@kontamou.site για νέο έλεγχο.</div>
     </section>
