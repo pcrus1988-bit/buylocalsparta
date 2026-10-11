@@ -326,9 +326,10 @@ export function AdminCommercialAgreementsClient({ initial, csrfToken }: { initia
           <span>Καμία προμήθεια ή ενεργοποίηση vendor δεν θεωρείται δεδομένη χωρίς καταχωρισμένη συμφωνία.</span>
         </div> : <div className="workspace-queue-list">
           {visible.map((agreement) => {
-            const canUploadSigned = ["pdf_generated","sent","pending_signature","signed_received"].includes(agreement.status) && agreement.unsignedPdfAvailable && !agreement.govgrVerifiedAt;
-            const canVerify = agreement.status === "signed_received" && agreement.signedPdfAvailable && Boolean(agreement.govgrReference);
-            const canActivate = ["govgr_verified","eligible_for_activation","suspended"].includes(agreement.status) && Boolean(agreement.govgrVerifiedAt) && agreement.signedPdfAvailable;
+            const pendingLegal = agreement.commercialTermsSnapshot.legalReviewStatus === "pending_legal_review";
+            const canUploadSigned = !pendingLegal && ["pdf_generated","sent","pending_signature","signed_received"].includes(agreement.status) && agreement.unsignedPdfAvailable && !agreement.govgrVerifiedAt;
+            const canVerify = !pendingLegal && agreement.status === "signed_received" && agreement.signedPdfAvailable && Boolean(agreement.govgrReference);
+            const canActivate = !pendingLegal && ["govgr_verified","eligible_for_activation","suspended"].includes(agreement.status) && Boolean(agreement.govgrVerifiedAt) && agreement.signedPdfAvailable;
 
             return <article className="workspace-queue-card" key={agreement.id}>
               <div className="workspace-queue-head">
@@ -338,6 +339,8 @@ export function AdminCommercialAgreementsClient({ initial, csrfToken }: { initia
                 </div>
                 <span className="status-pill">{statusLabel(agreement.status)}</span>
               </div>
+
+              {pendingLegal && <p className="form-warning" role="status">Προσχέδιο υπό νομικό έλεγχο — υπογραφή, αποστολή και ενεργοποίηση κλειδωμένες για αυτή την έκδοση.</p>}
 
               <div className="workspace-queue-primary">
                 <span>Commission <strong>{pct(agreement.commissionRateBps)}</strong></span>
@@ -381,7 +384,7 @@ export function AdminCommercialAgreementsClient({ initial, csrfToken }: { initia
                 <div className="workspace-action-buttons">
                   {!agreement.unsignedPdfAvailable && ["data_complete","pdf_generated"].includes(agreement.status) && <button type="button" className="button button-secondary" disabled={busy} onClick={() => void postJson({ action: "generate_pdf", agreementId: agreement.id })}>Δημιουργία PDF</button>}
                   {agreement.unsignedPdfAvailable && <button type="button" className="button button-secondary" disabled={busy} onClick={() => void downloadPdf(agreement.id, "unsigned")}>Λήψη αρχικού PDF</button>}
-                  {agreement.unsignedPdfAvailable && ["pdf_generated","sent","pending_signature"].includes(agreement.status) && <button type="button" className="button button-secondary" disabled={busy} onClick={() => void postJson({ action: "email_pdf", agreementId: agreement.id })}>Αποστολή στον vendor</button>}
+                  {!pendingLegal && agreement.unsignedPdfAvailable && ["pdf_generated","sent","pending_signature"].includes(agreement.status) && <button type="button" className="button button-secondary" disabled={busy} onClick={() => void postJson({ action: "email_pdf", agreementId: agreement.id })}>Αποστολή στον vendor</button>}
                   {agreement.signedPdfAvailable && <button type="button" className="button button-secondary" disabled={busy} onClick={() => void downloadPdf(agreement.id, "signed")}>Λήψη signed PDF</button>}
                   {canVerify && <a className="button button-secondary" href="https://www.gov.gr/ipiresies/polites-kai-kathemerinoteta/psephiaka-eggrapha-gov-gr/elegkhos-egkurotetas-eggraphon-gov-gr" target="_blank" rel="noreferrer">Έλεγχος στο gov.gr</a>}
                   {canVerify && <button type="button" className="button button-primary" disabled={busy} onClick={() => {
