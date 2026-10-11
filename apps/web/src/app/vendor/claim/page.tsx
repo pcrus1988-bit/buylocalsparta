@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { HubClaimProfileEditor } from "../../../components/HubClaimProfileEditor";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { SiteHeader } from "../../../components/SiteHeader";
@@ -34,23 +35,7 @@ export default async function ClaimVendorDashboard() {
       </div>
       {!claims.length ? <section className={styles.panel}><h2>Δεν υπάρχει ενεργή δωρεάν καταχώριση</h2><p>Μετά τον έλεγχο και την έγκριση της αίτησης CLAIM, άνοιξε τον σύνδεσμο επιβεβαίωσης που θα λάβεις στο επαληθευμένο email.</p><Link className={styles.button} href="/hubs/join">Προγράμματα HUB →</Link></section>
       : <div className={styles.grid}>{claims.map(profile =>
-        <section className={styles.panel} key={profile.id}>
-          <h2>{profile.businessName}</h2>
-          <p className={styles.hint}>CLAIM ενεργό · €0 · HUB {profile.hubCity}. Η ταυτότητα και η διεύθυνση ΓΕΜΗ αλλάζουν μόνο μετά από νέο έλεγχο της ομάδας.</p>
-          <form action={saveClaim}>
-            <input name="csrfToken" type="hidden" value={principal.csrfToken} />
-            <input name="claimId" type="hidden" value={profile.id} />
-            <p className={styles.details}><strong>Επαληθευμένη ονομασία:</strong> {profile.businessName}. Για αλλαγή επωνυμίας απαιτείται νέος έλεγχος από την ομάδα.</p>
-            <label className={styles.field}>Κατηγορία<input name="category" defaultValue={profile.category} required minLength={2} maxLength={100}/></label>
-            <label className={styles.field}>Τηλέφωνο επικοινωνίας<input name="phone" type="tel" defaultValue={profile.phone} required minLength={8} maxLength={32}/></label>
-            <label className={styles.field}>Ιστοσελίδα (προαιρετικά)<input name="website" type="url" defaultValue={profile.website ?? ""} maxLength={240} placeholder="https://"/></label>
-            <button className={styles.button + " " + styles.wide} type="submit">Αποθήκευση αλλαγών</button>
-          </form>
-          <div className={styles.actions}>
-            <Link className={styles.button + " " + styles.secondary} href={"/hubs/" + profile.hubSlug + "/business/" + profile.id}>Δημόσια σελίδα ↗</Link>
-            <Link className={styles.button + " " + styles.secondary} href="/hubs/join">Δες περισσότερα προγράμματα</Link>
-          </div>
-        </section>
+        <HubClaimProfileEditor key={profile.id} profile={profile} csrfToken={principal.csrfToken} onSave={saveClaim} />
       )}</div>}
       <div className={styles.footer}>Χρειάζεσαι διόρθωση επαληθευμένων στοιχείων ή αλλαγή εκπροσώπου; Επικοινώνησε με το info@kontamou.site για νέο έλεγχο.</div>
     </section>
