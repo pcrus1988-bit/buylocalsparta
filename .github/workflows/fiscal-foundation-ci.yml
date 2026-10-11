@@ -61,10 +61,12 @@ jobs:
           fi
       - name: Verify integer-only non-fiscal line calculations
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-preview-calculator.test.ts
+      - name: Verify signed FISCAL super-admin SSO tickets
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-superadmin-tickets.test.ts
+      - name: Verify independent FISCAL routing policy
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-service-routing.test.ts
       - name: Verify strictly balanced sandbox accounting entries
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-sandbox-journal.test.ts
-      - name: Verify standalone-only FISCAL routing and marketplace SSO boundaries
-        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-service-routing.test.ts
       - name: Verify bounded non-fiscal trial balance arithmetic
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-sandbox-trial-balance.test.ts
       - name: Verify non-fiscal draft data integrity reviews
