@@ -269,6 +269,32 @@ export function storefrontFacetEnabled(leaf: StorefrontLeafIntent | undefined, f
   return !leaf || leaf.preferredFacets.includes(facet);
 }
 
+/**
+ * Customer-facing, precise labels for governed supplier subcategory codes.
+ * Search intent leafs intentionally describe broad families; they must not be
+ * used as the displayed leaf label when multiple catalog codes share a family.
+ */
+const PRECISE_SUBCATEGORY_PRESENTATION: Readonly<Record<string, Readonly<{ label: string; familyLabel: string }>>> = {
+  "eye-makeup": { label: "Μακιγιάζ ματιών", familyLabel: "Μακιγιάζ" },
+  "lip-makeup": { label: "Μακιγιάζ χειλιών", familyLabel: "Μακιγιάζ" },
+  "face-makeup": { label: "Μακιγιάζ προσώπου", familyLabel: "Μακιγιάζ" },
+  "nail-care-colour": { label: "Βερνίκια & περιποίηση νυχιών", familyLabel: "Νύχια" },
+  "serums-treatments": { label: "Οροί & θεραπείες προσώπου", familyLabel: "Περιποίηση προσώπου" },
+  "face-moisturisers": { label: "Ενυδατικές κρέμες προσώπου", familyLabel: "Περιποίηση προσώπου" },
+  "facial-cleansers": { label: "Καθαρισμός προσώπου", familyLabel: "Περιποίηση προσώπου" },
+  "sun-care": { label: "Αντηλιακή προστασία", familyLabel: "Περιποίηση προσώπου" },
+  "shampoo-conditioner": { label: "Σαμπουάν & μαλακτικά", familyLabel: "Περιποίηση μαλλιών" },
+  "hair-treatments": { label: "Θεραπείες μαλλιών", familyLabel: "Περιποίηση μαλλιών" },
+  "hair-styling-products": { label: "Styling μαλλιών", familyLabel: "Περιποίηση μαλλιών" },
+  "hair-accessories": { label: "Αξεσουάρ μαλλιών", familyLabel: "Περιποίηση μαλλιών" }
+};
+
+export function storefrontSubcategoryPresentationForCode(
+  subcategoryCode: string
+): Readonly<{ label: string; familyLabel: string }> | undefined {
+  return PRECISE_SUBCATEGORY_PRESENTATION[normalize(subcategoryCode)];
+}
+
 export function storefrontLeafForSubcategory(
   categorySlug: string,
   subcategoryCode: string,
