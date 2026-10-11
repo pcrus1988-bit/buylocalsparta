@@ -35,7 +35,6 @@ for(const expected of [
  "timologio/api/console/drafts/route.ts","timologio/api/console/preview/route.ts","timologio/api/v1/drafts/route.ts",
  "timologio/api/console/counterparties/route.ts",
  "timologio-admin/page.tsx","timologio-admin/invitations/page.tsx",
- "timologio-admin/mfa/page.tsx",
  "timologio-admin/api/invitations/route.ts",
  "timologio-admin/api/kyb-evidence/route.ts",
  "timologio-admin/api/mfa/route.ts","timologio-admin/mfa/page.tsx",
@@ -49,6 +48,7 @@ for(const route of [
  "timologio/login/page.tsx","timologio-admin/page.tsx",
  "timologio/verify-email/page.tsx",
  "timologio-admin/invitations/page.tsx",
+ "timologio-admin/mfa/page.tsx",
  "timologio-admin/login/page.tsx","timologio-admin/compliance/page.tsx",
  "timologio-admin/accounts/[id]/page.tsx"
 ]){
