@@ -133,6 +133,89 @@ try{
  assert.equal(wrongOrigin.status,403,"Cross-origin request must be rejected");
  console.log("PASS: independent auth, registration block, origin and CSRF protection");
 
+ // Internal KYB review is a separate operator-only state machine with no approval.
+ const reviewUserEmail="synthetic-fiscal-operator-"+suffix+"@example.test";
+ await db.query("INSERT INTO fiscal_users(email,password_hash,role) VALUES($1,$2,'fiscal_admin')",
+  [reviewUserEmail,passwordHash()]);
+ const applicant=await db.query(
+  "INSERT INTO fiscal_organizations(legal_name,vat_number) VALUES($1,'222333444') RETURNING id",
+  ["Synthetic KYB Applicant "+suffix]);
+ const applicantId=applicant.rows[0].id;
+ await db.query("INSERT INTO fiscal_memberships(organization_id,user_id,role) VALUES($1,$2,'owner')",
+  [applicantId,ownerId]);
+ const adminLogin=await send("/timologio/api/auth",{action:"login",email:reviewUserEmail,password});
+ assert.equal(adminLogin.status,200);
+ assert.equal(adminLogin.body.role,"fiscal_admin");
+ const adminValues=adminLogin.cookieHeaders.map(x=>x.split(";")[0]);
+ const adminSession=adminValues.find(x=>x.startsWith("km_fiscal_session="));
+ const adminCsrfCookie=adminValues.find(x=>x.startsWith("km_fiscal_csrf="));
+ assert.ok(adminSession&&adminCsrfCookie);
+ const reviewer={cookies:adminSession+"; "+adminCsrfCookie,
+  csrf:adminCsrfCookie.slice("km_fiscal_csrf=".length)};
+ const adminCase=await fetch(base+"/timologio-admin/accounts/"+applicantId,{
+  headers:{cookie:reviewer.cookies},signal:AbortSignal.timeout(12000)
+ });
+ assert.equal(adminCase.status,200,"Authorized fiscal operator can access applicant KYB case");
+ assert.ok((await adminCase.text()).includes("Synthetic KYB Applicant "+suffix));
+ const merchantCase=await fetch(base+"/timologio-admin/accounts/"+applicantId,{
+  headers:{cookie:merchant.cookies},redirect:"manual",signal:AbortSignal.timeout(12000)
+ });
+ assert.ok([302,303,307,308].includes(merchantCase.status),
+  "Merchant must not read operator-only KYB case");
+ const reviewUrl="/timologio-admin/api/accounts";
+ const attemptedApprove=await send(reviewUrl,{
+  action:"approve",organizationId:applicantId,note:"Improper approval bypass should fail"
+ },reviewer);
+ assert.equal(attemptedApprove.status,400,"Review workflow has no approval action");
+ const merchantStart=await send(reviewUrl,{action:"start_review",organizationId:applicantId},merchant);
+ assert.equal(merchantStart.status,401,"Merchant cannot operate KYB case");
+ const badCsrf=await send(reviewUrl,{action:"start_review",organizationId:applicantId},{
+  ...reviewer,csrf:"0".repeat(64)
+ });
+ assert.equal(badCsrf.status,403,"Operator mutation must validate CSRF");
+ const badOrigin=await send(reviewUrl,{action:"start_review",organizationId:applicantId},{
+  ...reviewer,origin:"https://untrusted.invalid"
+ });
+ assert.equal(badOrigin.status,403,"Operator mutation must reject cross-origin form");
+ const startReview=await send(reviewUrl,{action:"start_review",organizationId:applicantId},reviewer);
+ assert.equal(startReview.status,200);
+ assert.equal(startReview.body.status,"under_review");
+ assert.equal(startReview.body.issuanceEnabled,false);
+ const repeatStart=await send(reviewUrl,{action:"start_review",organizationId:applicantId},reviewer);
+ assert.equal(repeatStart.status,409,"Cannot restart an active case");
+ const missingNote=await send(reviewUrl,{action:"record_follow_up",organizationId:applicantId},reviewer);
+ assert.equal(missingNote.status,400);
+ const followNote="Awaiting synthetic verified identity evidence for the test case.";
+ const followUp=await send(reviewUrl,{
+  action:"record_follow_up",organizationId:applicantId,note:followNote
+ },reviewer);
+ assert.equal(followUp.status,200);
+ assert.equal(followUp.body.status,"under_review");
+ assert.equal(followUp.body.notificationSent,false);
+ const reviewedCase=await fetch(base+"/timologio-admin/accounts/"+applicantId,{
+  headers:{cookie:reviewer.cookies},signal:AbortSignal.timeout(12000)
+ });
+ assert.equal(reviewedCase.status,200);
+ assert.ok((await reviewedCase.text()).includes(followNote),"Internal immutable follow-up must render");
+ const reason="Synthetic company review is rejected because KYB evidence was not provided.";
+ const rejected=await send(reviewUrl,{action:"reject",organizationId:applicantId,note:reason},reviewer);
+ assert.equal(rejected.status,200);
+ assert.equal(rejected.body.status,"rejected");
+ assert.equal(rejected.body.issuanceEnabled,false);
+ const rejectAgain=await send(reviewUrl,{action:"reject",organizationId:applicantId,note:reason},reviewer);
+ assert.equal(rejectAgain.status,409,"Rejected cases cannot be rejected twice");
+ const storedCase=await db.query("SELECT status FROM fiscal_organizations WHERE id=$1",[applicantId]);
+ assert.equal(storedCase.rows[0].status,"rejected");
+ const caseAudits=await db.query(
+  "SELECT action,details FROM fiscal_audit_events WHERE organization_id=$1 AND action LIKE 'onboarding.%' ORDER BY id",
+  [applicantId]);
+ assert.deepEqual(caseAudits.rows.map(x=>x.action),[
+  "onboarding.review_started","onboarding.internal_follow_up_recorded","onboarding.rejected"
+ ]);
+ assert.equal(caseAudits.rows[1].details.note,followNote);
+ assert.equal(caseAudits.rows[1].details.notificationSent,false);
+ console.log("PASS: authenticated KYB operator case, CSRF, immutable follow-up, rejection, no approval or notification");
+
  const item={description:"Synthetic E2E service",quantityMilli:1000,unitPriceMinor:10000,vatRateBps:2400,discountBps:0};
  const calc=await send("/timologio/api/console/preview",{lane:"b2b",items:[item]},merchant);
  assert.equal(calc.status,200);
