@@ -19,14 +19,16 @@ type Search = { plan?: string | string[]; applicationId?: string | string[] };
 type ApplicationSnapshot = Readonly<{
   businessName: string; hubSlug: string; hubCity: string; hubRegion: string;
   category: string; phone: string; address: string; postcode: string;
-  website?: string; planCode: HubExpansionPlanCode;
+  website?: string; websiteEmbedEnabled?: boolean; planCode: HubExpansionPlanCode;
 }>;
 
 async function applicationSnapshot(publicId: string): Promise<ApplicationSnapshot | undefined> {
   if (!/^[a-zA-Z0-9_-]{8,110}$/.test(publicId)) return undefined;
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
     SELECT business_name,hub_slug,hub_city,hub_region,primary_category,phone,
-           address_line,postal_code,website_url,plan_code
+           address_line,postal_code,website_url,
+           COALESCE((to_jsonb(hub_expansion_prospects)->>'website_embed_enabled')::boolean,false) AS website_embed_enabled,
+           plan_code
     FROM hub_expansion_prospects
     WHERE public_id=$1
     LIMIT 1
@@ -41,6 +43,7 @@ async function applicationSnapshot(publicId: string): Promise<ApplicationSnapsho
     category: String(row.primary_category), phone: String(row.phone),
     address: String(row.address_line), postcode: String(row.postal_code),
     website: row.website_url ? String(row.website_url) : undefined,
+    websiteEmbedEnabled: row.website_embed_enabled === true,
     planCode: planCode as HubExpansionPlanCode
   };
 }
@@ -69,7 +72,8 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
     id: "preview-only", hubSlug: business.hubSlug, hubCity: business.hubCity,
     hubRegion: business.hubRegion, businessName: business.businessName,
     category: business.category, phone: business.phone, address: business.address,
-    postcode: business.postcode, website: business.website
+    postcode: business.postcode, website: business.website,
+    websiteEmbedEnabled: business.websiteEmbedEnabled ?? false
   };
   const isClaim = plan.code === "claim";
   const selling = plan.ecommerce;

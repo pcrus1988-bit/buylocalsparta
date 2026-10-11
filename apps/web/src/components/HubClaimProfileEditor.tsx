@@ -22,6 +22,8 @@ export function HubClaimProfileEditor({
         <label className={styles.field}>Κατηγορία<input name="category" defaultValue={profile.category} required minLength={2} maxLength={100}/></label>
         <label className={styles.field}>Τηλέφωνο επικοινωνίας<input name="phone" type="tel" defaultValue={profile.phone} required minLength={8} maxLength={32}/></label>
         <label className={styles.field}>Ιστοσελίδα (προαιρετικά)<input name="website" type="url" defaultValue={profile.website ?? ""} maxLength={240} placeholder="https://"/></label>
+        <label className={styles.field}><span><input name="websiteEmbedEnabled" type="checkbox" defaultChecked={profile.websiteEmbedEnabled} /> Εμφάνιση της ιστοσελίδας μέσα στη δημόσια σελίδα CLAIM (iframe)</span></label>
+        <p className={styles.hint}>Η ενσωμάτωση είναι προαιρετική και αρχικά κλειστή. Απαιτεί HTTPS. Ο επισκέπτης επιλέγει αν θα φορτώσει την εξωτερική ιστοσελίδα. Ορισμένοι ιστότοποι δεν επιτρέπουν iframe και ανοίγουν μόνο σε νέα καρτέλα.</p>
         <button className={styles.button + " " + styles.wide} type="submit" disabled={preview}>Αποθήκευση αλλαγών</button>
       </fieldset>
     </form>

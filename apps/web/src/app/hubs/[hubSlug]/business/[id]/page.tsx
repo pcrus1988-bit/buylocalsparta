@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteHeader } from "../../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../../components/SiteFooter";
+import { VendorExternalWebsiteFrame } from "../../../../../components/VendorExternalWebsiteFrame";
 import { getPublicHubClaim } from "../../../../../lib/hub-claim-runtime";
 import styles from "../../../claim/claim.module.css";
 
@@ -51,6 +52,10 @@ export default async function PublicHubClaimPage({ params }: Params) {
           <div className={styles.actions}><Link className={styles.button + " " + styles.secondary} href="/hubs/join">Γνώρισε το KONTA MOY HUB</Link></div>
         </aside>
       </div>
+      {profile.websiteEmbedEnabled && profile.website && <section className={styles.panel} style={{ marginTop: 20 }} aria-labelledby="claim-website-title">
+        <h2 id="claim-website-title">Ιστοσελίδα επιχείρησης</h2>
+        <VendorExternalWebsiteFrame url={profile.website} vendorName={profile.businessName} />
+      </section>}
     </section>
     <SiteFooter />
   </main>;
