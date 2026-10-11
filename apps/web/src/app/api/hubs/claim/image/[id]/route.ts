@@ -31,7 +31,7 @@ export async function GET(_request: Request, context: Context) {
       return new Response(null, { status: 404 });
     }
     const objectKey = String(row.object_key);
-    if (!objectKey.startsWith("private/hub-claim/")) return new Response(null, { status: 404 });
+    if (!objectKey.startsWith("private/verified-media/" + id + "/")) return new Response(null, { status: 404 });
     const object = await serverObjectStorageFromEnv({ defaultBucket: "buy-local-sparta-private" }).read(objectKey);
     if (object.contentType !== contentType || (object.byteSize !== undefined && object.byteSize !== byteSize)) {
       throw new Error("Claim image storage metadata mismatch");
