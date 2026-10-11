@@ -485,7 +485,7 @@ try{
   `INSERT INTO fiscal_kyb_evidence_events
    (organization_id,check_type,outcome,source_kind,source_reference,recorded_by_kind,recorded_by_ref)
    VALUES($1,'business_registration','evidence_recorded','gemi_public_registry','GEMI:CI_TEST_123',
-   'fiscal_admin','ci_fiscal_operator_123') RETURNING id`,[oid]);
+   'fiscal_admin','ci_fiscal_operator_123') RETURNING id`,[otherOrg.rows[0].id]);
  assert.equal(evidence.rows.length,1);
  const evId=evidence.rows[0].id;
  await db.query("SAVEPOINT evidence_update");
@@ -509,7 +509,7 @@ try{
    VALUES('00000000-0000-4000-8000-000000000000','vat_identity','requested','none',NULL,
    'fiscal_admin','ci_fiscal_operator_123')`));
  await db.query("ROLLBACK TO SAVEPOINT wrong_tenant_org");
- const stillPending=await db.query("SELECT status FROM fiscal_organizations WHERE id=$1",[oid]);
+ const stillPending=await db.query("SELECT status FROM fiscal_organizations WHERE id=$1",[otherOrg.rows[0].id]);
  assert.equal(stillPending.rows[0].status,"pending_review",
   "Evidence never promotes a merchant to approved");
  console.log("PASS: immutable KYB references, RLS, foreign-key tenant and no approval");
