@@ -1,10 +1,18 @@
-import {assertFiscalOrigin,assertFiscalCsrf,getFiscalActor} from "../../../../lib/fiscal-auth";
+import {assertFiscalOrigin,assertFiscalCsrf,getFiscalActor,fiscalCsrfValue} from "../../../../lib/fiscal-auth";
 import {
  FiscalEmailVerificationError,requestFiscalEmailVerification,confirmFiscalEmailVerification
 } from "../../../../lib/fiscal-email-verification";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const headers={"cache-control":"private, no-store","referrer-policy":"no-referrer"};
+export async function GET(){
+ const actor=await getFiscalActor();
+ if(!actor||actor.role!=="merchant")
+  return Response.json({authenticated:false},{status:401,headers});
+ const csrfToken=await fiscalCsrfValue();
+ if(!csrfToken)return Response.json({authenticated:false},{status:401,headers});
+ return Response.json({authenticated:true,csrfToken},{headers});
+}
 export async function POST(request:Request){
  try{
   assertFiscalOrigin(request);
