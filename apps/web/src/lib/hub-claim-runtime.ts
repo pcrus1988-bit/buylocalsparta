@@ -139,6 +139,27 @@ function checkedText(value: FormDataEntryValue | null, name: string, max: number
   return text;
 }
 
+function optionalClaimText(value: FormDataEntryValue | null, name: string, max: number): string {
+  if (value === null) return "";
+  if (typeof value !== "string") throw new Error("INVALID_CLAIM_" + name);
+  const normalized = value.trim();
+  if (normalized.length > max) throw new Error("INVALID_CLAIM_" + name);
+  return normalized;
+}
+
+function optionalClaimSocialUrl(value: FormDataEntryValue | null, provider: "instagram" | "facebook"): string | null {
+  const raw = optionalClaimText(value, provider.toUpperCase(), 240);
+  if (!raw) return null;
+  let url: URL;
+  try { url = new URL(raw); } catch { throw new Error("INVALID_CLAIM_" + provider.toUpperCase()); }
+  const allowed = provider === "instagram" ? ["instagram.com"] : ["facebook.com", "fb.com"];
+  const hostname = url.hostname.toLowerCase().replace(/^www[.]/, "");
+  if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== "443") ||
+      !allowed.includes(hostname)) throw new Error("INVALID_CLAIM_" + provider.toUpperCase());
+  url.hash = "";
+  return url.toString();
+}
+
 export async function updateOwnedHubClaim(id: string, principal: SessionPrincipal, form: FormData): Promise<void> {
   if (!validId(id) || !principal.roles.includes("customer")) throw new Error("CLAIM_NOT_ALLOWED");
   const category = checkedText(form.get("category"), "CATEGORY", 100);
@@ -155,6 +176,10 @@ export async function updateOwnedHubClaim(id: string, principal: SessionPrincipa
       website = parsed.toString();
     } catch { throw new Error("INVALID_CLAIM_WEBSITE"); }
   }
+  const description = optionalClaimText(form.get("description"), "DESCRIPTION", 1200);
+  const openingHours = optionalClaimText(form.get("openingHours"), "OPENING_HOURS", 700);
+  const instagramUrl = optionalClaimSocialUrl(form.get("instagramUrl"), "instagram");
+  const facebookUrl = optionalClaimSocialUrl(form.get("facebookUrl"), "facebook");
   const websiteEmbedEnabled = form.get("websiteEmbedEnabled") === "on";
   if (websiteEmbedEnabled) {
     if (!website) throw new Error("CLAIM_WEBSITE_REQUIRED");
