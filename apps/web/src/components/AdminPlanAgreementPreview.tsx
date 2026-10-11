@@ -18,6 +18,7 @@ function money(cents: number): string {
 export function AdminPlanAgreementPreview() {
   const [planCode, setPlanCode] = useState<VendorAgreementPlanCode>("claim");
   const [billing, setBilling] = useState<"monthly" | "annual">("annual");
+  const [templateOnly, setTemplateOnly] = useState(false);
   const plan = vendorAgreementPlanTerms(planCode, billing);
   const isHub = plan.market === "expansion_hubs";
   const referenceLabel = isHub ? "Κωδικός HUB αίτησης / prospect" : "Vendor ID / public ID";
@@ -33,6 +34,7 @@ export function AdminPlanAgreementPreview() {
     <form className="vendor-form-card"
       action="/api/admin/finance/agreements/plan-preview"
       method="get" target="_blank">
+      <label className="workspace-inline-note"><input type="checkbox" name="template" value="1" checked={templateOnly} onChange={event => setTemplateOnly(event.target.checked)} /> Μόνο πρότυπο (χωρίς πραγματικά στοιχεία επιχείρησης)</label>
       <div className="form-grid">
         <label>Πρόγραμμα
           <select name="plan" value={planCode} onChange={event => setPlanCode(event.target.value as VendorAgreementPlanCode)}>
@@ -49,7 +51,7 @@ export function AdminPlanAgreementPreview() {
           </select>
         </label>
         <label key={isHub ? "prospect" : "vendor"} className="form-span-2">{referenceLabel}
-          <input name={isHub ? "prospectId" : "vendorId"} required minLength={6} maxLength={120}
+          <input name={isHub ? "prospectId" : "vendorId"} disabled={templateOnly} required={!templateOnly} minLength={6} maxLength={120}
             autoComplete="off" placeholder={isHub ? "hub_prospect_…" : "vendor_…"} />
         </label>
       </div>
