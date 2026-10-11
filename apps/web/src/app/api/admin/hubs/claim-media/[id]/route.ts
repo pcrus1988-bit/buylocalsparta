@@ -1,5 +1,5 @@
-import { requireAdminSession } from "../../../../../../../lib/admin-session";
-import { readHubClaimMediaObject } from "../../../../../../../lib/hub-claim-media-runtime";
+import { requireAdminSession } from "../../../../../../lib/admin-session";
+import { readHubClaimMediaObject } from "../../../../../../lib/hub-claim-media-runtime";
 
 export const runtime = "nodejs";
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
