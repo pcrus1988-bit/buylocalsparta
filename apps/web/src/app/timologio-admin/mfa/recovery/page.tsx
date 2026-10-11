@@ -7,7 +7,7 @@ export const dynamic="force-dynamic";
 export default async function FiscalMfaRecovery(){
  const actor=await fiscalAdminActor();
  if(!actor)redirect("/timologio-admin/login");
- const readiness=await fiscalRecoveryReadiness().catch(()=>null);
+ const readiness=await fiscalRecoveryReadiness(actor).catch(()=>null);
  return <main className="fiscal-shell"><div className="fiscal-wrap">
   <header className="fiscal-topbar"><Link href="/timologio-admin" className="fiscal-brand">KONTA MOY <span>FISCAL · ADMIN</span></Link>
    <nav><Link href="/timologio-admin/mfa">Πίσω στο MFA</Link></nav></header>
@@ -21,7 +21,10 @@ export default async function FiscalMfaRecovery(){
     <p>Ενεργές εγγραφές MFA εποπτών: <strong>{readiness.enrolledSuperadminFactors}</strong> / ελάχιστο <strong>{readiness.minimumForSuperadminRecovery}</strong> για ανάκτηση εποπτικού λογαριασμού.
     {" · "}Migration: <strong>{readiness.schemaPresent?"Διαθέσιμη":"Εκκρεμεί"}</strong>
     {" · "}Μηχανισμός: <strong>{readiness.recoveryEnabled?"Ενεργός":"Ανενεργός"}</strong>
-    {" · "}Υποχρεωτικό MFA: <strong>{readiness.enforced?"Ενεργό":"Ανενεργό"}</strong></p>}
+    {" · "}Υποχρεωτικό MFA: <strong>{readiness.enforced?"Ενεργό":"Ανενεργό"}</strong>
+    {" · "}Υποδομή ειδοποιήσεων: <strong>{readiness.alertSchemaPresent?"Υπάρχει":"Εκκρεμεί"}</strong>
+    {" · "}Επαληθευμένες επαφές αποδέκτη/ασφάλειας: <strong>{readiness.verifiedAlertContacts?"Ναι":"Όχι"}</strong>
+    {" · "}Διανομή ειδοποιήσεων: <strong>{readiness.alertDeliveryConfigured?"Ρυθμισμένη":"Μη ρυθμισμένη"}</strong></p>}
    <p className="fiscal-muted">Ο αριθμός εγγραφών authenticator δεν αποδεικνύει ότι πρόκειται για τρία ανεξάρτητα φυσικά πρόσωπα. Απαιτούνται χωριστοί εξουσιοδοτημένοι εποπτικοί λογαριασμοί, δοκιμές ανάκτησης και εγκεκριμένη offline διαδικασία.</p>
   </section>
   <FiscalRecoveryWorkbench csrfToken={actor.csrfToken}/>
