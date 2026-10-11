@@ -61,9 +61,58 @@ activation; a factor count alone cannot establish three different people.
   the resulting immutable FISCAL audit event / recovery case ID, without
   storing the new TOTP secret anywhere in the incident system.
 
-## 3. Required alerting (not yet implemented)
+## 3. Durable alert outbox — integration built, not activated
+
+Isolated migration `0019_security_alert_outbox.sql` adds
+`fiscal_security_alert_contacts` and `fiscal_security_alert_outbox` with
+RLS, immutable event/recipient identity, bounded state transitions, and
+unique per-event/per-recipient delivery identities.
+
+Recovery transitions `requested`, `approval_recorded`, `completed`,
+and `cancelled` must enqueue **two** outbox items in the same transaction:
+one for the independently verified security-officer contact and one for the
+independently verified affected account owner. If either is missing, or the
+two destinations are identical, the recovery transaction rolls back.
+The code never trusts the user's newly supplied email or the latest unverified
+SSO email. Recipient addresses must be independently enrolled into the
+private contact registry through a security-authorized offline process; do
+not insert personal contact details without documented authorization.
+
+The private dispatcher runs at
+`POST /timologio/api/security-alert-dispatch`; it accepts only a dedicated
+64-hex bearer credential in standalone FISCAL mode. It uses Resend with a
+stable per-outbox-row `Idempotency-Key`, three-item leases per invocation,
+eight-attempt maximum, exponential backoff, and a strict <23-hour retry
+window (Resend idempotency retention is only 24 hours). Permanent provider
+rejections and expired retries are marked `dead` for officer investigation.
+`provider_accepted` means only that the provider accepted the message;
+it is **not proof of delivery to the recipient inbox**.
+
+The five-minute GitHub Actions schedule at
+`.github/workflows/fiscal-security-alert-dispatch.yml` is **disabled by
+default** until GitHub variable `FISCAL_SECURITY_ALERT_DISPATCH_ENABLED`
+is exactly `true`. Separately configure:
+- Dedicated standalone Vercel FISCAL `FISCAL_SECURITY_ALERT_DELIVERY_ENABLED=true`
+- Dedicated standalone Vercel FISCAL `RESEND_API_KEY` and
+  `FISCAL_SECURITY_ALERT_FROM` (approved sender/domain)
+- Dedicated standalone Vercel FISCAL `FISCAL_SECURITY_ALERT_DISPATCH_TOKEN`,
+  64 lowercase hex, plus the same value in GitHub Actions secret
+  `FISCAL_SECURITY_ALERT_DISPATCH_TOKEN`
+- Verified, non-revoked `soc` contact and one `account_owner` contact for
+  every affected actor, each with approved verification provenance
+
+Do not enable the scheduler until manual and automated synthetic delivery
+drills pass. Route bearer keys and provider keys must never appear in log,
+source, ticket, or browser responses. Rate limit and independently review
+contact registry writes. If the provider blocks, pauses or suppresses an
+address, explicitly investigate and notify through an authorized secondary
+security channel; accepted provider API responses do not eliminate that
+operational gap.
+
+## 4. Additional release requirements and missing integrations
+
 Automatic independent out-of-band **security notifications** must be
-implemented, tested, rate-limited and delivered to approved destinations:
+fully configured, tested, rate-limited and delivered to approved destinations:
 - `security.mfa_recovery_requested`: immediately alert security officer,
   subject to privacy-minimized content; also alert registered account holder
   through an independently verified channel.
@@ -75,7 +124,7 @@ implemented, tested, rate-limited and delivered to approved destinations:
 Use a durable outbox/retry mechanism. Audit-table writes are not by themselves
 a delivery guarantee. Do not make email delivery a single point of authorization.
 
-**Until alerts are live, this release gate is FAIL and recovery must stay OFF.**
+**Until verified contacts, schedule, provider acceptance, notification delivery evidence and alert failure handling are operationally proven, this release gate is FAIL and recovery must stay OFF.**
 
 ## 4. Emergency and loss scenarios
 - Fewer than two qualified *other* enrolled super-admins: **stop**, keep
