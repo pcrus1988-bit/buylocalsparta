@@ -69,7 +69,8 @@ try{
   env:{
    ...process.env,DATABASE_URL:"",POSTGRES_URL:"",
    FISCAL_STANDALONE_MODE:"true",FISCAL_REGISTRATION_ENABLED:"false",
-   FISCAL_MARKETPLACE_DRAFT_SYNC_ENABLED:"false",FISCAL_ISSUANCE_ENABLED:"false"
+   FISCAL_MARKETPLACE_DRAFT_SYNC_ENABLED:"false",FISCAL_ISSUANCE_ENABLED:"false",
+   FISCAL_INVITATIONS_ENABLED:"true",FISCAL_SERVICE_BASE_URL:"https://fiscal.kontamou.site/"
   },stdio:["ignore","pipe","pipe"]
  });
  server.stdout?.on("data",appendLog);server.stderr?.on("data",appendLog);
@@ -215,6 +216,71 @@ try{
  assert.equal(caseAudits.rows[1].details.note,followNote);
  assert.equal(caseAudits.rows[1].details.notificationSent,false);
  console.log("PASS: authenticated KYB operator case, CSRF, immutable follow-up, rejection, no approval or notification");
+
+ // FISCAL invitation-only merchant access, with public registration still disabled.
+ const invitationEndpoint="/timologio-admin/api/invitations";
+ const redeemEndpoint="/timologio/api/invitations/redeem";
+ const inviteBody={action:"issue",email:"invited-"+suffix+"@example.test",
+  legalName:"Invited Synthetic Merchant "+suffix,vatNumber:"303404505"};
+ const forbiddenInvite=await send(invitationEndpoint,inviteBody,merchant);
+ assert.equal(forbiddenInvite.status,401,"Ordinary merchant cannot issue invitations");
+ const forgedInvite=await send(invitationEndpoint,{...inviteBody,approved:true},reviewer);
+ assert.equal(forgedInvite.status,400,"Unexpected invite/approval fields are refused");
+ const invited=await send(invitationEndpoint,inviteBody,reviewer);
+ assert.equal(invited.status,201,"Authorized operator issues one-time invitation");
+ assert.ok(invited.body.url.startsWith("https://fiscal.kontamou.site/timologio/invite#"));
+ const inviteToken=invited.body.url.split("#")[1];
+ assert.match(inviteToken,/^[a-f0-9]{64}$/);
+ const inviteHash=digest(inviteToken);
+ const savedHash=await db.query(
+  "SELECT token_hash,status FROM fiscal_merchant_invitations WHERE id=$1",[invited.body.id]);
+ assert.equal(savedHash.rows[0].token_hash,inviteHash,"Raw code must never be stored");
+ const duplicateInvite=await send(invitationEndpoint,inviteBody,reviewer);
+ assert.equal(duplicateInvite.status,409,"Only one pending invitation per email/AFM");
+ const badToken=await send(redeemEndpoint,{token:"0".repeat(64),password});
+ assert.equal(badToken.status,403);
+ const wrongOriginRedeem=await send(redeemEndpoint,{token:inviteToken,password},{
+  origin:"https://untrusted.invalid"
+ });
+ assert.equal(wrongOriginRedeem.status,403,"Invitation claim must check browser Origin");
+ const redeemed=await send(redeemEndpoint,{token:inviteToken,password});
+ assert.equal(redeemed.status,201,"Valid, single-use link creates a restricted merchant");
+ assert.equal(redeemed.body.pendingReview,true);
+ assert.equal(redeemed.body.emailVerified,false);
+ assert.equal(redeemed.body.identityVerified,false);
+ assert.equal(redeemed.body.issuanceEnabled,false);
+ const tokenReplay=await send(redeemEndpoint,{token:inviteToken,password});
+ assert.equal(tokenReplay.status,403,"Redeemed invitation cannot be reused");
+ const ownerLogin=await login("invited-"+suffix+"@example.test");
+ const applications=await db.query(
+  `SELECT o.status,m.role FROM fiscal_organizations o
+   JOIN fiscal_memberships m ON m.organization_id=o.id
+   JOIN fiscal_users u ON u.id=m.user_id
+   WHERE u.email=$1`,["invited-"+suffix+"@example.test"]);
+ assert.deepEqual(applications.rows,[{status:"pending_review",role:"owner"}]);
+ const pendingOrg=await db.query(
+  "SELECT o.id FROM fiscal_organizations o JOIN fiscal_memberships m ON m.organization_id=o.id JOIN fiscal_users u ON u.id=m.user_id WHERE u.email=$1",
+  ["invited-"+suffix+"@example.test"]);
+ const blockedDraft=await send("/timologio/api/console/drafts",{
+  organizationId:pendingOrg.rows[0].id,lane:"b2c",externalId:"PENDING-"+suffix,reference:"Must fail",grossMinor:1000
+ },ownerLogin);
+ assert.equal(blockedDraft.status,403,"Unverified invite cannot create invoice drafts");
+ const revokeBody={action:"issue",email:"revoked-"+suffix+"@example.test",
+  legalName:"Second Invited Merchant "+suffix,vatNumber:"606707808"};
+ const toRevoke=await send(invitationEndpoint,revokeBody,reviewer);
+ assert.equal(toRevoke.status,201);
+ const revoke=await send(invitationEndpoint,{action:"revoke",id:toRevoke.body.id},reviewer);
+ assert.equal(revoke.status,200,"Revoke response: "+JSON.stringify(revoke.body));assert.equal(revoke.body.revoked,true);
+ const rejectRevoked=await send(redeemEndpoint,{
+  token:toRevoke.body.url.split("#")[1],password
+ });
+ assert.equal(rejectRevoked.status,403);
+ const inviteAudit=await db.query(
+  "SELECT count(*)::int AS n FROM fiscal_audit_events WHERE action='onboarding.invitation_redeemed' AND organization_id=$1",
+  [pendingOrg.rows[0].id]);
+ assert.equal(inviteAudit.rows[0].n,1);
+ console.log("PASS: invitation creation, fragment-only token, pending merchant, replay, origin and revocation");
+
 
  const item={description:"Synthetic E2E service",quantityMilli:1000,unitPriceMinor:10000,vatRateBps:2400,discountBps:0};
  const calc=await send("/timologio/api/console/preview",{lane:"b2b",items:[item]},merchant);

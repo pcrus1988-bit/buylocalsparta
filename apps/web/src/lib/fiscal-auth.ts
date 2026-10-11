@@ -18,7 +18,7 @@ function emailValue(email:string) {
  if(value.length>254||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value))throw new Error("INVALID_EMAIL");
  return value;
 }
-function passwordHash(password:string) {
+export function fiscalPasswordHash(password:string) {
  if(password.length<12||password.length>256)throw new Error("PASSWORD_LENGTH_INVALID");
  const salt=randomBytes(24).toString("hex");
  return "scrypt-v1:"+salt+":"+scryptSync(password,salt,64,{N:16384,r:8,p:1}).toString("hex");
@@ -44,7 +44,7 @@ export async function registerFiscal(input:{email:string;password:string;legalNa
  const email=emailValue(input.email),legalName=input.legalName.trim(),vatNumber=input.vatNumber.trim();
  if(legalName.length<2||legalName.length>240||!/^[0-9]{9}$/.test(vatNumber))throw new Error("INVALID_ORGANIZATION");
  await limit("register:"+email,3);
- const stored=passwordHash(input.password);
+ const stored=fiscalPasswordHash(input.password);
  const db=await fiscalPool().connect();
  try {
   await db.query("BEGIN");
