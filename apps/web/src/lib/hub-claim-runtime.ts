@@ -220,6 +220,13 @@ export async function updateOwnedHubClaim(id: string, principal: SessionPrincipa
           WHERE id=$1::uuid
         `, [owner.rows[0].id, category, phone, website]);
       }
+      await tx.query(`
+        INSERT INTO hub_claim_profiles (prospect_id,description,opening_hours,instagram_url,facebook_url,updated_at)
+        VALUES ($1::uuid,$2,$3,$4,$5,now())
+        ON CONFLICT (prospect_id) DO UPDATE SET
+          description=EXCLUDED.description,opening_hours=EXCLUDED.opening_hours,
+          instagram_url=EXCLUDED.instagram_url,facebook_url=EXCLUDED.facebook_url,updated_at=now()
+      `, [owner.rows[0].id, description, openingHours, instagramUrl, facebookUrl]);
       console.info(JSON.stringify({ event: "hub_claim.profile_updated", prospectId: id }));
     },
     { isolation: "serializable" }
