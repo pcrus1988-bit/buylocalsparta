@@ -62,6 +62,12 @@ jobs:
         env:
           CI: "true"
         run: node scripts/fiscal-mfa-recovery-db-smoke.mjs
+      - name: Verify security outbox RLS and provider acceptance transitions
+        env:
+          CI: "true"
+        run: node scripts/fiscal-security-alert-db-smoke.mjs
+      - name: Check bounded, idempotent recovery alert retry rules
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-security-alert-delivery-policy.test.ts
       - name: Check recovery request and approval input validation
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-mfa-recovery-input.test.ts
       - name: Refuse migration against marketplace database
