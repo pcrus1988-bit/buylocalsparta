@@ -59,13 +59,15 @@
 .mediaOverlay{position:absolute;inset:auto 0 0;z-index:2;padding:54px 28px 26px;background:linear-gradient(transparent,rgba(10,24,18,.84));color:#fff}.mediaOverlay strong,.mediaOverlay span{display:block}.mediaOverlay strong{font-family:Georgia,'Times New Roman',serif;font-size:23px;font-weight:500}.mediaOverlay span{max-width:520px;margin-top:5px;color:rgba(255,255,255,.76);font-size:11px;line-height:1.5}
 .mediaPlaceholder{height:100%;min-height:500px;display:grid;place-items:center;padding:44px;text-align:center;color:rgba(255,255,255,.9)}.mediaPlaceholderInner{max-width:340px}.mediaPlaceholderIcon{width:80px;height:80px;display:grid;place-items:center;margin:0 auto 18px;border:1px solid rgba(255,255,255,.38);border-radius:26px;font-family:Georgia,'Times New Roman',serif;font-size:34px}.mediaPlaceholder strong,.mediaPlaceholder span{display:block}.mediaPlaceholder strong{font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:500}.mediaPlaceholder span{margin-top:8px;color:rgba(255,255,255,.68);font-size:12px;line-height:1.55}
 
-/* Products come immediately after the shop hero. The richer shop story stays available below the catalogue. */
-.catalogSection{order:1;padding:72px 0 80px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:rgba(255,253,248,.38)}
-.instagramSection{order:2;border-bottom:1px solid var(--line);background:radial-gradient(circle at 85% 10%,rgba(178,150,97,.1),transparent 26rem),rgba(255,253,248,.72)}
-.section{order:3;padding:70px 0}
-.askSection{order:4;padding:78px 0}
-.infoSection{order:5;padding:0 0 82px}
-.page > :global(footer){order:6}
+/* Optional merchant-owned website is lazy and only shown when explicitly enabled. */
+.externalWebsiteSection{order:1;padding:64px 0;border-top:1px solid var(--line);background:rgba(255,253,248,.58)}
+/* The native catalogue remains available for integrated marketplace partners. */
+.catalogSection{order:2;padding:72px 0 80px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:rgba(255,253,248,.38)}
+.instagramSection{order:3;border-bottom:1px solid var(--line);background:radial-gradient(circle at 85% 10%,rgba(178,150,97,.1),transparent 26rem),rgba(255,253,248,.72)}
+.section{order:4;padding:70px 0}
+.askSection{order:5;padding:78px 0}
+.infoSection{order:6;padding:0 0 82px}
+.page > :global(footer){order:7}
 .section[aria-labelledby="people-story-title"] .sectionLead{display:none}
 
 .sectionHeader{display:flex;justify-content:space-between;align-items:end;gap:34px;margin-bottom:30px}.sectionHeader h2{margin-bottom:0}.sectionLead{max-width:470px;margin:0;color:var(--ink-soft);font-size:13px;line-height:1.65}
@@ -106,6 +108,7 @@
   .catalogToolbar{grid-template-columns:1fr 1fr}
   .infoGrid{display:flex;flex-direction:column-reverse}
 
+  .externalWebsiteSection{padding:42px 0}
   .catalogSection{padding:48px 0 68px}
   .catalogLayout{grid-template-columns:1fr;gap:0}
   .catalogSidebar,.desktopCatalogSearch{display:none}

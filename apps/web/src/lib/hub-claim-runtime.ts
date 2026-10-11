@@ -1,9 +1,10 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { normalizeVendorExternalWebsiteUrl, publicVendorExternalWebsiteUrl } from "./vendor-external-website";
 
 export type HubClaimPublicProfile = Readonly<{
   id: string; hubSlug: string; hubCity: string; hubRegion: string;
-  businessName: string; category: string; phone: string; website?: string;
+  businessName: string; category: string; phone: string; website?: string; websiteEmbedEnabled: boolean;
   address: string; postcode: string;
 }>;
 
@@ -16,6 +17,7 @@ export type HubClaimInvitation = Readonly<{
 const SQL_PROFILE = `
   SELECT h.public_id AS id,h.hub_slug,h.hub_city,h.hub_region,
          h.business_name,h.primary_category,h.phone,h.website_url,
+         COALESCE((to_jsonb(h)->>'website_embed_enabled')::boolean,false) AS website_embed_enabled,
          h.address_line,h.postal_code
   FROM hub_expansion_prospects h
   WHERE h.plan_code='claim' AND h.status='converted'
@@ -28,6 +30,7 @@ function asProfile(row: SqlRow): HubClaimPublicProfile {
     hubCity: String(row.hub_city), hubRegion: String(row.hub_region),
     businessName: String(row.business_name), category: String(row.primary_category),
     phone: String(row.phone), website: row.website_url ? String(row.website_url) : undefined,
+    websiteEmbedEnabled: Boolean(publicVendorExternalWebsiteUrl({ enabled: row.website_embed_enabled === true, url: row.website_url })),
     address: String(row.address_line), postcode: String(row.postal_code)
   };
 }
@@ -143,6 +146,11 @@ export async function updateOwnedHubClaim(id: string, principal: SessionPrincipa
       website = parsed.toString();
     } catch { throw new Error("INVALID_CLAIM_WEBSITE"); }
   }
+  const websiteEmbedEnabled = form.get("websiteEmbedEnabled") === "on";
+  if (websiteEmbedEnabled) {
+    if (!website) throw new Error("CLAIM_WEBSITE_REQUIRED");
+    normalizeVendorExternalWebsiteUrl(website);
+  }
   const uow = new PostgresUnitOfWork(getProductionPostgresRuntime().sqlPool);
   await uow.withTransaction(
     { platformAccess: true, marketId: "sparta", requestId: "edit-hub-claim:" + id },
@@ -155,11 +163,29 @@ export async function updateOwnedHubClaim(id: string, principal: SessionPrincipa
         LIMIT 1 FOR UPDATE OF h
       `, [id, principal.userId]);
       if (!owner.rowCount) throw new Error("CLAIM_NOT_OWNED");
-      await tx.query(`
-        UPDATE hub_expansion_prospects
-        SET primary_category=$2,phone=$3,website_url=$4,updated_at=now()
-        WHERE id=$1::uuid
-      `, [owner.rows[0].id, category, phone, website]);
+      // The schema migration may follow a web deploy. Keep existing CLAIM edits
+      // working and fail closed on enabling the iframe until the new column exists.
+      const column = await tx.query<SqlRow>(`
+        SELECT EXISTS (
+          SELECT 1 FROM pg_attribute
+          WHERE attrelid='public.hub_expansion_prospects'::regclass
+            AND attname='website_embed_enabled' AND NOT attisdropped
+        ) AS available
+      `);
+      if (column.rows[0]?.available === true) {
+        await tx.query(`
+          UPDATE hub_expansion_prospects
+          SET primary_category=$2,phone=$3,website_url=$4,website_embed_enabled=$5,updated_at=now()
+          WHERE id=$1::uuid
+        `, [owner.rows[0].id, category, phone, website, websiteEmbedEnabled]);
+      } else {
+        if (websiteEmbedEnabled) throw new Error("CLAIM_IFRAME_PENDING_DATABASE_MIGRATION");
+        await tx.query(`
+          UPDATE hub_expansion_prospects
+          SET primary_category=$2,phone=$3,website_url=$4,updated_at=now()
+          WHERE id=$1::uuid
+        `, [owner.rows[0].id, category, phone, website]);
+      }
       console.info(JSON.stringify({ event: "hub_claim.profile_updated", prospectId: id }));
     },
     { isolation: "serializable" }

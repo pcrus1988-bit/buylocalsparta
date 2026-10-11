@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import type { CatalogCard } from "../../../lib/catalog-view";
 import styles from "../../../components/VendorTrial.module.css";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
+import { VendorExternalWebsiteFrame } from "../../../components/VendorExternalWebsiteFrame";
 import { storefrontPreviewProducts, storefrontPreviewWorkspace, type VendorStorefrontPreviewProduct } from "../../../lib/vendor-storefront-settings";
 import { getFastVendorDropshipCatalogPage } from "../../../lib/vendor-dropship-fast-page";
 import { getVendorLocalCatalogPage } from "../../../lib/vendor-local-catalog";
@@ -61,6 +62,7 @@ export default async function VendorPreviewPage() {
             {trial && <span className={styles.demoPill}>ΔΟΚΙΜΗ · ΔΕΝ ΕΙΝΑΙ ΔΗΜΟΣΙΟ</span>}
           </div>
 
+          {settings.externalWebsite.enabled && settings.externalWebsite.url && <div className={styles.sectionBlock}><h4>Εξωτερική ιστοσελίδα</h4><VendorExternalWebsiteFrame url={settings.externalWebsite.url} vendorName={storefront.vendorName} /></div>}
           <section className={styles.previewCollection} aria-labelledby="vendor-preview-products">
             <div className={styles.previewCollectionHead}>
               <div>

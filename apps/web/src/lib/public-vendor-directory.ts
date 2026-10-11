@@ -4,6 +4,7 @@ import { cache } from "react";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedVendorImages, approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "./public-media-service";
 import { hasUsablePublicCoordinates } from "./public-data-integrity";
+import { publicVendorExternalWebsiteUrl } from "./vendor-external-website";
 import { publicVendorTaxonomies, type PublicVendorTaxonomy } from "./public-vendor-taxonomy";
 import { publicVendorInstagramSettings, publicVendorStorefrontTheme, type VendorInstagramSettings } from "./vendor-storefront-settings";
 import type { VendorStorefrontTheme } from "./vendor-storefront-theme";
@@ -70,6 +71,7 @@ export type PublicVendorDirectoryEntry = Readonly<{
   directoryStatus: PublicVendorDirectoryStatus;
   storefrontTheme?: VendorStorefrontTheme;
   instagram?: VendorInstagramSettings;
+  externalWebsite?: string;
 }>;
 
 type VendorDirectoryRow = SqlRow & {
@@ -238,7 +240,8 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
     canonicalCount: isPartner ? asCount(row.canonical_count) : 0,
     directoryStatus: isPartner ? "partner" : "research",
     storefrontTheme: isPartner ? publicVendorStorefrontTheme(row.storefront_settings) : undefined,
-    instagram: isPartner ? publicVendorInstagramSettings(row.storefront_settings) : undefined
+    instagram: isPartner ? publicVendorInstagramSettings(row.storefront_settings) : undefined,
+    externalWebsite: isPartner ? publicVendorExternalWebsiteUrl((row.storefront_settings as { externalWebsite?: unknown } | null)?.externalWebsite) : undefined
   };
 }
 

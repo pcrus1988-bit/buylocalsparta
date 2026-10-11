@@ -10,6 +10,9 @@ const dashboard = read("apps/web/src/app/vendor/claim/page.tsx");
 const mail = read("apps/web/src/lib/vendor-email-workflows.ts");
 const plan = read("apps/web/src/lib/hub-expansion-plans.ts");
 const migration = read("db/migrations/0297_hub_prospect_vendor_trial.sql");
+const embedMigration = read("db/migrations/0437_hub_claim_website_embed.sql");
+const embedEditor = read("apps/web/src/components/HubClaimProfileEditor.tsx");
+const embedFrame = read("apps/web/src/components/VendorExternalWebsiteFrame.tsx");
 const proxy = read("apps/web/src/proxy.ts");
 
 const failures: string[] = [];
@@ -26,6 +29,15 @@ includes(plan, "monthlyFeeCents: 0", "Zero monthly");
 includes(plan, "annualFeeCents: 0", "Zero annual");
 includes(plan, "ecommerce: false", "Non-commerce plan");
 includes(migration, "owner_user_id uuid REFERENCES public.users(id)", "Existing owner persistence");
+includes(embedMigration, "website_embed_enabled boolean NOT NULL DEFAULT false", "CLAIM iframe defaults off");
+includes(embedMigration, "hub_claim_website_embed_https_check", "CLAIM HTTPS database restriction");
+includes(app, "websiteEmbedEnabled = form.get", "CLAIM owner opt-in");
+includes(app, "normalizeVendorExternalWebsiteUrl(website)", "CLAIM website HTTPS verification");
+includes(app, "website_embed_enabled=$5", "CLAIM iframe persistence");
+includes(publicPage, "profile.websiteEmbedEnabled && profile.website", "CLAIM visitor-facing opt-in");
+includes(embedEditor, 'name="websiteEmbedEnabled"', "CLAIM owner dashboard toggle");
+includes(embedFrame, "setLoaded(true)", "Visitor permission before iframe");
+
 includes(app, 'h.status=\'converted\'', "Public CLAIM eligibility");
 includes(app, "h.owner_user_id IS NOT NULL", "Published owner required");
 includes(app, "h.plan_code='claim'", "CLAIM isolation");
