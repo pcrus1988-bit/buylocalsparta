@@ -22,7 +22,7 @@ export async function POST(request:Request){
   try{
    await db.query("BEGIN");
    const org=await db.query<{id:string;status:string}>(
-    "SELECT id,status FROM fiscal_organizations WHERE id=$1 FOR SHARE",[input.organizationId]);
+    "SELECT id,status FROM fiscal_organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
    if(!org.rows[0]) {
     await db.query("ROLLBACK");
     return Response.json({error:"KYB_CASE_NOT_FOUND"},{status:404,headers:noStore});
@@ -31,6 +31,7 @@ export async function POST(request:Request){
     await db.query("ROLLBACK");
     return Response.json({error:"KYB_CASE_NOT_UNDER_REVIEW"},{status:409,headers:noStore});
    }
+   // Serialize case writes so concurrent requests cannot evade per-hour limits.
    const volume=await db.query<{count:string}>(
     `SELECT count(*)::text AS count FROM fiscal_kyb_evidence_events
      WHERE organization_id=$1 AND recorded_at>now()-interval '1 hour'`,[input.organizationId]);
