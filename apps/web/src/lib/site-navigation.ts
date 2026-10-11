@@ -128,7 +128,7 @@ export const HUMAN_SITEMAP_SECTIONS = [
 
 export const ACCOUNT_UTILITY_NAVIGATION: ReadonlyArray<SiteLink> = [SITE_LINKS.login, SITE_LINKS.register];
 
-export const PUBLIC_DYNAMIC_ROUTE_PATTERNS = ["/category/[slug]", "/brands/[slug]", "/product/[id]", "/vendor/[id]", "/collections/[slug]", "/bazaar/product/[slug]", "/look/[code]", "/research/[slug]", "/research/[slug]/methodology", "/research/[slug]/results", "/hubs/[hubSlug]/business/[id]"] as const;
+export const PUBLIC_DYNAMIC_ROUTE_PATTERNS = ["/category/[slug]", "/brands/[slug]", "/product/[id]", "/vendor/[id]", "/collections/[slug]", "/bazaar/product/[slug]", "/look/[code]", "/research/[slug]", "/research/[slug]/methodology", "/research/[slug]/results", "/hubs/[hubSlug]", "/hubs/[hubSlug]/business/[id]"] as const;
 
 export const NON_INDEXABLE_PAGE_ROUTES = [
   "/timologio",
