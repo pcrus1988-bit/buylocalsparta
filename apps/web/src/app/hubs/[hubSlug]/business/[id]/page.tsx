@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteHeader } from "../../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../../components/SiteFooter";
-import { VendorExternalWebsiteFrame } from "../../../../../components/VendorExternalWebsiteFrame";
 import { getPublicHubClaim } from "../../../../../lib/hub-claim-runtime";
-import styles from "../../../claim/claim.module.css";
+import { HubClaimPublicContent } from "../../../../../components/HubClaimPublicContent";
 
 type Params = { params: Promise<{ hubSlug: string; id: string }> };
 
@@ -31,31 +29,7 @@ export default async function PublicHubClaimPage({ params }: Params) {
 
   return <main>
     <SiteHeader compact />
-    <section className="shell">
-      <div className={styles.hero}>
-        <div className={styles.kicker}>KONTA MOY · HUB {profile.hubCity}</div>
-        <h1 className={styles.title}>{profile.businessName}</h1>
-        <p className={styles.lead}>{profile.category} · {profile.hubCity}, {profile.hubRegion}</p>
-      </div>
-      <div className={styles.grid}>
-        <article className={styles.panel}>
-          <h2>Στοιχεία επιχείρησης</h2>
-          <p className={styles.details}><strong>Κατηγορία:</strong> {profile.category}</p>
-          <p className={styles.details}><strong>Περιοχή:</strong> {profile.hubCity} · {profile.postcode}</p>
-          <p className={styles.details}><strong>Διεύθυνση:</strong> {profile.address}</p>
-          <p className={styles.details}><strong>Τηλέφωνο:</strong> {profile.phone}</p>
-          {profile.website && <p className={styles.details}><a href={profile.website} target="_blank" rel="noopener noreferrer nofollow">Ιστοσελίδα επιχείρησης ↗</a></p>}
-        </article>
-        <aside className={styles.panel}>
-          <h2>Επαληθευμένη παρουσία</h2>
-          <p className={styles.hint}>Η επιχείρηση έχει επιβεβαιώσει τη δωρεάν παρουσία της στο KONTA MOY. Πρόκειται για καταχώριση καταλόγου, όχι για ενεργό ηλεκτρονικό κατάστημα ή δυνατότητα αγοράς.</p>
-          <div className={styles.actions}><Link className={styles.button + " " + styles.secondary} href="/hubs/join">Γνώρισε το KONTA MOY HUB</Link></div>
-        </aside>
-      </div>
-      {profile.websiteEmbedEnabled && profile.website && <section className={styles.panel} style={{ marginTop: 20 }} aria-labelledby="claim-website-title">
-        <h2 id="claim-website-title">Ιστοσελίδα επιχείρησης</h2>
-        <VendorExternalWebsiteFrame url={profile.website} vendorName={profile.businessName} />
-      </section>}
+    <HubClaimPublicContent profile={profile} />}
     </section>
     <SiteFooter />
   </main>;
