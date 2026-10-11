@@ -9,7 +9,7 @@ export type HubClaimPublicProfile = Readonly<{
 
 export type HubClaimInvitation = Readonly<{
   id: string; hubCity: string; businessName: string;
-  status: "approved" | "converted"; claimedByUser: boolean;
+  status: "approved" | "converted"; phone: string; address: string; claimedByUser: boolean;
   eligibleEmail: boolean;
 }>;
 
@@ -42,10 +42,18 @@ export async function getPublicHubClaim(hubSlug: string, id: string): Promise<Hu
   return result.rowCount ? asProfile(result.rows[0]) : undefined;
 }
 
+export async function listPublicHubClaims(limit = 100): Promise<HubClaimPublicProfile[]> {
+  const boundedLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(
+    SQL_PROFILE + " ORDER BY h.updated_at DESC LIMIT $1", [boundedLimit]
+  );
+  return result.rows.map(asProfile);
+}
+
 export async function getHubClaimInvitation(id: string, principal?: SessionPrincipal): Promise<HubClaimInvitation | undefined> {
   if (!validId(id)) return undefined;
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
-    SELECT h.public_id,h.business_name,h.hub_city,h.status::text AS status,
+    SELECT h.public_id,h.business_name,h.hub_city,h.phone,h.address_line,h.status::text AS status,
            h.owner_user_id,h.email,
            u.public_id AS owner_public_id
     FROM hub_expansion_prospects h
@@ -57,7 +65,7 @@ export async function getHubClaimInvitation(id: string, principal?: SessionPrinc
   const row = result.rows[0];
   return {
     id: String(row.public_id), businessName: String(row.business_name),
-    hubCity: String(row.hub_city), status: String(row.status) as "approved" | "converted",
+    hubCity: String(row.hub_city), phone: String(row.phone), address: String(row.address_line), status: String(row.status) as "approved" | "converted",
     claimedByUser: Boolean(principal && String(row.owner_public_id ?? "") === principal.userId),
     eligibleEmail: Boolean(principal?.roles.includes("customer") &&
       principal.email && String(row.email).trim().toLowerCase() === principal.email.trim().toLowerCase())
