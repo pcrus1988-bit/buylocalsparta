@@ -58,7 +58,8 @@ if (process.env.VERCEL_ENV !== "production") {
         ) AS has_embed_column
     `);
     const row = state.rows[0];
-    if (row.head === 437 && row.migration_count === 376 &&
+    if (((row.head === 437 && row.migration_count === 376) ||
+         (row.head === 438 && row.migration_count === 377)) &&
         row.filename_437 === "0437_hub_claim_website_embed.sql" &&
         row.checksum_437 === expectedSha && row.has_embed_column) {
       console.log("CLAIM 0437 already applied: migration skipped.");
