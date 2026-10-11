@@ -89,7 +89,7 @@ ALTER TABLE fiscal_sandbox_journal_lines ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE fiscal_sandbox_journals,fiscal_sandbox_journal_lines FROM PUBLIC;
 REVOKE ALL ON FUNCTION fiscal_sandbox_journal_consistency() FROM PUBLIC;
 REVOKE ALL ON FUNCTION fiscal_sandbox_journal_immutable() FROM PUBLIC;
-DO $
+DO $$
 DECLARE role_name text;
 BEGIN
  FOR role_name IN SELECT rolname FROM pg_roles WHERE rolname IN ('anon','authenticated')
@@ -98,6 +98,6 @@ BEGIN
   EXECUTE format('REVOKE ALL ON FUNCTION fiscal_sandbox_journal_consistency() FROM %I',role_name);
   EXECUTE format('REVOKE ALL ON FUNCTION fiscal_sandbox_journal_immutable() FROM %I',role_name);
  END LOOP;
-END $;
+END $$;
 
 COMMIT;
