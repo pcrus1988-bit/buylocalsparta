@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { fiscalPgConnectionOptions } from "./fiscal-pg-connection";
 
 const globalPool = globalThis as typeof globalThis & { __kmFiscalPool?: Pool };
 function identity(raw:string):string {
@@ -12,7 +13,7 @@ export function fiscalPool():Pool {
   const marketplace=[process.env.DATABASE_URL,process.env.POSTGRES_URL].filter((x):x is string=>Boolean(x?.trim()));
   if(marketplace.some(x=>identity(x)===identity(address)))throw new Error("FISCAL_DATABASE_MUST_BE_INDEPENDENT");
   return globalPool.__kmFiscalPool??(globalPool.__kmFiscalPool=new Pool({
-    connectionString:address,max:2,idleTimeoutMillis:10_000,connectionTimeoutMillis:5_000,
+    ...fiscalPgConnectionOptions(address),max:2,idleTimeoutMillis:10_000,connectionTimeoutMillis:5_000,
     application_name:"konta-moy-fiscal"
   }));
 }
