@@ -282,5 +282,5 @@
   "0297_hub_prospect_vendor_trial.sql": "36a19a4a2f9e5782c23ee633494af243a7c8542d0a2a1d9d62400c09053dcdac",
   "0298_admin_mailbox.sql": "a8c615d425f1acd7b340aabfe3061c617a94ff57fbb6b62fdbd8478b0d9c523b",
   "0299_admin_mail_trash_state.sql": "97a53bcb57f9b82020c0a231e4f1e70163ca9e06b2b190276f28cd3941b3f3f9",
-  "0439_hub_claim_canonical_public_slugs.sql": "e081a87b8f5cf22dff738cec2483f95ea189be7408fe77d8e1e3e6fb1bfa61d0"
+  "0439_hub_claim_canonical_public_slugs.sql": "66787b7a770037039fb35ddffbe963a1d4bf170d2e4be47c3b75d07083ed99dc"
 }
