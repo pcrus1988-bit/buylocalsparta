@@ -77,5 +77,10 @@ export async function runFiscalRecoveryHttpAcceptance({send,db,base,reviewer,mer
  const freshCode=fiscalTotp(fresh.body.secret,Math.floor(Date.now()/30000));
  const next=await send(mfaPath,{action:"activate",code:freshCode},reviewer);
  assert.equal(next.status,200);
+ const replacementCookie=next.cookieHeaders.map(x=>x.split(";")[0])
+  .find(x=>x.startsWith("km_fiscal_operator_mfa="));
+ assert.ok(replacementCookie);
+ reviewer.cookies=reviewer.cookies.split("; ").filter(x=>!x.startsWith("km_fiscal_operator_mfa="))
+  .join("; ")+"; "+replacementCookie;
  console.log("PASS: two-independent-superadmin recovery and safe re-enrollment");
 }
