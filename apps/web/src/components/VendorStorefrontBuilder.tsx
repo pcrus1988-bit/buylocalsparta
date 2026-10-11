@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import type { VendorStorefrontSettings, VendorStorefrontWorkspace } from "../lib/vendor-storefront-settings";
-import { vendorStorefrontThemeTokens } from "../lib/vendor-storefront-theme";
+import { effectiveVendorWorkspaceTheme, hasBespokeVendorStorefront, vendorStorefrontThemeTokens } from "../lib/vendor-storefront-theme";
 import styles from "./VendorTrial.module.css";
 
 export function VendorStorefrontBuilder(props: {
@@ -44,12 +44,14 @@ export function VendorStorefrontBuilder(props: {
     return styles.storeHero;
   }, [settings.heroStyle]);
 
+  const bespoke = hasBespokeVendorStorefront(props.initial.vendorId);
+  const shownColors = effectiveVendorWorkspaceTheme(props.initial.vendorId, settings);
   const previewTheme = useMemo(
-    () => vendorStorefrontThemeTokens({
+    () => vendorStorefrontThemeTokens(effectiveVendorWorkspaceTheme(props.initial.vendorId, {
       primaryColor: settings.primaryColor,
       secondaryColor: settings.secondaryColor
-    }),
-    [settings.primaryColor, settings.secondaryColor]
+    })),
+    [props.initial.vendorId, settings.primaryColor, settings.secondaryColor]
   );
 
   function patchSettings(patch: Partial<VendorStorefrontSettings>) {
@@ -113,13 +115,13 @@ export function VendorStorefrontBuilder(props: {
 
       <div className={styles.field}>
         <span className={styles.fieldLegend}>Χρώματα μάρκας</span>
-        <p className={styles.miniNote}>Χρησιμοποιούνται στη δημόσια βιτρίνα και ως διακριτικοί τόνοι στον ιδιωτικό χώρο συνεργάτη. Η πλοήγηση και το checkout του ΚΟΝΤΑ ΜΟΥ παραμένουν σταθερά.</p>
+        <p className={styles.miniNote}>{bespoke ? "Αυτή η βιτρίνα έχει ειδικό luxury design με σταθερή παλέτα. Εμφανίζονται τα πραγματικά χρώματά της· η επεξεργασία τους απαιτεί ενημέρωση και του ειδικού template." : "Χρησιμοποιούνται στη δημόσια βιτρίνα και ως διακριτικοί τόνοι στον ιδιωτικό χώρο συνεργάτη. Η πλοήγηση και το checkout του ΚΟΝΤΑ ΜΟΥ παραμένουν σταθερά."}</p>
         <div className={styles.brandColorGrid}>
           <label className={styles.brandColorField}>
             <span>Κύριο χρώμα</span>
             <div className={styles.colorRow}>
-              <input aria-label="Κύριο χρώμα μάρκας" type="color" value={/^#[0-9a-fA-F]{6}$/.test(settings.primaryColor) ? settings.primaryColor : "#0f766e"} onChange={(event) => patchSettings({ primaryColor: event.target.value, accentColor: event.target.value })} />
-              <input aria-label="HEX κύριου χρώματος" type="text" value={settings.primaryColor} maxLength={7} onChange={(event) => {
+              <input aria-label="Κύριο χρώμα μάρκας" type="color" disabled={bespoke} value={/^#[0-9a-fA-F]{6}$/.test(shownColors.primaryColor) ? shownColors.primaryColor : "#0f766e"} onChange={(event) => patchSettings({ primaryColor: event.target.value, accentColor: event.target.value })} />
+              <input aria-label="HEX κύριου χρώματος" type="text" disabled={bespoke} value={shownColors.primaryColor} maxLength={7} onChange={(event) => {
                 const value = event.target.value;
                 if (/^#[0-9a-fA-F]{0,6}$/.test(value)) patchSettings({ primaryColor: value, accentColor: value });
               }} />
@@ -128,8 +130,8 @@ export function VendorStorefrontBuilder(props: {
           <label className={styles.brandColorField}>
             <span>Δευτερεύον χρώμα</span>
             <div className={styles.colorRow}>
-              <input aria-label="Δευτερεύον χρώμα μάρκας" type="color" value={/^#[0-9a-fA-F]{6}$/.test(settings.secondaryColor) ? settings.secondaryColor : "#b29661"} onChange={(event) => patchSettings({ secondaryColor: event.target.value })} />
-              <input aria-label="HEX δευτερεύοντος χρώματος" type="text" value={settings.secondaryColor} maxLength={7} onChange={(event) => {
+              <input aria-label="Δευτερεύον χρώμα μάρκας" type="color" disabled={bespoke} value={/^#[0-9a-fA-F]{6}$/.test(shownColors.secondaryColor) ? shownColors.secondaryColor : "#b29661"} onChange={(event) => patchSettings({ secondaryColor: event.target.value })} />
+              <input aria-label="HEX δευτερεύοντος χρώματος" type="text" disabled={bespoke} value={shownColors.secondaryColor} maxLength={7} onChange={(event) => {
                 const value = event.target.value;
                 if (/^#[0-9a-fA-F]{0,6}$/.test(value)) patchSettings({ secondaryColor: value });
               }} />
