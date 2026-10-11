@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { HubClaimProfileEditor } from "../../../components/HubClaimProfileEditor";
 import { HubClaimMediaUpload } from "../../../components/HubClaimMediaUpload";
+import { mediaUploadMode } from "../../../lib/media-upload-service";
 import { listHubClaimMedia, listOwnedHubClaimInquiries } from "../../../lib/hub-claim-runtime";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -27,6 +28,8 @@ export default async function ClaimVendorDashboard() {
   const principal = await getAccountSession();
   if (!principal || !principal.roles.includes("customer")) redirect("/login?next=%2Fvendor%2Fclaim");
   const claims = await listOwnedHubClaims(principal);
+  const uploadMode=mediaUploadMode();
+  const uploadReady=uploadMode==="direct" || uploadMode==="server";
   const extra = await Promise.all(claims.map(async claim => ({
     id:claim.id,
     media:await listHubClaimMedia(claim.id),
@@ -46,7 +49,7 @@ export default async function ClaimVendorDashboard() {
       : <>{claims.map(profile => <div key={profile.id}>
         <div className={styles.grid}>
           <div id="claim-profile"><HubClaimProfileEditor profile={profile} csrfToken={principal.csrfToken} onSave={saveClaim}/></div>
-          <div id="claim-media"><HubClaimMediaUpload claimId={profile.id} csrfToken={principal.csrfToken} items={extraById.get(profile.id)?.media??[]}/></div>
+          <div id="claim-media"><HubClaimMediaUpload claimId={profile.id} csrfToken={principal.csrfToken} items={extraById.get(profile.id)?.media??[]} uploadReady={uploadReady}/></div>
         </div>
         <section id="claim-inquiries" className={styles.panel}>
           <h2>Αιτήματα πελατών · {extraById.get(profile.id)?.inquiries.length??0}</h2>
