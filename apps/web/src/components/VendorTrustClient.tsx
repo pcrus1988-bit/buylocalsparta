@@ -7,7 +7,7 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, Work
 
 type Workspace = {
   csrfToken: string;
-  mediaUploadMode: "direct" | "development_memory" | "gated";
+  mediaUploadMode: "direct" | "server" | "development_memory" | "gated";
   products: readonly { id: string; title: string }[];
   assets: readonly { id: string; canonicalVariantId?: string; filename: string; kind: string; byteSize: number; scanStatus: string; rightsStatus: string; moderationStatus: string; rejectionReason?: string; createdAt: number }[];
   documents: readonly { id: string; canonicalVariantId: string; type: string; issuer?: string; identifier?: string; mediaAssetId?: string; status: string; validTo?: number; rejectionReason?: string; createdAt: number }[];
@@ -82,7 +82,7 @@ export function VendorTrustClient({ initial }: { initial: Workspace }) {
     setError("");
     try {
       const form = new FormData(event.currentTarget);
-      if (initial.mediaUploadMode === "gated") throw new Error("Το ανέβασμα αρχείων είναι προσωρινά απενεργοποιημένο από την πλατφόρμα. Δεν χρειάζεται να κάνεις κάποια ρύθμιση στο κατάστημά σου.");
+      if (initial.mediaUploadMode === "gated" || initial.mediaUploadMode === "server") throw new Error("Το ανέβασμα αρχείων είναι προσωρινά απενεργοποιημένο από την πλατφόρμα. Δεν χρειάζεται να κάνεις κάποια ρύθμιση στο κατάστημά σου.");
       if (initial.mediaUploadMode === "development_memory") {
         const response = await fetch("/api/vendor/media", { method: "POST", headers: { "x-csrf-token": initial.csrfToken }, body: form });
         const payload = await response.json();
@@ -152,9 +152,9 @@ export function VendorTrustClient({ initial }: { initial: Workspace }) {
       {!hasProducts && <WorkspaceEmptyState eyebrow="Πρώτα ο κατάλογος" title="Δεν υπάρχουν ακόμη προϊόντα διαθέσιμα για τεκμηρίωση." body="Πρόσθεσε ή αντιστοίχισε πρώτα τα προϊόντα σου στον κατάλογο. Μετά θα εμφανίζονται εδώ για επιλογή." />}
       {hasProducts && <div className="workspace-dual-grid">
         <details className="workspace-tool-panel" open>
-          <summary><span><strong>1. Ανέβασε αρχείο</strong><small>{initial.mediaUploadMode === "gated" ? "Προσωρινά μη διαθέσιμο" : "Έτοιμο για ανέβασμα"}</small></span></summary>
+          <summary><span><strong>1. Ανέβασε αρχείο</strong><small>{(initial.mediaUploadMode === "gated" || initial.mediaUploadMode === "server") ? "Προσωρινά μη διαθέσιμο" : "Έτοιμο για ανέβασμα"}</small></span></summary>
           <div className="workspace-tool-body">
-            {initial.mediaUploadMode === "gated" && <div className="workspace-inline-note">Η ασφαλής αποστολή αρχείων είναι προσωρινά απενεργοποιημένη από την πλατφόρμα. Δεν χρειάζεται να αλλάξεις κάποια ρύθμιση στο κατάστημά σου.</div>}
+            {(initial.mediaUploadMode === "gated" || initial.mediaUploadMode === "server") && <div className="workspace-inline-note">Η ασφαλής αποστολή αρχείων είναι προσωρινά απενεργοποιημένη από την πλατφόρμα. Δεν χρειάζεται να αλλάξεις κάποια ρύθμιση στο κατάστημά σου.</div>}
             <form onSubmit={upload}>
               <div className="workspace-form-grid">
                 <div className="workspace-form-field span-2"><label htmlFor="trust-product">Προϊόν</label><select id="trust-product" name="canonicalVariantId" required>{initial.products.map((product) => <option value={product.id} key={product.id}>{product.title}</option>)}</select><small>Το αρχείο θα συνδεθεί με αυτό το προϊόν.</small></div>
@@ -163,7 +163,7 @@ export function VendorTrustClient({ initial }: { initial: Workspace }) {
                 <div className="workspace-form-field span-2"><label htmlFor="trust-alt">Σύντομη περιγραφή εικόνας <span aria-hidden="true">·</span> προαιρετικό</label><input id="trust-alt" name="altText" placeholder="π.χ. Μπλε σχολική τσάντα, μπροστινή όψη" /><small>Χρησιμοποιείται για προσβασιμότητα και βοηθά να καταλαβαίνουμε τι δείχνει η εικόνα.</small></div>
                 <div className="workspace-form-field span-2"><label htmlFor="trust-file">Επίλεξε αρχείο</label><input id="trust-file" name="file" type="file" required /></div>
               </div>
-              <div className="workspace-form-actions"><button className="button" disabled={busy || initial.mediaUploadMode === "gated"}>{busy ? "Ανέβασμα…" : "Ανέβασμα για έλεγχο"}</button></div>
+              <div className="workspace-form-actions"><button className="button" disabled={busy || initial.mediaUploadMode !== "direct"}>{busy ? "Ανέβασμα…" : "Ανέβασμα για έλεγχο"}</button></div>
             </form>
           </div>
         </details>
