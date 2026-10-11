@@ -47,6 +47,8 @@ export async function uploadOwnedHubClaimImage(principal:SessionPrincipal, input
           AND h.status='converted' AND h.plan_code='claim' AND u.email_verified_at IS NOT NULL FOR UPDATE OF h
       `,[ownership.rows[0].id,input.claimId,principal.userId]);
       if (!owner.rowCount) throw new Error("CLAIM_NOT_OWNED");
+      const pending=await tx.query<SqlRow>("SELECT count(*)::integer AS count FROM hub_claim_media WHERE prospect_id=$1::uuid AND status='pending'",[ownership.rows[0].id]);
+      if(Number(pending.rows[0]?.count??0)>=12)throw new Error("CLAIM_MEDIA_PENDING_REVIEW_LIMIT");
       if (input.role==="gallery") {
         const count=await tx.query<SqlRow>("SELECT count(*)::integer AS count FROM hub_claim_media WHERE prospect_id=$1::uuid AND role='gallery' AND status IN ('pending','approved')",[ownership.rows[0].id]);
         if (Number(count.rows[0]?.count??0)>=4) throw new Error("CLAIM_GALLERY_LIMIT_FOUR");
