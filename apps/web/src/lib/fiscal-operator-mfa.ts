@@ -96,7 +96,8 @@ async function setMfaCookie(token:string){
 }
 export async function startFiscalMfaEnrollment(actor:FiscalAdminActor){
  checkConfig();
- const binding=await bindingHash(actor);
+ await bindingHash(actor);
+ await rateLimit(actor);
  const secret=createFiscalMfaSecret();
  const sealed=encryptFiscalMfaSecret(secret,actorIdentity(actor),cryptoKey());
  const db=await fiscalPool().connect();
@@ -131,7 +132,6 @@ export async function startFiscalMfaEnrollment(actor:FiscalAdminActor){
  }finally{db.release();}
  // AAD binds encrypted secret to the original authenticated identity.
  // The secret is shown only on this response and never in logs, URLs or audit events.
- void binding;
  return {secret,uri:fiscalTotpUri(secret,actor.email),expiresMinutes:10};
 }
 export async function proveFiscalMfa(actor:FiscalAdminActor,action:"activate"|"step_up",rawCode:unknown){
