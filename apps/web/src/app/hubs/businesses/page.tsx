@@ -32,7 +32,7 @@ export default async function HubClaimDirectoryPage() {
           <div className={styles.kicker}>HUB {business.hubCity}</div>
           <h2>{business.businessName}</h2>
           <p className={styles.details}>{business.category} · {business.hubRegion}</p>
-          <Link className={styles.button} href={"/hubs/" + business.hubSlug + "/business/" + business.id}>Δες την επιχείρηση →</Link>
+          <Link className={styles.button} href={"/hubs/" + business.hubSlug + "/business/" + business.slug}>Δες την επιχείρηση →</Link>
         </article>
       )}</div>}
       <p className={styles.footer}>Προβάλλονται έως 100 πρόσφατες εγκεκριμένες καταχωρίσεις. Εκκρεμείς αιτήσεις δεν εμφανίζονται.</p>
