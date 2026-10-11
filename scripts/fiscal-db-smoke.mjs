@@ -256,6 +256,78 @@ try{
   [oid,testConsoleDraft.rows[0].id]));
  await db.query("ROLLBACK TO SAVEPOINT line_invalid_total");
 
+
+ // Milestone 16: saved accounting SANDBOX, not official double-entry posting.
+ const journalMeta=await db.query(
+  "SELECT relname,relrowsecurity FROM pg_class WHERE oid IN ('public.fiscal_sandbox_journals'::regclass,'public.fiscal_sandbox_journal_lines'::regclass)");
+ assert.equal(journalMeta.rows.length,2);
+ assert.ok(journalMeta.rows.every(r=>r.relrowsecurity===true),"Journal test tables require RLS");
+ const savedJournal=await db.query(
+  `INSERT INTO fiscal_sandbox_journals
+  (organization_id,external_id,digest,entry_count,total_debit_minor,total_credit_minor,created_by)
+  VALUES($1,'ci-test-ledger-0001',$2,2,12500,12500,$3) RETURNING id`,
+  [oid,'a'.repeat(64),uid]);
+ const journalId=savedJournal.rows[0].id;
+ await db.query(
+  `INSERT INTO fiscal_sandbox_journal_lines
+  (organization_id,journal_id,line_no,account_code,side,amount_minor)
+  VALUES($1,$2,1,'cash_test','debit',12500),($1,$2,2,'sales_test','credit',12500)`,
+  [oid,journalId]);
+ // Flush deferred constraint checks without committing smoke test data.
+ await db.query("SET CONSTRAINTS ALL IMMEDIATE");
+ const stored=await db.query(
+  `SELECT j.total_debit_minor,j.entry_count,count(l.*)::int AS stored_lines
+   FROM fiscal_sandbox_journals j JOIN fiscal_sandbox_journal_lines l
+   ON l.organization_id=j.organization_id AND l.journal_id=j.id
+   WHERE j.organization_id=$1 AND j.id=$2
+   GROUP BY j.id`,[oid,journalId]);
+ assert.equal(stored.rows[0].stored_lines,2);
+ assert.equal(stored.rows[0].total_debit_minor,"12500");
+ const replayJournal=await db.query(
+  `INSERT INTO fiscal_sandbox_journals
+  (organization_id,external_id,digest,entry_count,total_debit_minor,total_credit_minor,created_by)
+  VALUES($1,'ci-test-ledger-0001',$2,2,12500,12500,$3)
+  ON CONFLICT(organization_id,external_id) DO NOTHING RETURNING id`,
+  [oid,'a'.repeat(64),uid]);
+ assert.equal(replayJournal.rowCount,0,"Synthetic snapshot external id must be unique");
+ const hiddenJournal=await db.query(
+  `SELECT j.id FROM fiscal_sandbox_journals j
+   JOIN fiscal_memberships m ON m.organization_id=j.organization_id AND m.user_id=$2
+   WHERE j.organization_id=$1 AND j.id=$3`,
+  [oid,otherUser.rows[0].id,journalId]);
+ // User was converted to accountant earlier, then will be viewer below: tenant membership is allowed.
+ assert.equal(hiddenJournal.rowCount,1);
+ const crossTenantJournal=await db.query(
+  "SELECT id FROM fiscal_sandbox_journals WHERE organization_id=$1 AND id=$2",
+  [otherOrg.rows[0].id,journalId]);
+ assert.equal(crossTenantJournal.rowCount,0,"Journal IDs must not cross tenant boundaries");
+ await db.query("SAVEPOINT immutable_journal");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_sandbox_journals SET status='posted' WHERE id=$1",[journalId]));
+ await db.query("ROLLBACK TO SAVEPOINT immutable_journal");
+ await db.query("SAVEPOINT immutable_journal_line");
+ await assert.rejects(()=>db.query(
+  "DELETE FROM fiscal_sandbox_journal_lines WHERE journal_id=$1",[journalId]));
+ await db.query("ROLLBACK TO SAVEPOINT immutable_journal_line");
+ await db.query("SAVEPOINT wrong_journal_tenant");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_sandbox_journal_lines
+  (organization_id,journal_id,line_no,account_code,side,amount_minor)
+  VALUES($1,$2,3,'cash_test','debit',100)`,[otherOrg.rows[0].id,journalId]));
+ await db.query("ROLLBACK TO SAVEPOINT wrong_journal_tenant");
+ await db.query("SAVEPOINT journal_unbalanced");
+ await db.query("SET CONSTRAINTS ALL DEFERRED");
+ await db.query(
+  `INSERT INTO fiscal_sandbox_journals
+  (organization_id,external_id,digest,entry_count,total_debit_minor,total_credit_minor,created_by)
+  VALUES($1,'ci-test-ledger-broken',$2,2,10000,10000,$3) RETURNING id`,
+  [oid,'b'.repeat(64),uid]);
+ await assert.rejects(()=>db.query("SET CONSTRAINTS ALL IMMEDIATE"),
+  /Sandbox journal lines are not balanced or complete/);
+ await db.query("ROLLBACK TO SAVEPOINT journal_unbalanced");
+ await db.query("SET CONSTRAINTS ALL IMMEDIATE");
+ console.log("PASS: immutable tenant journal schema, idempotency, balanced deferred constraint and tamper denial");
+
  const consoleReplay=await db.query(
   "INSERT INTO fiscal_document_intakes(organization_id,lane,source,external_id,status,payload,payload_digest) VALUES($1,'b2c','console','CONSOLE-smoke-0001','draft',$2::jsonb,$3) ON CONFLICT(organization_id,source,external_id) DO NOTHING RETURNING id",
   [oid,JSON.stringify({reference:"merchant-preview",currency:"EUR",grossMinor:1500,issuerVatNumber:"123456789"}),"b".repeat(64)]);
@@ -303,6 +375,6 @@ try{
  const ssoAfter=await db.query("SELECT count(*)::int AS count FROM fiscal_superadmin_sessions WHERE token_hash=$1 AND revoked_at IS NULL",["c".repeat(64)]);
  assert.equal(ssoAfter.rows[0].count,0);
  await db.query("ROLLBACK");
- console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, approved-only console draft creation, immutable tenant-bound item snapshots, unverified counterparty registry, immutable regulatory atlas, disabled candidate tax rules, idempotency, verified marketplace pairing, SSO replay protection, immutable audit");
+ console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, approved-only console draft creation, immutable tenant-bound item snapshots, unverified counterparty registry, immutable regulatory atlas, disabled candidate tax rules, idempotency, tenant-bound balanced sandbox journals, verified marketplace pairing, SSO replay protection, immutable audit");
 }catch(error){await db.query("ROLLBACK").catch(()=>{});throw error;}
 finally{await db.end();}
