@@ -286,13 +286,122 @@ const PRECISE_SUBCATEGORY_PRESENTATION: Readonly<Record<string, Readonly<{ label
   "shampoo-conditioner": { label: "Σαμπουάν & μαλακτικά", familyLabel: "Περιποίηση μαλλιών" },
   "hair-treatments": { label: "Θεραπείες μαλλιών", familyLabel: "Περιποίηση μαλλιών" },
   "hair-styling-products": { label: "Styling μαλλιών", familyLabel: "Περιποίηση μαλλιών" },
-  "hair-accessories": { label: "Αξεσουάρ μαλλιών", familyLabel: "Περιποίηση μαλλιών" }
+  "hair-accessories": { label: "Αξεσουάρ μαλλιών", familyLabel: "Περιποίηση μαλλιών" },
+  "bath-body-care": { label: "Περιποίηση σώματος", familyLabel: "Περιποίηση σώματος" },
+  "grooming-care": { label: "Προϊόντα ξυρίσματος & grooming", familyLabel: "Προσωπική φροντίδα" },
+  "beauty-tools-accessories": { label: "Εργαλεία & αξεσουάρ ομορφιάς", familyLabel: "Αξεσουάρ ομορφιάς" },
+  "home-lighting": { label: "Φωτισμός σπιτιού", familyLabel: "Φωτισμός" },
+  "table-lamps": { label: "Επιτραπέζια φωτιστικά", familyLabel: "Φωτισμός" },
+  "floor-lamps": { label: "Επιδαπέδια φωτιστικά", familyLabel: "Φωτισμός" },
+  "ceiling-lights": { label: "Φωτιστικά οροφής", familyLabel: "Φωτισμός" },
+  "led-lighting": { label: "Φωτισμός LED", familyLabel: "Φωτισμός" },
+  "furniture": { label: "Έπιπλα", familyLabel: "Έπιπλα" },
+  "home-decor": { label: "Διακόσμηση σπιτιού", familyLabel: "Διακόσμηση" },
+  "decor": { label: "Διακοσμητικά", familyLabel: "Διακόσμηση" },
+  "kitchen": { label: "Είδη κουζίνας", familyLabel: "Κουζίνα" },
+  "kitchenware": { label: "Εξοπλισμός κουζίνας", familyLabel: "Κουζίνα" },
+  "cookware": { label: "Σκεύη μαγειρικής", familyLabel: "Κουζίνα" },
+  "drinkware": { label: "Ποτήρια & δοχεία ροφημάτων", familyLabel: "Κουζίνα" },
+  "food-storage": { label: "Δοχεία τροφίμων", familyLabel: "Κουζίνα" },
+  "tableware-glassware": { label: "Σερβίτσια & ποτήρια", familyLabel: "Κουζίνα" },
+  "candles-home-fragrance": { label: "Κεριά & αρώματα χώρου", familyLabel: "Διακόσμηση" },
+  "bedding": { label: "Λευκά είδη κρεβατιού", familyLabel: "Λευκά είδη" },
+  "footwear": { label: "Υποδήματα", familyLabel: "Παπούτσια" },
+  "shoes": { label: "Παπούτσια", familyLabel: "Παπούτσια" },
+  "sneakers": { label: "Sneakers", familyLabel: "Παπούτσια" },
+  "mens-shoes": { label: "Ανδρικά παπούτσια", familyLabel: "Παπούτσια" },
+  "womens-shoes": { label: "Γυναικεία παπούτσια", familyLabel: "Παπούτσια" },
+  "boots": { label: "Μπότες & μποτάκια", familyLabel: "Παπούτσια" },
+  "sandals": { label: "Σανδάλια", familyLabel: "Παπούτσια" },
+  "slippers": { label: "Παντόφλες", familyLabel: "Παπούτσια" },
+  "handbags": { label: "Τσάντες χειρός", familyLabel: "Τσάντες" },
+  "mens-bags": { label: "Ανδρικές τσάντες", familyLabel: "Τσάντες" },
+  "unisex-bags": { label: "Unisex τσάντες", familyLabel: "Τσάντες" },
+  "shoulder-bags": { label: "Τσάντες ώμου", familyLabel: "Τσάντες" },
+  "crossbody-bags": { label: "Χιαστί τσάντες", familyLabel: "Τσάντες" },
+  "backpacks": { label: "Σακίδια πλάτης", familyLabel: "Τσάντες" },
+  "school-bags": { label: "Σχολικές τσάντες", familyLabel: "Τσάντες" },
+  "luggage-travel-bags": { label: "Βαλίτσες & ταξιδιωτικές τσάντες", familyLabel: "Ταξίδι" },
+  "dresses": { label: "Φορέματα", familyLabel: "Ρούχα" },
+  "womens-dresses": { label: "Γυναικεία φορέματα", familyLabel: "Ρούχα" },
+  "tops": { label: "Μπλούζες & τοπ", familyLabel: "Ρούχα" },
+  "jeans": { label: "Τζιν", familyLabel: "Ρούχα" },
+  "coats-jackets": { label: "Παλτό & μπουφάν", familyLabel: "Ρούχα" },
+  "sunglasses": { label: "Γυαλιά ηλίου", familyLabel: "Αξεσουάρ" },
+  "jewellery": { label: "Κοσμήματα", familyLabel: "Αξεσουάρ" },
+  "jewelry": { label: "Κοσμήματα", familyLabel: "Αξεσουάρ" },
+  "watches": { label: "Ρολόγια", familyLabel: "Αξεσουάρ" },
+  "construction-toys": { label: "Παιχνίδια κατασκευών", familyLabel: "Παιχνίδια" },
+  "educational-toys": { label: "Εκπαιδευτικά παιχνίδια", familyLabel: "Παιχνίδια" },
+  "board-games": { label: "Επιτραπέζια παιχνίδια", familyLabel: "Παιχνίδια" },
+  "baby-care": { label: "Βρεφική φροντίδα", familyLabel: "Βρεφικά" },
+  "baby-clothing": { label: "Βρεφικά ρούχα", familyLabel: "Βρεφικά" },
+  "power-tools": { label: "Ηλεκτρικά εργαλεία", familyLabel: "Εργαλεία" },
+  "hand-tools": { label: "Εργαλεία χειρός", familyLabel: "Εργαλεία" },
+  "drills": { label: "Δράπανα", familyLabel: "Εργαλεία" },
+  "screwdrivers": { label: "Κατσαβίδια", familyLabel: "Εργαλεία" },
+  "pressure-washers": { label: "Πλυστικά μηχανήματα", familyLabel: "Εργαλεία" },
+  "welding": { label: "Εξοπλισμός συγκόλλησης", familyLabel: "Εργαλεία" },
+  "fasteners": { label: "Βίδες & συνδετικά", familyLabel: "Υλικά κατασκευής" },
+  "paint": { label: "Χρώματα & βερνίκια", familyLabel: "Υλικά κατασκευής" },
+  "plumbing": { label: "Υδραυλικά είδη", familyLabel: "Υλικά κατασκευής" },
+  "measuring-tools": { label: "Εργαλεία μέτρησης", familyLabel: "Εργαλεία" },
+  "garden-tools": { label: "Εργαλεία κήπου", familyLabel: "Κήπος" },
+  "irrigation": { label: "Πότισμα & άρδευση", familyLabel: "Κήπος" },
+  "lawn-care": { label: "Περιποίηση χλοοτάπητα", familyLabel: "Κήπος" },
+  "camping": { label: "Εξοπλισμός κάμπινγκ", familyLabel: "Ύπαιθρος" },
+  "barbecue": { label: "Ψησταριές & BBQ", familyLabel: "Κήπος" },
+  "fishing": { label: "Είδη αλιείας", familyLabel: "Ύπαιθρος" },
+  "tyres": { label: "Ελαστικά", familyLabel: "Ανταλλακτικά" },
+  "tires": { label: "Ελαστικά", familyLabel: "Ανταλλακτικά" },
+  "car-accessories": { label: "Αξεσουάρ αυτοκινήτου", familyLabel: "Αξεσουάρ οχήματος" },
+  "motorcycle-accessories": { label: "Αξεσουάρ μοτοσυκλέτας", familyLabel: "Αξεσουάρ οχήματος" },
+  "vehicle-emergency-tools": { label: "Είδη έκτακτης ανάγκης οχήματος", familyLabel: "Εξοπλισμός οχήματος" },
+  "car-batteries": { label: "Μπαταρίες αυτοκινήτου", familyLabel: "Ανταλλακτικά" },
+  "smartphones": { label: "Κινητά τηλέφωνα", familyLabel: "Κινητά & αξεσουάρ" },
+  "mobile-accessories": { label: "Αξεσουάρ κινητών", familyLabel: "Κινητά & αξεσουάρ" },
+  "laptops": { label: "Φορητοί υπολογιστές", familyLabel: "Υπολογιστές" },
+  "tablets": { label: "Tablets", familyLabel: "Υπολογιστές" },
+  "computer-accessories": { label: "Αξεσουάρ υπολογιστών", familyLabel: "Υπολογιστές" },
+  "headphones": { label: "Ακουστικά", familyLabel: "Ήχος" },
+  "speakers": { label: "Ηχεία", familyLabel: "Ήχος" },
+  "televisions": { label: "Τηλεοράσεις", familyLabel: "Τηλεοράσεις" },
+  "printers": { label: "Εκτυπωτές", familyLabel: "Υπολογιστές" },
+  "gaming": { label: "Gaming", familyLabel: "Gaming" },
+  "smart-home": { label: "Έξυπνο σπίτι", familyLabel: "Έξυπνο σπίτι" },
+  "books": { label: "Βιβλία", familyLabel: "Βιβλία" },
+  "stationery": { label: "Χαρτικά", familyLabel: "Χαρτικά & γραφείο" },
+  "school-stationery": { label: "Σχολικά είδη", familyLabel: "Χαρτικά & γραφείο" },
+  "office-supplies": { label: "Είδη γραφείου", familyLabel: "Χαρτικά & γραφείο" },
+  "gift-wrap": { label: "Είδη συσκευασίας δώρων", familyLabel: "Δώρα" },
 };
 
+/** Resolves governed presentation independent of supplier, brand or locale. */
 export function storefrontSubcategoryPresentationForCode(
   subcategoryCode: string
 ): Readonly<{ label: string; familyLabel: string }> | undefined {
   return PRECISE_SUBCATEGORY_PRESENTATION[normalize(subcategoryCode)];
+}
+
+/**
+ * A readable, code-specific fallback for ungoverned catalog leaves. Never
+ * replace an unknown narrow subcategory with a broad intent label, since that
+ * makes unrelated links appear as duplicate category cards.
+ */
+export function storefrontReadableSubcategoryCode(subcategoryCode: string): string | undefined {
+  const code = normalize(subcategoryCode);
+  if (!code || code.length > 110 || !/^[\\p{L}\\p{N}]+(?:-[\\p{L}\\p{N}]+)*$/u.test(code)) return undefined;
+  const parts = code.split("-");
+  // Opaque identifiers are identifiers, not customer-readable taxonomy.
+  if (parts.some((part) => /^[0-9a-f]{12,}$/i.test(part))) return undefined;
+  const humanized = parts.map((part) => {
+    if (part === "mens") return "ανδρικά";
+    if (part === "womens") return "γυναικεία";
+    if (part === "kids") return "παιδικά";
+    if (part === "and") return "&";
+    return part;
+  }).join(" ");
+  return humanized.charAt(0).toLocaleUpperCase("el-GR") + humanized.slice(1);
 }
 
 export function storefrontLeafForSubcategory(
