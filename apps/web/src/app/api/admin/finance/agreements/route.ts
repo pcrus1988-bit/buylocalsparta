@@ -78,6 +78,19 @@ async function activateFinanceAgreementThroughOnboarding(principal: SessionPrinc
   });
 }
 
+/** Draft plan templates are for internal review; a preview must never become a signed activation. */
+async function assertAgreementApprovedForSigning(agreementId: unknown): Promise<void> {
+  if (typeof agreementId !== "string" || !agreementId.trim()) throw new Error("agreementId required");
+  const result = await getProductionPostgresRuntime().nativePool.query(
+    "SELECT terms_snapshot->>'legalReviewStatus' AS legal_status FROM vendor_commercial_agreements WHERE public_id=$1 OR id::text=$1",
+    [agreementId.trim()]
+  );
+  if (!result.rowCount) throw new Error("Agreement not found");
+  if (result.rows[0].legal_status && result.rows[0].legal_status !== "approved") {
+    throw new Error("This plan agreement is a legal-review draft. Finalize and version the approved terms before signature or activation.");
+  }
+}
+
 export async function GET(request: Request) {
   try {
     await requireAdminSession(request, { permission: "finance.read" });
@@ -116,6 +129,7 @@ export async function POST(request: Request) {
       if (action !== "signed_upload") throw new Error("Unsupported multipart agreement action");
       const signedPdf = form.get("signedPdf");
       if (!(signedPdf instanceof File)) throw new Error("Signed agreement PDF is required");
+      await assertAgreementApprovedForSigning(form.get("agreementId"));
       await storeSignedCommercialAgreementVault(principal, {
         agreementId: form.get("agreementId"),
         govgrReference: form.get("govgrReference"),
@@ -156,10 +170,13 @@ export async function POST(request: Request) {
     } else if (action === "generate_pdf") {
       await generateCommercialAgreementPdfVault(principal, body.agreementId);
     } else if (action === "email_pdf") {
+      await assertAgreementApprovedForSigning(body.agreementId);
       await emailCommercialAgreementPdfVault(principal, body.agreementId);
     } else if (action === "verify_govgr") {
+      await assertAgreementApprovedForSigning(body.agreementId);
       await verifyCommercialAgreementGovgr(principal, body);
     } else if (action === "activate") {
+      await assertAgreementApprovedForSigning(body.agreementId);
       await activateFinanceAgreementThroughOnboarding(principal, body.agreementId);
     } else if (action === "status") {
       await changeCommercialAgreementStatus(principal, body);

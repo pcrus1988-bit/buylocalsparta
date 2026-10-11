@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import type { HubExpansionPlanCode } from "../lib/hub-expansion-plans";
 
 type Metrics = Readonly<{
   orders: number;
@@ -155,12 +156,25 @@ function actionSet(metrics: Metrics): ReadonlyArray<Action> {
   ];
 }
 
-export function VendorDashboardTools({ metrics }: { metrics: Metrics }) {
+const PLAN_TOOL_IDS: Record<HubExpansionPlanCode, readonly string[]> = {
+  claim: [],
+  presence: ["storefront", "trust", "customers"],
+  shop: ["orders", "deadlines", "pickup", "returns", "catalog", "low-stock", "trust", "customers", "daily", "storefront", "finance", "analytics"],
+  growth: ["orders", "deadlines", "pickup", "returns", "catalog", "low-stock", "trust", "customers", "daily", "storefront", "finance", "analytics"],
+  pro: ["orders", "deadlines", "pickup", "returns", "catalog", "low-stock", "trust", "customers", "daily", "storefront", "finance", "analytics"]
+};
+
+export function VendorDashboardTools({ metrics, previewPlan }: { metrics: Metrics; previewPlan?: HubExpansionPlanCode }) {
   const [group, setGroup] = useState<Group>("all");
   const [query, setQuery] = useState("");
   const [attentionOnly, setAttentionOnly] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const actions = useMemo(() => actionSet(metrics), [metrics]);
+  const actions = useMemo(() => {
+    const items = actionSet(metrics);
+    if (!previewPlan) return items;
+    const allowed = new Set(PLAN_TOOL_IDS[previewPlan]);
+    return items.filter((item) => allowed.has(item.id));
+  }, [metrics, previewPlan]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("el");
@@ -211,15 +225,18 @@ export function VendorDashboardTools({ metrics }: { metrics: Metrics }) {
       </div>
 
       {filtered.length > 0 ? <div className="vendor-command-grid">
-        {filtered.map((item) => <Link className={`vendor-tool-card${item.attention ? " is-attention" : ""}`} href={item.href} key={item.id}>
-          <span className="vendor-tool-icon" aria-hidden="true">{item.icon}</span>
-          <div>
-            <strong>{item.label}</strong>
-            <small>{item.description}</small>
-          </div>
-          {typeof item.count === "number" && <b>{item.count.toLocaleString("el-GR")}</b>}
-          <span className="vendor-tool-arrow" aria-hidden="true">→</span>
-        </Link>)}
+        {filtered.map((item) => {
+          const body = <>
+            <span className="vendor-tool-icon" aria-hidden="true">{item.icon}</span>
+            <div><strong>{item.label}</strong><small>{item.description}</small></div>
+            {typeof item.count === "number" && <b>{item.count.toLocaleString("el-GR")}</b>}
+            <span className="vendor-tool-arrow" aria-hidden="true">→</span>
+          </>;
+          const className = `vendor-tool-card${item.attention ? " is-attention" : ""}`;
+          return previewPlan
+            ? <div className={className} role="group" aria-label="Προεπισκόπηση χωρίς λειτουργική πρόσβαση" key={item.id}>{body}</div>
+            : <Link className={className} href={item.href} key={item.id}>{body}</Link>;
+        })}
       </div> : <div className="workspace-empty-state">
         <strong>Δεν βρέθηκε αντίστοιχο εργαλείο.</strong>
         <p>Δοκίμασε άλλη λέξη ή αφαίρεσε το φίλτρο προσοχής.</p>
@@ -246,11 +263,13 @@ export function VendorDashboardTools({ metrics }: { metrics: Metrics }) {
           <button type="button" onClick={() => setDrawerOpen(false)}>Κλείσιμο</button>
         </div>
         <div className="vendor-floating-sheet-grid">
-          {actions.slice(0, 8).map((item) => <Link href={item.href} key={item.id} onClick={() => setDrawerOpen(false)}>
-            <span aria-hidden="true">{item.icon}</span>
-            <strong>{item.label}</strong>
-            {item.attention && <b>{item.count}</b>}
-          </Link>)}
+          {actions.slice(0, 8).map((item) => previewPlan
+            ? <div key={item.id} aria-disabled="true"><span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong></div>
+            : <Link href={item.href} key={item.id} onClick={() => setDrawerOpen(false)}>
+              <span aria-hidden="true">{item.icon}</span>
+              <strong>{item.label}</strong>
+              {item.attention && <b>{item.count}</b>}
+            </Link>)}
         </div>
         <a className="vendor-floating-all" href="#vendor-command-centre" onClick={() => setDrawerOpen(false)}>Όλα τα εργαλεία και αναζήτηση ↓</a>
       </aside>

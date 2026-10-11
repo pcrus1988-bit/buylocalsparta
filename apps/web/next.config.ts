@@ -33,6 +33,15 @@ const FISCAL_HANDOFF_CSP=FISCAL_SSO_ORIGIN?
   CONTENT_SECURITY_POLICY.replace("form-action 'self'",`form-action 'self' ${FISCAL_SSO_ORIGIN}`):
   CONTENT_SECURITY_POLICY;
 
+// Public vendor pages can be embedded in their own authenticated first-party
+// dashboard preview. Keep every other route denied, and forbid third-party
+// framing even for vendor pages.
+const VENDOR_SAME_ORIGIN_FRAME_POLICY = CONTENT_SECURITY_POLICY
+  .replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+  .replace("frame-src 'self'", "frame-src 'self' https:");
+// CLAIM public pages remain unframeable themselves but may render opt-in HTTPS vendor sites.
+const CLAIM_EXTERNAL_FRAME_POLICY = CONTENT_SECURITY_POLICY.replace("frame-src 'self'", "frame-src 'self' https:");
+
 const SECURITY_HEADERS = [
   { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -181,16 +190,24 @@ const nextConfig: NextConfig = {
         source: "/(.*)",
         headers: [...SECURITY_HEADERS]
       },
+      {
+        source: "/vendor/:vendorId",
+        headers: [
+          { key: "Content-Security-Policy", value: VENDOR_SAME_ORIGIN_FRAME_POLICY },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" }
+        ]
+      },
+      { source: "/hubs/:hubSlug/business/:id", headers: [{ key: "Content-Security-Policy", value: CLAIM_EXTERNAL_FRAME_POLICY }] },
       ...(FISCAL_SSO_ORIGIN ? [{
         source: "/admin/fiscal-access",
         headers: [
-          {key:"Content-Security-Policy",value:FISCAL_HANDOFF_CSP},
-          {key:"Referrer-Policy",value:"no-referrer"},
-          {key:"Cache-Control",value:"private, no-store"}
+          { key: "Content-Security-Policy", value: FISCAL_HANDOFF_CSP },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "private, no-store" }
         ]
       }] : []),
-      {source:"/timologio/:path*",headers:[...SEARCH_EXCLUDED_HEADERS]},
-      {source:"/timologio-admin/:path*",headers:[...SEARCH_EXCLUDED_HEADERS]},
+      { source: "/timologio/:path*", headers: [...SEARCH_EXCLUDED_HEADERS] },
+      { source: "/timologio-admin/:path*", headers: [...SEARCH_EXCLUDED_HEADERS] },
       ...SEARCH_EXCLUDED_SOURCES.map((source) => ({ source, headers: [...SEARCH_EXCLUDED_HEADERS] }))
     ];
   }

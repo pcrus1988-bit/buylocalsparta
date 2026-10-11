@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
-import { S3ObjectStorage, objectStorageConfigFromEnv } from "@buy-local-sparta/object-storage";
+import { S3ObjectStorage, objectStorageConfigFromEnv, serverObjectStorageFromEnv } from "@buy-local-sparta/object-storage";
 import { platformScope, type VendorProfileMediaRole } from "@buy-local-sparta/postgres-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { postgresVendorRuntimeEnabled } from "./vendor-runtime";
@@ -10,11 +10,15 @@ const storage = () => storageSingleton ??= new S3ObjectStorage(objectStorageConf
 const ADMIN_PROFILE_ROLES = new Set<VendorProfileMediaRole>(["logo", "storefront", "team", "gallery"]);
 const ADMIN_PROFILE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
-export type MediaUploadMode = "direct" | "development_memory" | "gated";
+export type MediaUploadMode = "direct" | "server" | "development_memory" | "gated";
 export function mediaPipelineEnabled():boolean{return process.env.BLS_MEDIA_PIPELINE_ENABLED === "true"}
 export function mediaUploadMode(): MediaUploadMode {
   if (!postgresVendorRuntimeEnabled()) return "development_memory";
-  return mediaPipelineEnabled() && storageConfigured() ? "direct" : "gated";
+  if (mediaPipelineEnabled() && storageConfigured()) return "direct";
+  // Small profile photos may enter the existing private review pipeline via the
+  // Supabase Storage REST backend when S3 presigning is not configured on Vercel.
+  // They are NEVER published until scan, rights and moderation gates all pass.
+  return supabaseProfileStorageConfigured() ? "server" : "gated";
 }
 export async function mediaPipelineReadiness(){
   if(!mediaPipelineEnabled())return{enabled:false,ready:true,message:"Media pipeline disabled"};
@@ -25,6 +29,81 @@ export async function mediaPipelineReadiness(){
     if(!object.ok)return{enabled:true,ready:false,message:`Object storage: ${object.message}`};
     return{enabled:true,ready:true,message:"Private object storage is ready; malware scanning is verified by the separate media worker"};
   }catch(error){return{enabled:true,ready:false,message:error instanceof Error?error.message:String(error)}}
+}
+
+
+const SERVER_PROFILE_MAX_BYTES = 4 * 1024 * 1024;
+const PROFILE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const PROFILE_BUCKET = "buy-local-sparta-private";
+
+function supabaseProfileStorageConfigured(): boolean {
+  const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)?.trim();
+  const key = (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)?.trim();
+  if (!url || !key) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && parsed.hostname.endsWith(".supabase.co");
+  } catch { return false; }
+}
+
+function verifiedImageType(contentType: string, bytes: Uint8Array): boolean {
+  if (contentType === "image/jpeg") return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (contentType === "image/png") return bytes.length >= 8 && [137,80,78,71,13,10,26,10].every((v,i) => bytes[i] === v);
+  if (contentType === "image/webp") return bytes.length >= 12
+    && String.fromCharCode(...bytes.slice(0,4)) === "RIFF" && String.fromCharCode(...bytes.slice(8,12)) === "WEBP";
+  return false;
+}
+
+/** Accept vendor-owned profile images into private storage even where the
+ * presigned S3 pipeline has not yet been provisioned. This is an upload
+ * intake ONLY: the existing moderation and malware scan gates remain intact. */
+export async function uploadVendorProfileMediaServer(principal: SessionPrincipal, input: {
+  profileRole: VendorProfileMediaRole;
+  filename: string;
+  contentType: string;
+  altText: string;
+  rightsOwner: string;
+  bytes: Uint8Array;
+}) {
+  if (mediaUploadMode() !== "server") throw new Error("Private storefront image upload is not available");
+  if (!ADMIN_PROFILE_ROLES.has(input.profileRole)) throw new Error("Invalid storefront image role");
+  const contentType = input.contentType.trim().toLowerCase();
+  if (!PROFILE_IMAGE_TYPES.has(contentType) || !verifiedImageType(contentType, input.bytes)) {
+    throw new Error("The file must be a genuine JPEG, PNG or WebP image");
+  }
+  if (input.bytes.length <= 0 || input.bytes.length > SERVER_PROFILE_MAX_BYTES) {
+    throw new Error("Image exceeds the 4 MB upload limit. Resize or compress it first.");
+  }
+  const intent = await getProductionPostgresRuntime().mediaPipeline.createUploadIntent(principal, {
+    profileRole: input.profileRole,
+    kind: "image",
+    filename: input.filename,
+    contentType,
+    byteSize: input.bytes.length,
+    altText: input.altText.trim(),
+    rightsOwner: input.rightsOwner.trim(),
+    now: Date.now()
+  });
+  const objects = serverObjectStorageFromEnv({ defaultBucket: PROFILE_BUCKET });
+  try {
+    await objects.put({ objectKey: intent.objectKey, contentType, body: input.bytes });
+    const metadata = await objects.head(intent.objectKey);
+    if (!metadata || metadata.byteSize !== input.bytes.length || metadata.contentType !== contentType) {
+      throw new Error("Private image storage verification failed");
+    }
+    return await getProductionPostgresRuntime().mediaPipeline.completeUpload(principal, {
+      intentId: intent.id,
+      actualByteSize: metadata.byteSize,
+      actualContentType: metadata.contentType,
+      now: Date.now()
+    });
+  } catch (error) {
+    await getProductionPostgresRuntime().mediaPipeline.failUploadIntent(
+      principal, intent.id, error instanceof Error ? error.message : "profile_upload_failed"
+    ).catch(() => undefined);
+    await objects.delete(intent.objectKey).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function createVendorMediaUploadIntent(principal:SessionPrincipal,input:{canonicalVariantId?:string;profileRole?:VendorProfileMediaRole;kind:"image"|"video"|"document";filename:string;contentType:string;byteSize:number;altText?:string;rightsOwner:string}){

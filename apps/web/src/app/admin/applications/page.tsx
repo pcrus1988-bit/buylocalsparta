@@ -11,7 +11,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../.
 import { researchVendorsWorkspace } from "../../../lib/research-vendors-runtime";
 import { hubProspectDisplayReference } from "../../../lib/hub-prospect-application-runtime";
 import { vendorApplicationPlanCompactLabel, vendorApplicationPlanSnapshotFromRow, type VendorApplicationPlanSnapshot } from "../../../lib/vendor-application-plan";
-import { provisionHubProspectTrialAction, setApplicationDemoMode, setHubProspectStatus } from "./actions";
+import { provisionHubProspectTrialAction, resendApprovedHubClaimEmail, setApplicationDemoMode, setHubProspectStatus } from "./actions";
 
 export const metadata: Metadata = { title: "Admin · Applications", robots: { index: false, follow: false } };
 
@@ -293,6 +293,7 @@ export default async function ApplicationsPage() {
         <p className="lead">The operational inbox between acquisition and onboarding. ΓΕΜΗ enrichment now separates legal-business identity evidence from applicant ownership/contact verification; DEMO preparation remains strictly pre-live.</p>
         <div className="hero-actions">
           <Link className="button button-secondary" href="/admin/partners/pipeline">← Partner pipeline</Link>
+          <Link className="button button-secondary" href="/admin/hubs/plan-preview">View as Vendor · Plans ↗</Link>
           <Link className="button button-secondary" href="/admin/research-vendors">Research vendors</Link>
           <Link className="button button-secondary" href="/admin/prospects">Verified prospects</Link>
           <Link className="text-link" href="/admin/vendors">Partner directory →</Link>
@@ -383,7 +384,7 @@ export default async function ApplicationsPage() {
       <WorkspaceSectionHeading eyebrow="Hub expansion" title="Applications from /hubs/join" note="HUB applications are part of the operational intake queue. Every card shows the readable application number, subscription snapshot, Trial state and the next governed Admin action." />
       {hubProspects.length === 0 ? <WorkspaceEmptyState title="No HUB applications have been submitted yet." body="New /hubs/join submissions will appear here immediately after they are stored." /> : <div className="workspace-queue-list">
         {hubProspects.map((prospect) => {
-          const next = hubNextStatus(prospect.status);
+          const next = prospect.planCode === "claim" && prospect.status === "approved" ? undefined : hubNextStatus(prospect.status);
           const trialActive = Boolean(prospect.trialExpiresAt && prospect.trialExpiresAt > Date.now() && prospect.trialDemoMode);
           return <article className="workspace-queue-card" id={`hub-application-${prospect.reference}`} key={prospect.internalId}>
             <div className="workspace-queue-head">
@@ -424,6 +425,8 @@ export default async function ApplicationsPage() {
               <div className="workspace-action-buttons">
                 {prospect.trialVendorId && <Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(prospect.trialVendorId)}/catalogue`}>Trial catalogue</Link>}
                 {prospect.trialVendorId && <Link className="button button-secondary" href={`/demo/vendor/${encodeURIComponent(prospect.trialVendorId)}`} target="_blank">Private preview ↗</Link>}
+                <Link className="button button-secondary" href={"/admin/hubs/plan-preview?applicationId=" + encodeURIComponent(prospect.internalId) + "&plan=" + encodeURIComponent(prospect.planCode)}>Preview selected plan ↗</Link>
+                {prospect.planCode === "claim" && prospect.status === "converted" && <Link className="button button-secondary" href={"/hubs/" + prospect.hubSlug + "/business/" + prospect.internalId} target="_blank">Published CLAIM profile ↗</Link>}
               </div>
             </div>
 
@@ -439,9 +442,17 @@ export default async function ApplicationsPage() {
               <input type="hidden" name="applicationId" value={prospect.internalId} />
               <input type="hidden" name="status" value={next.status} />
               <label><span>Workflow note</span><input name="reason" defaultValue={`Admin review: ${prospect.status} → ${next.status}`} minLength={3} maxLength={500} required /></label>
+              {prospect.planCode === "claim" && next.status === "approved" && <label className="workspace-inline-note"><input type="checkbox" name="ownershipVerified" required /> Έλεγξα τεκμηριωμένα ότι ο αιτών εκπροσωπεί την επιχείρηση. Το ΓΕΜΗ μόνο του δεν αποδεικνύει δικαίωμα διαχείρισης.</label>}
               <button className="button button-secondary" type="submit">{next.label}</button>
             </form>}
 
+            {prospect.planCode === "claim" && prospect.status === "approved" && <form action={resendApprovedHubClaimEmail} className="admin-directory-filters" style={{ marginTop: 8 }}>
+              <input type="hidden" name="csrfToken" value={applicationWorkspace.csrfToken} />
+              <input type="hidden" name="applicationId" value={prospect.internalId} />
+              <input type="hidden" name="reason" value="Resend approved claimant verification and acceptance instructions" />
+              <button className="button button-secondary" type="submit">Resend CLAIM activation email</button>
+              <span className="workspace-inline-note">Η δημόσια σελίδα δημιουργείται μόνο μετά την αποδοχή από τον εγκεκριμένο επαληθευμένο λογαριασμό.</span>
+            </form>}
             {!["declined", "converted"].includes(prospect.status) && <form action={setHubProspectStatus} className="admin-directory-filters" style={{ marginTop: 8 }}>
               <input type="hidden" name="csrfToken" value={applicationWorkspace.csrfToken} />
               <input type="hidden" name="applicationId" value={prospect.internalId} />

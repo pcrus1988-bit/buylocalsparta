@@ -8,6 +8,7 @@ const errors: string[] = [];
 
 const landing = read("apps/web/src/app/hubs/join/page.tsx");
 const applyPage = read("apps/web/src/app/hubs/join/apply/page.tsx");
+const comparison = read("apps/web/src/components/HubJoinRewardComparison.tsx");
 const form = read("apps/web/src/components/HubExpansionApplicationForm.tsx");
 const gateway = read("apps/web/src/components/VendorJoinGateway.tsx");
 const resolverRoute = read("apps/web/src/app/api/hubs/resolve-company-by-afm/route.ts");
@@ -26,8 +27,9 @@ function forbidText(source: string, needle: string, message: string) {
   if (source.includes(needle)) errors.push(message);
 }
 
-requireText(landing, "styles.comparisonTable", "HUB join must render the plan comparison table");
-requireText(landing, "HUB_EXPANSION_PLANS.map", "HUB join must derive columns from governed HUB plans");
+requireText(landing, "<HubJoinRewardComparison featureRows={featureRows} />", "HUB join must mount the governed plan comparison");
+requireText(comparison, "styles.comparisonTable", "HUB comparison component must render the plan table");
+requireText(comparison, "HUB_EXPANSION_PLANS.map", "HUB comparison must derive columns from governed HUB plans");
 requireText(landing, "/hubs/join/apply?plan=claim#application-form", "HUB join must expose zero-friction CLAIM onboarding");
 requireText(landing, "billing=annual#application-form", "Paid-plan CTA must default explicitly to annual billing");
 forbidText(landing, 'name=\"hub\"', "HUB join must not ask a prospect to select a HUB manually");

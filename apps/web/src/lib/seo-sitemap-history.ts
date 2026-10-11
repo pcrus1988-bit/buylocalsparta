@@ -160,6 +160,32 @@ function parseSitemapXml(xml: string, origin: URL): ParsedSitemapEntry[] {
   return entries;
 }
 
+function parseSitemapIndexXml(xml: string, origin: URL, requiredCoreUrl: URL): void {
+  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error("Sitemap index declarations/entities are not accepted.");
+  if (!/<sitemapindex(?:\s|>)/i.test(xml)) throw new Error("Production /sitemap.xml is not a sitemap index.");
+  const blocks = [...xml.matchAll(/<sitemap(?:\s[^>]*)?>([\s\S]*?)<\/sitemap>/gi)];
+  const children = new Set<string>();
+  const shardIndexes = new Set<number>();
+  for (const [, block] of blocks) {
+    const loc = tagText(block, "loc");
+    if (!loc) throw new Error("Sitemap index entry is missing <loc>.");
+    const candidate = new URL(loc);
+    if (candidate.origin !== origin.origin || candidate.search || candidate.hash) throw new Error("Noncanonical sitemap index child.");
+    if (children.has(candidate.toString())) throw new Error("Duplicate child in sitemap index.");
+    children.add(candidate.toString());
+    const shard = candidate.pathname.match(/^\/sitemaps\/products\/(\d+)\.xml$/);
+    if (shard) shardIndexes.add(Number(shard[1]));
+  }
+  if (!children.has(requiredCoreUrl.toString())) throw new Error("Core sitemap is absent from the public sitemap index.");
+  // The product-shard XML files are monitored by the public index and the
+  // GSC diagnostics job; this bounded snapshot captures CORE page URLs only.
+  // Do not present these observations as verification of every product shard.
+  if (!shardIndexes.size) throw new Error("Product sitemap shards are absent from the index.");
+  for (let i = 0; i < shardIndexes.size; i += 1) {
+    if (!shardIndexes.has(i)) throw new Error("Product sitemap shards are not contiguous at " + i + ".");
+  }
+}
+
 async function boundedResponseText(response: Response): Promise<string> {
   const declaredLength = Number(response.headers.get("content-length") ?? 0);
   if (Number.isFinite(declaredLength) && declaredLength > MAX_SITEMAP_BYTES) throw new Error(`Sitemap response exceeds ${MAX_SITEMAP_BYTES} bytes.`);
@@ -212,12 +238,29 @@ async function persistSnapshot(principal: SessionPrincipal, input: {
     `, [snapshotPublicId, input.sitemapUrl, input.httpStatus ?? null, input.contentType ?? null, input.responseTimeMs, bodySha256 ?? null, input.entries.length, input.valid, input.error ?? null, capturedAt]);
     const snapshotId = String(inserted.rows[0]?.id ?? "");
     if (!snapshotId) throw new Error("Unable to persist sitemap snapshot.");
-    for (const entry of input.entries) {
+    // The core sitemap contains hundreds of URLs. One bounded JSONB insert
+    // avoids an N+1 SQL round-trip chain on the production one-client pool.
+    if (input.entries.length) {
+      const payload = input.entries.map((entry) => ({
+        public_id: publicId("seo_sitemap_entry"),
+        loc: entry.loc,
+        route: entry.route,
+        lastmod: entry.lastmod?.toISOString() ?? null,
+        changefreq: entry.changefreq ?? null,
+        priority: entry.priority ?? null,
+        alternates: entry.alternates
+      }));
       await tx.query(`
         INSERT INTO seo_sitemap_snapshot_entries(
           public_id,snapshot_id,loc,route,lastmod,changefreq,priority,alternates,created_at
-        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)
-      `, [publicId("seo_sitemap_entry"), snapshotId, entry.loc, entry.route, entry.lastmod ?? null, entry.changefreq ?? null, entry.priority ?? null, JSON.stringify(entry.alternates), capturedAt]);
+        )
+        SELECT p.public_id,$1::uuid,p.loc,p.route,p.lastmod::timestamptz,
+               p.changefreq,p.priority,p.alternates,$3::timestamptz
+        FROM jsonb_to_recordset($2::jsonb) AS p(
+          public_id text,loc text,route text,lastmod text,
+          changefreq text,priority numeric,alternates jsonb
+        )
+      `, [snapshotId, JSON.stringify(payload), capturedAt]);
     }
   }, { isolation: "serializable" });
   const summary = {
@@ -242,8 +285,8 @@ export async function captureProductionSitemap(principal: SessionPrincipal): Pro
   if (!productionDatabaseConfigured()) throw new Error("Sitemap snapshot persistence requires PostgreSQL runtime.");
   const { settings } = await getSeoGlobalSettingsSnapshot();
   const origin = new URL(settings.canonicalOrigin);
-  const sitemapUrl = new URL("/sitemap.xml", `${origin.origin}/`);
-  if (sitemapUrl.origin !== origin.origin) throw new Error("Sitemap target escaped canonical origin.");
+  const indexUrl = new URL("/sitemap.xml", `${origin.origin}/`);
+  const sitemapUrl = new URL("/sitemaps/core/sitemap.xml", `${origin.origin}/`);
   const started = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -252,21 +295,28 @@ export async function captureProductionSitemap(principal: SessionPrincipal): Pro
   let entries: ParsedSitemapEntry[] = [];
   let error: string | undefined;
   try {
+    // The root is a sitemap INDEX, not a URL-set. Validate its manifest
+    // before capturing only the bounded core URL-set as persisted evidence.
+    const indexResponse = await fetch(indexUrl, {
+      method: "GET", redirect: "error", cache: "no-store",
+      headers: { "user-agent": "KontaMou-SEO-Admin-Sitemap/1.0", accept: "application/xml,text/xml;q=0.9" },
+      signal: controller.signal
+    });
+    if (!indexResponse.ok) throw new Error(`Production sitemap index returned HTTP ${indexResponse.status}.`);
+    if (!(indexResponse.headers.get("content-type") ?? "").toLowerCase().includes("xml")) {
+      throw new Error("Production sitemap index did not return XML.");
+    }
+    parseSitemapIndexXml(await boundedResponseText(indexResponse), origin, sitemapUrl);
     response = await fetch(sitemapUrl, {
-      method: "GET",
-      redirect: "error",
-      cache: "no-store",
+      method: "GET", redirect: "error", cache: "no-store",
       headers: { "user-agent": "KontaMou-SEO-Admin-Sitemap/1.0", accept: "application/xml,text/xml;q=0.9" },
       signal: controller.signal
     });
     body = await boundedResponseText(response);
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-    if (response.status < 200 || response.status >= 300) error = `Production sitemap returned HTTP ${response.status}.`;
-    else if (!contentType.includes("xml")) error = `Production sitemap returned unexpected content type: ${contentType || "missing"}.`;
-    else {
-      try { entries = parseSitemapXml(body, origin); }
-      catch (caught) { error = caught instanceof Error ? caught.message : "Sitemap XML validation failed."; }
-    }
+    if (!response.ok) error = `Production core sitemap returned HTTP ${response.status}.`;
+    else if (!contentType.includes("xml")) error = `Production core sitemap returned unexpected content type: ${contentType || "missing"}.`;
+    else entries = parseSitemapXml(body, origin);
   } catch (caught) {
     error = caught instanceof Error ? caught.message : "Production sitemap request failed.";
   } finally {
@@ -335,14 +385,20 @@ export async function getSeoSitemapHistoryWorkspace(principal: SessionPrincipal)
         const result = await tx.query<{ route: string }>(`SELECT route FROM seo_sitemap_snapshot_entries WHERE snapshot_id=$1`, [previousRow.id]);
         previousRoutes = new Set(result.rows.map((row) => row.route));
       }
-      const addedRoutes = latest?.valid && previous?.valid ? [...latestRoutes].filter((route) => !previousRoutes.has(route)).sort().slice(0, DIFF_LIMIT) : [];
-      const removedRoutes = latest?.valid && previous?.valid ? [...previousRoutes].filter((route) => !latestRoutes.has(route)).sort().slice(0, DIFF_LIMIT) : [];
+      // Compare only like-for-like snapshots: a legacy root snapshot must
+      // never be diffed against the corrected core URL-set snapshot.
+      const comparable = Boolean(latest?.valid && previous?.valid && latest.sitemapUrl === previous.sitemapUrl);
+      const addedRoutes = comparable ? [...latestRoutes].filter((route) => !previousRoutes.has(route)).sort().slice(0, DIFF_LIMIT) : [];
+      const removedRoutes = comparable ? [...previousRoutes].filter((route) => !latestRoutes.has(route)).sort().slice(0, DIFF_LIMIT) : [];
 
       const registry = await tx.query<{ route: string; desired_sitemap: boolean }>(`
         SELECT route,desired_sitemap FROM seo_urls
         WHERE market_id=nullif(current_setting('app.market_id',true),'')::uuid AND active=true
       `);
-      const expectedRoutes = new Set(registry.rows.filter((row) => row.desired_sitemap).map((row) => row.route));
+      const coreSnapshot = latest?.sitemapUrl.endsWith("/sitemaps/core/sitemap.xml") ?? false;
+      const expectedRoutes = new Set(registry.rows
+        .filter((row) => row.desired_sitemap && (!coreSnapshot || !row.route.startsWith("/product/")))
+        .map((row) => row.route));
       const unexpectedActual = latest?.valid ? [...latestRoutes].filter((route) => !expectedRoutes.has(route)).sort().slice(0, DIFF_LIMIT) : [];
       const expectedMissing = latest?.valid ? [...expectedRoutes].filter((route) => !latestRoutes.has(route)).sort().slice(0, DIFF_LIMIT) : [];
       return {
@@ -356,8 +412,8 @@ export async function getSeoSitemapHistoryWorkspace(principal: SessionPrincipal)
         unexpectedActual,
         metrics: {
           latestEntries: latest?.valid ? latest.entryCount : 0,
-          added: latest?.valid && previous?.valid ? [...latestRoutes].filter((route) => !previousRoutes.has(route)).length : 0,
-          removed: latest?.valid && previous?.valid ? [...previousRoutes].filter((route) => !latestRoutes.has(route)).length : 0,
+          added: comparable ? [...latestRoutes].filter((route) => !previousRoutes.has(route)).length : 0,
+          removed: comparable ? [...previousRoutes].filter((route) => !latestRoutes.has(route)).length : 0,
           expectedMissing: latest?.valid ? [...expectedRoutes].filter((route) => !latestRoutes.has(route)).length : 0,
           unexpectedActual: latest?.valid ? [...latestRoutes].filter((route) => !expectedRoutes.has(route)).length : 0
         }

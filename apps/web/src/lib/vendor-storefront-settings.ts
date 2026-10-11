@@ -1,5 +1,6 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { normalizeVendorExternalWebsiteSettings, type VendorExternalWebsiteSettings } from "./vendor-external-website";
 import {
   DEFAULT_VENDOR_PRIMARY_COLOR,
   DEFAULT_VENDOR_SECONDARY_COLOR,
@@ -32,6 +33,7 @@ export type VendorStorefrontSettings = Readonly<{
   showAbout: boolean;
   showLocation: boolean;
   showContact: boolean;
+  externalWebsite: VendorExternalWebsiteSettings;
   instagram: VendorInstagramSettings;
 }>;
 
@@ -90,6 +92,7 @@ const DEFAULT_SETTINGS: VendorStorefrontSettings = {
   showAbout: true,
   showLocation: true,
   showContact: true,
+  externalWebsite: { enabled: false, url: "" },
   instagram: DEFAULT_INSTAGRAM_SETTINGS
 };
 
@@ -418,6 +421,7 @@ function normalizeSettings(value: unknown): VendorStorefrontSettings {
     showAbout: booleanValue(source.showAbout, DEFAULT_SETTINGS.showAbout),
     showLocation: booleanValue(source.showLocation, DEFAULT_SETTINGS.showLocation),
     showContact: booleanValue(source.showContact, DEFAULT_SETTINGS.showContact),
+    externalWebsite: normalizeVendorExternalWebsiteSettings(source.externalWebsite),
     instagram: normalizeInstagramSettings(source.instagram)
   };
 }

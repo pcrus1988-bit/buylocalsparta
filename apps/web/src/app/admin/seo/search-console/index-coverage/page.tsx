@@ -83,7 +83,7 @@ export default async function AdminSeoGscIndexCoveragePage() {
 
     <section className="vendor-section section-tint"><div className="shell">
       <WorkspaceSectionHeading eyebrow="Retained Google evidence" title="Indexable URL coverage queue" note="This is not a claim that Google must index every URL. It shows the latest retained URL Inspection evidence, whether that evidence is current, and whether Google's selected canonical agrees with the governed canonical URL." />
-      {coverage.rows.length === 0 ? <div className="workspace-empty-state"><strong>No governed indexable URLs are available.</strong><span>Refresh the SEO URL registry after public catalogue/vendor projections are ready.</span></div> : <div className="workspace-queue-list">
+      {coverage.rows.length === 0 ? <div className="workspace-empty-state"><strong>{coverage.persistenceAvailable ? "No governed indexable URLs are available." : "URL registry evidence is temporarily unavailable."}</strong><span>Refresh the SEO URL registry after public catalogue/vendor projections are ready.</span></div> : <div className="workspace-queue-list">
         {coverage.rows.slice(0, 250).map((row) => <article className="workspace-queue-card" key={row.id}>
           <div className="workspace-queue-head">
             <div><strong>{row.label}</strong><small>{row.route} · {row.kind}</small></div>

@@ -93,7 +93,9 @@ export async function runCustomerFiscalReconciliationSweep(
       JOIN payments p ON p.order_id=o.id
       WHERE td.type='pending_customer_sale'
         AND td.document_number IS NULL
-        AND td.transmission_status IN ('not_ready','manual_review')
+        AND td.transmission_status='not_ready'
+        -- Unnumbered manual_review documents need operator intervention, not
+        -- another Mollie GET every five minutes. They remain in the admin queue.
         AND p.status IN ('captured','partially_refunded','refunded')
         AND EXISTS (
           SELECT 1 FROM gift_card_ledger gcl

@@ -128,11 +128,12 @@ for (const boundary of [
   "getExpansionHubRuntimeSnapshot()",
   "publicRuntimeHubs",
   "runtimeHubs={publicRuntimeHubs}",
-  "index: false",
-  "follow: false"
+  'governedStaticSeoMetadata("/choose-location"',
+  'canonicalPath: "/choose-location"'
 ]) {
   assert.ok(gatewayPage.includes(boundary), `Choose-location page is missing runtime/SEO boundary: ${boundary}`);
 }
+assert.ok(!gatewayPage.includes("index: false") && !gatewayPage.includes("follow: false"), "Public location selector must be indexable and followable");
 for (const privateField of ["marketId:", "marketCode:", "gatewaySlug:", "shoppingEnabled:", "searchIndexable:", "isDefaultFallback:"]) {
   assert.ok(!gatewayPage.includes(privateField), `Choose-location client projection must not serialize operational field ${privateField}`);
 }

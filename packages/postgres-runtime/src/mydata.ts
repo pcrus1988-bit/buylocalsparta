@@ -29,7 +29,23 @@ export class PostgresMyDataService {
   {
     const snapshot=await this.#uow.withTransaction(platformScope(principal.userId),async tx=>{
       const [docs,approved]=await Promise.all([
-        tx.query<SqlRow>(`SELECT td.public_id,o.public_id AS order_public_id,td.type,td.status,td.transmission_status,td.gross_minor,td.currency,td.mapping_version,td.invoice_type_code,td.document_number,td.aade_mark,td.aade_uid,td.aade_qr_url,td.last_error,td.created_at FROM tax_documents td LEFT JOIN customer_orders o ON o.id=td.order_id ORDER BY td.created_at DESC LIMIT 250`),
+        tx.query<SqlRow>(`SELECT td.public_id,o.public_id AS order_public_id,td.type,td.status,td.transmission_status,td.gross_minor,td.currency,td.mapping_version,td.invoice_type_code,td.document_number,td.aade_mark,td.aade_uid,td.aade_qr_url,td.last_error,td.created_at FROM tax_documents td
+          LEFT JOIN customer_orders o ON o.id=td.order_id
+          WHERE td.id IN (
+            -- Keep the standard recent register bounded, independently of exceptions.
+            SELECT id FROM (
+              SELECT id FROM tax_documents ORDER BY created_at DESC, id DESC LIMIT 250
+            ) recent
+            UNION
+            -- A historical manual-review record must not disappear after newer sales.
+            -- It is read-only here and is never automatically re-submitted to AADE.
+            SELECT id FROM (
+              SELECT id FROM tax_documents
+              WHERE transmission_status='manual_review' AND aade_mark IS NULL
+              ORDER BY created_at DESC, id DESC LIMIT 100
+            ) unresolved
+          )
+          ORDER BY td.created_at DESC, td.id DESC`),
         tx.query<SqlRow>(`SELECT p.version FROM accounting_tax_policies p JOIN markets m ON m.id=p.market_id WHERE m.code=$1 AND p.status='approved' ORDER BY p.approved_at DESC LIMIT 1`,["sparta"])
       ]);
       return{

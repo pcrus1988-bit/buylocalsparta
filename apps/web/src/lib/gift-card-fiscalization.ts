@@ -89,7 +89,12 @@ export async function finalizePendingGiftCardSpvIssues(limit = 5, now = Date.now
       FROM tax_documents td
       JOIN gift_cards gc ON gc.id=td.gift_card_id
      WHERE td.type='gift_card_spv_issue'
-       AND td.transmission_status IN ('not_ready','ready','manual_review')
+       AND (
+         td.transmission_status IN ('not_ready','ready')
+         OR (td.transmission_status='manual_review' AND td.document_number IS NOT NULL)
+       )
+       -- Historical unnumbered SPV issuances deliberately require an accountant;
+       -- do not keep retrying them at every five-minute scheduler tick.
        AND td.aade_mark IS NULL
      ORDER BY td.created_at
      LIMIT $1

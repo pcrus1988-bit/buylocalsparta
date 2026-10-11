@@ -4,6 +4,7 @@ import { S3ObjectStorage, objectStorageConfigFromEnv } from "@buy-local-sparta/o
 import { resendConfigFromEnv } from "@buy-local-sparta/resend-notifications";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { KONTA_MOY_LEGAL_DETAILS, renderVendorAgreementPdf, type VendorAgreementPdfData } from "./vendor-agreement-pdf";
+import { isVendorAgreementPlanCode, planAgreementCommercialSnapshot, vendorAgreementPlanTerms } from "./vendor-plan-agreements";
 
 export type CommissionTaxMode = "included" | "plus_vat" | "none";
 export type CommercialAgreementStatus =
@@ -271,16 +272,29 @@ export async function createCommercialAgreement(principal: SessionPrincipal, raw
   const vendorId = text(raw.vendorId, "vendorId");
   const agreementVersion = integer(raw.agreementVersion ?? 1, "agreementVersion", 1, 10_000);
   const startsAt = timestamp(raw.startsAt, "startsAt");
-  const endsAt = optionalTimestamp(raw.endsAt, "endsAt");
-  if (endsAt && endsAt <= startsAt) throw new Error("endsAt must be after startsAt");
-  const commissionRateBps = integer(raw.commissionRateBps, "commissionRateBps", 0, 10_000);
+  const requestedPlanCode = optionalText(raw.planCode, "planCode", 50);
+  if (!requestedPlanCode || !isVendorAgreementPlanCode(requestedPlanCode)) {
+    throw new Error("Select a valid, versioned vendor agreement plan");
+  }
+  const plan = vendorAgreementPlanTerms(requestedPlanCode, raw.billingCycle === "annual" ? "annual" : "monthly");
+  if (plan.kind !== "merchant") throw new Error("CLAIM and PRESENCE use the non-commerce agreement generator");
+  const standardTerms = planAgreementCommercialSnapshot(plan);
+  const expectedEnd = new Date(startsAt);
+  expectedEnd.setUTCMonth(expectedEnd.getUTCMonth() +
+    (plan.planCode === "founding_2026" ? 36 : plan.recurringFeePeriod === "year" ? 12 : 1));
+  const suppliedEnd = optionalTimestamp(raw.endsAt, "endsAt");
+  if (suppliedEnd && suppliedEnd.getTime() !== expectedEnd.getTime()) {
+    throw new Error("Agreement end must match selected plan term");
+  }
+  const endsAt = suppliedEnd ?? expectedEnd;
+  if (endsAt <= startsAt) throw new Error("endsAt must be after startsAt");
+  const commissionRateBps = standardTerms.commissionRateBps;
   const commissionTaxMode = text(raw.commissionTaxMode ?? "included", "commissionTaxMode", 20) as CommissionTaxMode;
   if (!["included","plus_vat","none"].includes(commissionTaxMode)) throw new Error("commissionTaxMode is invalid");
   const commissionTaxRateBps = integer(raw.commissionTaxRateBps ?? 2400, "commissionTaxRateBps", 0, 10_000);
-  const listingFeeMinor = optionalInteger(raw.listingFeeMinor, "listingFeeMinor");
-  const recurringFeeMinor = optionalInteger(raw.recurringFeeMinor, "recurringFeeMinor");
-  const recurringFeePeriod = optionalText(raw.recurringFeePeriod, "recurringFeePeriod", 20) as "month" | "year" | "term" | undefined;
-  if (recurringFeePeriod && !["month","year","term"].includes(recurringFeePeriod)) throw new Error("recurringFeePeriod is invalid");
+  let lockedCommercialTerms = standardTerms;
+  const recurringFeeMinor = standardTerms.recurringFeeMinor;
+  const recurringFeePeriod = standardTerms.recurringFeePeriod;
 
   const db = getProductionPostgresRuntime().nativePool;
   const client = await db.connect();
@@ -310,6 +324,30 @@ export async function createCommercialAgreement(principal: SessionPrincipal, raw
     if (!vendor.rowCount) throw new Error("Vendor not found");
     const v = vendor.rows[0];
     const actorUserId = await resolveActorUserId(client, principal);
+
+    // HUB commercial terms are linked to the vetted prospect and its discount.
+    if (plan.market === "expansion_hubs") {
+      const hubProspect = await client.query(
+        "SELECT plan_code,billing_cycle,setup_fee_cents,status FROM hub_expansion_prospects WHERE vendor_id=$1 ORDER BY updated_at DESC LIMIT 1 FOR UPDATE",
+        [v.id]
+      );
+      if (!hubProspect.rowCount ||
+          String(hubProspect.rows[0].plan_code) !== plan.planCode ||
+          String(hubProspect.rows[0].billing_cycle) !== plan.billingCycle ||
+          !["verified", "approved", "converted"].includes(String(hubProspect.rows[0].status))) {
+        throw new Error("Verified HUB application with matching plan and billing cycle required");
+      }
+      lockedCommercialTerms = planAgreementCommercialSnapshot(plan, {
+        approvedSetupFeeMinor: Number(hubProspect.rows[0].setup_fee_cents)
+      });
+    } else {
+      const hubVendor = await client.query(
+        "SELECT 1 FROM hub_expansion_prospects WHERE vendor_id=$1 LIMIT 1",
+        [v.id]
+      );
+      if (hubVendor.rowCount) throw new Error("Sparta legacy plans cannot be used for HUB expansion vendors");
+    }
+    const listingFeeMinor = lockedCommercialTerms.listingFeeMinor;
 
     const subscriptionId = optionalText(raw.subscriptionId, "subscriptionId", 160);
     let subscriptionUuid: string | null = null;
@@ -342,7 +380,8 @@ export async function createCommercialAgreement(principal: SessionPrincipal, raw
     if (!vendorSnapshot.legalRepresentative) throw new Error("Vendor legal representative is required");
 
     const commercialTermsSnapshot = {
-      planName: optionalText(raw.planName, "planName", 160),
+      ...lockedCommercialTerms,
+      planName: lockedCommercialTerms.planName,
       commissionRateBps,
       commissionBase: optionalText(raw.commissionBase, "commissionBase", 240) ?? "merchandise_gross",
       commissionTaxMode,
@@ -352,8 +391,8 @@ export async function createCommercialAgreement(principal: SessionPrincipal, raw
       recurringFeePeriod,
       settlementTerms: optionalText(raw.settlementTerms, "settlementTerms", 1000),
       paymentProcessingTerms: optionalText(raw.paymentProcessingTerms, "paymentProcessingTerms", 1000),
-      contractTerm: optionalText(raw.contractTerm, "contractTerm", 500),
-      autoRenewal: optionalText(raw.autoRenewal, "autoRenewal", 500),
+      contractTerm: lockedCommercialTerms.contractTerm,
+      autoRenewal: lockedCommercialTerms.autoRenewal,
       terminationNoticeDays: optionalInteger(raw.terminationNoticeDays, "terminationNoticeDays"),
       specialCommercialTerms: optionalText(raw.specialCommercialTerms, "specialCommercialTerms", 5000),
       orderAcceptanceSla: optionalText(raw.orderAcceptanceSla, "orderAcceptanceSla", 500),
@@ -379,7 +418,7 @@ export async function createCommercialAgreement(principal: SessionPrincipal, raw
       randomUUID(), publicId, v.market_id, v.id, subscriptionUuid, agreementVersion, startsAt, endsAt ?? null,
       commissionRateBps, commissionTaxMode, commissionTaxRateBps, listingFeeMinor ?? null, recurringFeeMinor ?? null,
       recurringFeePeriod ?? null,
-      JSON.stringify({ commissionAuthority: "individual_vendor_agreement", customerPricePolicy: "vendor_final_price_no_markup" }),
+      JSON.stringify({ commissionAuthority: "versioned_vendor_plan", customerPricePolicy: "vendor_final_price_no_markup", planCode: plan.planCode, billingCycle: plan.billingCycle, templateVersion: plan.templateVersion, planMarket: plan.market, legalReviewStatus: plan.legalReviewStatus }),
       JSON.stringify(vendorSnapshot), JSON.stringify(commercialTermsSnapshot), actorUserId
     ]);
     await audit(client, { agreementId: String(inserted.rows[0].id), vendorId: String(v.id), action: "agreement_created", toStatus: "data_complete", actorUserId, metadata: { agreementCode: inserted.rows[0].agreement_code } });

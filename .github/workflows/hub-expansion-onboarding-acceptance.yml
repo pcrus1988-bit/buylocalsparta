@@ -10,6 +10,14 @@ on:
       - "apps/web/src/lib/hub-expansion-plans.ts"
       - "apps/web/src/lib/hub-location-resolution.ts"
       - "apps/web/src/lib/hub-prospect-application-runtime.ts"
+      - "apps/web/src/lib/hub-claim-runtime.ts"
+      - "apps/web/src/app/hubs/claim/**"
+      - "apps/web/src/app/hubs/[hubSlug]/business/**"
+      - "apps/web/src/app/vendor/claim/**"
+      - "apps/web/src/app/admin/applications/**"
+      - "apps/web/src/lib/vendor-email-workflows.ts"
+      - "apps/web/src/proxy.ts"
+      - "scripts/verify-hub-claim-lifecycle.ts"
       - "db/migrations/0218_hub_expansion_prospects.sql"
       - "db/migrations/checksums.0218.json"
       - "packages/postgres-runtime/src/index.ts"
@@ -26,6 +34,14 @@ on:
       - "apps/web/src/lib/hub-expansion-plans.ts"
       - "apps/web/src/lib/hub-location-resolution.ts"
       - "apps/web/src/lib/hub-prospect-application-runtime.ts"
+      - "apps/web/src/lib/hub-claim-runtime.ts"
+      - "apps/web/src/app/hubs/claim/**"
+      - "apps/web/src/app/hubs/[hubSlug]/business/**"
+      - "apps/web/src/app/vendor/claim/**"
+      - "apps/web/src/app/admin/applications/**"
+      - "apps/web/src/lib/vendor-email-workflows.ts"
+      - "apps/web/src/proxy.ts"
+      - "scripts/verify-hub-claim-lifecycle.ts"
       - "db/migrations/0218_hub_expansion_prospects.sql"
       - "db/migrations/checksums.0218.json"
       - "packages/postgres-runtime/src/index.ts"
@@ -41,4 +57,6 @@ jobs:
         with:
           node-version: 24
       - name: Verify AFM-first HUB expansion onboarding contracts
-        run: node --experimental-strip-types scripts/verify-hub-expansion-onboarding.ts
+        run: |
+          node --experimental-strip-types scripts/verify-hub-expansion-onboarding.ts
+          node --experimental-strip-types scripts/verify-hub-claim-lifecycle.ts

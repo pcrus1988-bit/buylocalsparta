@@ -8,6 +8,7 @@ import { SiteHeader } from "../../../components/SiteHeader";
 import { VendorAskLocalPanel } from "../../../components/VendorAskLocalPanel";
 import { VendorCatalogBrowser } from "../../../components/VendorCatalogBrowser";
 import { VendorInstagramFeed } from "../../../components/VendorInstagramFeed";
+import { VendorExternalWebsiteFrame } from "../../../components/VendorExternalWebsiteFrame";
 import { VendorLocationMap } from "../../../components/VendorLocationMap";
 import styles from "../../../components/VendorStorefront.module.css";
 import { getAccountSession } from "../../../lib/account-session";
@@ -173,6 +174,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // multiple acquisitions against its own pool slot.
   const vendor = await getCachedPublicVendorDirectoryEntry(id);
   if (!vendor) return { title: "Κατάστημα" };
+  // The page issues a permanent redirect for legacy opaque vendor IDs.
+  // Skip extra SEO/database/media lookups for a response Google will not index.
+  // This keeps pre-collapse vendor URLs fast while transferring their signals
+  // to the stable company-slug canonical URL.
+  if (id !== vendor.slug) return {};
   const isResearch = vendor.directoryStatus === "research";
   const profileMedia = isResearch ? [] : await getCachedApprovedVendorProfileMedia(vendor.id);
   const { settings } = await getCachedSeoGlobalSettingsSnapshot();
@@ -251,7 +257,7 @@ export default async function VendorPage({ params }: Props) {
   const logoUrl = mediaPath(logoMedia);
   const storefrontUrl = mediaPath(storefrontMedia);
   const teamUrl = mediaPath(teamMedia);
-  const website = safeHttpUrl(vendor.research?.onlineShopUrl);
+  const website = vendor.externalWebsite ?? safeHttpUrl(vendor.research?.onlineShopUrl);
   const directoryProfile = safeHttpUrl(vendor.research?.directoryProfileUrl);
   const vendorUrl = new URL(override?.canonicalPath ?? `/vendor/${encodeURIComponent(vendor.slug)}`, `${settings.canonicalOrigin}/`).toString();
   const fullAddress = addressText(location);
@@ -396,6 +402,16 @@ export default async function VendorPage({ params }: Props) {
           </div>
         </div>
       </section>
+
+      {vendor.externalWebsite && <section className={styles.externalWebsiteSection} id="vendor-external-website" aria-labelledby="vendor-external-website-title">
+        <div className="shell">
+          <div className={styles.sectionHeader}>
+            <div><div className="eyebrow">Υπάρχουσα ιστοσελίδα</div><h2 id="vendor-external-website-title">Επισκέψου την ιστοσελίδα του {vendor.name}</h2></div>
+            <p className={styles.sectionLead}>Η ιστοσελίδα ανήκει στην επιχείρηση και ανοίγει εδώ μόνο με την επιλογή σου.</p>
+          </div>
+          <VendorExternalWebsiteFrame url={vendor.externalWebsite} vendorName={vendor.name} />
+        </div>
+      </section>}
 
       <section className={`${styles.section} shell`} aria-labelledby="people-story-title">
         <div className={styles.sectionHeader}>

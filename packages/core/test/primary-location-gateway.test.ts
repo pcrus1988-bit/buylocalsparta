@@ -1,67 +1,47 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   HUB_LOCALITY_COOKIE,
   PRIMARY_LOCATION_GATEWAY_PATH,
   isLiveLocalitySelection,
-  primaryLocationGatewayEnforcementEnabled,
-  shouldRedirectToPrimaryLocationGateway
+  isLegacySpartaLocality
 } from "../../../apps/web/src/lib/primary-location-gateway.ts";
-import { isReadOnlyPublicCrawlerUserAgent } from "../../../apps/web/src/lib/public-crawler.ts";
-import { seoDocumentRobotsHeader } from "../../../apps/web/src/lib/seo-request-indexing.ts";
+import { seoDocumentRobotsHeader, seoRequestIndexingDecision } from "../../../apps/web/src/lib/seo-request-indexing.ts";
+import { seoVisibilityForPath } from "../../../apps/web/src/lib/seo-visibility-policy.ts";
+import { INDEXABLE_STATIC_ROUTES, NON_INDEXABLE_PAGE_ROUTES } from "../../../apps/web/src/lib/site-navigation.ts";
 
-test("primary location gateway constants remain stable", () => {
+test("location selection remains accessible as an explicit page, not an entry redirect", () => {
   assert.equal(HUB_LOCALITY_COOKIE, "km_locality");
   assert.equal(PRIMARY_LOCATION_GATEWAY_PATH, "/choose-location");
+  const proxySource = readFileSync(new URL("../../../apps/web/src/proxy.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(proxySource, /primaryLocationGatewayResponse|shouldRedirectToPrimaryLocationGateway|BLS_PRIMARY_LOCATION_GATEWAY_ENABLED/);
+  // Public / stays the homepage for visitors and crawlers alike.
+  assert.match(proxySource, /if \(pathname === "\/"\) return false;/);
 });
 
-test("production interception is default-on with explicit false rollback", () => {
-  assert.equal(primaryLocationGatewayEnforcementEnabled(undefined), true);
-  assert.equal(primaryLocationGatewayEnforcementEnabled(null), true);
-  assert.equal(primaryLocationGatewayEnforcementEnabled("false"), false);
-  assert.equal(primaryLocationGatewayEnforcementEnabled(" FALSE "), false);
-  assert.equal(primaryLocationGatewayEnforcementEnabled(""), false);
-  assert.equal(primaryLocationGatewayEnforcementEnabled("1"), false);
-  assert.equal(primaryLocationGatewayEnforcementEnabled(" true "), true);
-  assert.equal(primaryLocationGatewayEnforcementEnabled("TRUE"), true);
-});
-
-test("live locality selections retain the existing storefront", () => {
+test("location cookie still records live hubs without forcing a homepage redirect", () => {
   assert.equal(isLiveLocalitySelection("sparti"), true);
   assert.equal(isLiveLocalitySelection("SPARTI"), true);
   assert.equal(isLiveLocalitySelection("sparta"), true);
+  assert.equal(isLegacySpartaLocality("sparta"), true);
   assert.equal(isLiveLocalitySelection("kalamata"), false);
   assert.equal(isLiveLocalitySelection("%E0%A4%A"), false);
   assert.equal(isLiveLocalitySelection(undefined), false);
 });
 
-test("bare human root requires a locality selection when interception is enabled", () => {
-  const base = { pathname: "/", method: "GET", userAgent: "Mozilla/5.0" } as const;
-  assert.equal(shouldRedirectToPrimaryLocationGateway(base), true);
-  assert.equal(shouldRedirectToPrimaryLocationGateway({ ...base, localityCookie: "kalamata" }), true);
-  assert.equal(shouldRedirectToPrimaryLocationGateway({ ...base, localityCookie: "sparti" }), false);
-  assert.equal(shouldRedirectToPrimaryLocationGateway({ ...base, localityCookie: "sparta" }), false);
-});
-
-test("direct routes, prefetches and non-navigation methods are never location-gated", () => {
-  assert.equal(shouldRedirectToPrimaryLocationGateway({ pathname: "/shop", method: "GET", userAgent: "Mozilla/5.0" }), false);
-  assert.equal(shouldRedirectToPrimaryLocationGateway({ pathname: "/admin", method: "GET", userAgent: "Mozilla/5.0" }), false);
-  assert.equal(shouldRedirectToPrimaryLocationGateway({ pathname: "/", method: "POST", userAgent: "Mozilla/5.0" }), false);
-  assert.equal(shouldRedirectToPrimaryLocationGateway({ pathname: "/", method: "GET", userAgent: "Mozilla/5.0", prefetch: true }), false);
-});
-
-test("public crawlers and KONTA MOY SEO monitor retain the Sparta SEO root", () => {
-  for (const userAgent of [
-    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-    "bingbot/2.0",
-    "facebookexternalhit/1.1",
-    "KONTA-MOU-SEO-Monitor/1.0 (+https://kontamou.site)"
-  ]) {
-    assert.equal(isReadOnlyPublicCrawlerUserAgent(userAgent), true, userAgent);
-    assert.equal(shouldRedirectToPrimaryLocationGateway({ pathname: "/", method: "GET", userAgent }), false, userAgent);
+test("homepage and location selector are equally crawlable public documents", () => {
+  for (const pathname of ["/", "/choose-location"]) {
+    const decision = seoRequestIndexingDecision(pathname);
+    assert.equal(decision.index, true, pathname);
+    assert.equal(decision.follow, true, pathname);
+    assert.equal(seoDocumentRobotsHeader(pathname, new URLSearchParams()), undefined, pathname);
+    assert.equal(seoVisibilityForPath(pathname).sitemapEligible, true, pathname);
+    assert.ok(INDEXABLE_STATIC_ROUTES.some((route) => route.href === pathname), pathname);
+    assert.ok(!NON_INDEXABLE_PAGE_ROUTES.includes(pathname as (typeof NON_INDEXABLE_PAGE_ROUTES)[number]), pathname);
   }
-});
-
-test("location gateway response robots policy matches page metadata", () => {
-  assert.equal(seoDocumentRobotsHeader("/choose-location", new URLSearchParams()), "noindex, nofollow, noarchive");
+  const pageSource = readFileSync(new URL("../../../apps/web/src/app/choose-location/page.tsx", import.meta.url), "utf8");
+  assert.match(pageSource, /governedStaticSeoMetadata\("\/choose-location"/);
+  assert.match(pageSource, /canonicalPath: "\/choose-location"/);
+  assert.doesNotMatch(pageSource, /index: false|follow: false|nosnippet: true/);
 });

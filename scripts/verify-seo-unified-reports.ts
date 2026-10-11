@@ -66,8 +66,8 @@ for (const contract of [
 ]) expect(service.includes(contract), `Unified SEO report model is missing ${contract}`);
 
 expect(!/client_secret|access_token|private_key|referringUrls|referring_urls/i.test(service), "Unified report model must not request or expose credentials or Search Console referring URLs");
-expect(service.includes('crawl.metrics.open > 0 || freshness.crawl.stale ? "warning" : "pass"'), "Stale crawl evidence must prevent a pass state");
-expect(service.includes('sitemap.metrics.unexpectedActual > 0 || freshness.sitemap.stale ? "warning" : "pass"'), "Stale sitemap evidence must prevent a pass state");
+expect(service.includes('freshness.crawl.stale ? "warning"') && service.includes('crawl.metrics.criticalOpen > 0 ? "fail"'), "Stale crawl evidence must prevent a pass state without asserting historical issues are freshly verified");
+expect(service.includes('freshness.sitemap.stale ? "warning"') && service.includes('!sitemap.latest.valid ? "fail"'), "Stale sitemap evidence must prevent a pass state without asserting historical failures are current");
 expect(service.includes('freshness.searchConsole.stale ? "warning" : "pass"'), "Stale Search Console evidence must prevent a pass state");
 expect(/googleCoverageHardFailures > 0\s*\? "fail"/.test(service), "Fresh explicit Google canonical/verdict/indexing/fetch failures must block unified SEO release health");
 expect(service.includes("!row.stale && (row.canonicalMismatch"), "Stale Google hard-failure evidence must require refresh instead of blocking forever");
@@ -85,7 +85,7 @@ for (const contract of [
 
 for (const contract of [
   "Unified SEO release report",
-  "Google Search Console performance and index coverage",
+  "Google sample inspected",
   "Rebuild the operational evidence pack",
   "Cross-surface readiness checks",
   "Latest retained evidence",
@@ -95,7 +95,7 @@ for (const contract of [
   'href="/admin/seo/search-console/index-coverage"',
   'href="/admin/seo/schema"',
   'href="/admin/seo/reports"',
-  "Google coverage",
+  "Google sample inspected",
   "Google index coverage",
   "gscCoverageHardFailures",
   "currentJsonExport",
@@ -130,7 +130,7 @@ expect(!route.includes("csrf: true"), "Read-only current SEO report export must 
 for (const contract of [
   'endpoint: "/api/admin/seo/pages/sync"',
   'endpoint: "/api/admin/seo/crawl/run"',
-  'JSON.stringify({ limit: 100 })',
+  'JSON.stringify({ limit: 24 })',
   'endpoint: "/api/admin/seo/sitemaps/capture"',
   'endpoint: "/api/admin/seo/search-console/sync"',
   'endpoint: "/api/admin/seo/search-console/index-coverage/run"',

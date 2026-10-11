@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import type { VendorStorefrontSettings, VendorStorefrontWorkspace } from "../lib/vendor-storefront-settings";
-import { vendorStorefrontThemeTokens } from "../lib/vendor-storefront-theme";
+import { effectiveVendorWorkspaceTheme, hasBespokeVendorStorefront, vendorStorefrontThemeTokens } from "../lib/vendor-storefront-theme";
+import { normalizeVendorExternalWebsiteUrl } from "../lib/vendor-external-website";
 import styles from "./VendorTrial.module.css";
 
 export function VendorStorefrontBuilder(props: {
@@ -16,6 +17,7 @@ export function VendorStorefrontBuilder(props: {
   const [story, setStory] = useState(props.initial.story);
   const [settings, setSettings] = useState<VendorStorefrontSettings>(props.initial.settings);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
+  const [previewVersion, setPreviewVersion] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -43,12 +45,14 @@ export function VendorStorefrontBuilder(props: {
     return styles.storeHero;
   }, [settings.heroStyle]);
 
+  const bespoke = hasBespokeVendorStorefront(props.initial.vendorId);
+  const shownColors = effectiveVendorWorkspaceTheme(props.initial.vendorId, settings);
   const previewTheme = useMemo(
-    () => vendorStorefrontThemeTokens({
+    () => vendorStorefrontThemeTokens(effectiveVendorWorkspaceTheme(props.initial.vendorId, {
       primaryColor: settings.primaryColor,
       secondaryColor: settings.secondaryColor
-    }),
-    [settings.primaryColor, settings.secondaryColor]
+    })),
+    [props.initial.vendorId, settings.primaryColor, settings.secondaryColor]
   );
 
   function patchSettings(patch: Partial<VendorStorefrontSettings>) {
@@ -85,6 +89,7 @@ export function VendorStorefrontBuilder(props: {
     setError("");
     setMessage("");
     try {
+      if (settings.externalWebsite.enabled) normalizeVendorExternalWebsiteUrl(settings.externalWebsite.url);
       const response = await fetch("/api/vendor/storefront-settings", {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-csrf-token": props.csrfToken },
@@ -92,7 +97,9 @@ export function VendorStorefrontBuilder(props: {
       });
       const payload = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(payload.error || "Δεν αποθηκεύτηκαν οι αλλαγές.");
-      setMessage("Αποθηκεύτηκε. Η ιδιωτική προεπισκόπηση ενημερώθηκε.");
+      setMessage(props.initial.demoMode ? "Αποθηκεύτηκε η ιδιωτική δοκιμή." : "Αποθηκεύτηκε. Η πραγματική δημόσια βιτρίνα ανανεώνεται.");
+      setPreviewVersion((current) => current + 1);
+      window.dispatchEvent(new Event("vendor-storefront-settings-saved"));
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Δεν αποθηκεύτηκαν οι αλλαγές.");
@@ -110,13 +117,13 @@ export function VendorStorefrontBuilder(props: {
 
       <div className={styles.field}>
         <span className={styles.fieldLegend}>Χρώματα μάρκας</span>
-        <p className={styles.miniNote}>Εφαρμόζονται μόνο στη δημόσια βιτρίνα του καταστήματός σου. Η δομή, η πλοήγηση και το checkout του ΚΟΝΤΑ ΜΟΥ παραμένουν σταθερά.</p>
+        <p className={styles.miniNote}>{bespoke ? "Αυτή η βιτρίνα έχει ειδικό luxury design με σταθερή παλέτα. Εμφανίζονται τα πραγματικά χρώματά της· η επεξεργασία τους απαιτεί ενημέρωση και του ειδικού template." : "Χρησιμοποιούνται στη δημόσια βιτρίνα και ως διακριτικοί τόνοι στον ιδιωτικό χώρο συνεργάτη. Η πλοήγηση και το checkout του ΚΟΝΤΑ ΜΟΥ παραμένουν σταθερά."}</p>
         <div className={styles.brandColorGrid}>
           <label className={styles.brandColorField}>
             <span>Κύριο χρώμα</span>
             <div className={styles.colorRow}>
-              <input aria-label="Κύριο χρώμα μάρκας" type="color" value={/^#[0-9a-fA-F]{6}$/.test(settings.primaryColor) ? settings.primaryColor : "#0f766e"} onChange={(event) => patchSettings({ primaryColor: event.target.value, accentColor: event.target.value })} />
-              <input aria-label="HEX κύριου χρώματος" type="text" value={settings.primaryColor} maxLength={7} onChange={(event) => {
+              <input aria-label="Κύριο χρώμα μάρκας" type="color" disabled={bespoke} value={/^#[0-9a-fA-F]{6}$/.test(shownColors.primaryColor) ? shownColors.primaryColor : "#0f766e"} onChange={(event) => patchSettings({ primaryColor: event.target.value, accentColor: event.target.value })} />
+              <input aria-label="HEX κύριου χρώματος" type="text" disabled={bespoke} value={shownColors.primaryColor} maxLength={7} onChange={(event) => {
                 const value = event.target.value;
                 if (/^#[0-9a-fA-F]{0,6}$/.test(value)) patchSettings({ primaryColor: value, accentColor: value });
               }} />
@@ -125,8 +132,8 @@ export function VendorStorefrontBuilder(props: {
           <label className={styles.brandColorField}>
             <span>Δευτερεύον χρώμα</span>
             <div className={styles.colorRow}>
-              <input aria-label="Δευτερεύον χρώμα μάρκας" type="color" value={/^#[0-9a-fA-F]{6}$/.test(settings.secondaryColor) ? settings.secondaryColor : "#b29661"} onChange={(event) => patchSettings({ secondaryColor: event.target.value })} />
-              <input aria-label="HEX δευτερεύοντος χρώματος" type="text" value={settings.secondaryColor} maxLength={7} onChange={(event) => {
+              <input aria-label="Δευτερεύον χρώμα μάρκας" type="color" disabled={bespoke} value={/^#[0-9a-fA-F]{6}$/.test(shownColors.secondaryColor) ? shownColors.secondaryColor : "#b29661"} onChange={(event) => patchSettings({ secondaryColor: event.target.value })} />
+              <input aria-label="HEX δευτερεύοντος χρώματος" type="text" disabled={bespoke} value={shownColors.secondaryColor} maxLength={7} onChange={(event) => {
                 const value = event.target.value;
                 if (/^#[0-9a-fA-F]{0,6}$/.test(value)) patchSettings({ secondaryColor: value });
               }} />
@@ -174,6 +181,19 @@ export function VendorStorefrontBuilder(props: {
               ["showContact", "Επικοινωνία"]
             ] as const).map(([key, label]) => <label className={styles.toggle} key={key}><span>{label}</span><input type="checkbox" checked={settings[key]} onChange={(event) => patchSettings({ [key]: event.target.checked } as Partial<VendorStorefrontSettings>)} /></label>)}
           </div>
+        </div>
+      </details>
+
+      <details className={styles.editorGroup} open>
+        <summary><span><strong>Εξωτερική ιστοσελίδα · CLAIM</strong><small>Προαιρετική εμφάνιση της ιστοσελίδας σου στο προφίλ.</small></span></summary>
+        <div className={styles.editorGroupBody}>
+          <p className={styles.miniNote}>Η ιστοσελίδα σου λειτουργεί ανεξάρτητα από το checkout του KONTA MOY και εμφανίζεται μόνο με επιλογή του επισκέπτη.</p>
+          <div className={styles.field}>
+            <label htmlFor="vendor-external-website">Διεύθυνση ιστοσελίδας (HTTPS)</label>
+            <input id="vendor-external-website" type="url" inputMode="url" maxLength={2048} value={settings.externalWebsite.url} placeholder="https://www.example.gr" onChange={event => patchSettings({ externalWebsite: { ...settings.externalWebsite, url: event.target.value } })} />
+          </div>
+          <label className={styles.toggle}><span>Εμφάνιση ιστοσελίδας στο δημόσιο προφίλ</span><input type="checkbox" checked={settings.externalWebsite.enabled} onChange={event => patchSettings({ externalWebsite: { ...settings.externalWebsite, enabled: event.target.checked } })} /></label>
+          <p className={styles.miniNote}>Αρχικά απενεργοποιημένο. Αν η ιστοσελίδα δεν επιτρέπει iframe, υπάρχει σύνδεσμος σε νέα καρτέλα.</p>
         </div>
       </details>
 
@@ -245,8 +265,9 @@ export function VendorStorefrontBuilder(props: {
 
     <div className={styles.previewPanel}>
       <div className={styles.previewToolbar}>
-        <div><strong>Ιδιωτική προεπισκόπηση</strong><br/><small>Έλεγξε πώς θα φαίνεται το προφίλ πριν αποθηκεύσεις.</small></div>
+        <div><strong>{props.initial.demoMode ? "Ιδιωτική προεπισκόπηση δοκιμής" : "Η πραγματική δημόσια βιτρίνα"}</strong><br/><small>{props.initial.demoMode ? "Μόνο για τη δοκιμή — δεν είναι δημόσιο." : "Ακριβώς η σελίδα των πελατών. Πάτησε Αποθήκευση για να εμφανιστούν οι αλλαγές."}</small></div>
         <div className={styles.deviceToggle}>
+          {!props.initial.demoMode && <button className={styles.deviceButton} type="button" onClick={() => setPreviewVersion((current) => current + 1)}>↻ Ανανέωση</button>}
           <button type="button" className={`${styles.deviceButton} ${device === "desktop" ? styles.deviceActive : ""}`} onClick={() => setDevice("desktop")}>Υπολογιστής</button>
           <button type="button" className={`${styles.deviceButton} ${device === "mobile" ? styles.deviceActive : ""}`} onClick={() => setDevice("mobile")}>Κινητό</button>
         </div>
@@ -265,6 +286,13 @@ export function VendorStorefrontBuilder(props: {
           "--brand-secondary-surface": previewTheme.secondarySurface
         } as CSSProperties}
       >
+        {!props.initial.demoMode ? <iframe
+          key={previewVersion}
+          title={`Πραγματική δημόσια βιτρίνα ${props.initial.vendorName}`}
+          src={`/vendor/${encodeURIComponent(props.initial.vendorId)}?dashboardPreview=${previewVersion}`}
+          loading="lazy"
+          style={{ display: "block", width: "100%", minHeight: device === "mobile" ? 760 : 920, border: 0, background: "#fff" }}
+        /> : <>
         <div className={heroClass}>
           <div className={styles.storeEyebrow}>ΚΟΝΤΑ ΜΟΥ · {props.initial.location?.locality ?? "Τοπικό κατάστημα"}</div>
           <h3>{settings.heroTitle || props.initial.vendorName}</h3>
@@ -282,7 +310,9 @@ export function VendorStorefrontBuilder(props: {
           {settings.showLocation && props.initial.location && <div className={styles.sectionBlock}><h4>Βρες μας</h4><p>{props.initial.location.addressLine1}, {props.initial.location.postcode} {props.initial.location.locality}</p></div>}
           {settings.showContact && <div className={styles.sectionBlock}><h4>Ρώτησε το κατάστημα</h4><p>Ο πελάτης μπορεί να ζητήσει τοπική συμβουλή και βοήθεια πριν αγοράσει.</p></div>}
         </div>
+        </>}
       </div>
+      {!props.initial.demoMode && <p className={styles.miniNote}><a href={`/vendor/${encodeURIComponent(props.initial.vendorId)}`} target="_blank" rel="noreferrer">Άνοιγμα πραγματικής βιτρίνας σε νέα καρτέλα ↗</a> · Οι αλλαγές που δεν έχουν αποθηκευτεί δεν είναι δημόσιες.</p>}
     </div>
   </section>;
 }

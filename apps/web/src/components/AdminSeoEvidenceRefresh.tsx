@@ -13,7 +13,7 @@ type Step = Readonly<{
 
 const STEPS: readonly Step[] = [
   { id: "registry", label: "URL registry", endpoint: "/api/admin/seo/pages/sync", body: "{}" },
-  { id: "crawl", label: "Production crawl + schema", endpoint: "/api/admin/seo/crawl/run", body: JSON.stringify({ limit: 100 }) },
+  { id: "crawl", label: "Production crawl + schema", endpoint: "/api/admin/seo/crawl/run", body: JSON.stringify({ limit: 24 }) },
   { id: "sitemap", label: "Production sitemap", endpoint: "/api/admin/seo/sitemaps/capture", body: "{}" },
   { id: "gsc", label: "Search Console performance", endpoint: "/api/admin/seo/search-console/sync", body: "{}" },
   { id: "coverage", label: "Google index coverage", endpoint: "/api/admin/seo/search-console/index-coverage/run", body: JSON.stringify({ limit: 10 }) }
@@ -68,7 +68,7 @@ export function AdminSeoEvidenceRefresh({ csrfToken, enabled }: { csrfToken: str
   return <div className="workspace-tool-panel" style={{ marginTop: 16 }}>
     <div className="workspace-tool-body">
       <div className="workspace-action-bar">
-        <span>Refresh the governed URL registry, up to 100 indexable production URLs (including JSON-LD evidence), the production sitemap, Search Console performance and a final bounded 10-URL Google index coverage sample. Each endpoint keeps its own RBAC, CSRF, audit, quota and persistence controls.</span>
+        <span>Refresh the governed URL registry, a rotating sample of 24 indexable production URLs, prioritizing retained critical issues (including JSON-LD evidence), the production sitemap, Search Console performance and a final bounded 10-URL Google index coverage sample. Each endpoint keeps its own RBAC, CSRF, audit, quota and persistence controls.</span>
         <div className="workspace-action-buttons"><button type="button" className="button" onClick={refreshAll} disabled={!enabled || busy}>{busy ? "Refreshing evidence…" : "Refresh evidence pack"}</button></div>
       </div>
       <div className="workspace-compact-list" style={{ marginTop: 12 }}>

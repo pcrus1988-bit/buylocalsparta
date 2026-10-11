@@ -101,7 +101,10 @@ export default function HubExpansionJoinPage() {
 
     <section className={`shell section ${styles.finalCta}`}>
       <div><div className="eyebrow">Έτοιμος;</div><h2>Ξεκίνα με το ΑΦΜ.</h2><p>Το CLAIM είναι προεπιλεγμένο και δωρεάν. Μπορείς να αλλάξεις πλάνο και κύκλο χρέωσης πριν την υποβολή.</p></div>
-      <a className="button" href="/hubs/join/apply?plan=claim&billing=annual#application-form">Βρες την επιχείρησή μου</a>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <a className="button" href="/hubs/join/apply?plan=claim&billing=annual#application-form">Βρες την επιχείρησή μου</a>
+        <a className="button button-secondary" href="/hubs/businesses">Δες τις επιχειρήσεις των HUB</a>
+      </div>
     </section>
 
     <SiteFooter />

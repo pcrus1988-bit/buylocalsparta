@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getActivePublicCmsRedirect } from "./lib/public-cms-redirects";
 import { seoDocumentRobotsHeader } from "./lib/seo-request-indexing";
-import { HUB_LOCALITY_COOKIE, PRIMARY_LOCATION_GATEWAY_PATH, primaryLocationGatewayEnforcementEnabled, shouldRedirectToPrimaryLocationGateway } from "./lib/primary-location-gateway";
 
 const MARKETPLACE_COOKIE = "bls_marketplace";
 const LEGACY_VISITOR_COOKIE = "bls_visitor";
@@ -35,7 +34,7 @@ const REDIRECT_PROTECTED_ROOTS = [
 // middleware before every catalogue/product/vendor render. That lookup becomes
 // especially expensive when the database pool is busy with catalogue work.
 const CMS_REDIRECT_BYPASS_ROOTS = [
-  "/shop", "/shops", "/category", "/product", "/vendor", "/bazaar", "/ask-local", "/advice"
+  "/shop", "/shops", "/category", "/product", "/vendor", "/hubs", "/bazaar", "/ask-local", "/advice"
 ] as const;
 
 function validVisitor(value: string | undefined): string | undefined {
@@ -90,31 +89,6 @@ async function contentRedirectResponse(request: NextRequest): Promise<NextRespon
 function applySeoDocumentHeaders(request: NextRequest, response: NextResponse): NextResponse {
   const robots = seoDocumentRobotsHeader(request.nextUrl.pathname, request.nextUrl.searchParams);
   if (robots) response.headers.set("X-Robots-Tag", robots);
-  return response;
-}
-
-function primaryLocationGatewayResponse(request: NextRequest): NextResponse | undefined {
-  if (!primaryLocationGatewayEnforcementEnabled(process.env.BLS_PRIMARY_LOCATION_GATEWAY_ENABLED)) return undefined;
-
-  const purpose = [
-    request.headers.get("purpose"),
-    request.headers.get("sec-purpose")
-  ].filter(Boolean).join(" ").toLowerCase();
-  const prefetch = request.headers.get("next-router-prefetch") === "1" || purpose.includes("prefetch");
-
-  if (!shouldRedirectToPrimaryLocationGateway({
-    pathname: request.nextUrl.pathname,
-    method: request.method,
-    localityCookie: request.cookies.get(HUB_LOCALITY_COOKIE)?.value,
-    userAgent: request.headers.get("user-agent"),
-    prefetch
-  })) return undefined;
-
-  const destination = new URL(PRIMARY_LOCATION_GATEWAY_PATH, request.url);
-  destination.search = request.nextUrl.search;
-  const response = NextResponse.redirect(destination, 307);
-  response.headers.set("cache-control", "no-store");
-  response.headers.set("vary", "Cookie, User-Agent");
   return response;
 }
 
@@ -238,9 +212,6 @@ export async function proxy(request: NextRequest) {
 
   const recovery = databaseRecoveryResponse(request);
   if (recovery) return recovery;
-
-  const locationGateway = primaryLocationGatewayResponse(request);
-  if (locationGateway) return locationGateway;
 
   const redirected = await contentRedirectResponse(request);
   if (redirected) return redirected;

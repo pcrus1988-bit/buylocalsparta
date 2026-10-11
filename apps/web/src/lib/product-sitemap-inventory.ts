@@ -1,4 +1,6 @@
 import { unstable_cache } from "next/cache";
+import { cache } from "react";
+import { mergeProductSitemapShards } from "./product-sitemap-inventory-merge";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 
@@ -186,21 +188,37 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
   });
 }
 
-const cachedPublicProductSitemapInventory = unstable_cache(
-  () => readPublicProductSitemapInventory(null),
-  ["public-product-sitemap-inventory-v4"],
-  { revalidate: 900 }
-);
-
 const cachedPublicProductSitemapShard = unstable_cache(
   (shard: number) => readPublicProductSitemapInventory(shard),
   ["public-product-sitemap-inventory-shard-v8-direct-source-images-64"],
   { revalidate: 3600 }
 );
 
-/** Legacy full projection retained for existing verifier/admin contracts. */
+/**
+ * Build the full SEO/admin projection from the SAME bounded shards used
+ * by Google-facing product sitemaps. The old whole-catalogue unstable_cache
+ * value reached ~50 MB and exceeded Next.js' 2 MB cache-item limit.
+ *
+ * Cap concurrent cold-shard reads to avoid saturating production PostgreSQL.
+ * React cache shares the resulting projection within a single server request.
+ * A failed shard rejects the whole graph; the registry's existing completeness
+ * guard then prevents unintended URL deactivation.
+ */
+const getRequestScopedProductSitemapInventory = cache(async (): Promise<readonly PublicProductSitemapCandidate[]> => {
+  const shards: PublicProductSitemapCandidate[][] = [];
+  const batchSize = 6;
+  for (let start = 0; start < PRODUCT_SITEMAP_SHARD_COUNT; start += batchSize) {
+    const count = Math.min(batchSize, PRODUCT_SITEMAP_SHARD_COUNT - start);
+    const batch = await Promise.all(
+      Array.from({ length: count }, (_, offset) => getPublicProductSitemapInventoryShard(start + offset))
+    );
+    shards.push(...batch.map((items) => [...items]));
+  }
+  return mergeProductSitemapShards(shards);
+});
+
 export function getPublicProductSitemapInventory(): Promise<readonly PublicProductSitemapCandidate[]> {
-  return cachedPublicProductSitemapInventory();
+  return getRequestScopedProductSitemapInventory();
 }
 
 /** Scale-safe projection used by the production product sitemap shards. */

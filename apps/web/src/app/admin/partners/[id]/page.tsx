@@ -62,6 +62,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <div className="hero-actions">
           <Link className="text-link" href="/admin/vendors">← Partner directory</Link>
           <Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(shop.id)}/catalogue`}>Catalogue / DEMO</Link>
+          <Link className="button button-secondary" href="/admin/hubs/plan-preview">Preview HUB plan dashboard ↗</Link>
           {canImpersonate && <VendorImpersonationControl vendorId={shop.id} vendorName={shop.tradingName} csrfToken={managed.csrfToken} />}
           {shop.applicationId && <Link className="text-link" href="/admin/prospects">Onboarding →</Link>}
           {agreementExpired && <Link className="button button-secondary" href="#partner-renewal">Renew agreement</Link>}

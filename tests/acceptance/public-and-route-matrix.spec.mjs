@@ -86,45 +86,37 @@ test("all fixed public/private route entry points avoid server errors", async ({
   expect(failures, `5xx route failures:\n${failures.join("\n")}`).toEqual([]);
 });
 
-test("bare human root uses the location gateway while crawlers retain the Sparta SEO root", async ({ page, request }) => {
-  const human = await request.get("/?utm_source=gateway-acceptance", {
-    failOnStatusCode: false,
-    maxRedirects: 0,
-    headers: { "user-agent": "Mozilla/5.0 KONTA-MOU-Gateway-Acceptance" }
-  });
-  expect(human.status()).toBe(307);
-  expect(human.headers().location).toContain("/choose-location?utm_source=gateway-acceptance");
-  expect(human.headers()["cache-control"]).toContain("no-store");
-  expect(human.headers().vary).toContain("Cookie");
-  expect(human.headers().vary).toContain("User-Agent");
+test("homepage is indexable and never reroutes through location selection for humans or crawlers", async ({ page, request }) => {
+  const scenarios = [
+    { label: "anonymous human", headers: { "user-agent": "Mozilla/5.0 KONTA-MOU-Gateway-Acceptance" } },
+    { label: "Googlebot", headers: { "user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" } },
+    { label: "SEO monitor", headers: { "user-agent": "KONTA-MOU-SEO-Monitor/1.0 (+https://kontamou.site)" } },
+    { label: "inactive locality", headers: { cookie: "km_locality=kalamata" } },
+    { label: "active locality", headers: { cookie: "km_locality=sparti" } }
+  ];
 
-  for (const userAgent of [
-    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-    "KONTA-MOU-SEO-Monitor/1.0 (+https://kontamou.site)"
-  ]) {
-    const crawler = await request.get("/", {
+  for (const scenario of scenarios) {
+    const response = await request.get("/?utm_source=gateway-acceptance", {
       failOnStatusCode: false,
       maxRedirects: 0,
-      headers: { "user-agent": userAgent }
+      headers: scenario.headers
     });
-    expect(crawler.status(), userAgent).toBe(200);
+    expect(response.status(), scenario.label).toBe(200);
+    expect(response.headers().location, scenario.label).toBeUndefined();
+    expect(response.headers()["x-robots-tag"] ?? "", scenario.label).not.toMatch(/noindex|nofollow/i);
   }
 
   await page.goto("/");
-  await expect(page).toHaveURL(/\/choose-location(?:[?#].*)?$/);
-
-  await page.evaluate(() => {
-    document.cookie = "km_locality=kalamata; Path=/; SameSite=Lax";
-  });
-  await page.goto("/");
-  await expect(page).toHaveURL(/\/choose-location(?:[?#].*)?$/);
-
-  await page.evaluate(() => {
-    document.cookie = "km_locality=sparti; Path=/; SameSite=Lax";
-  });
-  await page.goto("/");
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.locator("main")).toBeVisible();
+
+  for (const locality of ["kalamata", "sparti"]) {
+    await page.evaluate((selected) => {
+      document.cookie = "km_locality=" + selected + "; Path=/; SameSite=Lax";
+    }, locality);
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator("main")).toBeVisible();
+  }
 });
 
 test("homepage primary navigation works through real browser clicks", async ({ page }) => {
@@ -189,7 +181,7 @@ test("location gateway exposes customer-facing lifecycle states and active hubs 
 
   await page.goto("/choose-location");
   await expect(page.getByRole("heading", { name: "Πού είσαι σήμερα;" })).toBeVisible();
-  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /index,\s*follow/);
 
   const consentBanner = page.locator("aside.privacy-consent-banner");
   await expect(consentBanner).toBeVisible();

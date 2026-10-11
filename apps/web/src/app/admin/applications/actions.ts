@@ -269,7 +269,7 @@ export async function setHubProspectStatus(formData: FormData) {
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
   const result = await uow.withTransaction(platformScope(principal.userId), async (tx) => {
     const current = await tx.query<SqlRow>(`
-      SELECT public_id,hub_slug,business_name,email,status::text AS status,created_at
+      SELECT public_id,hub_slug,business_name,email,plan_code,status::text AS status,created_at
       FROM hub_expansion_prospects
       WHERE public_id=$1 OR id::text=$1
       LIMIT 1
@@ -278,6 +278,13 @@ export async function setHubProspectStatus(formData: FormData) {
     if (!current.rowCount) throw new Error("HUB application not found");
     const row = current.rows[0];
     const from = hubProspectStatus(row.status);
+    if (row.plan_code === "claim" && target === "converted") {
+      throw new Error("CLAIM publication requires acceptance by the verified representative.");
+    }
+    if (row.plan_code === "claim" && target === "approved" && from !== target &&
+        formData.get("ownershipVerified") !== "on") {
+      throw new Error("Manual business representation verification is required for CLAIM approval.");
+    }
     if (from === target) {
       return {
         publicId: text(row.public_id),
@@ -285,6 +292,7 @@ export async function setHubProspectStatus(formData: FormData) {
         to: target,
         email: text(row.email),
         businessName: text(row.business_name),
+        planCode: text(row.plan_code),
         reference: hubProspectDisplayReference(text(row.public_id), text(row.hub_slug), new Date(String(row.created_at)).getTime()),
         changed: false
       };
@@ -299,6 +307,7 @@ export async function setHubProspectStatus(formData: FormData) {
       to: target,
       email: text(row.email),
       businessName: text(row.business_name),
+      planCode: text(row.plan_code),
       reference: hubProspectDisplayReference(text(row.public_id), text(row.hub_slug), new Date(String(row.created_at)).getTime()),
       changed: true
     };
@@ -315,7 +324,8 @@ export async function setHubProspectStatus(formData: FormData) {
       businessName: result.businessName,
       reference: result.reference,
       state: result.to as Exclude<HubProspectStatus, "pending">,
-      reason
+      reason,
+      claimInvitationId: result.to === "approved" && result.planCode === "claim" ? result.publicId : undefined
     });
     if (!delivery.sent) {
       console.error(JSON.stringify({
@@ -326,6 +336,34 @@ export async function setHubProspectStatus(formData: FormData) {
       }));
     }
   }
+  revalidateVendorLifecycle();
+}
+
+export async function resendApprovedHubClaimEmail(formData: FormData) {
+  const principal = await requireVendorAdmin(text(formData.get("csrfToken")));
+  const applicationId = text(formData.get("applicationId")).trim();
+  const reason = text(formData.get("reason")).trim();
+  if (reason.length < 3 || reason.length > 500) throw new Error("A 3–500 character reason is required");
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT public_id,hub_slug,business_name,email,created_at
+    FROM hub_expansion_prospects
+    WHERE public_id=$1 AND plan_code='claim' AND status='approved'
+    LIMIT 1
+  `, [applicationId]);
+  if (!result.rowCount) throw new Error("Approved CLAIM application not found");
+  const row = result.rows[0];
+  const delivery = await sendHubProspectStateEmail({
+    to: text(row.email),
+    businessName: text(row.business_name),
+    reference: hubProspectDisplayReference(text(row.public_id), text(row.hub_slug), new Date(String(row.created_at)).getTime()),
+    state: "approved",
+    reason,
+    claimInvitationId: text(row.public_id)
+  });
+  await recordAdminAudit(principal, "hub_claim.invitation_resent", "hub_prospect", text(row.public_id), reason, {
+    delivered: delivery.sent, source: "admin_applications"
+  });
+  if (!delivery.sent) throw new Error("Unable to deliver claimant activation email");
   revalidateVendorLifecycle();
 }
 
