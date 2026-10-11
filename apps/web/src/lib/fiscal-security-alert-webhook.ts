@@ -8,6 +8,13 @@ const eventTypes=new Set([
  "email.complained","email.failed","email.suppressed"
 ]);
 const messageId=/^[a-zA-Z0-9_-]{4,160}$/;
+export function fiscalSecurityWebhookConfigured(){
+ return process.env.FISCAL_STANDALONE_MODE==="true" &&
+   process.env.FISCAL_SECURITY_ALERT_DELIVERY_ENABLED==="true" &&
+   process.env.FISCAL_SECURITY_ALERT_WEBHOOK_ENABLED==="true" &&
+   /^whsec_[A-Za-z0-9+/=]{24,}$/.test(
+     process.env.FISCAL_SECURITY_ALERT_WEBHOOK_SECRET?.trim()??"");
+}
 export function verifyFiscalSecurityAlertWebhook(input:{
  payload:string;id:string|undefined;timestamp:string|undefined;signature:string|undefined;
  now?:number
