@@ -294,6 +294,7 @@ export default async function ApplicationsPage() {
         <div className="hero-actions">
           <Link className="button button-secondary" href="/admin/partners/pipeline">← Partner pipeline</Link>
           <Link className="button button-secondary" href="/admin/hubs/plan-preview">View as Vendor · Plans ↗</Link>
+          <Link className="button button-secondary" href="/admin/hubs/claim-media">CLAIM image review ↗</Link>
           <Link className="button button-secondary" href="/admin/research-vendors">Research vendors</Link>
           <Link className="button button-secondary" href="/admin/prospects">Verified prospects</Link>
           <Link className="text-link" href="/admin/vendors">Partner directory →</Link>
