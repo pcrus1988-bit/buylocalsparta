@@ -109,6 +109,44 @@ address, explicitly investigate and notify through an authorized secondary
 security channel; accepted provider API responses do not eliminate that
 operational gap.
 
+### Signed provider delivery callbacks and alert operations (unreleased)
+
+Migration `0020_security_alert_delivery_receipts.sql` installs an **append-only**
+provider delivery event ledger; it is separate from Resend's initial API
+acceptance record. The dedicated FISCAL endpoint
+`POST /timologio/api/security-alert-webhook` requires:
+- `FISCAL_STANDALONE_MODE=true`, `FISCAL_SECURITY_ALERT_DELIVERY_ENABLED=true`,
+  and `FISCAL_SECURITY_ALERT_WEBHOOK_ENABLED=true`, each separately approved
+- The dedicated webhook's **own** `FISCAL_SECURITY_ALERT_WEBHOOK_SECRET` value
+  (the Resend `whsec_...` key) in the standalone FISCAL deployment, not in
+  browser code, GitHub, or the marketplace's existing Resend webhook
+- A separately registered endpoint in the authorized Resend account for
+  `email.delivered`, `email.delivery_delayed`, `email.bounced`,
+  `email.failed`, `email.complained`, and `email.suppressed`
+
+The existing first-party `ResendWebhookVerifier` verifies raw-body Svix
+signatures, timestamp tolerance and event ID. The handler enforces a 16KB
+payload ceiling and stores only events matching **already provider-accepted**
+FISCAL alert IDs; duplicate provider event IDs are idempotent. A signed
+provider event unrelated to FISCAL is acknowledged but not persisted.
+Events arriving before the API acceptance transaction is committed may
+be missed: **this timing scenario needs controlled provider testing or
+provider-side reconciliation** before claiming guaranteed delivery
+accounting. This endpoint is intentionally OFF in current production.
+
+The private read-only operations screen is at
+`/timologio-admin/mfa/alerts`. Only an authenticated marketplace super-admin
+with recent, session-bound MFA may view it. It reveals event classes,
+attempt counts, queue state, receipts and abbreviated case IDs. It does
+**not** reveal recipients, recovery evidence, TOTP material, webhook signing
+secrets or provider IDs. A delivery receipt means that the receiving
+**mail server** accepted the message, not proof that the human read it.
+Bounces, complaints, failures and suppression override an earlier
+delivered receipt in the security view. Human security-officer escalation
+remains mandatory; this display is not an automatic incident response
+engine. Signed webhook secret rotation and independent outage tests are
+pending.
+
 ## 4. Additional release requirements and missing integrations
 
 Automatic independent out-of-band **security notifications** must be
