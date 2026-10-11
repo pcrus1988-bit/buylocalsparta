@@ -25,6 +25,7 @@ CREATE INDEX fiscal_invitations_recent_idx ON fiscal_merchant_invitations(create
 CREATE FUNCTION fiscal_invitation_state_guard() RETURNS trigger
  LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $$
 BEGIN
+ IF TG_OP='DELETE' THEN RAISE EXCEPTION 'Fiscal invitation cannot be deleted'; END IF;
  IF (NEW.id,NEW.email,NEW.legal_name,NEW.vat_number,NEW.token_hash,
     NEW.created_by_kind,NEW.created_by,NEW.created_at,NEW.expires_at)
  IS DISTINCT FROM
