@@ -164,6 +164,63 @@ try{
  assert.equal(unbalancedJournal.body.error,"JOURNAL_NOT_BALANCED");
  console.log("PASS: sandbox journal preview, balancing, no posting, auth and CSRF");
 
+
+ const savedJournalBody={
+  organizationId:orgId,externalId:"CI-JOURNAL-"+suffix,entries:journalEntries
+ };
+ const savedJournal=await send("/timologio/api/console/journal",savedJournalBody,merchant);
+ assert.equal(savedJournal.status,201,"A balanced synthetic journal snapshot must save");
+ assert.equal(savedJournal.body.status,"saved_test");
+ assert.equal(savedJournal.body.accountingPosted,false);
+ assert.equal(savedJournal.body.fiscalIssuanceEnabled,false);
+ const journalReplay=await send("/timologio/api/console/journal",savedJournalBody,merchant);
+ assert.equal(journalReplay.status,200);
+ assert.equal(journalReplay.body.created,false);
+ assert.equal(journalReplay.body.id,savedJournal.body.id);
+ const journalConflict=await send("/timologio/api/console/journal",{
+  ...savedJournalBody,entries:[
+   {...journalEntries[0],amountMinor:11000},
+   {...journalEntries[1],amountMinor:11000}
+  ]
+ },merchant);
+ assert.equal(journalConflict.status,409,"A replay with different balanced amounts must conflict");
+ const journalUnauthorized=await send("/timologio/api/console/journal",{
+  ...savedJournalBody,externalId:"CI-JRN-UNAUTH-"+suffix
+ },stranger);
+ assert.equal(journalUnauthorized.status,403,"Other tenant must not save into this organization");
+ const journalUnexpected=await send("/timologio/api/console/journal",{
+  ...savedJournalBody,externalId:"CI-JRN-EXTRA-"+suffix,posted:true
+ },merchant);
+ assert.equal(journalUnexpected.status,400,"Official posting metadata must be rejected");
+ const journalPage=await fetch(base+"/timologio/journal?organizationId="+orgId,{
+  headers:{cookie:merchant.cookies},signal:AbortSignal.timeout(12000)
+ });
+ assert.equal(journalPage.status,200);
+ const journalMarkup=await journalPage.text();
+ assert.ok(journalMarkup.includes(savedJournalBody.externalId),"Authorized journal history must render");
+ const foreignJournalPage=await fetch(base+"/timologio/journal?organizationId="+orgId,{
+  headers:{cookie:stranger.cookies},signal:AbortSignal.timeout(12000)
+ });
+ assert.equal(foreignJournalPage.status,200);
+ assert.ok(!(await foreignJournalPage.text()).includes(savedJournalBody.externalId),
+  "Unrelated merchant must never see another organization's journal");
+ const persistedJournal=await db.query(
+  `SELECT j.status,j.entry_count,count(l.*)::int AS lines
+   FROM fiscal_sandbox_journals j JOIN fiscal_sandbox_journal_lines l
+   ON l.organization_id=j.organization_id AND l.journal_id=j.id
+   WHERE j.id=$1 AND j.organization_id=$2 GROUP BY j.id`,
+  [savedJournal.body.id,orgId]
+ );
+ assert.equal(persistedJournal.rows[0].status,"saved_test");
+ assert.equal(persistedJournal.rows[0].lines,2);
+ const journalAudit=await db.query(
+  `SELECT count(*)::int AS n FROM fiscal_audit_events
+   WHERE organization_id=$1 AND action='journal_sandbox.saved'
+    AND details->>'journalId'=$2`,[orgId,savedJournal.body.id]
+ );
+ assert.equal(journalAudit.rows[0].n,1,"Retries must not duplicate journal audit");
+ console.log("PASS: persistent sandbox journal, authorization, non-posting flags and single audit");
+
  const party=await send("/timologio/api/console/counterparties",{
   organizationId:orgId,kind:"business",legalName:"Synthetic Trading "+suffix,vatNumber:"333222111"
  },merchant);
@@ -253,7 +310,7 @@ try{
  assert.equal(logout.body.ok,true);
  const afterLogout=await send("/timologio/api/console/preview",{lane:"b2b",items:[item]},merchant);
  assert.equal(afterLogout.status,401,"Revoked session must not access merchant API");
- console.log("FISCAL LIVE HTTP E2E PASSED: independent login, draft, counterparty, CSRF, isolation, no issuance");
+ console.log("FISCAL LIVE HTTP E2E PASSED: independent login, draft, immutable sandbox journals, counterparty, CSRF, isolation, no issuance");
 }finally{
  if(server){
   server.kill("SIGTERM");
