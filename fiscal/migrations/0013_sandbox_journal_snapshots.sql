@@ -86,9 +86,18 @@ CREATE TRIGGER fiscal_sandbox_journal_immutable_lines
 
 ALTER TABLE fiscal_sandbox_journals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fiscal_sandbox_journal_lines ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE fiscal_sandbox_journals,fiscal_sandbox_journal_lines
- FROM PUBLIC,anon,authenticated;
-REVOKE ALL ON FUNCTION fiscal_sandbox_journal_consistency() FROM PUBLIC,anon,authenticated;
-REVOKE ALL ON FUNCTION fiscal_sandbox_journal_immutable() FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON TABLE fiscal_sandbox_journals,fiscal_sandbox_journal_lines FROM PUBLIC;
+REVOKE ALL ON FUNCTION fiscal_sandbox_journal_consistency() FROM PUBLIC;
+REVOKE ALL ON FUNCTION fiscal_sandbox_journal_immutable() FROM PUBLIC;
+DO $
+DECLARE role_name text;
+BEGIN
+ FOR role_name IN SELECT rolname FROM pg_roles WHERE rolname IN ('anon','authenticated')
+ LOOP
+  EXECUTE format('REVOKE ALL ON TABLE fiscal_sandbox_journals,fiscal_sandbox_journal_lines FROM %I',role_name);
+  EXECUTE format('REVOKE ALL ON FUNCTION fiscal_sandbox_journal_consistency() FROM %I',role_name);
+  EXECUTE format('REVOKE ALL ON FUNCTION fiscal_sandbox_journal_immutable() FROM %I',role_name);
+ END LOOP;
+END $;
 
 COMMIT;
