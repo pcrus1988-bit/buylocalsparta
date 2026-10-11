@@ -69,7 +69,8 @@ try{
   env:{
    ...process.env,DATABASE_URL:"",POSTGRES_URL:"",
    FISCAL_STANDALONE_MODE:"true",FISCAL_REGISTRATION_ENABLED:"false",
-   FISCAL_MARKETPLACE_DRAFT_SYNC_ENABLED:"false",FISCAL_ISSUANCE_ENABLED:"false"
+   FISCAL_MARKETPLACE_DRAFT_SYNC_ENABLED:"false",FISCAL_ISSUANCE_ENABLED:"false",
+   FISCAL_MARKETPLACE_BASE_URL:"https://kontamou.site"
   },stdio:["ignore","pipe","pipe"]
  });
  server.stdout?.on("data",appendLog);server.stderr?.on("data",appendLog);
@@ -88,6 +89,32 @@ try{
  assert.equal(health.body.issuanceEnabled,false);
  assert.equal(health.body.service,"konta-moy-fiscal");
  console.log("PASS: standalone FISCAL boots with isolated database and legal issuance OFF");
+ // The Vercel-protected admin bridge is a top-level GET followed by a same-
+ // origin POST, never a cross-site POST carrying a privileged assertion.
+ const ssoBridge=await fetch(base+"/timologio-admin/sso/bridge",{
+  signal:AbortSignal.timeout(10000)
+ });
+ assert.equal(ssoBridge.status,200,"SSO bridge must be served only by FISCAL standalone");
+ assert.ok((await ssoBridge.text()).includes("Ασφαλής σύνδεση FISCAL"));
+ const ssoAttempt=async(origin,contentType="application/x-www-form-urlencoded")=>{
+  const res=await fetch(base+"/timologio-admin/sso/callback",{
+   method:"POST",redirect:"manual",
+   headers:{"origin":origin,"content-type":contentType},
+   body:contentType==="application/json"?"{}":"ticket=invalid.signature",
+   signal:AbortSignal.timeout(10000)
+  });
+  return {status:res.status,body:await res.json()};
+ };
+ const crossSiteSso=await ssoAttempt("https://kontamou.site");
+ assert.equal(crossSiteSso.status,403,"Cross-site direct SSO POST must be denied");
+ assert.equal(crossSiteSso.body.error,"SSO_ORIGIN_NOT_ALLOWED");
+ const malformedSso=await ssoAttempt(base);
+ assert.equal(malformedSso.status,403,"Malformed same-origin ticket must be rejected");
+ assert.equal(malformedSso.body.error,"SSO_TICKET_INVALID_OR_ALREADY_REDEEMED");
+ const wrongFormatSso=await ssoAttempt(base,"application/json");
+ assert.equal(wrongFormatSso.status,415,"SSO callback must require encoded form");
+ console.log("PASS: protected same-origin bridge and rejected cross-site/malformed SSO requests");
+
 
  const send=async(path,body,{cookies="",csrf="",origin=base}={})=>{
   const response=await fetch(base+path,{
