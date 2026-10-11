@@ -66,6 +66,10 @@ const notoSans = Noto_Sans({ subsets: ["greek", "latin"], display: "swap", varia
 const LOCAL_COMMERCE_DESCRIPTION = "Το KONTA MOY είναι πλατφόρμα τοπικού εμπορίου από τη Σπάρτη. Οι πελάτες μπορούν να ανακαλύπτουν προϊόντα, να ζητούν συμβουλή μέσω Ask Local και να αγοράζουν από περισσότερα τοπικά καταστήματα με ένα καλάθι και μία διαδικασία ολοκλήρωσης αγοράς. Για τις μικρές επιχειρήσεις προσφέρει ψηφιακή βιτρίνα, διαχείριση παραγγελιών και εκπλήρωσης, υποστήριξη παράδοσης και πανελλαδική ψηφιακή ορατότητα χωρίς να χρειάζεται να λειτουργούν δικό τους ηλεκτρονικό κατάστημα.";
 
 export async function generateMetadata(): Promise<Metadata> {
+  if(process.env.FISCAL_STANDALONE_MODE==="true")return {
+    title:"KONTA MOY FISCAL",description:"Independent fiscal services for Greek businesses",
+    robots:{index:false,follow:false,noarchive:true,nosnippet:true}
+  };
   const { settings } = await getSeoGlobalSettingsSnapshot();
   return {
     metadataBase: new URL(settings.canonicalOrigin),
@@ -91,6 +95,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // Isolated Fiscal deployments cannot load catalogue settings, consent state,
+  // marketplace navigation, marketplace database or marketplace structured data.
+  if(process.env.FISCAL_STANDALONE_MODE==="true")return <html lang="el" className={`${comfortaa.variable} ${notoSans.variable}`}>
+    <body><div id="main-content">{children}</div></body>
+  </html>;
   const { settings } = await getSeoGlobalSettingsSnapshot();
   const origin = settings.canonicalOrigin.replace(/\/$/, "");
   const websiteId = `${origin}/#website`;
