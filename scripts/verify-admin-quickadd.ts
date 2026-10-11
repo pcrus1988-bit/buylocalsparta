@@ -45,7 +45,7 @@ for (const token of [
   "customerPriceMinor",
   "safetyStock",
   "searchedQuery === query.trim()",
-  'mediaUploadMode: "direct" | "development_memory" | "gated"',
+  'mediaUploadMode: "direct" | "server" | "development_memory" | "gated"',
   "const mediaUploadAvailable = mediaUploadMode === \"direct\"",
   "if (!mediaUploadAvailable)",
   "mediaReadinessMessage",
