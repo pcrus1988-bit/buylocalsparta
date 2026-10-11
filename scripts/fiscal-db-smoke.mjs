@@ -370,6 +370,57 @@ try{
   "INSERT INTO fiscal_marketplace_link_challenges(organization_id,created_by,code_hash,expires_at) VALUES($1,$2,$3,now()+interval '10 minutes') RETURNING id",
   [oid,uid,'c'.repeat(64)]);
  assert.ok(challenge.rows[0].id);
+
+ // One-time FISCAL merchant invitations are private, expiring and not approvals.
+ const invitationSchema=await db.query(
+  "SELECT relrowsecurity FROM pg_class WHERE oid='public.fiscal_merchant_invitations'::regclass");
+ assert.equal(invitationSchema.rows[0].relrowsecurity,true);
+ const invitation=await db.query(
+  `INSERT INTO fiscal_merchant_invitations
+   (email,legal_name,vat_number,token_hash,created_by_kind,created_by,expires_at)
+   VALUES('ci-invite-001@example.test','Synthetic Invited Merchant','909909909',$1,
+    'fiscal_admin','ci_fiscal_admin_001',now()+interval '48 hours') RETURNING id`,
+  ['f'.repeat(64)]);
+ assert.equal(invitation.rows.length,1);
+ const inviteId=invitation.rows[0].id;
+ await db.query("SAVEPOINT duplicate_pending_invitation");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_merchant_invitations
+   (email,legal_name,vat_number,token_hash,created_by_kind,created_by,expires_at)
+   VALUES('ci-invite-001@example.test','Duplicate Merchant','808808808',$1,
+    'fiscal_admin','ci_fiscal_admin_001',now()+interval '24 hours')`,['a'.repeat(64)]));
+ await db.query("ROLLBACK TO SAVEPOINT duplicate_pending_invitation");
+ await db.query("SAVEPOINT change_invitation_identity");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_merchant_invitations SET email='forged@example.test' WHERE id=$1",[inviteId]));
+ await db.query("ROLLBACK TO SAVEPOINT change_invitation_identity");
+ await db.query("SAVEPOINT delete_invitation");
+ await assert.rejects(()=>db.query(
+  "DELETE FROM fiscal_merchant_invitations WHERE id=$1",[inviteId]));
+ await db.query("ROLLBACK TO SAVEPOINT delete_invitation");
+ const revoked=await db.query(
+  "UPDATE fiscal_merchant_invitations SET status='revoked' WHERE id=$1 AND status='pending' RETURNING status",
+  [inviteId]);
+ assert.equal(revoked.rows[0].status,'revoked');
+ await db.query("SAVEPOINT restore_revoked_invitation");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_merchant_invitations SET status='pending' WHERE id=$1",[inviteId]));
+ await db.query("ROLLBACK TO SAVEPOINT restore_revoked_invitation");
+ const used=await db.query(
+  `INSERT INTO fiscal_merchant_invitations
+    (email,legal_name,vat_number,token_hash,created_by_kind,created_by,expires_at)
+    VALUES('ci-invite-002@example.test','Another Test Merchant','707707707',$1,
+     'marketplace_super_admin','marketplace_admin_ci',now()+interval '24 hours') RETURNING id`,
+  ['1'.repeat(64)]);
+ await db.query(
+  "UPDATE fiscal_merchant_invitations SET status='redeemed',redeemed_at=now(),redeemed_user_id=$2 WHERE id=$1",
+  [used.rows[0].id,uid]);
+ await db.query("SAVEPOINT reuse_invitation");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_merchant_invitations SET status='revoked' WHERE id=$1",[used.rows[0].id]));
+ await db.query("ROLLBACK TO SAVEPOINT reuse_invitation");
+ console.log("PASS: private, one-time invitations, pending duplicate and immutable audit boundary");
+
  // SSO tickets are one-time and give independent, revocable Fiscal admin sessions.
  const ticket=await db.query(
   "INSERT INTO fiscal_superadmin_sso_tickets(jti_hash,marketplace_user_id,expires_at) VALUES($1,'marketplace_ci_admin',now()+interval '1 minute') RETURNING jti_hash",
