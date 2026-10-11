@@ -2,6 +2,7 @@ import Link from "next/link";
 import { HubClaimMediaUploader } from "./HubClaimMediaUploader";
 import type { HubClaimMedia } from "../lib/hub-claim-media-runtime";
 import type { HubClaimPublicProfile } from "../lib/hub-claim-runtime";
+import { hubClaimPublicPath } from "../lib/hub-claim-public-url";
 import styles from "../app/hubs/claim/claim.module.css";
 
 /** One presentation for the actual CLAIM workspace and read-only Admin plan preview. */
@@ -38,7 +39,7 @@ export function HubClaimProfileEditor({
     <div className={styles.actions}>
       {preview
         ? <><span className={styles.button + " " + styles.secondary} aria-disabled="true">Δημόσια σελίδα ↗</span><span className={styles.button + " " + styles.secondary} aria-disabled="true">Δες περισσότερα προγράμματα</span></>
-        : <><Link className={styles.button + " " + styles.secondary} href={"/hubs/" + profile.hubSlug + "/business/" + profile.slug}>Δημόσια σελίδα ↗</Link><Link className={styles.button + " " + styles.secondary} href="/hubs/join">Δες περισσότερα προγράμματα</Link></>}
+        : <><Link className={styles.button + " " + styles.secondary} href={hubClaimPublicPath(profile)}>Δημόσια σελίδα ↗</Link><Link className={styles.button + " " + styles.secondary} href="/hubs/join">Δες περισσότερα προγράμματα</Link></>}
     </div>
   </section>;
 }
