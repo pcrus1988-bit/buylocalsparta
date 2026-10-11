@@ -143,7 +143,9 @@ export class ProductionPostgresRuntime {
       const postgisVersion = String(row.postgis_version ?? "");
       const appliedSchemaVersion = Number(row.schema_version ?? 0);
       const pendingMigrations = Math.max(0, expectedSchemaVersion - appliedSchemaVersion);
-      const schemaCurrent = appliedSchemaVersion === expectedSchemaVersion;
+      // One-release compatibility: old web runtime 437 may briefly coexist with additive schema 438.
+      const schemaCurrent = appliedSchemaVersion === expectedSchemaVersion ||
+        (expectedSchemaVersion === 437 && appliedSchemaVersion === 438);
       const requiredExtensions = [postgisVersion ? "postgis" : "", row.has_pgcrypto === true ? "pgcrypto" : "", row.has_citext === true ? "citext" : ""].filter(Boolean);
       const extensionsReady = requiredExtensions.length === 3;
       const serverMajorReady = serverVersionNumber >= 170000 && serverVersionNumber < 190000;
