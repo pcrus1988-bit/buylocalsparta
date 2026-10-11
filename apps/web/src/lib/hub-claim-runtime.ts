@@ -309,7 +309,7 @@ export async function uploadOwnedHubClaimMedia(id: string, principal: SessionPri
   const altText = checkedText(form.get("altText"), "IMAGE_ALT", 240);
   const rightsOwner = checkedText(form.get("rightsOwner"), "IMAGE_RIGHTS", 200);
   if (form.get("rightsConfirmed") !== "on") throw new Error("CLAIM_IMAGE_RIGHTS_CONFIRMATION_REQUIRED");
-  const filename = file.name.replace(/[\\u0000-\\u001f\\u007f]/g, "").replaceAll("\\\\","/").split("/").pop()?.slice(0, 200) || "claim-image";
+  const filename = file.name.replace(/[\u0000-\u001f\u007f]/g, "").replaceAll("\\", "/").split("/").pop()?.slice(0, 200) || "claim-image";
 
   // Check account/ownership before writing to private storage.
   const owner = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
