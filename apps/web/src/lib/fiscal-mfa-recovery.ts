@@ -51,7 +51,7 @@ export async function fiscalRecoveryList(actor:FiscalAdminActor){
  let approvable:unknown[]=[];
  if(actor.kind==="marketplace_super_admin"&&await isFiscalMfaSatisfied(actor)){
   const q=await fiscalPool().query(
-   `SELECT c.id,c.target_kind AS "targetKind",c.evidence_ref AS "evidenceRef",
+   `SELECT c.id,c.target_kind AS "targetKind",
      c.requested_at AS "requestedAt",c.expires_at AS "expiresAt",
      count(a.id)::int AS approvals,
      COALESCE(bool_or(a.approver_kind=$1 AND a.approver_ref=$2),false) AS "alreadyApproved"
