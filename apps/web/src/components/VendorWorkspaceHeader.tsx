@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { VENDOR_WORKSPACE_NAVIGATION } from "../lib/workspace-navigation";
-import { vendorStorefrontThemeTokens } from "../lib/vendor-storefront-theme";
+import { effectiveVendorWorkspaceTheme, vendorStorefrontThemeTokens } from "../lib/vendor-storefront-theme";
 import { VendorBreadcrumbs, VendorContextNavigation, VendorDomainNavigation } from "./VendorDomainNavigation";
 import trialStyles from "./VendorTrial.module.css";
 
@@ -50,14 +50,14 @@ export function VendorWorkspaceHeader() {
       try {
         const response = await fetch("/api/vendor/storefront-settings", { cache: "no-store" });
         if (!response.ok) return;
-        const payload = await response.json() as { settings?: { primaryColor?: string; secondaryColor?: string } };
+        const payload = await response.json() as { vendorId?: string; settings?: { primaryColor?: string; secondaryColor?: string } };
         if (!active || !payload.settings) return;
         const host = document.querySelector<HTMLElement>(".vendor-app");
         if (!host) return;
-        const tokens = vendorStorefrontThemeTokens({
+        const tokens = vendorStorefrontThemeTokens(effectiveVendorWorkspaceTheme(payload.vendorId ?? "", {
           primaryColor: payload.settings.primaryColor ?? "",
           secondaryColor: payload.settings.secondaryColor ?? ""
-        });
+        }));
         host.style.setProperty("--vendor-workspace-primary", tokens.primaryColor);
         host.style.setProperty("--vendor-workspace-secondary", tokens.secondaryColor);
         host.style.setProperty("--vendor-workspace-on-primary", tokens.onPrimary);
