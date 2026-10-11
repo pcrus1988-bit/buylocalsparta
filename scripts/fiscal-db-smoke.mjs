@@ -84,6 +84,19 @@ try{
    "Fiscal trigger functions need pinned pg_catalog/public search paths");
  }
 
+ // Foreign key indexes must cover actor and regulatory-source lookups.
+ for(const name of [
+  "fiscal_api_clients_created_by_idx",
+  "fiscal_counterparties_created_by_idx",
+  "fiscal_marketplace_challenges_created_by_idx",
+  "fiscal_marketplace_links_authorized_by_idx",
+  "fiscal_organizations_reviewed_by_idx",
+  "fiscal_sandbox_journals_created_by_idx",
+  "fiscal_tax_rule_candidates_source_code_idx"
+ ]){
+  const index=await db.query("SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname=$1",[name]);
+  assert.equal(index.rowCount,1,"Foreign-key covering index required: "+name);
+ }
  const counterpartySecurity=await db.query(
   "SELECT relrowsecurity FROM pg_class WHERE oid='public.fiscal_counterparties'::regclass");
  assert.equal(counterpartySecurity.rows[0].relrowsecurity,true,"Test counterparties must enable RLS");
