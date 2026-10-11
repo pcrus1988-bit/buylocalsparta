@@ -22,6 +22,11 @@ export async function POST(request:Request){
     const limiter=new PostgresFixedWindowRateLimiter(runtime.sqlPool);
     const rl=await limiter.consume({route:"hub-claim-inquiry",key:hash,limit:4,windowMs:60*60*1000,now:Date.now()});
     if(!rl.allowed) return Response.json({error:"TOO_MANY_REQUESTS"},{status:429});
+    const addressLimit=await limiter.consume({
+      route:"hub-claim-inquiry-ip",key:createHash("sha256").update(ip).digest("hex"),
+      limit:20,windowMs:60*60*1000,now:Date.now()
+    });
+    if(!addressLimit.allowed)return Response.json({error:"TOO_MANY_REQUESTS"},{status:429});
     const record=await runtime.sqlPool.query<SqlRow>(`
       INSERT INTO hub_claim_inquiries(prospect_id,sender_name,sender_email,message)
       SELECT id,$2,$3,$4 FROM hub_expansion_prospects
