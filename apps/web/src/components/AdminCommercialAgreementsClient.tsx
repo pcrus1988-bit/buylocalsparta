@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import type { AdminAgreementVendor, CommercialAgreementWorkspace } from "../lib/admin-commercial-agreements";
+import { vendorAgreementPlanTerms, type VendorAgreementPlanCode } from "../lib/vendor-plan-agreements";
 
 function euroMinor(value: number | undefined): string {
   if (value == null) return "—";
@@ -54,6 +55,9 @@ export function AdminCommercialAgreementsClient({ initial, csrfToken }: { initia
   const [warning, setWarning] = useState("");
   const [vendorFilter, setVendorFilter] = useState("");
   const [selectedVendorId, setSelectedVendorId] = useState("");
+  const [agreementPlanCode, setAgreementPlanCode] = useState<VendorAgreementPlanCode>("annual");
+  const [agreementBillingCycle, setAgreementBillingCycle] = useState<"monthly" | "annual">("annual");
+  const selectedAgreementPlan = vendorAgreementPlanTerms(agreementPlanCode, agreementBillingCycle);
 
   const vendor = selectedVendor(workspace, selectedVendorId);
   const visible = useMemo(
@@ -111,12 +115,7 @@ export function AdminCommercialAgreementsClient({ initial, csrfToken }: { initia
     event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
-    const percent = Number(form.get("commissionPercent"));
     const taxPercent = Number(form.get("commissionTaxPercent"));
-    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
-      setError("Η προμήθεια πρέπει να είναι από 0% έως 100%.");
-      return;
-    }
     if (!Number.isFinite(taxPercent) || taxPercent < 0 || taxPercent > 100) {
       setError("Ο συντελεστής ΦΠΑ προμήθειας δεν είναι έγκυρος.");
       return;
@@ -126,14 +125,12 @@ export function AdminCommercialAgreementsClient({ initial, csrfToken }: { initia
       action: "create",
       vendorId: String(form.get("vendorId") ?? ""),
       agreementVersion: 1,
+      planCode: agreementPlanCode,
+      billingCycle: agreementBillingCycle,
       startsAt: String(form.get("startsAt") ?? ""),
       endsAt: String(form.get("endsAt") ?? "") || undefined,
-      commissionRateBps: Math.round(percent * 100),
       commissionTaxMode: String(form.get("commissionTaxMode") ?? "included"),
       commissionTaxRateBps: Math.round(taxPercent * 100),
-      listingFeeMinor: moneyToMinor(form.get("listingFeeEuro")),
-      recurringFeeMinor: moneyToMinor(form.get("recurringFeeEuro")),
-      recurringFeePeriod: String(form.get("recurringFeePeriod") ?? "") || undefined,
       vendorLegalForm: String(form.get("vendorLegalForm") ?? "") || undefined,
       vendorTaxOffice: String(form.get("vendorTaxOffice") ?? "") || undefined,
       vendorRegisteredAddress: String(form.get("vendorRegisteredAddress") ?? ""),
@@ -144,12 +141,9 @@ export function AdminCommercialAgreementsClient({ initial, csrfToken }: { initia
       vendorIban: String(form.get("vendorIban") ?? "") || undefined,
       vendorBankBeneficiary: String(form.get("vendorBankBeneficiary") ?? "") || undefined,
       vendorCategories: String(form.get("vendorCategories") ?? "") || undefined,
-      planName: String(form.get("planName") ?? "") || undefined,
       commissionBase: "merchandise_gross",
       settlementTerms: String(form.get("settlementTerms") ?? "") || undefined,
       paymentProcessingTerms: String(form.get("paymentProcessingTerms") ?? "") || undefined,
-      contractTerm: String(form.get("contractTerm") ?? "") || undefined,
-      autoRenewal: String(form.get("autoRenewal") ?? "") || undefined,
       terminationNoticeDays: String(form.get("terminationNoticeDays") ?? "") || undefined,
       specialCommercialTerms: String(form.get("specialCommercialTerms") ?? "") || undefined,
       orderAcceptanceSla: String(form.get("orderAcceptanceSla") ?? "") || undefined,
@@ -252,35 +246,43 @@ export function AdminCommercialAgreementsClient({ initial, csrfToken }: { initia
         </fieldset>}
 
         <fieldset className="vendor-form-fieldset">
-          <legend>Οικονομικοί όροι</legend>
+          <legend>Πρόγραμμα & κλειδωμένοι οικονομικοί όροι</legend>
           <div className="form-grid">
-            <label>Πρόγραμμα συνεργασίας<input name="planName" placeholder="π.χ. Annual / Monthly / Founding Partner" /></label>
-            <label>Προμήθεια επί πώλησης %<input name="commissionPercent" type="number" min="0" max="100" step="0.01" required placeholder="5.00" /></label>
-            <label>ΦΠΑ προμήθειας
-              <select name="commissionTaxMode" defaultValue="included">
-                <option value="included">Περιλαμβάνεται στην προμήθεια</option>
-                <option value="plus_vat">Προστίθεται στην προμήθεια</option>
-                <option value="none">Χωρίς ΦΠΑ</option>
+            <label>Εγκεκριμένο πρόγραμμα
+              <select name="planCode" value={agreementPlanCode} onChange={event => setAgreementPlanCode(event.target.value as VendorAgreementPlanCode)}>
+                <optgroup label="Expansion HUB merchant">
+                  <option value="shop">SHOP</option><option value="growth">GROWTH</option><option value="pro">PRO</option>
+                </optgroup>
+                <optgroup label="Sparta legacy">
+                  <option value="monthly">Monthly</option><option value="annual">Annual</option><option value="founding_2026">Founding Partner</option>
+                </optgroup>
+              </select>
+            </label>
+            <label>Κύκλος χρέωσης
+              <select name="billingCycle" value={agreementBillingCycle}
+                onChange={event => setAgreementBillingCycle(event.target.value as "annual" | "monthly")}
+                disabled={selectedAgreementPlan.market === "sparta"}>
+                <option value="monthly">Μηνιαία</option><option value="annual">Ετήσια</option>
+              </select>
+            </label>
+            <label>Προμήθεια <input readOnly value={(selectedAgreementPlan.commissionRateBps / 100).toLocaleString("el-GR") + "%"} /></label>
+            <label>Εφάπαξ ένταξη (πριν την εγκεκριμένη έκπτωση)<input readOnly value={euroMinor(selectedAgreementPlan.setupFeeMinor)} /></label>
+            <label>Περιοδικό τέλος<input readOnly value={euroMinor(selectedAgreementPlan.recurringFeeMinor) + " / " + (selectedAgreementPlan.recurringFeePeriod ?? "—")} /></label>
+            <label>Συμβατική διάρκεια<input readOnly value={selectedAgreementPlan.contractTerm} /></label>
+            <label>Φορολογική μεταχείριση προμήθειας
+              <select name="commissionTaxMode" defaultValue="plus_vat">
+                <option value="plus_vat">Πλέον ΦΠΑ</option>
+                <option value="included">ΦΠΑ εντός της προμήθειας</option>
+                <option value="none">Χωρίς ΦΠΑ (μόνο με νόμιμη εξαίρεση)</option>
               </select>
             </label>
             <label>Συντελεστής ΦΠΑ προμήθειας %<input name="commissionTaxPercent" type="number" min="0" max="100" step="0.01" defaultValue="24" /></label>
-            <label>One-time / listing fee €<input name="listingFeeEuro" type="number" min="0" step="0.01" /></label>
-            <label>Recurring fee €<input name="recurringFeeEuro" type="number" min="0" step="0.01" /></label>
-            <label>Περίοδος recurring fee
-              <select name="recurringFeePeriod" defaultValue="">
-                <option value="">—</option>
-                <option value="month">Μήνας</option>
-                <option value="year">Έτος</option>
-                <option value="term">Συμφωνημένη περίοδος</option>
-              </select>
-            </label>
             <label>Προειδοποίηση καταγγελίας (ημέρες)<input name="terminationNoticeDays" type="number" min="0" step="1" /></label>
-            <label className="form-span-2">Όροι εκκαθάρισης<input name="settlementTerms" placeholder="π.χ. μηνιαία εκκαθάριση μετά από επιστροφές/αντιλογισμούς" /></label>
-            <label className="form-span-2">Έξοδα / όροι payment processing<input name="paymentProcessingTerms" /></label>
-            <label>Διάρκεια σύμβασης<input name="contractTerm" placeholder="π.χ. 12 μήνες" /></label>
-            <label>Αυτόματη ανανέωση<input name="autoRenewal" placeholder="Ναι / Όχι και όροι" /></label>
+            <label className="form-span-2">Όροι εκκαθάρισης<input name="settlementTerms" required placeholder="Συγκεκριμένη διαδικασία και χρόνος εκκαθάρισης" /></label>
+            <label className="form-span-2">Έξοδα payment processing<input name="paymentProcessingTerms" required /></label>
             <label className="form-span-2">Ειδικοί εμπορικοί όροι<textarea name="specialCommercialTerms" rows={3} /></label>
           </div>
+          <p className="workspace-inline-note">Το πλάνο, η προμήθεια, η τιμή, η διάρκεια και τα δικαιώματα αποθηκεύονται server-side από έκδοση συμβολαίου, όχι από ελεύθερη εισαγωγή. Για expansion HUB απαιτείται verified prospect με το ίδιο πλάνο και κύκλο χρέωσης. CLAIM/PRESENCE δημιουργούνται χωριστά ως μη εμπορικές συμβάσεις.</p>
         </fieldset>
 
         <fieldset className="vendor-form-fieldset">
