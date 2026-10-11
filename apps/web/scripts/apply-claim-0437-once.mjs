@@ -17,7 +17,8 @@ if (process.env.VERCEL_ENV !== "production") {
     throw new Error("CLAIM 0437 migration refuses non-main production build.");
   }
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-  const raw = process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim();
+  // Prefer the direct/non-pooling Postgres URL for migration transaction and advisory lock safety.
+  const raw = process.env.POSTGRES_URL_NON_POOLING?.trim() || process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim();
   if (!raw) throw new Error("CLAIM migration requires existing production database connection.");
 
   const dbUrl = new URL(raw);
