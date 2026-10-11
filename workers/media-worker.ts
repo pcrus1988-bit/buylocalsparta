@@ -3,6 +3,7 @@ import { hostname } from "node:os";
 import { createPostgresRuntimeFromEnv, EXPECTED_SCHEMA_VERSION } from "../packages/postgres-runtime/src/index.ts";
 import { S3ObjectStorage, SupabaseRestObjectStorage, objectStorageConfigFromEnv } from "../packages/object-storage/src/index.ts";
 import { ClamAvScanner, clamAvConfigFromEnv } from "../packages/media-processing/src/index.ts";
+import { copyScannedSupabaseMedia } from "./private-media-verified-copy.ts";
 
 type WorkerMode = "continuous" | "drain";
 
@@ -78,36 +79,4 @@ function requiredEnv(name: "SUPABASE_URL"|"SUPABASE_SERVICE_ROLE_KEY"):string{
   const value=process.env[name]?.trim();
   if(!value)throw new Error(`${name} is required for Supabase-backed media scanning`);
   return value;
-}
-
-/** The Supabase REST backend does not expose S3's conditional CopyObject API.
- * Read the immutable upload again, verify the exact bytes already scanned,
- * and store a second private object addressed by its SHA-256. A failed hash
- * comparison never marks an asset clean and never publishes it. */
-async function copyScannedSupabaseMedia(
-  storage: SupabaseRestObjectStorage,
-  sourceKey:string,
-  verifiedKey:string,
-  contentType:string,
-  expectedSize:number,
-  expectedSha256:string
-){
-  const source=await storage.read(sourceKey);
-  const parts:Buffer[]=[];
-  const hash=createHash("sha256");
-  let size=0;
-  for await(const chunk of source.stream){
-    size+=chunk.length;
-    if(size>25*1024*1024)throw new Error("Media exceeds scanner copy limit");
-    const bytes=Buffer.from(chunk);
-    parts.push(bytes);
-    hash.update(bytes);
-  }
-  if(size!==expectedSize||hash.digest("hex")!==expectedSha256)throw new Error("Media changed since malware scan");
-  await storage.put({objectKey:verifiedKey,contentType,body:Buffer.concat(parts,size)});
-  const verified=await storage.head(verifiedKey);
-  if(!verified||verified.byteSize!==expectedSize||verified.contentType!==contentType){
-    throw new Error("Scanned Supabase object did not pass verified-copy metadata checks");
-  }
-  return verified;
 }
