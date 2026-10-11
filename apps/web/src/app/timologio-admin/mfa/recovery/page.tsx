@@ -27,6 +27,11 @@ export default async function FiscalMfaRecovery(){
     {" · "}Διανομή ειδοποιήσεων: <strong>{readiness.alertDeliveryConfigured?"Ρυθμισμένη":"Μη ρυθμισμένη"}</strong></p>}
    <p className="fiscal-muted">Ο αριθμός εγγραφών authenticator δεν αποδεικνύει ότι πρόκειται για τρία ανεξάρτητα φυσικά πρόσωπα. Απαιτούνται χωριστοί εξουσιοδοτημένοι εποπτικοί λογαριασμοί, δοκιμές ανάκτησης και εγκεκριμένη offline διαδικασία.</p>
   </section>
+  {actor.kind==="marketplace_super_admin"?<section className="fiscal-panel fiscal-section" style={{maxWidth:850}}>
+   <h2>Ειδοποιήσεις ασφάλειας</h2>
+   <p>Επισκόπηση εκκρεμών, αποδεκτών και αποτυχημένων ειδοποιήσεων (απαιτείται πρόσφατο MFA).</p>
+   <p><Link href="/timologio-admin/mfa/alerts" className="fiscal-button secondary">Ασφαλής παρακολούθηση ειδοποιήσεων</Link></p>
+  </section>:null}
   <FiscalRecoveryWorkbench csrfToken={actor.csrfToken}/>
  </div></main>;
 }
