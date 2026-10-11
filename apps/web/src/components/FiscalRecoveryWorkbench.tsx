@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useState} from "react";
 
-type CaseItem={id:string;state:string;evidenceRef:string;requestedAt:string;expiresAt:string;
+type CaseItem={id:string;state:string;evidenceRef?:string;requestedAt:string;expiresAt:string;
  approvals:number;targetKind?:string;alreadyApproved?:boolean};
 type Inventory={enabled:boolean;mine:CaseItem[];approvable:CaseItem[];requiresTwoOtherSuperAdmins:boolean};
 export function FiscalRecoveryWorkbench({csrfToken}:{csrfToken:string}){
@@ -61,7 +61,7 @@ export function FiscalRecoveryWorkbench({csrfToken}:{csrfToken:string}){
    </div>
    <div className="fiscal-card">
     <h3>2 · Έγκριση από ανεξάρτητους εποπτικούς διαχειριστές</h3>
-    <p>Μόνο marketplace super-admin που έχει ολοκληρώσει MFA τα τελευταία 15 λεπτά βλέπει εκκρεμείς υποθέσεις. Κάθε επιβεβαίωση προϋποθέτει ανεξάρτητη ταυτοποίηση του αιτούντος.</p>
+    <p>Μόνο marketplace super-admin που έχει ολοκληρώσει MFA τα τελευταία 15 λεπτά βλέπει εκκρεμείς υποθέσεις. Ο κωδικός REC- δεν εμφανίζεται στους εγκρίνοντες: πρέπει να τον ανακτήσετε ανεξάρτητα από την εγκεκριμένη offline υπόθεση πριν από κάθε έγκριση.</p>
     <label>Κωδικός υπόθεσης από ανεξάρτητη τεκμηρίωση
      <input value={approvalRef} maxLength={64} disabled={busy}
       onChange={e=>setApprovalRef(e.target.value.toUpperCase().slice(0,64))}/>
@@ -75,7 +75,7 @@ export function FiscalRecoveryWorkbench({csrfToken}:{csrfToken:string}){
       :inventory.approvable.map(item=><div key={item.id} className="fiscal-card">
        <p><strong>Υπόθεση</strong> <code>{item.id}</code></p>
        <p>Τύπος λογαριασμού: {item.targetKind} · Εγκρίσεις: {item.approvals}/2 · Λήξη: {new Date(item.expiresAt).toLocaleString("el-GR")}</p>
-       <button type="button" className="fiscal-button" disabled={busy||item.alreadyApproved||!attested||approvalRef!==item.evidenceRef}
+       <button type="button" className="fiscal-button" disabled={busy||item.alreadyApproved||!attested||!/^REC-[A-Z0-9-]{8,60}$/.test(approvalRef)}
         onClick={()=>post({action:"approve",caseId:item.id,evidenceRef:approvalRef,attested:true})}>
         {item.alreadyApproved?"Ήδη επιβεβαιώθηκε":"Επιβεβαίωση με ανεξάρτητη έγκριση"}
        </button>
