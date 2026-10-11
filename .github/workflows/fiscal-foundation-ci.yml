@@ -61,7 +61,7 @@ jobs:
           fi
       - name: Verify integer-only non-fiscal line calculations
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-preview-calculator.test.ts
-      - name: Verify non-fiscal draft data integrity reviews
+      - name: Verify strictly balanced sandbox accounting entries\n        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-sandbox-journal.test.ts\n      - name: Verify non-fiscal draft data integrity reviews
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-draft-preflight.test.ts
       - name: Verify safe PostgreSQL endpoint diagnostics
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-connection-diagnostics.test.ts
