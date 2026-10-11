@@ -24,7 +24,8 @@ export default async function FiscalMfaRecovery(){
     {" · "}Υποχρεωτικό MFA: <strong>{readiness.enforced?"Ενεργό":"Ανενεργό"}</strong>
     {" · "}Υποδομή ειδοποιήσεων: <strong>{readiness.alertSchemaPresent?"Υπάρχει":"Εκκρεμεί"}</strong>
     {" · "}Επαληθευμένες επαφές αποδέκτη/ασφάλειας: <strong>{readiness.verifiedAlertContacts?"Ναι":"Όχι"}</strong>
-    {" · "}Διανομή ειδοποιήσεων: <strong>{readiness.alertDeliveryConfigured?"Ρυθμισμένη":"Μη ρυθμισμένη"}</strong></p>}
+    {" · "}Διανομή ειδοποιήσεων: <strong>{readiness.alertDeliveryConfigured?"Ρυθμισμένη":"Μη ρυθμισμένη"}</strong>
+    {" · "}Υπογεγραμμένες αποδείξεις επίδοσης: <strong>{readiness.signedWebhookConfigured?"Ρυθμισμένες":"Μη ρυθμισμένες"}</strong></p>}
    <p className="fiscal-muted">Ο αριθμός εγγραφών authenticator δεν αποδεικνύει ότι πρόκειται για τρία ανεξάρτητα φυσικά πρόσωπα. Απαιτούνται χωριστοί εξουσιοδοτημένοι εποπτικοί λογαριασμοί, δοκιμές ανάκτησης και εγκεκριμένη offline διαδικασία.</p>
   </section>
   {actor.kind==="marketplace_super_admin"?<section className="fiscal-panel fiscal-section" style={{maxWidth:850}}>
