@@ -26,6 +26,11 @@ try {
   `INSERT INTO fiscal_mfa_recovery_cases(target_kind,target_ref,evidence_ref)
     VALUES('marketplace_super_admin',$1,'REC-CI-OFFLINE-000001') RETURNING id`,[target]);
  const caseId=first.rows[0].id;
+ await db.query("SAVEPOINT complete_without_approvals");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_mfa_recovery_cases SET state='completed',closed_at=now() WHERE id=$1",
+  [caseId]),"Database must prohibit recovery completion without approvals");
+ await db.query("ROLLBACK TO SAVEPOINT complete_without_approvals");
  await db.query("SAVEPOINT duplicate_open");
  await assert.rejects(()=>db.query(
   `INSERT INTO fiscal_mfa_recovery_cases(target_kind,target_ref,evidence_ref)
@@ -43,6 +48,11 @@ try {
  await db.query(
   `INSERT INTO fiscal_mfa_recovery_approvals(case_id,approver_ref,evidence_ref,attested_offline_identity)
    VALUES($1,$2,'REC-CI-OFFLINE-000001',true)`,[caseId,a]);
+ await db.query("SAVEPOINT complete_with_only_one_approval");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_mfa_recovery_cases SET state='completed',closed_at=now() WHERE id=$1",
+  [caseId]),"Database must prohibit recovery completion after only one approval");
+ await db.query("ROLLBACK TO SAVEPOINT complete_with_only_one_approval");
  await db.query("SAVEPOINT duplicate_approval");
  await assert.rejects(()=>db.query(
   `INSERT INTO fiscal_mfa_recovery_approvals(case_id,approver_ref,evidence_ref,attested_offline_identity)
