@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { validHubClaimWebsite, validHubClaimSocial } from "../apps/web/src/lib/hub-claim-fields.ts";
 const read=(path:string)=>readFileSync(path,"utf8");
+const canonicalIframeMigration=read("db/migrations/0437_hub_claim_website_embed.sql");
+const schemaRuntime=read("packages/postgres-runtime/src/index.ts");
+assert.ok(canonicalIframeMigration.includes("website_embed_enabled"),"Original iframe migration 0437 must be preserved");
+assert.ok(schemaRuntime.includes("EXPECTED_SCHEMA_VERSION = 438"),"Rich CLAIM release must depend on version 438");
+
 const files={
   migration:read("db/migrations/0438_hub_claim_profiles_media_inquiries.sql"),
   runtime:read("apps/web/src/lib/hub-claim-runtime.ts"),
