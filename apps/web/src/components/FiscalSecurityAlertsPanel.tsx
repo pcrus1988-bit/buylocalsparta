@@ -1,8 +1,8 @@
 "use client";
 import {useEffect,useState} from "react";
-type Item={id:string;caseId:string;eventCode:string;audience:string;status:string;attempts:number;
+type Item={id:string;caseId:string;eventCode:string;audience:string;status:string;deliveryState:string;attempts:number;
  createdAt:string;updatedAt:string;nextAttemptAt:string;providerAcceptedAt:string|null;lastErrorCode:string|null};
-type Snapshot={schemaReady:boolean;counts:{pending:number;sending:number;providerAccepted:number;dead:number;overdue:number};alerts:Item[]};
+type Snapshot={schemaReady:boolean;deliveryReceiptsReady:boolean;counts:{pending:number;sending:number;providerAccepted:number;dead:number;overdue:number;serverDelivered:number;deliveryProblem:number};alerts:Item[]};
 const date=(s:string|null)=>s?new Date(s).toLocaleString("el-GR"):"—";
 const states:Record<string,string>={pending:"Αναμονή",sending:"Αποστολή",provider_accepted:"Αποδοχή παρόχου",dead:"Απαιτεί διερεύνηση"};
 export function FiscalSecurityAlertsPanel(){
@@ -37,23 +37,27 @@ export function FiscalSecurityAlertsPanel(){
     <span>Αποδοχή παρόχου: <strong>{snapshot.counts.providerAccepted}</strong></span>
     <span>Αποτυχίες: <strong>{snapshot.counts.dead}</strong></span>
     <span>Καθυστερημένες: <strong>{snapshot.counts.overdue}</strong></span>
+    <span>Παράδοση σε mail server: <strong>{snapshot.counts.serverDelivered}</strong></span>
+    <span>Αναφορές αποτυχίας: <strong>{snapshot.counts.deliveryProblem}</strong></span>
    </div>
-   {snapshot.counts.dead||snapshot.counts.overdue?
+   {snapshot.counts.dead||snapshot.counts.overdue||snapshot.counts.deliveryProblem?
     <p role="alert" className="fiscal-alert">Υπάρχουν ειδοποιήσεις που χρειάζονται χειροκίνητη διερεύνηση μέσω ανεξάρτητου καναλιού. Μην υποθέτετε ότι παραδόθηκαν.</p>
     :<p className="fiscal-muted">Η αναφορά δεν βεβαιώνει παράδοση. Απαιτείται επίσης επιβεβαίωση γεγονότων παράδοσης από τον πάροχο.</p>}
+   {!snapshot.deliveryReceiptsReady?<p className="fiscal-alert">Δεν έχουν εγκατασταθεί τα υπογεγραμμένα γεγονότα παράδοσης. Η αποδοχή από τον πάροχο δεν αποδεικνύει παράδοση.</p>:null}
    <div style={{overflowX:"auto"}}>
     <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-     <thead><tr><th>Υπόθεση</th><th>Συμβάν</th><th>Αποδέκτης</th><th>Κατάσταση</th><th>Προσπάθειες</th><th>Ενημέρωση</th></tr></thead>
+     <thead><tr><th>Υπόθεση</th><th>Συμβάν</th><th>Αποδέκτης</th><th>Κατάσταση</th><th>Επίδοση</th><th>Προσπάθειες</th><th>Ενημέρωση</th></tr></thead>
      <tbody>
       {snapshot.alerts.map(item=><tr key={item.id}>
        <td><code>{item.caseId.slice(0,8)}</code></td>
        <td>{item.eventCode}</td>
        <td>{item.audience==="soc"?"Υπεύθυνος ασφάλειας":"Κάτοχος"}</td>
        <td>{states[item.status]??item.status}{item.lastErrorCode?" · "+item.lastErrorCode:""}</td>
+       <td>{item.deliveryState==="delivered"?"Παραδόθηκε στον mail server":item.deliveryState==="failed"?"Αποτυχία / ανεπιθύμητο":item.deliveryState==="delayed"?"Καθυστέρηση":"Ανεπιβεβαίωτη"}</td>
        <td>{item.attempts}</td>
        <td>{date(item.updatedAt)}</td>
       </tr>)}
-      {!snapshot.alerts.length?<tr><td colSpan={6}>Δεν υπάρχουν καταγεγραμμένες ειδοποιήσεις.</td></tr>:null}
+      {!snapshot.alerts.length?<tr><td colSpan={7}>Δεν υπάρχουν καταγεγραμμένες ειδοποιήσεις.</td></tr>:null}
      </tbody>
     </table>
    </div>
