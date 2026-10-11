@@ -7,6 +7,9 @@ import { hubClaimPublicPath } from "../../../lib/hub-claim-public-url";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 import styles from "../claim/claim.module.css";
 
+// The directory reads live CLAIM records; never prerender it without a database.
+export const dynamic = "force-dynamic";
+
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/hubs/businesses", {
     title: "Επαληθευμένες επιχειρήσεις HUB · KONTA MOY",
