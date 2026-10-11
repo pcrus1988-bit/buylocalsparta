@@ -37,7 +37,7 @@ export function HubClaimProfileEditor({
     </form>
     <div className={styles.mediaBox}>
       <h3>Λογότυπο & φωτογραφία καταστήματος</h3>
-      <p>Ανέβασε JPEG, PNG ή WebP έως 4 MB. Οι εικόνες μένουν ιδιωτικές μέχρι να ολοκληρωθεί ο έλεγχος ασφάλειας, δικαιωμάτων και δημοσίευσης από το KONTA MOY. Το CLAIM περιλαμβάνει 1 λογότυπο και 1 φωτογραφία εξωφύλλου.</p>
+      <p>Ανέβασε JPEG, PNG ή WebP έως 3 MB. Οι εικόνες μένουν ιδιωτικές μέχρι να ολοκληρωθεί ο έλεγχος ασφάλειας, δικαιωμάτων και δημοσίευσης από το KONTA MOY. Το CLAIM περιλαμβάνει 1 λογότυπο και 1 φωτογραφία εξωφύλλου.</p>
       <form action={preview ? undefined : onUpload}>
         <fieldset disabled={preview} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           {!preview && <input type="hidden" name="csrfToken" value={csrfToken ?? ""}/>}
