@@ -16,6 +16,7 @@ async function acceptClaim(formData: FormData) {
   const principal = await requireAccountSession();
   assertCustomerCsrf(principal, String(formData.get("csrfToken") ?? ""));
   const id = String(formData.get("claimId") ?? "");
+  if (formData.get("publishConsent") !== "on") throw new Error("Explicit public-directory consent is required");
   await acceptApprovedHubClaim(id, principal);
   revalidatePath("/vendor/claim");
   redirect("/vendor/claim");
@@ -49,7 +50,8 @@ export default async function ApprovedHubClaimPage({ params }: { params: Promise
                   ? <p className={styles.hint}>Ο συνδεδεμένος λογαριασμός δεν αντιστοιχεί στο εγκεκριμένο email εκπροσώπου ή δεν έχει επαληθευτεί. Συνδέσου με τον σωστό λογαριασμό ή ζήτησε διορθωτικό έλεγχο από την ομάδα.</p>
                   : <form action={acceptClaim}>
                       <p>Με την αποδοχή επιβεβαιώνεις ότι εκπροσωπείς νόμιμα την επιχείρηση και αναλαμβάνεις την ευθύνη ενημέρωσης των δημόσιων στοιχείων.</p>
-                      <p className={styles.hint}>Η δημόσια καταχώριση θα δημιουργηθεί αμέσως μετά την αποδοχή σου. Δεν ενεργοποιούνται πωλήσεις, πληρωμές ή πρόσβαση στα εμπορικά εργαλεία.</p>
+                      <p className={styles.hint}>Στη δημόσια σελίδα θα εμφανιστούν η εμπορική ονομασία, η κατηγορία, η διεύθυνση ({invitation.address}) και το τηλέφωνο ({invitation.phone}). Έλεγξέ τα πριν αποδεχθείς. Δεν ενεργοποιούνται πωλήσεις ή πληρωμές.</p>
+                      <label className={styles.field}><span><input type="checkbox" name="publishConsent" required /> Συμφωνώ με τη δημοσίευση αυτών των επαγγελματικών στοιχείων στην καταχώριση CLAIM.</span></label>
                       <input type="hidden" name="csrfToken" value={principal.csrfToken} />
                       <input type="hidden" name="claimId" value={id} />
                       <button className={styles.button} type="submit">Αποδέχομαι · Ενεργοποίηση CLAIM</button>
