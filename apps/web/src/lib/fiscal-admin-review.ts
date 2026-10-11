@@ -4,7 +4,8 @@ export type FiscalReviewInput=Readonly<{
  action:FiscalReviewAction;organizationId:string;note?:string;
 }>;
 export class FiscalReviewInputError extends Error{
- constructor(readonly code:string){super(code);}
+ readonly code:string;
+ constructor(code:string){super(code);this.code=code;}
 }
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const notePattern=/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
