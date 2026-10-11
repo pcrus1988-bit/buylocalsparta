@@ -1,5 +1,5 @@
-import { requireAdminSession } from "../../../../../../lib/admin-session";
-import { reviewHubClaimMedia } from "../../../../../../lib/hub-claim-media-runtime";
+import { requireAdminSession } from "../../../../../lib/admin-session";
+import { reviewHubClaimMedia } from "../../../../../lib/hub-claim-media-runtime";
 
 export async function POST(request: Request) {
   try {
