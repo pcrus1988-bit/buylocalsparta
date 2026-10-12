@@ -9,6 +9,8 @@ import { getPublicHubClaim } from "../../../../../lib/hub-claim-runtime";
 import { hubClaimPublicPath } from "../../../../../lib/hub-claim-public-url";
 import { getPublicHubCensus, hubCensusBusinessPath, convertedClaimUrlForGemiCensus } from "../../../../../lib/hub-gemi-directory";
 import { getExpansionHubBySlug } from "../../../../../lib/expansion-hubs";
+import { HUB_EXPANSION_PLANS, billingLabelForPlan } from "../../../../../lib/hub-expansion-plans";
+import { hubGemiApplicationPath } from "../../../../../lib/hub-gemi-join-links";
 import styles from "../../../claim/claim.module.css";
 
 type Params = { params: Promise<{ hubSlug: string; id: string }> };
@@ -64,7 +66,7 @@ export default async function PublicHubBusinessPage({ params }: Params) {
   const hub = getExpansionHubBySlug(hubSlug);
   if (!business || !hub) notFound();
   const directoryPath = "/hubs/" + hub.slug + "/business";
-  const joinPath = "/hubs/join/apply?plan=claim&gemi=" + encodeURIComponent(business.gemiNumber);
+  const joinPath = hubGemiApplicationPath({ plan: "claim", billing: "annual", gemi: business.gemiNumber, showPlans: true });
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -103,13 +105,23 @@ export default async function PublicHubBusinessPage({ params }: Params) {
         </article>
         <article className={styles.panel}>
           <h2>Είναι δική σου η επιχείρηση;</h2>
-          <p className={styles.details}>Μπορείς να διεκδικήσεις τη σελίδα και να
-            ζητήσεις διόρθωση ή εμπλουτισμό των στοιχείων. Απαιτούνται επιβεβαίωση ΑΦΜ/ΓΕΜΗ
-            και έλεγχος δικαιώματος εκπροσώπησης πριν δοθεί πρόσβαση στον πίνακα CLAIM.</p>
+          <p className={styles.details}>Μπορείς να διεκδικήσεις την υπάρχουσα καταχώριση με
+            CLAIM ή να επιλέξεις PRESENCE, SHOP, GROWTH ή PRO. Η αίτηση συνδέεται με την ίδια
+            επιχείρηση και το επαληθευμένο HUB ανεξάρτητα από το πρόγραμμα. Η ταυτοποίηση ΑΦΜ/ΓΕΜΗ,
+            ο έλεγχος εκπροσώπησης και η έγκριση προηγούνται της ενεργοποίησης.</p>
           <div className={styles.actions}>
-            <Link href={joinPath} className={styles.button}>Διεκδίκησε την καταχώριση</Link>
+            <Link href={joinPath} className={styles.button}>Επίλεξε πρόγραμμα & διεκδίκησε τη σελίδα</Link>
             <Link href="mailto:info@kontamou.site?subject=GEMI%20directory%20correction" className={styles.button + " " + styles.secondary}>Αίτημα διόρθωσης</Link>
           </div>
+          <h3>Προγράμματα συμμετοχής</h3>
+          <div className={styles.actions}>{HUB_EXPANSION_PLANS.map((plan) =>
+            <Link key={plan.code} className={styles.button + " " + styles.secondary}
+              href={hubGemiApplicationPath({ plan: plan.code, billing: "annual", gemi: business.gemiNumber })}>
+              {plan.name} · {billingLabelForPlan(plan, "annual")}
+            </Link>
+          )}</div>
+          <p className={styles.details}>Η δημόσια καταχώριση δεν συνεπάγεται πρόσκληση ή συνεργασία.
+            Η επιλογή εμπορικού προγράμματος δεν ενεργοποιεί άμεσα πωλήσεις ούτε προκαλεί χρέωση.</p>
         </article>
       </div>
       <div className={styles.actions}>
