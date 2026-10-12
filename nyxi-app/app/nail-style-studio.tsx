@@ -69,7 +69,7 @@ export default function NailStyleStudio({ sampledShade, active = true }: { sampl
     }
   };
   const copyLook = async () => {
-    const txt = "NYXI Nail Look — " + shadeLabel + " (" + finalShade + ")" + (profile ? " · εκτιμώμενο χρώμα, μη βαθμονομημένο" : "") · " + shapeLabel + " · " + finishLabel + " · " + (length === "short" ? "Κοντό" : length === "long" ? "Μακρύ" : "Μεσαίο") + " μήκος";
+    const txt = "NYXI Nail Look — " + shadeLabel + " (" + finalShade + ")" + (profile ? " · εκτιμώμενο χρώμα, μη βαθμονομημένο" : "") + " · " + shapeLabel + " · " + finishLabel + " · " + (length === "short" ? "Κοντό" : length === "long" ? "Μακρύ" : "Μεσαίο") + " μήκος";
     try { await navigator.clipboard.writeText(txt); setMessage("Η ιδέα αντιγράφηκε."); }
     catch { setMessage(txt); }
   };
