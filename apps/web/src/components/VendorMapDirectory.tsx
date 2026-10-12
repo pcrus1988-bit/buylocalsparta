@@ -121,7 +121,7 @@ function formatDistance(distance: number): string {
   return distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} μ.` : `${distance.toLocaleString("el-GR", { maximumFractionDigits: 1 })} χλμ.`;
 }
 
-export function VendorMapDirectory({ vendors, facets, initialVendorId, centerLatitude = SPARTA_CENTER[0], centerLongitude = SPARTA_CENTER[1], partnerLabel = "Ενεργός συνεργάτης", researchLabel = "Χαρτογραφημένη επιχείρηση" }: { vendors: readonly VendorMapEntry[]; facets: readonly VendorMapFacet[]; initialVendorId?: string; centerLatitude?: number; centerLongitude?: number; partnerLabel?: string; researchLabel?: string }) {
+export function VendorMapDirectory({ vendors, facets, initialVendorId, centerLatitude = SPARTA_CENTER[0], centerLongitude = SPARTA_CENTER[1], partnerLabel = "Ενεργός συνεργάτης", researchLabel = "Χαρτογραφημένη επιχείρηση", listHref = "/shops", profileLabel = "Δες τη σελίδα του καταστήματος", noCoordinatesMessage }: { vendors: readonly VendorMapEntry[]; facets: readonly VendorMapFacet[]; initialVendorId?: string; centerLatitude?: number; centerLongitude?: number; partnerLabel?: string; researchLabel?: string; listHref?: string; profileLabel?: string; noCoordinatesMessage?: string }) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const layerRef = useRef<LeafletLayerGroup | null>(null);
@@ -317,8 +317,8 @@ export function VendorMapDirectory({ vendors, facets, initialVendorId, centerLat
             <span>Κατάσταση</span>
             <select value={status} onChange={(event) => setStatus(event.target.value as MapStatusFilter)}>
               <option value="all">Όλες οι επιχειρήσεις</option>
-              <option value="partner">Ενεργοί συνεργάτες</option>
-              <option value="research">Χαρτογραφημένες / προσκεκλημένες</option>
+              <option value="partner">{partnerLabel}</option>
+              <option value="research">{researchLabel}</option>
             </select>
           </label>
           <label className={styles.field}>
@@ -372,23 +372,23 @@ export function VendorMapDirectory({ vendors, facets, initialVendorId, centerLat
             <span className={styles.legendPartner}><i /> {partnerLabel}</span>
             <span className={styles.legendResearch}><i /> {researchLabel}</span>
           </div>
-          <a href="/shops">Προβολή λίστας →</a>
+          <a href={listHref}>Προβολή λίστας →</a>
         </div>
         <div className={styles.mapFrame}>
           {!mapReady && !mapError && <div className={styles.mapLoading}>Φόρτωση χάρτη…</div>}
           {mapError && <div className={styles.mapFallback}>{mapError}</div>}
           <div ref={mapElementRef} className={styles.mapCanvas} aria-label="Διαδραστικός χάρτης καταστημάτων" />
-          {mapReady && mappedCount === 0 && <div className={styles.coordinateNotice}>Οι επιχειρήσεις έχουν διευθύνσεις, αλλά δεν έχουν ακόμη αποθηκευμένες επαληθευμένες συντεταγμένες. Η λίστα και τα φίλτρα λειτουργούν κανονικά· pins θα εμφανίζονται αυτόματα μόλις συμπληρωθούν τα σημεία.</div>}
+          {mapReady && mappedCount === 0 && <div className={styles.coordinateNotice}>{noCoordinatesMessage ?? "Οι επιχειρήσεις έχουν διευθύνσεις, αλλά δεν έχουν ακόμη αποθηκευμένες επαληθευμένες συντεταγμένες. Η λίστα και τα φίλτρα λειτουργούν κανονικά· pins θα εμφανίζονται αυτόματα μόλις συμπληρωθούν τα σημεία."}</div>}
 
           {selectedVendor && <article className={styles.mapSelection} aria-live="polite">
             <div className={styles.selectionHead}>
-              <span className={selectedVendor.status === "partner" ? styles.partnerBadge : styles.researchBadge}>{selectedVendor.status === "partner" ? "Ενεργός συνεργάτης" : "Δημόσια ερευνητική καταχώριση"}</span>
+              <span className={selectedVendor.status === "partner" ? styles.partnerBadge : styles.researchBadge}>{selectedVendor.status === "partner" ? partnerLabel : researchLabel}</span>
               {userLocation && selectedVendor.coordinates && <strong>{formatDistance(distanceKm(userLocation, selectedVendor.coordinates))}</strong>}
             </div>
             <h2>{selectedVendor.name}</h2>
             <p>{[selectedVendor.address, selectedVendor.postcode, selectedVendor.locality].filter(Boolean).join(", ") || "Η ακριβής τοποθεσία δεν έχει ακόμη δημοσιευθεί."}</p>
             {selectedVendor.facets.length > 0 && <div className={styles.selectionCategories}>{[...new Map(selectedVendor.facets.map((entry) => [entry.key, entry])).values()].filter((entry) => entry.kind === "subcategory").slice(0, 3).map((entry) => <span key={entry.key}>{entry.label}</span>)}</div>}
-            <a className="button" href={selectedVendor.href}>Δες τη σελίδα του καταστήματος</a>
+            <a className="button" href={selectedVendor.href}>{profileLabel}</a>
           </article>}
         </div>
       </section>
