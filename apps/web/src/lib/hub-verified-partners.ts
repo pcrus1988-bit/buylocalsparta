@@ -78,7 +78,7 @@ function asPartner(row: PartnerRow): VerifiedHubPartner {
     category: row.primary_category,
     planCode: row.plan_code,
     vendorSlug: row.vendor_slug,
-    publicPath: "/vendor/" + row.vendor_slug
+    publicPath: "/hubs/" + row.hub_slug + "/business/" + row.vendor_slug
   };
 }
 
@@ -111,4 +111,19 @@ export async function listVerifiedHubPartnerSlugs(): Promise<string[]> {
     "SELECT DISTINCT h.hub_slug " + FROM_VERIFIED_PARTNERS
   );
   return result.rows.map((row) => row.hub_slug);
+}
+
+
+/** Hub-local directory profile, including PRESENCE, never a Sparta storefront fallback. */
+export async function getVerifiedHubPartnerBySlug(
+  hubSlug: string, slug: string
+): Promise<VerifiedHubPartner | undefined> {
+  if (!/^[a-z0-9-]{2,80}$/.test(hubSlug) ||
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 128) return undefined;
+  const result = await getProductionPostgresRuntime().sqlPool.query<PartnerRow>(
+    PARTNER_FIELDS + FROM_VERIFIED_PARTNERS +
+      " AND h.hub_slug=$1 AND v.public_slug=$2 ORDER BY h.updated_at DESC LIMIT 1",
+    [hubSlug, slug]
+  );
+  return result.rows[0] ? asPartner(result.rows[0]) : undefined;
 }
