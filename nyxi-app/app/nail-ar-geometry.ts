@@ -1,4 +1,4 @@
-import { validContour, type NailContour, type NailContours } from "./nail-contours";
+import { validContour, type NailContour, type NailContours } from "./nail-contours.ts";
 import type { NailMaterial } from "./nail-material-renderer.ts";
 import { creativeMaterial } from "./nail-material-renderer.ts";
 /**
