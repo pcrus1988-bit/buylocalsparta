@@ -8,7 +8,7 @@ import { listPublicHubClaimMedia } from "../../../../../lib/hub-claim-media-runt
 import { getPublicHubClaim } from "../../../../../lib/hub-claim-runtime";
 import { getVerifiedHubPartnerBySlug } from "../../../../../lib/hub-verified-partners";
 import { hubClaimPublicPath } from "../../../../../lib/hub-claim-public-url";
-import { getPublicHubCensus, hubCensusBusinessPath, convertedClaimUrlForGemiCensus } from "../../../../../lib/hub-gemi-directory";
+import { getPublicHubCensus, hubCensusBusinessPath, convertedClaimUrlForGemiCensus, supersedingPartnerUrlForGemiCensus } from "../../../../../lib/hub-gemi-directory";
 import { getExpansionHubBySlug } from "../../../../../lib/expansion-hubs";
 import { HUB_EXPANSION_PLANS, billingLabelForPlan } from "../../../../../lib/hub-expansion-plans";
 import { hubGemiApplicationPath } from "../../../../../lib/hub-gemi-join-links";
@@ -104,6 +104,8 @@ export default async function PublicHubBusinessPage({ params }: Params) {
 
   const converted = await convertedClaimUrlForGemiCensus(hubSlug, id);
   if (converted) permanentRedirect(converted);
+  const partnerRedirect = await supersedingPartnerUrlForGemiCensus(hubSlug, id);
+  if (partnerRedirect) permanentRedirect(partnerRedirect);
   const business = await getPublicHubCensus(hubSlug, id);
   const hub = getExpansionHubBySlug(hubSlug);
   if (!business || !hub) notFound();

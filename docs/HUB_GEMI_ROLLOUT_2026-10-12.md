@@ -35,6 +35,14 @@ Open `/admin/hubs/gemi-directory/worklist` (super administrator or `vendor.manag
 
 The private `scripts/export-hub-gemi-geocode-worklist.ts` exporter supports an equivalent bounded, keyset-paginated NDJSON handoff to an evidence-acquisition provider, but external licensing and coordinate storage terms must be verified before ingesting coordinates. Postal-code or municipal centroids can only support review prioritization, not address-level proof.
 
+## Source evidence triage and existing-partner canonical ownership
+
+Open `/admin/hubs/gemi-directory/evidence` to inspect private corroborating website, supplier or commercial-directory sources with a bounded 25-record page. Admins can compare the claimed source postcode with the registry and view the provenance narrative, confirmation status and missing physical-location review. This is **read-only** and never marks a coordinate as verified, assigns a HUB or publishes records.
+
+The initial five source records cover four distinct businesses. Two are already represented publicly through a converted CLAIM in Volos and an active Sparta vendor page. Such entities must not receive competing research listing pages. A verified active vendor's GEMI number suppresses the duplicate from directory pages and SEO-ready counts, and legacy approved census URLs can redirect to the canonical live seller URL. Converted CLAIM overrides continue to redirect to the existing owner profile.
+
+Source corroboration does not establish a geocoded premise or redistribution rights for coordinate data. The review workflow must obtain an authoritative source, verify physical address geometry, record location permission, independently review the 25-km hub assignment, then separately complete privacy and editorial approval. No automatic public approval exists in this change.
+
 ## GEO verification — safe rollout sequence
 
 1. Review administrative **name** correspondence in `hub_gemi_municipality_matches` and retain reviewer ID, source, reason and status events. It is **not** automatic HUB assignment.

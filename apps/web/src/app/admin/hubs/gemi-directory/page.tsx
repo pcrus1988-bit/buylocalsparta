@@ -148,6 +148,7 @@ export default async function GemiHubGeographyPage({ searchParams }: {
           <Link className="button button-secondary" href="/admin/research-vendors">Research vendors</Link>
           <Link className="button button-secondary" href="/admin/hubs/plan-preview">HUB plan preview</Link>
           <Link className="button button-secondary" href="/admin/hubs/gemi-directory/worklist">Λίστα γεωκωδικοποίησης</Link>
+          <Link className="button button-secondary" href="/admin/hubs/gemi-directory/evidence">Πηγές διευθύνσεων</Link>
         </div>
       </div>
     </section>

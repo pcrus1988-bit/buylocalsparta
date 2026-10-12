@@ -76,6 +76,7 @@ export default async function GemiGeoEvidenceWorklistPage({ searchParams }: {
         <div className="hero-actions">
           <Link className="button button-secondary" href="/admin/hubs/gemi-directory">Επιστροφή σε προτάσεις δήμων</Link>
           <Link className="button button-secondary" href="/admin/hubs/gemi-directory?audit=1">Έλεγχος ετοιμότητας δημοσίευσης</Link>
+          <Link className="button button-secondary" href="/admin/hubs/gemi-directory/evidence">Καταγεγραμμένες πηγές διεύθυνσης</Link>
         </div>
       </div>
     </section>

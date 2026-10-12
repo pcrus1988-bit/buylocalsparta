@@ -69,6 +69,13 @@ function fromRow(row: HubCensusRow): HubCensusBusiness {
   };
 }
 
+// Registry research listings never compete with a verified active vendor page.
+// CLAIM profiles are filtered separately and older approved links redirect.
+const ACTIVE_VENDOR_SUPPRESSION =
+  " AND NOT EXISTS (SELECT 1 FROM public.vendor_businesses v " +
+  " WHERE v.gemi_number=d.gemi_number AND v.status='active' " +
+  " AND v.public_directory_visible=true) ";
+
 const DIRECTORY_COLUMNS = [
   "gemi_number", "public_slug", "legal_name", "city", "municipality",
   "prefecture", "postcode", "sector_code", "assigned_hub_slug",
@@ -93,15 +100,16 @@ export async function listPublicHubCensus(
   const pattern = "%" + query.replace(/[\\%_]/g, "\\$&") + "%";
   const result = await getProductionPostgresRuntime().sqlPool.query<HubCensusRow>(
     "SELECT " + DIRECTORY_COLUMNS +
-    " FROM research_private.hub_gemi_directory " +
+    " FROM research_private.hub_gemi_directory d " +
     " WHERE assigned_hub_slug=$1 AND assignment_status='assigned' " +
     " AND display_status='published' AND public_slug>$2 " +
     " AND ($3='' OR legal_name ILIKE $4 ESCAPE '\\') " +
     " AND ($6='' OR sector_code=$6) " +
     " AND NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects h " +
-    " WHERE h.gemi_number=research_private.hub_gemi_directory.gemi_number " +
+    " WHERE h.gemi_number=d.gemi_number " +
     " AND h.hub_slug=$1 AND h.plan_code='claim' AND h.status='converted' " +
     " AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL) " +
+    ACTIVE_VENDOR_SUPPRESSION +
     " ORDER BY public_slug ASC LIMIT $5",
     [hubSlug, after, query, pattern, limit + 1, category]
   );
@@ -118,9 +126,10 @@ export async function getPublicHubCensus(
       slug.length > 128 || !productionDatabaseConfigured()) return undefined;
   const result = await getProductionPostgresRuntime().sqlPool.query<HubCensusRow>(
     "SELECT " + DIRECTORY_COLUMNS +
-    " FROM research_private.hub_gemi_directory " +
+    " FROM research_private.hub_gemi_directory d " +
     " WHERE assigned_hub_slug=$1 AND public_slug=$2 " +
-    " AND assignment_status='assigned' AND display_status='published' LIMIT 1",
+    " AND assignment_status='assigned' AND display_status='published' " +
+    ACTIVE_VENDOR_SUPPRESSION + " LIMIT 1",
     [hubSlug, slug]
   );
   return result.rows[0] ? fromRow(result.rows[0]) : undefined;
@@ -150,6 +159,35 @@ export async function convertedClaimUrlForGemiCensus(
 }
 
 
+/** Existing verified sellers take precedence over a public GEMI research profile. */
+export async function supersedingPartnerUrlForGemiCensus(
+  hubSlug: string, slug: string
+): Promise<string | undefined> {
+  if (!getExpansionHubBySlug(hubSlug) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ||
+      slug.length > 128 || !productionDatabaseConfigured()) return undefined;
+  const result = await getProductionPostgresRuntime().sqlPool.query<{ target: string | null }>(
+    "SELECT CASE WHEN m.code='sparta' THEN '/vendor/'||v.public_slug " +
+    "WHEN h.id IS NOT NULL THEN '/hubs/'||h.hub_slug||'/business/'||v.public_slug " +
+    "ELSE NULL END AS target " +
+    "FROM research_private.hub_gemi_directory d " +
+    "JOIN public.vendor_businesses v ON v.gemi_number=d.gemi_number " +
+    "JOIN public.markets m ON m.id=v.market_id " +
+    "LEFT JOIN public.hub_expansion_prospects h ON h.vendor_id=v.id " +
+    "AND h.hub_slug=$1 AND h.status='converted' " +
+    "AND h.plan_code IN ('presence','shop','growth','pro') AND h.owner_user_id IS NOT NULL " +
+    "AND EXISTS (SELECT 1 FROM public.users u WHERE u.id=h.owner_user_id " +
+    "AND u.status='active' AND u.email_verified_at IS NOT NULL) " +
+    "WHERE d.assigned_hub_slug=$1 AND d.public_slug=$2 AND d.display_status='published' " +
+    "AND v.status='active' AND v.public_directory_visible=true " +
+    "AND COALESCE(v.demo_mode,false)=false " +
+    "AND v.public_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' " +
+    "ORDER BY (m.code='sparta') DESC LIMIT 1",
+    [hubSlug, slug]
+  );
+  return result.rows[0]?.target ?? undefined;
+}
+
+
 /**
  * Allow the hub-level census directory to enter organic search only when at
  * least ten independently SEO-reviewed business pages exist in that HUB.
@@ -166,7 +204,7 @@ export async function hubHasIndexReadyCensus(hubSlug: string): Promise<boolean> 
     "WHERE h.gemi_number=d.gemi_number AND h.hub_slug=$1 " +
     "AND h.plan_code='claim' AND h.status='converted' " +
     "AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL) " +
-    "LIMIT 10" +
+    ACTIVE_VENDOR_SUPPRESSION + "LIMIT 10" +
     ") eligible",
     [hubSlug]
   );
@@ -185,9 +223,10 @@ export async function publicHubCensusCategoryCounts(
     "WHERE h.gemi_number=d.gemi_number AND h.hub_slug=$1 " +
     "AND h.plan_code='claim' AND h.status='converted' " +
     "AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL) " +
-    "GROUP BY d.sector_code ORDER BY count(*) DESC LIMIT 32",
+    ACTIVE_VENDOR_SUPPRESSION + "GROUP BY d.sector_code ORDER BY count(*) DESC LIMIT 32",
     [hubSlug]
   );
   return result.rows.filter(row => Object.hasOwn(CATEGORY_LABELS, row.sector_code))
     .map(row => ({ slug: row.sector_code, label: CATEGORY_LABELS[row.sector_code], count: Number(row.n) }));
 }
+
