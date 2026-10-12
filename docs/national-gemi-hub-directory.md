@@ -37,6 +37,20 @@ One GEMI registration means one canonical legal entity. Multiple physical branch
 - Migration 0443 needs explicit production rollout and checksum-ledger verification before deploying the new runtime schema gate (443). The migration does not modify, geocode, assign, publish or index businesses.
 - Do not run the municipality matching script with `--apply` until 0443 is installed and a fresh dry-run has been reviewed. Never use municipal centroids as business-level geocoding evidence.
 
+## Licensed geography collection worklist
+
+Use `scripts/export-hub-gemi-geocode-worklist.ts --limit=500` against the private
+database, redirecting stdout to a nonpublic NDJSON file. Pagination uses
+`--after=<lastLocationKey>`. Default scope requires a five-digit postcode;
+`--include-incomplete` includes the incomplete records for separate manual research.
+The output contains location hashes, postcode, city, municipality, prefecture and an
+aggregate business count — no individual GEMI/company identities, telephone numbers,
+emails, AFMs or research answers. It never assigns a HUB or publishes a page.
+Geocoding still requires location-level source evidence, the legal right to retain
+the coordinates, mainland/island verification, and individual review near radius
+boundaries. Do not upload the private worklist to a third-party service without an
+approved data-processing and licensing assessment.
+
 ## New public routes (code prepared; not deployed)
 
 - /hubs/volos/business: paginated, searchable research directory alongside approved CLAIM business pages.
