@@ -29,14 +29,37 @@ function href(params: { q?: string; letter?: string }, page: number): string {
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const params = await searchParams;
-  const hasFilterState = Boolean(params.q?.trim() || params.letter?.trim() || (params.page && params.page !== "1"));
+  const page = pageNumber(params.page);
+  const hasFilterState = Boolean(params.q?.trim() || params.letter?.trim());
+  const invalidPageState = Boolean(
+    params.page && (!/^[1-9]\\d*$/.test(params.page) || String(page) !== params.page)
+  );
   const governed = await governedStaticSeoMetadata("/brands", {
     title: "Brands στο ΚΟΝΤΑ ΜΟΥ",
     description: "Ανακάλυψε brands μέσα από τις κατηγορίες που εκπροσωπούν και τα προϊόντα που είναι πραγματικά διαθέσιμα στο ΚΟΝΤΑ ΜΟΥ."
   });
-  return hasFilterState
-    ? { ...governed, alternates: { canonical: "/brands" }, robots: { index: false, follow: true } }
-    : governed;
+  // Search, letter filters and malformed pagination are not canonical
+  // category landings. Keep them crawl-through but out of search.
+  if (hasFilterState || invalidPageState) {
+    return { ...governed, alternates: { canonical: "/brands" }, robots: { index: false, follow: true } };
+  }
+  if (page === 1) return governed;
+
+  // Every populated unfiltered directory page contains a different set of
+  // brand links. Self-canonicalize and index these pages instead of treating
+  // page 2+ as duplicates of the first 48 brands.
+  const directory = await getPublicBrandDirectory({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE });
+  if (!directory.items.length) {
+    return { ...governed, alternates: { canonical: "/brands" }, robots: { index: false, follow: true } };
+  }
+  const canonical = `/brands?page=${page}`;
+  return {
+    ...governed,
+    title: `Brands — Σελίδα ${page} | ΚΟΝΤΑ ΜΟΥ`,
+    alternates: { canonical },
+    robots: { index: true, follow: true },
+    openGraph: { ...governed.openGraph, url: canonical }
+  };
 }
 
 export default async function BrandsPage({ searchParams }: Props) {
