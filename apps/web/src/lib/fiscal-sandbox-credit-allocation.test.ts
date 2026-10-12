@@ -4,7 +4,7 @@ import {previewFiscalSandboxCredit} from "./fiscal-sandbox-credit-allocation.ts"
 
 const draftId = "12345678-1234-1234-1234-123456789abc";
 const original = (lane = "b2c") => ({
-  draftId, lane, currency: "EUR",
+  draftId, lane, currency: "EUR", grossMinor: 8750,
   lines: [
     {lineNo: 1, grossMinor: 5000},
     {lineNo: 2, grossMinor: 2500},
@@ -83,6 +83,16 @@ test("rejects incomplete, repeated or overallocated historical adjustments", () 
   assert.throws(() => previewFiscalSandboxCredit({...request,
     candidate: credit("CREDIT-0001", [{lineNo: 2, amountMinor: 1}])
   }), /CREDIT_DUPLICATE_REFERENCE/);
+});
+
+test("rejects a source snapshot whose line sum disagrees with original draft gross", () => {
+  const request = example();
+  assert.throws(() => previewFiscalSandboxCredit({...request,
+    original: {...request.original, grossMinor: 8751}
+  }), /CREDIT_ORIGINAL_TOTAL_MISMATCH/);
+  assert.throws(() => previewFiscalSandboxCredit({...request,
+    original: {...request.original, lines: request.original.lines.slice(0, 2)}
+  }), /CREDIT_ORIGINAL_TOTAL_MISMATCH/);
 });
 
 test("rejects duplicate adjustment lines and non-existent source lines", () => {
