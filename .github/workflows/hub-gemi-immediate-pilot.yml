@@ -1,0 +1,91 @@
+name: GEMI Volos Official Verification and Approved Publication
+
+# One-time run after this workflow is merged; later manually rerunnable.
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/hub-gemi-immediate-pilot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gemi-production-volos-official-pilot
+  cancel-in-progress: false
+
+jobs:
+  verify-and-publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      KM_GEMI_OFFICIAL_IDENTITY_VERIFY_APPROVED: "true"
+      KM_GEMI_REVIEWED_PUBLICATION_APPROVED: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Confirm production database secret is available
+        shell: bash
+        run: |
+          if [[ -z "$DATABASE_URL" ]]; then
+            echo "::error::DATABASE_URL GitHub secret is not configured."
+            exit 1
+          fi
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Validate verified-only release controls
+        run: npm run test:hub-gemi-assignment
+      - name: Preview next three private Volos registry checks
+        run: node --experimental-strip-types scripts/verify-hub-gemi-official-direct.ts --hub=volos --limit=3
+      - name: Independently verify first three Volos GEMI identities against official API
+        run: |
+          node --experimental-strip-types \
+            scripts/verify-hub-gemi-official-direct.ts \
+            --hub=volos --limit=3 --apply
+      - name: Preview publication-eligible independently approved Volos records
+        run: |
+          node --experimental-strip-types \
+            scripts/publish-reviewed-hub-gemi-directory.ts \
+            --hub=volos --limit=10
+      - name: Publish only already reviewed and independently approved Volos records
+        run: |
+          node --experimental-strip-types \
+            scripts/publish-reviewed-hub-gemi-directory.ts \
+            --hub=volos --limit=10 --apply
+      - name: Read back aggregate Volos counts without exposing research identities
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import { Pool } from "pg";
+          const pool = new Pool({connectionString:process.env.DATABASE_URL,max:1,connectionTimeoutMillis:8000});
+          try {
+            const result = await pool.query(
+              "SELECT count(*)::int AS staged, " +
+              "count(*) FILTER(WHERE registry_verified_at IS NOT NULL)::int AS identities_verified, " +
+              "count(*) FILTER(WHERE privacy_review_status='approved')::int AS privacy_approved, " +
+              "count(*) FILTER(WHERE seo_approved=true)::int AS seo_approved, " +
+              "count(*) FILTER(WHERE display_status='published')::int AS published " +
+              "FROM research_private.hub_gemi_directory WHERE directory_hub_slug=$1",
+              ["volos"]
+            );
+            const row = result.rows[0];
+            console.info(JSON.stringify({hub:"volos",...row}));
+            const summary=process.env.GITHUB_STEP_SUMMARY;
+            if(summary){
+              const fs=await import("node:fs/promises");
+              await fs.appendFile(summary,
+                "## Volos reviewed-only GEMI pilot\n\n" +
+                "No unreviewed or not-SEO-approved directory records may be published.\n\n" +
+                "| State | Count |\n|---|---:|\n" +
+                Object.entries(row).map(pair=>"| "+pair[0]+" | "+pair[1]+" |").join("\n") +
+                "\n\n");
+            }
+          } finally {await pool.end();}
+          JS
