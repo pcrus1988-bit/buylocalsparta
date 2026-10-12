@@ -149,6 +149,22 @@ export async function runFiscalRecoveryHttpAcceptance({send,db,base,reviewer,mer
  assert.ok(selected.rows[0],"Recovery must enqueue private alerts");
  const notificationId=selected.rows[0].id;
  const emailId="ci_resend_delivery_"+suffix.replace(/[^a-zA-Z0-9]/g,"").slice(0,25);
+ // A correctly signed early webhook must not persist an unrelated/unbound
+ // event. Subsequent provider GET reconciliation recovers its last_event.
+ const earlyId="msg_ci_early_"+suffix;
+ const earlyTimestamp=String(Math.floor(Date.now()/1000));
+ const earlyPayload=JSON.stringify({type:"email.delivered",
+  created_at:new Date().toISOString(),data:{email_id:emailId}});
+ const earlySignature="v1,"+createHmac("sha256",Buffer.alloc(32,173))
+  .update(earlyId+"."+earlyTimestamp+"."+earlyPayload).digest("base64");
+ const early=await fetch(base+"/timologio/api/security-alert-webhook",{
+  method:"POST",headers:{"content-type":"application/json","svix-id":earlyId,
+   "svix-timestamp":earlyTimestamp,"svix-signature":earlySignature},
+  body:earlyPayload,signal:AbortSignal.timeout(10000)});
+ assert.equal(early.status,200);
+ assert.equal((await early.json()).ignored,true,
+  "Early valid webhook is not persisted without a known FISCAL provider ID");
+
  await db.query(
   `UPDATE fiscal_security_alert_outbox SET status='sending',
     attempts=1,last_attempt_at=now(),lease_until=now()+interval '90 seconds',
