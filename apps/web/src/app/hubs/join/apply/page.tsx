@@ -49,7 +49,7 @@ export default async function HubExpansionApplyPage({ searchParams }: { searchPa
         <p>Όπως και στο ενεργό onboarding της Σπάρτης, πρώτα επαληθεύουμε την επιχείρηση στο Γ.Ε.ΜΗ. Το HUB προκύπτει αυτόματα από την επαληθευμένη τοποθεσία — δεν το επιλέγει ο vendor.</p>
       </div>
 
-      {listingGemi && <p className={styles.contextStrip}>Η καταχώριση Γ.Ε.ΜΗ. {listingGemi} παραμένει συνδεδεμένη με κάθε πρόγραμμα. Η ταυτότητα και το HUB θα επαληθευτούν ξανά μέσω ΑΦΜ πριν την υποβολή.</p>}
+      {listingGemi && <div className={styles.planSelector}><strong>Καταχώριση Γ.Ε.ΜΗ. {listingGemi}</strong><p>Η επιχείρηση παραμένει συνδεδεμένη με κάθε πρόγραμμα. Η ταυτότητα και το HUB επαληθεύονται ξανά μέσω ΑΦΜ πριν την υποβολή.</p></div>}
 
       <div className={styles.planSelector} id="plan-choice">
         {!showPlanChoices ? <div className={styles.planSummary}>
