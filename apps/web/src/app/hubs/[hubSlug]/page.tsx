@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { getExpansionHubBySlug } from "../../../lib/expansion-hubs";
+import { hubHasIndexReadyCensus } from "../../../lib/hub-gemi-directory";
 import { listPublicHubClaimsByHub } from "../../../lib/hub-claim-runtime";
 import { hubClaimPublicPath } from "../../../lib/hub-claim-public-url";
 import styles from "../claim/claim.module.css";
@@ -17,7 +18,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { hubSlug } = await params;
   const hub = getExpansionHubBySlug(hubSlug);
   if (!hub) return { title: "HUB δεν βρέθηκε · KONTA MOY", robots: { index: false, follow: false } };
-  const hasListings = (await listPublicHubClaimsByHub(hubSlug, 1)).length > 0;
+  const [claimed, indexReadyCensus] = await Promise.all([
+    listPublicHubClaimsByHub(hubSlug, 1), hubHasIndexReadyCensus(hubSlug)
+  ]);
+  const hasListings = claimed.length > 0 || indexReadyCensus;
   const canonical = `/hubs/${hub.slug}`;
   const description = `Γνώρισε επαληθευμένες επιχειρήσεις στο KONTA MOY HUB ${hub.nameEl}. Τοπική παρουσία επιχειρήσεων, χωρίς απαραίτητα ενεργές ηλεκτρονικές αγορές.`;
   return {
@@ -44,7 +48,8 @@ export default async function PublicCityHubPage({ params }: Props) {
         <h1 className={styles.title}>Οι επιχειρήσεις του {hub.nameEl === "Βόλος" ? "Βόλου" : `HUB ${hub.nameEl}`}.</h1>
         <p className={styles.lead}>Ανακάλυψε επαληθευμένες τοπικές επιχειρήσεις. Η ενεργή παρουσία σε ένα HUB δεν σημαίνει απαραίτητα ότι υποστηρίζονται ήδη online παραγγελίες και πληρωμές.</p>
         <div className={styles.actions}>
-          <Link className={styles.button} href="/hubs/businesses">Όλες οι επιχειρήσεις HUB</Link>
+          <Link className={styles.button} href={"/hubs/" + hub.slug + "/business"}>Επιχειρήσεις αυτού του HUB</Link>
+          <Link className={`${styles.button} ${styles.secondary}`} href="/hubs/businesses">Επαληθευμένες επιχειρήσεις όλων των HUB</Link>
           <Link className={`${styles.button} ${styles.secondary}`} href="/hubs/join">Καταχώρισε την επιχείρησή σου</Link>
         </div>
       </div>
@@ -59,7 +64,7 @@ export default async function PublicCityHubPage({ params }: Props) {
           </article>
         )}</div>
       </> : <section className={styles.panel}>
-        <h2>Οι πρώτες επιχειρήσεις έρχονται σύντομα.</h2>
+        <h2>Οι πρώτες επαληθευμένες επιχειρήσεις έρχονται σύντομα.</h2>
         <p>Το HUB έχει σχεδιαστεί για την περιοχή, αλλά δεν υπάρχουν ακόμη δημοσιευμένες καταχωρίσεις CLAIM.</p>
         <Link className={styles.button} href="/hubs/join">Συμμετοχή επιχείρησης →</Link>
       </section>}

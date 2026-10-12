@@ -1,0 +1,2793 @@
+{
+  "source": "https://github.com/open-admin-data/greece-administrative-divisions",
+  "license": "CC-BY-4.0",
+  "note": "Municipality centroids, not business points. Never auto-publish an address or assert 25km containment based solely on these coordinates.",
+  "records": [
+    {
+      "id": "GR0410M001",
+      "name": "East Mani",
+      "region": "Πελοποννήσου",
+      "latitude": 36.675,
+      "longitude": 22.45
+    },
+    {
+      "id": "GR0102M001",
+      "name": "Pavlos Melas",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.682,
+      "longitude": 22.953
+    },
+    {
+      "id": "GR0407M001",
+      "name": "Aigialeia",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.153,
+      "longitude": 22.139
+    },
+    {
+      "id": "GR0410M002",
+      "name": "Nemea",
+      "region": "Πελοποννήσου",
+      "latitude": 37.829,
+      "longitude": 22.651
+    },
+    {
+      "id": "GR0612M001",
+      "name": "Kastelorizo",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.144,
+      "longitude": 29.575
+    },
+    {
+      "id": "GR0612M002",
+      "name": "Kasos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 35.393,
+      "longitude": 26.918
+    },
+    {
+      "id": "GR0102M002",
+      "name": "Kalamaria",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.579,
+      "longitude": 22.957
+    },
+    {
+      "id": "GR0102M003",
+      "name": "Polygyros",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.404,
+      "longitude": 23.43
+    },
+    {
+      "id": "GR0713M001",
+      "name": "ApokentromÃ©ni DioÃ­kisi KrÃ­tis",
+      "region": "Κρήτης",
+      "latitude": 35.216,
+      "longitude": 24.992
+    },
+    {
+      "id": "GR0407M002",
+      "name": "Andritsaina-Krestena",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 37.548,
+      "longitude": 21.776
+    },
+    {
+      "id": "GR0410M003",
+      "name": "Elafonisos",
+      "region": "Πελοποννήσου",
+      "latitude": 36.489,
+      "longitude": 22.963
+    },
+    {
+      "id": "GR0204M001",
+      "name": "Georgios Karaiskakis",
+      "region": "Ηπείρου",
+      "latitude": 39.226,
+      "longitude": 21.249
+    },
+    {
+      "id": "GR0509M001",
+      "name": "Hydra / Ydra (Dimos Ydras)",
+      "region": "Αττικής",
+      "latitude": 37.332,
+      "longitude": 23.433
+    },
+    {
+      "id": "GR0102M004",
+      "name": "Pylaia-Chortiatis",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.615,
+      "longitude": 23.056
+    },
+    {
+      "id": "GR0102M005",
+      "name": "Chalkidona",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.744,
+      "longitude": 22.656
+    },
+    {
+      "id": "GR0101M001",
+      "name": "Didymoteicho",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.404,
+      "longitude": 26.39
+    },
+    {
+      "id": "GR0101M002",
+      "name": "Alexandroupoli",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 40.925,
+      "longitude": 25.978
+    },
+    {
+      "id": "GR0305M001",
+      "name": "Elassona",
+      "region": "Θεσσαλίας",
+      "latitude": 39.946,
+      "longitude": 22.151
+    },
+    {
+      "id": "GR0102M006",
+      "name": "Pydna-Kolindros",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.445,
+      "longitude": 22.515
+    },
+    {
+      "id": "GR0102M007",
+      "name": "Amfipoli",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.906,
+      "longitude": 23.944
+    },
+    {
+      "id": "GR0509M002",
+      "name": "Pallini",
+      "region": "Αττικής",
+      "latitude": 38.012,
+      "longitude": 23.879
+    },
+    {
+      "id": "GR0410M004",
+      "name": "Ermionida",
+      "region": "Πελοποννήσου",
+      "latitude": 37.427,
+      "longitude": 23.219
+    },
+    {
+      "id": "GR0612M003",
+      "name": "Leipsoi",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.301,
+      "longitude": 26.752
+    },
+    {
+      "id": "GR0204M002",
+      "name": "Central Tzoumerka",
+      "region": "Ηπείρου",
+      "latitude": 39.382,
+      "longitude": 21.152
+    },
+    {
+      "id": "GR0612M004",
+      "name": "Agathonisi",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.462,
+      "longitude": 26.968
+    },
+    {
+      "id": "GR0101M003",
+      "name": "Arriana",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.193,
+      "longitude": 25.728
+    },
+    {
+      "id": "GR0611M001",
+      "name": "Psara",
+      "region": "Βορείου Αιγαίου",
+      "latitude": 38.57,
+      "longitude": 25.576
+    },
+    {
+      "id": "GR0101M004",
+      "name": "Maroneia-Sapes",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 40.999,
+      "longitude": 25.592
+    },
+    {
+      "id": "GR0101M005",
+      "name": "Abdera",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.045,
+      "longitude": 24.993
+    },
+    {
+      "id": "GR0101M006",
+      "name": "Myki",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.288,
+      "longitude": 24.961
+    },
+    {
+      "id": "GR0101M007",
+      "name": "Topeiros",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.015,
+      "longitude": 24.81
+    },
+    {
+      "id": "GR0305M002",
+      "name": "Pyli",
+      "region": "Θεσσαλίας",
+      "latitude": 39.464,
+      "longitude": 21.62
+    },
+    {
+      "id": "GR0102M008",
+      "name": "Dio-Olympos",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.108,
+      "longitude": 22.482
+    },
+    {
+      "id": "GR0203M001",
+      "name": "Eordaia",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 40.523,
+      "longitude": 21.718
+    },
+    {
+      "id": "GR0102M009",
+      "name": "Nea Zichni",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 41.021,
+      "longitude": 23.863
+    },
+    {
+      "id": "GR0102M010",
+      "name": "Sintiki",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 41.283,
+      "longitude": 23.268
+    },
+    {
+      "id": "GR0102M011",
+      "name": "Aristotelis",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.483,
+      "longitude": 23.724
+    },
+    {
+      "id": "GR0102M012",
+      "name": "Nea Propontida",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.316,
+      "longitude": 23.206
+    },
+    {
+      "id": "GR0203M002",
+      "name": "Servia-Velventos",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 40.159,
+      "longitude": 21.976
+    },
+    {
+      "id": "GR0203M003",
+      "name": "Prespes",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 40.758,
+      "longitude": 21.124
+    },
+    {
+      "id": "GR0308M001",
+      "name": "Aliartos",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.362,
+      "longitude": 23.091
+    },
+    {
+      "id": "GR0101M008",
+      "name": "Nestos",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.032,
+      "longitude": 24.638
+    },
+    {
+      "id": "GR0101M009",
+      "name": "Pangaio",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 40.852,
+      "longitude": 24.134
+    },
+    {
+      "id": "GR0101M010",
+      "name": "Kato Nevrokopi",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.372,
+      "longitude": 23.928
+    },
+    {
+      "id": "GR0101M011",
+      "name": "Paranesti",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.341,
+      "longitude": 24.475
+    },
+    {
+      "id": "GR0308M002",
+      "name": "Dirfys-Messapia",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.612,
+      "longitude": 23.716
+    },
+    {
+      "id": "GR0308M003",
+      "name": "Istiaia-Aidipsos",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.925,
+      "longitude": 23.156
+    },
+    {
+      "id": "GR0308M004",
+      "name": "Kymi-Aliveri",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.488,
+      "longitude": 24.074
+    },
+    {
+      "id": "GR0308M005",
+      "name": "Mantoudi-Limni-Agia Anna",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.804,
+      "longitude": 23.421
+    },
+    {
+      "id": "GR0308M006",
+      "name": "Distomo-Arachova-Antikyra",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.459,
+      "longitude": 22.64
+    },
+    {
+      "id": "GR0305M003",
+      "name": "Zagora-Mouresi",
+      "region": "Θεσσαλίας",
+      "latitude": 39.436,
+      "longitude": 23.098
+    },
+    {
+      "id": "GR0305M004",
+      "name": "South Pelion",
+      "region": "Θεσσαλίας",
+      "latitude": 39.234,
+      "longitude": 23.208
+    },
+    {
+      "id": "GR0305M005",
+      "name": "Rigas Feraios",
+      "region": "Θεσσαλίας",
+      "latitude": 39.436,
+      "longitude": 22.81
+    },
+    {
+      "id": "GR0509M003",
+      "name": "Kallithea",
+      "region": "Αττικής",
+      "latitude": 37.95,
+      "longitude": 23.7
+    },
+    {
+      "id": "GR0509M004",
+      "name": "Metamorfosi",
+      "region": "Αττικής",
+      "latitude": 38.066,
+      "longitude": 23.763
+    },
+    {
+      "id": "GR0612M005",
+      "name": "Serifos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.15,
+      "longitude": 24.5
+    },
+    {
+      "id": "GR0509M005",
+      "name": "Nea Smyrni",
+      "region": "Αττικής",
+      "latitude": 37.943,
+      "longitude": 23.714
+    },
+    {
+      "id": "GR0305M006",
+      "name": "Farkadona",
+      "region": "Θεσσαλίας",
+      "latitude": 39.6,
+      "longitude": 22.067
+    },
+    {
+      "id": "GR0612M006",
+      "name": "Anafi",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.35,
+      "longitude": 25.767
+    },
+    {
+      "id": "GR0612M007",
+      "name": "Ios",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.733,
+      "longitude": 25.283
+    },
+    {
+      "id": "GR0305M007",
+      "name": "Kileler",
+      "region": "Θεσσαλίας",
+      "latitude": 39.521,
+      "longitude": 22.513
+    },
+    {
+      "id": "GR0203M004",
+      "name": "Florina",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 40.801,
+      "longitude": 21.485
+    },
+    {
+      "id": "GR0410M005",
+      "name": "Sikyona",
+      "region": "Πελοποννήσου",
+      "latitude": 37.918,
+      "longitude": 22.466
+    },
+    {
+      "id": "GR0612M008",
+      "name": "Kimolos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.795,
+      "longitude": 24.584
+    },
+    {
+      "id": "GR0612M009",
+      "name": "Antiparos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.993,
+      "longitude": 25.042
+    },
+    {
+      "id": "GR0612M010",
+      "name": "Paros",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.059,
+      "longitude": 25.192
+    },
+    {
+      "id": "GR0101M012",
+      "name": "Iasmos",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.148,
+      "longitude": 25.219
+    },
+    {
+      "id": "GR0612M011",
+      "name": "Anafi",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.362,
+      "longitude": 25.785
+    },
+    {
+      "id": "GR0611M002",
+      "name": "Chios",
+      "region": "Βορείου Αιγαίου",
+      "latitude": 38.402,
+      "longitude": 26.016
+    },
+    {
+      "id": "GR0612M012",
+      "name": "Milos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.75,
+      "longitude": 24.433
+    },
+    {
+      "id": "GR0509M006",
+      "name": "Perama",
+      "region": "Αττικής",
+      "latitude": 37.976,
+      "longitude": 23.583
+    },
+    {
+      "id": "GR0612M013",
+      "name": "Chalki",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.238,
+      "longitude": 27.602
+    },
+    {
+      "id": "GR0203M005",
+      "name": "Nestorio",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 40.369,
+      "longitude": 20.972
+    },
+    {
+      "id": "GR0102M013",
+      "name": "Paionia",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 41.001,
+      "longitude": 22.513
+    },
+    {
+      "id": "GR0407M003",
+      "name": "Agrinio",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.621,
+      "longitude": 21.408
+    },
+    {
+      "id": "GR0612M014",
+      "name": "Kythnos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.417,
+      "longitude": 24.433
+    },
+    {
+      "id": "GR0713M002",
+      "name": "Gavdos",
+      "region": "Κρήτης",
+      "latitude": 34.847,
+      "longitude": 24.084
+    },
+    {
+      "id": "GR0509M007",
+      "name": "Oropos",
+      "region": "Αττικής",
+      "latitude": 38.254,
+      "longitude": 23.785
+    },
+    {
+      "id": "GR0509M008",
+      "name": "Kythira",
+      "region": "Αττικής",
+      "latitude": 36.257,
+      "longitude": 22.976
+    },
+    {
+      "id": "GR0509M009",
+      "name": "Aspropyrgos",
+      "region": "Αττικής",
+      "latitude": 38.093,
+      "longitude": 23.598
+    },
+    {
+      "id": "GR0101M013",
+      "name": "Kato Nevrokopi",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.35,
+      "longitude": 23.867
+    },
+    {
+      "id": "GR0101M014",
+      "name": "Orestiada",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.503,
+      "longitude": 26.53
+    },
+    {
+      "id": "GR0102M014",
+      "name": "Nea Zichni",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 41.033,
+      "longitude": 23.83
+    },
+    {
+      "id": "GR0204M003",
+      "name": "Filiates",
+      "region": "Ηπείρου",
+      "latitude": 39.657,
+      "longitude": 20.346
+    },
+    {
+      "id": "GR0308M007",
+      "name": "Karpenisi",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.878,
+      "longitude": 21.77
+    },
+    {
+      "id": "GR0611M003",
+      "name": "Lemnos",
+      "region": "Βορείου Αιγαίου",
+      "latitude": 39.914,
+      "longitude": 25.227
+    },
+    {
+      "id": "GR0509M010",
+      "name": "Nea Ionia",
+      "region": "Αττικής",
+      "latitude": 38.037,
+      "longitude": 23.76
+    },
+    {
+      "id": "GR0410M006",
+      "name": "Megalopolis",
+      "region": "Πελοποννήσου",
+      "latitude": 37.401,
+      "longitude": 22.142
+    },
+    {
+      "id": "GR0305M008",
+      "name": "Kalampaka",
+      "region": "Θεσσαλίας",
+      "latitude": 39.704,
+      "longitude": 21.627
+    },
+    {
+      "id": "GR0713M003",
+      "name": "Kissamos",
+      "region": "Κρήτης",
+      "latitude": 35.49,
+      "longitude": 23.656
+    },
+    {
+      "id": "GR0509M011",
+      "name": "Vrilissia",
+      "region": "Αττικής",
+      "latitude": 38.039,
+      "longitude": 23.837
+    },
+    {
+      "id": "GR0612M015",
+      "name": "Kastelorizo",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.151,
+      "longitude": 29.59
+    },
+    {
+      "id": "GR0410M007",
+      "name": "Elafonisos",
+      "region": "Πελοποννήσου",
+      "latitude": 36.488,
+      "longitude": 22.978
+    },
+    {
+      "id": "GR0509M012",
+      "name": "Amarousion",
+      "region": "Αττικής",
+      "latitude": 38.047,
+      "longitude": 23.807
+    },
+    {
+      "id": "GR0612M016",
+      "name": "Nisyros",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.61,
+      "longitude": 27.162
+    },
+    {
+      "id": "GR0900M001",
+      "name": "Agion Oros",
+      "region": "Άγιον Όρος",
+      "latitude": 40.238,
+      "longitude": 24.238
+    },
+    {
+      "id": "GR0101M015",
+      "name": "Prosotsani",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.183,
+      "longitude": 23.967
+    },
+    {
+      "id": "GR0101M016",
+      "name": "Thasos",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 40.778,
+      "longitude": 24.709
+    },
+    {
+      "id": "GR0509M013",
+      "name": "Piraeus",
+      "region": "Αττικής",
+      "latitude": 37.947,
+      "longitude": 23.645
+    },
+    {
+      "id": "GR0713M004",
+      "name": "Malevizi",
+      "region": "Κρήτης",
+      "latitude": 35.326,
+      "longitude": 25.066
+    },
+    {
+      "id": "GR0101M017",
+      "name": "Samothrace",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 40.475,
+      "longitude": 25.553
+    },
+    {
+      "id": "GR0612M017",
+      "name": "Sikinos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.7,
+      "longitude": 25.117
+    },
+    {
+      "id": "GR0509M014",
+      "name": "Chalandri",
+      "region": "Αττικής",
+      "latitude": 38.016,
+      "longitude": 23.816
+    },
+    {
+      "id": "GR0509M015",
+      "name": "Markopoulo Mesogaias",
+      "region": "Αττικής",
+      "latitude": 37.89,
+      "longitude": 23.976
+    },
+    {
+      "id": "GR0305M009",
+      "name": "Sofades",
+      "region": "Θεσσαλίας",
+      "latitude": 39.237,
+      "longitude": 22.086
+    },
+    {
+      "id": "GR0305M010",
+      "name": "Tyrnavos",
+      "region": "Θεσσαλίας",
+      "latitude": 39.738,
+      "longitude": 22.289
+    },
+    {
+      "id": "GR0308M008",
+      "name": "Aliartos",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.367,
+      "longitude": 23.1
+    },
+    {
+      "id": "GR0102M015",
+      "name": "Delta",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.621,
+      "longitude": 22.746
+    },
+    {
+      "id": "GR0305M011",
+      "name": "Kalampaka",
+      "region": "Θεσσαλίας",
+      "latitude": 39.734,
+      "longitude": 21.514
+    },
+    {
+      "id": "GR0612M018",
+      "name": "Nisyros",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.593,
+      "longitude": 27.153
+    },
+    {
+      "id": "GR0410M008",
+      "name": "Loutraki-Agioi Theodoroi",
+      "region": "Πελοποννήσου",
+      "latitude": 37.993,
+      "longitude": 23.028
+    },
+    {
+      "id": "GR0410M009",
+      "name": "Xylokastro-Evrostina",
+      "region": "Πελοποννήσου",
+      "latitude": 38.038,
+      "longitude": 22.492
+    },
+    {
+      "id": "GR0410M010",
+      "name": "Argos-Mykines",
+      "region": "Πελοποννήσου",
+      "latitude": 37.663,
+      "longitude": 22.625
+    },
+    {
+      "id": "GR0102M016",
+      "name": "Ampelokipoi-Menemeni",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.656,
+      "longitude": 22.892
+    },
+    {
+      "id": "GR0410M011",
+      "name": "Messene",
+      "region": "Πελοποννήσου",
+      "latitude": 37.055,
+      "longitude": 21.893
+    },
+    {
+      "id": "GR0410M012",
+      "name": "Oichalia",
+      "region": "Πελοποννήσου",
+      "latitude": 37.256,
+      "longitude": 21.999
+    },
+    {
+      "id": "GR0410M013",
+      "name": "Pylos-Nestoras",
+      "region": "Πελοποννήσου",
+      "latitude": 36.916,
+      "longitude": 21.779
+    },
+    {
+      "id": "GR0509M016",
+      "name": "Agios Dimitrios",
+      "region": "Αττικής",
+      "latitude": 37.934,
+      "longitude": 23.73
+    },
+    {
+      "id": "GR0612M019",
+      "name": "Kea",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.633,
+      "longitude": 24.35
+    },
+    {
+      "id": "GR0612M020",
+      "name": "Kimolos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.8,
+      "longitude": 24.583
+    },
+    {
+      "id": "GR0101M018",
+      "name": "Topeiros",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.092,
+      "longitude": 24.773
+    },
+    {
+      "id": "GR0509M017",
+      "name": "Agkistri",
+      "region": "Αττικής",
+      "latitude": 37.695,
+      "longitude": 23.34
+    },
+    {
+      "id": "GR0612M021",
+      "name": "Leipsoi",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.283,
+      "longitude": 26.767
+    },
+    {
+      "id": "GR0509M018",
+      "name": "Palaio Faliro",
+      "region": "Αττικής",
+      "latitude": 37.93,
+      "longitude": 23.702
+    },
+    {
+      "id": "GR0308M009",
+      "name": "Stylida",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.955,
+      "longitude": 22.727
+    },
+    {
+      "id": "GR0407M004",
+      "name": "Zacharo",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 37.466,
+      "longitude": 21.725
+    },
+    {
+      "id": "GR0410M014",
+      "name": "Trifylia",
+      "region": "Πελοποννήσου",
+      "latitude": 37.211,
+      "longitude": 21.71
+    },
+    {
+      "id": "GR0612M022",
+      "name": "Tinos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.538,
+      "longitude": 25.163
+    },
+    {
+      "id": "GR0612M023",
+      "name": "Sifnos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.975,
+      "longitude": 24.718
+    },
+    {
+      "id": "GR0612M024",
+      "name": "Mykonos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.443,
+      "longitude": 25.328
+    },
+    {
+      "id": "GR0509M019",
+      "name": "Agia Paraskevi",
+      "region": "Αττικής",
+      "latitude": 38.008,
+      "longitude": 23.826
+    },
+    {
+      "id": "GR0509M020",
+      "name": "Kropia",
+      "region": "Αττικής",
+      "latitude": 37.882,
+      "longitude": 23.856
+    },
+    {
+      "id": "GR0509M021",
+      "name": "Elefsina",
+      "region": "Αττικής",
+      "latitude": 38.081,
+      "longitude": 23.533
+    },
+    {
+      "id": "GR0612M025",
+      "name": "Tilos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.423,
+      "longitude": 27.374
+    },
+    {
+      "id": "GR0410M015",
+      "name": "Sparti",
+      "region": "Πελοποννήσου",
+      "latitude": 37.113,
+      "longitude": 22.453
+    },
+    {
+      "id": "GR0509M022",
+      "name": "Hydra",
+      "region": "Αττικής",
+      "latitude": 37.35,
+      "longitude": 23.465
+    },
+    {
+      "id": "GR0305M012",
+      "name": "Skiathos",
+      "region": "Θεσσαλίας",
+      "latitude": 39.164,
+      "longitude": 23.48
+    },
+    {
+      "id": "GR0305M013",
+      "name": "Alonnisos",
+      "region": "Θεσσαλίας",
+      "latitude": 39.15,
+      "longitude": 23.87
+    },
+    {
+      "id": "GR0509M023",
+      "name": "Athens",
+      "region": "Αττικής",
+      "latitude": 37.989,
+      "longitude": 23.736
+    },
+    {
+      "id": "GR0509M024",
+      "name": "Dafni-Ymittos",
+      "region": "Αττικής",
+      "latitude": 37.951,
+      "longitude": 23.74
+    },
+    {
+      "id": "GR0509M025",
+      "name": "Filadelfeia-Chalkidona",
+      "region": "Αττικής",
+      "latitude": 38.039,
+      "longitude": 23.738
+    },
+    {
+      "id": "GR0509M026",
+      "name": "Keratsini-Drapetsona",
+      "region": "Αττικής",
+      "latitude": 37.964,
+      "longitude": 23.619
+    },
+    {
+      "id": "GR0509M027",
+      "name": "Nikaia-Agios Ioannis Rentis",
+      "region": "Αττικής",
+      "latitude": 37.973,
+      "longitude": 23.654
+    },
+    {
+      "id": "GR0407M005",
+      "name": "Zacharo",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 37.483,
+      "longitude": 21.65
+    },
+    {
+      "id": "GR0509M028",
+      "name": "Lavreotiki",
+      "region": "Αττικής",
+      "latitude": 37.743,
+      "longitude": 24.014
+    },
+    {
+      "id": "GR0509M029",
+      "name": "Rafina-Pikermi",
+      "region": "Αττικής",
+      "latitude": 38.02,
+      "longitude": 23.957
+    },
+    {
+      "id": "GR0509M030",
+      "name": "Spata-Artemida",
+      "region": "Αττικής",
+      "latitude": 37.968,
+      "longitude": 23.96
+    },
+    {
+      "id": "GR0509M031",
+      "name": "Vari-Voula-Vouliagmeni",
+      "region": "Αττικής",
+      "latitude": 37.833,
+      "longitude": 23.792
+    },
+    {
+      "id": "GR0406M001",
+      "name": "Meganisi",
+      "region": "Ιονίων Νήσων",
+      "latitude": 38.663,
+      "longitude": 20.785
+    },
+    {
+      "id": "GR0407M006",
+      "name": "Thermo",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.583,
+      "longitude": 21.667
+    },
+    {
+      "id": "GR0509M032",
+      "name": "Marathon",
+      "region": "Αττικής",
+      "latitude": 38.172,
+      "longitude": 23.974
+    },
+    {
+      "id": "GR0713M005",
+      "name": "Chania",
+      "region": "Κρήτης",
+      "latitude": 35.512,
+      "longitude": 24.017
+    },
+    {
+      "id": "GR0713M006",
+      "name": "Rethymno",
+      "region": "Κρήτης",
+      "latitude": 35.315,
+      "longitude": 24.487
+    },
+    {
+      "id": "GR0204M004",
+      "name": "Filiates",
+      "region": "Ηπείρου",
+      "latitude": 39.601,
+      "longitude": 20.312
+    },
+    {
+      "id": "GR0305M014",
+      "name": "Alonissos",
+      "region": "Θεσσαλίας",
+      "latitude": 39.196,
+      "longitude": 23.906
+    },
+    {
+      "id": "GR0410M016",
+      "name": "Megalopoli",
+      "region": "Πελοποννήσου",
+      "latitude": 37.359,
+      "longitude": 22.116
+    },
+    {
+      "id": "GR0102M017",
+      "name": "Naousa",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.633,
+      "longitude": 22.053
+    },
+    {
+      "id": "GR0101M019",
+      "name": "Prosotsani",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.185,
+      "longitude": 23.941
+    },
+    {
+      "id": "GR0509M033",
+      "name": "Kaisariani",
+      "region": "Αττικής",
+      "latitude": 37.96,
+      "longitude": 23.792
+    },
+    {
+      "id": "GR0509M034",
+      "name": "Megara",
+      "region": "Αττικής",
+      "latitude": 38.027,
+      "longitude": 23.275
+    },
+    {
+      "id": "GR0305M015",
+      "name": "Agia",
+      "region": "Θεσσαλίας",
+      "latitude": 39.718,
+      "longitude": 22.764
+    },
+    {
+      "id": "GR0509M035",
+      "name": "Ilio",
+      "region": "Αττικής",
+      "latitude": 38.038,
+      "longitude": 23.704
+    },
+    {
+      "id": "GR0204M005",
+      "name": "Souli",
+      "region": "Ηπείρου",
+      "latitude": 39.446,
+      "longitude": 20.53
+    },
+    {
+      "id": "GR0204M006",
+      "name": "Nikolaos Skoufas",
+      "region": "Ηπείρου",
+      "latitude": 39.129,
+      "longitude": 21.049
+    },
+    {
+      "id": "GR0308M010",
+      "name": "Chalcis",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.451,
+      "longitude": 23.563
+    },
+    {
+      "id": "GR0308M011",
+      "name": "Agrafa",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 39.075,
+      "longitude": 21.58
+    },
+    {
+      "id": "GR0308M012",
+      "name": "Amfikleia-Elateia",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.644,
+      "longitude": 22.675
+    },
+    {
+      "id": "GR0305M016",
+      "name": "Lake Plastiras",
+      "region": "Θεσσαλίας",
+      "latitude": 39.304,
+      "longitude": 21.727
+    },
+    {
+      "id": "GR0204M007",
+      "name": "Konitsa",
+      "region": "Ηπείρου",
+      "latitude": 40.145,
+      "longitude": 20.828
+    },
+    {
+      "id": "GR0204M008",
+      "name": "Pogoni",
+      "region": "Ηπείρου",
+      "latitude": 39.92,
+      "longitude": 20.509
+    },
+    {
+      "id": "GR0305M017",
+      "name": "Tyrnavos",
+      "region": "Θεσσαλίας",
+      "latitude": 39.768,
+      "longitude": 22.296
+    },
+    {
+      "id": "GR0305M018",
+      "name": "Agia",
+      "region": "Θεσσαλίας",
+      "latitude": 39.71,
+      "longitude": 22.751
+    },
+    {
+      "id": "GR0305M019",
+      "name": "Tempi",
+      "region": "Θεσσαλίας",
+      "latitude": 39.842,
+      "longitude": 22.548
+    },
+    {
+      "id": "GR0305M020",
+      "name": "Mouzaki",
+      "region": "Θεσσαλίας",
+      "latitude": 39.408,
+      "longitude": 21.717
+    },
+    {
+      "id": "GR0407M007",
+      "name": "Kalavryta",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 37.961,
+      "longitude": 22.05
+    },
+    {
+      "id": "GR0407M008",
+      "name": "West Achaea",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.067,
+      "longitude": 21.519
+    },
+    {
+      "id": "GR0407M009",
+      "name": "Erymanthos",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.025,
+      "longitude": 21.768
+    },
+    {
+      "id": "GR0204M009",
+      "name": "North Tzoumerka",
+      "region": "Ηπείρου",
+      "latitude": 39.548,
+      "longitude": 21.059
+    },
+    {
+      "id": "GR0204M010",
+      "name": "Dodoni",
+      "region": "Ηπείρου",
+      "latitude": 39.472,
+      "longitude": 20.772
+    },
+    {
+      "id": "GR0204M011",
+      "name": "Zagori",
+      "region": "Ηπείρου",
+      "latitude": 39.882,
+      "longitude": 20.881
+    },
+    {
+      "id": "GR0102M018",
+      "name": "Almopia",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 41.016,
+      "longitude": 22.08
+    },
+    {
+      "id": "GR0203M006",
+      "name": "Voio",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 40.285,
+      "longitude": 21.364
+    },
+    {
+      "id": "GR0410M017",
+      "name": "Velo-Vocha",
+      "region": "Πελοποννήσου",
+      "latitude": 37.915,
+      "longitude": 22.741
+    },
+    {
+      "id": "GR0410M018",
+      "name": "Gortynia",
+      "region": "Πελοποννήσου",
+      "latitude": 37.68,
+      "longitude": 22.007
+    },
+    {
+      "id": "GR0410M019",
+      "name": "South Kynouria",
+      "region": "Πελοποννήσου",
+      "latitude": 37.142,
+      "longitude": 22.804
+    },
+    {
+      "id": "GR0410M020",
+      "name": "Epidaurus",
+      "region": "Πελοποννήσου",
+      "latitude": 37.613,
+      "longitude": 23.071
+    },
+    {
+      "id": "GR0308M013",
+      "name": "Stylida",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.917,
+      "longitude": 22.617
+    },
+    {
+      "id": "GR0102M019",
+      "name": "Thermi",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.547,
+      "longitude": 23.02
+    },
+    {
+      "id": "GR0102M020",
+      "name": "Skydra",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.767,
+      "longitude": 22.152
+    },
+    {
+      "id": "GR0102M021",
+      "name": "Oraiokastro",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.731,
+      "longitude": 22.917
+    },
+    {
+      "id": "GR0102M022",
+      "name": "Naousa",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.629,
+      "longitude": 22.068
+    },
+    {
+      "id": "GR0102M023",
+      "name": "Irakleia",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 41.167,
+      "longitude": 23.267
+    },
+    {
+      "id": "GR0713M007",
+      "name": "Apokoronas",
+      "region": "Κρήτης",
+      "latitude": 35.37,
+      "longitude": 24.194
+    },
+    {
+      "id": "GR0509M036",
+      "name": "Vyronas",
+      "region": "Αττικής",
+      "latitude": 37.949,
+      "longitude": 23.778
+    },
+    {
+      "id": "GR0406M002",
+      "name": "Meganisi",
+      "region": "Ιονίων Νήσων",
+      "latitude": 38.648,
+      "longitude": 20.767
+    },
+    {
+      "id": "GR0308M014",
+      "name": "Eretria",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.4,
+      "longitude": 23.8
+    },
+    {
+      "id": "GR0509M037",
+      "name": "Lykovrysi-Pefki",
+      "region": "Αττικής",
+      "latitude": 38.065,
+      "longitude": 23.788
+    },
+    {
+      "id": "GR0713M008",
+      "name": "Archanes-Asterousia",
+      "region": "Κρήτης",
+      "latitude": 35.087,
+      "longitude": 25.173
+    },
+    {
+      "id": "GR0509M038",
+      "name": "Mandra-Eidyllia",
+      "region": "Αττικής",
+      "latitude": 38.142,
+      "longitude": 23.362
+    },
+    {
+      "id": "GR0713M009",
+      "name": "Minoa Pediada",
+      "region": "Κρήτης",
+      "latitude": 35.137,
+      "longitude": 25.297
+    },
+    {
+      "id": "GR0713M010",
+      "name": "Amari",
+      "region": "Κρήτης",
+      "latitude": 35.211,
+      "longitude": 24.682
+    },
+    {
+      "id": "GR0203M007",
+      "name": "Nestorio",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 40.413,
+      "longitude": 21.062
+    },
+    {
+      "id": "GR0410M021",
+      "name": "Tripoli",
+      "region": "Πελοποννήσου",
+      "latitude": 37.534,
+      "longitude": 22.345
+    },
+    {
+      "id": "GR0204M012",
+      "name": "Igoumenitsa",
+      "region": "Ηπείρου",
+      "latitude": 39.432,
+      "longitude": 20.347
+    },
+    {
+      "id": "GR0410M022",
+      "name": "Monemvasia",
+      "region": "Πελοποννήσου",
+      "latitude": 36.689,
+      "longitude": 23.05
+    },
+    {
+      "id": "GR0204M013",
+      "name": "Metsovo",
+      "region": "Ηπείρου",
+      "latitude": 39.774,
+      "longitude": 21.137
+    },
+    {
+      "id": "GR0305M021",
+      "name": "Farsala",
+      "region": "Θεσσαλίας",
+      "latitude": 39.305,
+      "longitude": 22.438
+    },
+    {
+      "id": "GR0406M003",
+      "name": "Lefkada",
+      "region": "Ιονίων Νήσων",
+      "latitude": 38.699,
+      "longitude": 20.672
+    },
+    {
+      "id": "GR0406M004",
+      "name": "Paxoi",
+      "region": "Ιονίων Νήσων",
+      "latitude": 39.196,
+      "longitude": 20.174
+    },
+    {
+      "id": "GR0308M015",
+      "name": "Livadeia",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.412,
+      "longitude": 22.835
+    },
+    {
+      "id": "GR0102M024",
+      "name": "Edessa",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.798,
+      "longitude": 21.929
+    },
+    {
+      "id": "GR0102M025",
+      "name": "Thermaikos",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.435,
+      "longitude": 22.924
+    },
+    {
+      "id": "GR0406M005",
+      "name": "Corfu",
+      "region": "Ιονίων Νήσων",
+      "latitude": 39.641,
+      "longitude": 19.836
+    },
+    {
+      "id": "GR0612M026",
+      "name": "Symi",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.612,
+      "longitude": 27.838
+    },
+    {
+      "id": "GR0612M027",
+      "name": "Paros",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.083,
+      "longitude": 25.15
+    },
+    {
+      "id": "GR0713M011",
+      "name": "Oropedio Lasithiou",
+      "region": "Κρήτης",
+      "latitude": 35.163,
+      "longitude": 25.476
+    },
+    {
+      "id": "GR0611M004",
+      "name": "Samos",
+      "region": "Βορείου Αιγαίου",
+      "latitude": 37.733,
+      "longitude": 26.811
+    },
+    {
+      "id": "GR0407M010",
+      "name": "Amfilochia",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.859,
+      "longitude": 21.166
+    },
+    {
+      "id": "GR0509M039",
+      "name": "Fyli",
+      "region": "Αττικής",
+      "latitude": 38.125,
+      "longitude": 23.669
+    },
+    {
+      "id": "GR0612M028",
+      "name": "Astypalaia",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.55,
+      "longitude": 26.35
+    },
+    {
+      "id": "GR0509M040",
+      "name": "Korydallos",
+      "region": "Αττικής",
+      "latitude": 37.985,
+      "longitude": 23.646
+    },
+    {
+      "id": "GR0509M041",
+      "name": "Ilioupoli",
+      "region": "Αττικής",
+      "latitude": 37.931,
+      "longitude": 23.77
+    },
+    {
+      "id": "GR0612M029",
+      "name": "Amorgos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.833,
+      "longitude": 25.9
+    },
+    {
+      "id": "GR0204M014",
+      "name": "Konitsa",
+      "region": "Ηπείρου",
+      "latitude": 40.049,
+      "longitude": 20.757
+    },
+    {
+      "id": "GR0101M020",
+      "name": "Iasmos",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.133,
+      "longitude": 25.183
+    },
+    {
+      "id": "GR0509M042",
+      "name": "Irakleio",
+      "region": "Αττικής",
+      "latitude": 38.052,
+      "longitude": 23.772
+    },
+    {
+      "id": "GR0713M012",
+      "name": "Mylopotamos",
+      "region": "Κρήτης",
+      "latitude": 35.343,
+      "longitude": 24.776
+    },
+    {
+      "id": "GR0102M026",
+      "name": "Kalamaria",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.583,
+      "longitude": 22.95
+    },
+    {
+      "id": "GR0612M030",
+      "name": "Patmos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.319,
+      "longitude": 26.546
+    },
+    {
+      "id": "GR0713M013",
+      "name": "Siteia",
+      "region": "Κρήτης",
+      "latitude": 35.14,
+      "longitude": 26.126
+    },
+    {
+      "id": "GR0102M027",
+      "name": "Neapoli-Sykies",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.652,
+      "longitude": 22.975
+    },
+    {
+      "id": "GR0407M011",
+      "name": "Pineios",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 37.866,
+      "longitude": 21.255
+    },
+    {
+      "id": "GR0407M012",
+      "name": "Patras",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.216,
+      "longitude": 21.796
+    },
+    {
+      "id": "GR0407M013",
+      "name": "Andravida-Kyllini",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 37.961,
+      "longitude": 21.326
+    },
+    {
+      "id": "GR0407M014",
+      "name": "Olympia",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 37.761,
+      "longitude": 21.722
+    },
+    {
+      "id": "GR0612M031",
+      "name": "Naxos and Lesser Cyclades",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.043,
+      "longitude": 25.5
+    },
+    {
+      "id": "GR0713M014",
+      "name": "Agios Vasileios",
+      "region": "Κρήτης",
+      "latitude": 35.246,
+      "longitude": 24.452
+    },
+    {
+      "id": "GR0407M015",
+      "name": "Aktio-Vonitsa",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.823,
+      "longitude": 20.952
+    },
+    {
+      "id": "GR0305M022",
+      "name": "Mouzaki",
+      "region": "Θεσσαλίας",
+      "latitude": 39.43,
+      "longitude": 21.664
+    },
+    {
+      "id": "GR0407M016",
+      "name": "Thermo",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.596,
+      "longitude": 21.694
+    },
+    {
+      "id": "GR0305M023",
+      "name": "Sofades",
+      "region": "Θεσσαλίας",
+      "latitude": 39.333,
+      "longitude": 22.1
+    },
+    {
+      "id": "GR0407M017",
+      "name": "Amfilochia",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.957,
+      "longitude": 21.286
+    },
+    {
+      "id": "GR0305M024",
+      "name": "Farsala",
+      "region": "Θεσσαλίας",
+      "latitude": 39.295,
+      "longitude": 22.385
+    },
+    {
+      "id": "GR0611M005",
+      "name": "Agios Efstratios",
+      "region": "Βορείου Αιγαίου",
+      "latitude": 39.518,
+      "longitude": 25.007
+    },
+    {
+      "id": "GR0203M008",
+      "name": "Deskati",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 39.935,
+      "longitude": 21.731
+    },
+    {
+      "id": "GR0203M009",
+      "name": "Orestida",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 40.414,
+      "longitude": 21.272
+    },
+    {
+      "id": "GR0102M028",
+      "name": "Thermi",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.489,
+      "longitude": 23.081
+    },
+    {
+      "id": "GR0308M016",
+      "name": "Karystos",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.013,
+      "longitude": 24.416
+    },
+    {
+      "id": "GR0308M017",
+      "name": "Domokos",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 39.127,
+      "longitude": 22.3
+    },
+    {
+      "id": "GR0305M025",
+      "name": "Almyros",
+      "region": "Θεσσαλίας",
+      "latitude": 39.182,
+      "longitude": 22.759
+    },
+    {
+      "id": "GR0203M010",
+      "name": "Deskati",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 39.923,
+      "longitude": 21.803
+    },
+    {
+      "id": "GR0203M011",
+      "name": "Amyntaio",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 40.683,
+      "longitude": 21.683
+    },
+    {
+      "id": "GR0102M029",
+      "name": "Irakleia",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 41.123,
+      "longitude": 23.287
+    },
+    {
+      "id": "GR0612M032",
+      "name": "Kos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.893,
+      "longitude": 27.289
+    },
+    {
+      "id": "GR0101M021",
+      "name": "Xanthi",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.208,
+      "longitude": 24.766
+    },
+    {
+      "id": "GR0410M023",
+      "name": "Corinth",
+      "region": "Πελοποννήσου",
+      "latitude": 37.814,
+      "longitude": 22.944
+    },
+    {
+      "id": "GR0102M030",
+      "name": "Oraiokastro",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.762,
+      "longitude": 22.907
+    },
+    {
+      "id": "GR0305M026",
+      "name": "Almyros",
+      "region": "Θεσσαλίας",
+      "latitude": 39.117,
+      "longitude": 22.742
+    },
+    {
+      "id": "GR0410M024",
+      "name": "North Kynouria",
+      "region": "Πελοποννήσου",
+      "latitude": 37.356,
+      "longitude": 22.645
+    },
+    {
+      "id": "GR0406M006",
+      "name": "Kefalonia",
+      "region": "Ιονίων Νήσων",
+      "latitude": 38.224,
+      "longitude": 20.578
+    },
+    {
+      "id": "GR0102M031",
+      "name": "Thessaloniki",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.623,
+      "longitude": 22.954
+    },
+    {
+      "id": "GR0102M032",
+      "name": "Katerini",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.279,
+      "longitude": 22.373
+    },
+    {
+      "id": "GR0102M033",
+      "name": "Pella",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.799,
+      "longitude": 22.377
+    },
+    {
+      "id": "GR0305M027",
+      "name": "Farkadona",
+      "region": "Θεσσαλίας",
+      "latitude": 39.604,
+      "longitude": 22.029
+    },
+    {
+      "id": "GR0406M007",
+      "name": "Zakynthos",
+      "region": "Ιονίων Νήσων",
+      "latitude": 37.783,
+      "longitude": 20.775
+    },
+    {
+      "id": "GR0203M012",
+      "name": "Amyntaio",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 40.675,
+      "longitude": 21.635
+    },
+    {
+      "id": "GR0308M018",
+      "name": "Karystos",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.102,
+      "longitude": 24.373
+    },
+    {
+      "id": "GR0102M034",
+      "name": "Emmanouil Pappas",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 41.053,
+      "longitude": 23.681
+    },
+    {
+      "id": "GR0102M035",
+      "name": "Kassandra",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.014,
+      "longitude": 23.484
+    },
+    {
+      "id": "GR0102M036",
+      "name": "Skydra",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.808,
+      "longitude": 22.169
+    },
+    {
+      "id": "GR0612M033",
+      "name": "Tinos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.604,
+      "longitude": 25.133
+    },
+    {
+      "id": "GR0102M037",
+      "name": "Alexandreia",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.594,
+      "longitude": 22.463
+    },
+    {
+      "id": "GR0612M034",
+      "name": "Symi",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.595,
+      "longitude": 27.835
+    },
+    {
+      "id": "GR0102M038",
+      "name": "Veroia",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.481,
+      "longitude": 22.189
+    },
+    {
+      "id": "GR0612M035",
+      "name": "Kea",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.625,
+      "longitude": 24.306
+    },
+    {
+      "id": "GR0612M036",
+      "name": "Kos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.818,
+      "longitude": 27.134
+    },
+    {
+      "id": "GR0612M037",
+      "name": "Tilos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.43,
+      "longitude": 27.362
+    },
+    {
+      "id": "GR0612M038",
+      "name": "Kythnos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.392,
+      "longitude": 24.417
+    },
+    {
+      "id": "GR0612M039",
+      "name": "Kalymnos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.987,
+      "longitude": 26.991
+    },
+    {
+      "id": "GR0101M022",
+      "name": "Komotini",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.105,
+      "longitude": 25.387
+    },
+    {
+      "id": "GR0713M015",
+      "name": "Anogeia",
+      "region": "Κρήτης",
+      "latitude": 35.291,
+      "longitude": 24.884
+    },
+    {
+      "id": "GR0612M040",
+      "name": "Ios",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.721,
+      "longitude": 25.33
+    },
+    {
+      "id": "GR0305M028",
+      "name": "Trikala",
+      "region": "Θεσσαλίας",
+      "latitude": 39.612,
+      "longitude": 21.772
+    },
+    {
+      "id": "GR0407M018",
+      "name": "Agrinio",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.653,
+      "longitude": 21.455
+    },
+    {
+      "id": "GR0102M039",
+      "name": "Serres",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 41.131,
+      "longitude": 23.544
+    },
+    {
+      "id": "GR0509M043",
+      "name": "Kallithea",
+      "region": "Αττικής",
+      "latitude": 37.952,
+      "longitude": 23.7
+    },
+    {
+      "id": "GR0612M041",
+      "name": "Andros",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.858,
+      "longitude": 24.848
+    },
+    {
+      "id": "GR0305M029",
+      "name": "Skiathos",
+      "region": "Θεσσαλίας",
+      "latitude": 39.168,
+      "longitude": 23.458
+    },
+    {
+      "id": "GR0612M042",
+      "name": "Syros-Ermoupoli",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.427,
+      "longitude": 24.916
+    },
+    {
+      "id": "GR0612M043",
+      "name": "Amorgos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.848,
+      "longitude": 25.898
+    },
+    {
+      "id": "GR0308M019",
+      "name": "Thebes",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.302,
+      "longitude": 23.205
+    },
+    {
+      "id": "GR0509M044",
+      "name": "Papagou-Cholargos",
+      "region": "Αττικής",
+      "latitude": 37.991,
+      "longitude": 23.805
+    },
+    {
+      "id": "GR0305M030",
+      "name": "Larissa",
+      "region": "Θεσσαλίας",
+      "latitude": 39.622,
+      "longitude": 22.336
+    },
+    {
+      "id": "GR0305M031",
+      "name": "Palamas",
+      "region": "Θεσσαλίας",
+      "latitude": 39.475,
+      "longitude": 22.08
+    },
+    {
+      "id": "GR0713M016",
+      "name": "Chersonisos",
+      "region": "Κρήτης",
+      "latitude": 35.311,
+      "longitude": 25.371
+    },
+    {
+      "id": "GR0509M045",
+      "name": "Glyfada",
+      "region": "Αττικής",
+      "latitude": 37.883,
+      "longitude": 23.772
+    },
+    {
+      "id": "GR0509M046",
+      "name": "Galatsi",
+      "region": "Αττικής",
+      "latitude": 38.019,
+      "longitude": 23.757
+    },
+    {
+      "id": "GR0509M047",
+      "name": "Saronikos",
+      "region": "Αττικής",
+      "latitude": 37.786,
+      "longitude": 23.94
+    },
+    {
+      "id": "GR0612M044",
+      "name": "Serifos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.163,
+      "longitude": 24.484
+    },
+    {
+      "id": "GR0612M045",
+      "name": "Sifnos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.971,
+      "longitude": 24.703
+    },
+    {
+      "id": "GR0410M025",
+      "name": "Nafplio",
+      "region": "Πελοποννήσου",
+      "latitude": 37.6,
+      "longitude": 22.928
+    },
+    {
+      "id": "GR0612M046",
+      "name": "Sikinos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.678,
+      "longitude": 25.117
+    },
+    {
+      "id": "GR0612M047",
+      "name": "Folegandros",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.628,
+      "longitude": 24.902
+    },
+    {
+      "id": "GR0407M019",
+      "name": "Pyrgos",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 37.707,
+      "longitude": 21.488
+    },
+    {
+      "id": "GR0101M023",
+      "name": "Soufli",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.189,
+      "longitude": 26.156
+    },
+    {
+      "id": "GR0101M024",
+      "name": "Doxato",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.069,
+      "longitude": 24.249
+    },
+    {
+      "id": "GR0305M032",
+      "name": "Skopelos",
+      "region": "Θεσσαλίας",
+      "latitude": 39.129,
+      "longitude": 23.691
+    },
+    {
+      "id": "GR0101M025",
+      "name": "Orestiada",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.591,
+      "longitude": 26.347
+    },
+    {
+      "id": "GR0308M020",
+      "name": "Eretria",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.454,
+      "longitude": 23.874
+    },
+    {
+      "id": "GR0101M026",
+      "name": "Samothrace",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 40.454,
+      "longitude": 25.585
+    },
+    {
+      "id": "GR0101M027",
+      "name": "Drama",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.307,
+      "longitude": 24.215
+    },
+    {
+      "id": "GR0102M040",
+      "name": "Sithonia",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.128,
+      "longitude": 23.828
+    },
+    {
+      "id": "GR0410M026",
+      "name": "Kalamata",
+      "region": "Πελοποννήσου",
+      "latitude": 37.102,
+      "longitude": 22.136
+    },
+    {
+      "id": "GR0308M021",
+      "name": "Skyros",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.863,
+      "longitude": 24.55
+    },
+    {
+      "id": "GR0305M033",
+      "name": "Argithea",
+      "region": "Θεσσαλίας",
+      "latitude": 39.293,
+      "longitude": 21.486
+    },
+    {
+      "id": "GR0203M013",
+      "name": "Kastoria",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 40.563,
+      "longitude": 21.256
+    },
+    {
+      "id": "GR0203M014",
+      "name": "Grevena",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 40.046,
+      "longitude": 21.365
+    },
+    {
+      "id": "GR0305M034",
+      "name": "Karditsa",
+      "region": "Θεσσαλίας",
+      "latitude": 39.272,
+      "longitude": 21.886
+    },
+    {
+      "id": "GR0509M048",
+      "name": "ApokentromÃ©ni DioÃ­kisi AttikÃ­s",
+      "region": "Αττικής",
+      "latitude": 38.069,
+      "longitude": 23.707
+    },
+    {
+      "id": "GR0102M041",
+      "name": "Lagkadas",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.776,
+      "longitude": 23.206
+    },
+    {
+      "id": "GR0101M028",
+      "name": "Thasos",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 40.685,
+      "longitude": 24.653
+    },
+    {
+      "id": "GR0101M029",
+      "name": "Didymoteicho",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.348,
+      "longitude": 26.496
+    },
+    {
+      "id": "GR0612M048",
+      "name": "Leros",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.148,
+      "longitude": 26.855
+    },
+    {
+      "id": "GR0203M015",
+      "name": "Kozani",
+      "region": "Δυτικής Μακεδονίας",
+      "latitude": 40.313,
+      "longitude": 21.834
+    },
+    {
+      "id": "GR0509M049",
+      "name": "Marousi",
+      "region": "Αττικής",
+      "latitude": 38.047,
+      "longitude": 23.806
+    },
+    {
+      "id": "GR0612M049",
+      "name": "Rhodes",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.185,
+      "longitude": 27.952
+    },
+    {
+      "id": "GR0101M030",
+      "name": "Kavala",
+      "region": "Ανατολικής Μακεδονίας και Θράκης",
+      "latitude": 41.013,
+      "longitude": 24.405
+    },
+    {
+      "id": "GR0102M042",
+      "name": "Kilkis",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 41.041,
+      "longitude": 22.901
+    },
+    {
+      "id": "GR0509M050",
+      "name": "Zografos",
+      "region": "Αττικής",
+      "latitude": 37.975,
+      "longitude": 23.792
+    },
+    {
+      "id": "GR0305M035",
+      "name": "Volos",
+      "region": "Θεσσαλίας",
+      "latitude": 39.357,
+      "longitude": 22.908
+    },
+    {
+      "id": "GR0612M050",
+      "name": "Mykonos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.445,
+      "longitude": 25.354
+    },
+    {
+      "id": "GR0509M051",
+      "name": "Aigaleo",
+      "region": "Αττικής",
+      "latitude": 37.99,
+      "longitude": 23.679
+    },
+    {
+      "id": "GR0509M052",
+      "name": "Chaidari",
+      "region": "Αττικής",
+      "latitude": 38.009,
+      "longitude": 23.631
+    },
+    {
+      "id": "GR0509M053",
+      "name": "Zografou",
+      "region": "Αττικής",
+      "latitude": 37.965,
+      "longitude": 23.79
+    },
+    {
+      "id": "GR0713M017",
+      "name": "Viannos",
+      "region": "Κρήτης",
+      "latitude": 35.045,
+      "longitude": 25.426
+    },
+    {
+      "id": "GR0612M051",
+      "name": "Kasos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 35.417,
+      "longitude": 26.923
+    },
+    {
+      "id": "GR0305M036",
+      "name": "Skopelos",
+      "region": "Θεσσαλίας",
+      "latitude": 39.125,
+      "longitude": 23.725
+    },
+    {
+      "id": "GR0308M022",
+      "name": "Skyros",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.904,
+      "longitude": 24.563
+    },
+    {
+      "id": "GR0410M027",
+      "name": "Nemea",
+      "region": "Πελοποννήσου",
+      "latitude": 37.817,
+      "longitude": 22.667
+    },
+    {
+      "id": "GR0204M015",
+      "name": "Preveza",
+      "region": "Ηπείρου",
+      "latitude": 39.142,
+      "longitude": 20.706
+    },
+    {
+      "id": "GR0308M023",
+      "name": "Delphi",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.481,
+      "longitude": 22.492
+    },
+    {
+      "id": "GR0308M024",
+      "name": "Lamia",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.866,
+      "longitude": 22.367
+    },
+    {
+      "id": "GR0611M006",
+      "name": "Ikaria",
+      "region": "Βορείου Αιγαίου",
+      "latitude": 37.596,
+      "longitude": 26.152
+    },
+    {
+      "id": "GR0509M054",
+      "name": "Agia Varvara",
+      "region": "Αττικής",
+      "latitude": 37.992,
+      "longitude": 23.657
+    },
+    {
+      "id": "GR0509M055",
+      "name": "Elliniko-Argyroupoli",
+      "region": "Αττικής",
+      "latitude": 37.903,
+      "longitude": 23.751
+    },
+    {
+      "id": "GR0509M056",
+      "name": "Moschato-Tavros",
+      "region": "Αττικής",
+      "latitude": 37.961,
+      "longitude": 23.689
+    },
+    {
+      "id": "GR0509M057",
+      "name": "Dionysos",
+      "region": "Αττικής",
+      "latitude": 38.119,
+      "longitude": 23.888
+    },
+    {
+      "id": "GR0713M018",
+      "name": "Kantanos-Selino",
+      "region": "Κρήτης",
+      "latitude": 35.299,
+      "longitude": 23.731
+    },
+    {
+      "id": "GR0713M019",
+      "name": "Faistos",
+      "region": "Κρήτης",
+      "latitude": 35.058,
+      "longitude": 24.835
+    },
+    {
+      "id": "GR0406M008",
+      "name": "Paxoi",
+      "region": "Ιονίων Νήσων",
+      "latitude": 39.208,
+      "longitude": 20.169
+    },
+    {
+      "id": "GR0713M020",
+      "name": "Agios Nikolaos",
+      "region": "Κρήτης",
+      "latitude": 35.221,
+      "longitude": 25.633
+    },
+    {
+      "id": "GR0713M021",
+      "name": "Platanias",
+      "region": "Κρήτης",
+      "latitude": 35.514,
+      "longitude": 23.907
+    },
+    {
+      "id": "GR0713M022",
+      "name": "Heraklion",
+      "region": "Κρήτης",
+      "latitude": 35.34,
+      "longitude": 25.134
+    },
+    {
+      "id": "GR0713M023",
+      "name": "Ierapetra",
+      "region": "Κρήτης",
+      "latitude": 35.015,
+      "longitude": 25.74
+    },
+    {
+      "id": "GR0509M058",
+      "name": "Filothei-Psychiko",
+      "region": "Αττικής",
+      "latitude": 38.015,
+      "longitude": 23.776
+    },
+    {
+      "id": "GR0407M020",
+      "name": "Ilida (Dimos Ilidas)",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 37.835,
+      "longitude": 21.45
+    },
+    {
+      "id": "GR0410M028",
+      "name": "Evrotas",
+      "region": "Πελοποννήσου",
+      "latitude": 36.931,
+      "longitude": 22.707
+    },
+    {
+      "id": "GR0102M043",
+      "name": "Visaltia",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.893,
+      "longitude": 23.567
+    },
+    {
+      "id": "GR0102M044",
+      "name": "Kordelio-Evosmos",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.676,
+      "longitude": 22.903
+    },
+    {
+      "id": "GR0713M024",
+      "name": "Sfakia",
+      "region": "Κρήτης",
+      "latitude": 35.262,
+      "longitude": 24.091
+    },
+    {
+      "id": "GR0509M059",
+      "name": "Agioi Anargyroi-Kamatero",
+      "region": "Αττικής",
+      "latitude": 38.047,
+      "longitude": 23.713
+    },
+    {
+      "id": "GR0204M016",
+      "name": "Zitsa",
+      "region": "Ηπείρου",
+      "latitude": 39.694,
+      "longitude": 20.637
+    },
+    {
+      "id": "GR0410M029",
+      "name": "West Mani",
+      "region": "Πελοποννήσου",
+      "latitude": 36.91,
+      "longitude": 22.283
+    },
+    {
+      "id": "GR0407M021",
+      "name": "Missolonghi",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.419,
+      "longitude": 21.324
+    },
+    {
+      "id": "GR0407M022",
+      "name": "Nafpaktia",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.532,
+      "longitude": 21.826
+    },
+    {
+      "id": "GR0407M023",
+      "name": "Xiromero",
+      "region": "Δυτικής Ελλάδας",
+      "latitude": 38.622,
+      "longitude": 21.112
+    },
+    {
+      "id": "GR0308M025",
+      "name": "Domokos",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 39.108,
+      "longitude": 22.324
+    },
+    {
+      "id": "GR0308M026",
+      "name": "Lokroi",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.619,
+      "longitude": 23.088
+    },
+    {
+      "id": "GR0308M027",
+      "name": "Makrakomi",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.921,
+      "longitude": 22.039
+    },
+    {
+      "id": "GR0204M017",
+      "name": "Ziros",
+      "region": "Ηπείρου",
+      "latitude": 39.283,
+      "longitude": 20.841
+    },
+    {
+      "id": "GR0204M018",
+      "name": "Parga",
+      "region": "Ηπείρου",
+      "latitude": 39.261,
+      "longitude": 20.531
+    },
+    {
+      "id": "GR0308M028",
+      "name": "Dorida",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.52,
+      "longitude": 22.107
+    },
+    {
+      "id": "GR0308M029",
+      "name": "Molos-Agios Konstantinos",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.755,
+      "longitude": 22.73
+    },
+    {
+      "id": "GR0308M030",
+      "name": "Orchomenos",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.492,
+      "longitude": 23.104
+    },
+    {
+      "id": "GR0308M031",
+      "name": "Tanagra",
+      "region": "Στερεάς Ελλάδας",
+      "latitude": 38.264,
+      "longitude": 23.531
+    },
+    {
+      "id": "GR0102M045",
+      "name": "Volvi",
+      "region": "Κεντρικής Μακεδονίας",
+      "latitude": 40.694,
+      "longitude": 23.491
+    },
+    {
+      "id": "GR0509M060",
+      "name": "Salamis",
+      "region": "Αττικής",
+      "latitude": 37.938,
+      "longitude": 23.48
+    },
+    {
+      "id": "GR0612M052",
+      "name": "Astypalaia",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.546,
+      "longitude": 26.377
+    },
+    {
+      "id": "GR0611M007",
+      "name": "Oinousses",
+      "region": "Βορείου Αιγαίου",
+      "latitude": 38.52,
+      "longitude": 26.238
+    },
+    {
+      "id": "GR0900M002",
+      "name": "Alonnisos",
+      "region": "Άγιον Όρος",
+      "latitude": 39.246,
+      "longitude": 23.998
+    },
+    {
+      "id": "GR0509M061",
+      "name": "Poros",
+      "region": "Αττικής",
+      "latitude": 37.484,
+      "longitude": 23.477
+    },
+    {
+      "id": "GR0611M008",
+      "name": "Oinousses",
+      "region": "Βορείου Αιγαίου",
+      "latitude": 38.515,
+      "longitude": 26.222
+    },
+    {
+      "id": "GR0611M009",
+      "name": "Lesbos",
+      "region": "Βορείου Αιγαίου",
+      "latitude": 39.17,
+      "longitude": 26.243
+    },
+    {
+      "id": "GR0406M009",
+      "name": "Ithaca",
+      "region": "Ιονίων Νήσων",
+      "latitude": 38.367,
+      "longitude": 20.717
+    },
+    {
+      "id": "GR0410M030",
+      "name": "Spetses",
+      "region": "Πελοποννήσου",
+      "latitude": 37.215,
+      "longitude": 23.189
+    },
+    {
+      "id": "GR0509M062",
+      "name": "Antiparos",
+      "region": "Αττικής",
+      "latitude": 37.033,
+      "longitude": 25.083
+    },
+    {
+      "id": "GR0410M031",
+      "name": "North Kynouria",
+      "region": "Πελοποννήσου",
+      "latitude": 37.414,
+      "longitude": 22.762
+    },
+    {
+      "id": "GR0713M025",
+      "name": "Folegandros",
+      "region": "Κρήτης",
+      "latitude": 36.633,
+      "longitude": 24.917
+    },
+    {
+      "id": "GR0611M010",
+      "name": "Fournoi Korseon",
+      "region": "Βορείου Αιγαίου",
+      "latitude": 37.59,
+      "longitude": 26.492
+    },
+    {
+      "id": "GR0406M010",
+      "name": "Ithaca",
+      "region": "Ιονίων Νήσων",
+      "latitude": 38.405,
+      "longitude": 20.733
+    },
+    {
+      "id": "GR0612M053",
+      "name": "Patmos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.341,
+      "longitude": 26.594
+    },
+    {
+      "id": "GR0612M054",
+      "name": "Leros",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 37.129,
+      "longitude": 26.76
+    },
+    {
+      "id": "GR0713M026",
+      "name": "Santorini",
+      "region": "Κρήτης",
+      "latitude": 36.4,
+      "longitude": 25.421
+    },
+    {
+      "id": "GR0612M055",
+      "name": "Karpathos",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 35.614,
+      "longitude": 27.157
+    },
+    {
+      "id": "GR0509M063",
+      "name": "Troizinia",
+      "region": "Αττικής",
+      "latitude": 37.533,
+      "longitude": 23.331
+    },
+    {
+      "id": "GR0509M064",
+      "name": "Milos",
+      "region": "Αττικής",
+      "latitude": 36.709,
+      "longitude": 24.425
+    },
+    {
+      "id": "GR0612M056",
+      "name": "Chalki",
+      "region": "Νοτίου Αιγαίου",
+      "latitude": 36.222,
+      "longitude": 27.612
+    },
+    {
+      "id": "GR0611M011",
+      "name": "Fournoi Korseon",
+      "region": "Βορείου Αιγαίου",
+      "latitude": 37.578,
+      "longitude": 26.48
+    }
+  ]
+}

@@ -23,6 +23,7 @@ type SearchParams = Promise<{
   plan?: string | string[];
   billing?: string | string[];
   plans?: string | string[];
+  gemi?: string | string[];
 }>;
 
 export default async function HubExpansionApplyPage({ searchParams }: { searchParams: SearchParams }) {
@@ -33,6 +34,8 @@ export default async function HubExpansionApplyPage({ searchParams }: { searchPa
   const billingCycle: HubBillingCycle = selectedPlan.code === "claim" ? "annual" : requestedBillingCycle;
   const billingLabel = billingLabelForPlan(selectedPlan, billingCycle);
   const showPlanChoices = first(params.plans) === "1";
+  const candidateGemi = first(params.gemi) ?? "";
+  const claimGemi = selectedPlan.code === "claim" && /^[0-9]{8,20}$/.test(candidateGemi) ? candidateGemi : undefined;
   const readiness = hubProspectApplicationReadiness();
   const principal = await getAccountSession();
 
@@ -97,7 +100,7 @@ export default async function HubExpansionApplyPage({ searchParams }: { searchPa
       <div id="application-form" className={styles.formPanel}>
         {!readiness.ready
           ? <div className={styles.unavailable}><strong>Η αίτηση δεν είναι διαθέσιμη σε αυτό το περιβάλλον.</strong><p>{readiness.message}</p></div>
-          : <HubExpansionApplicationForm planCode={selectedPlan.code} billingCycle={billingCycle} csrfToken={principal?.csrfToken} signedInEmail={principal?.email} />}
+          : <HubExpansionApplicationForm planCode={selectedPlan.code} billingCycle={billingCycle} csrfToken={principal?.csrfToken} signedInEmail={principal?.email} claimGemi={claimGemi} />}
       </div>
     </section>
     <SiteFooter />

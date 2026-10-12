@@ -67,7 +67,8 @@ export async function POST(request: Request) {
       websiteUrl: optionalStringField(body.websiteUrl),
       currentSalesChannels: optionalStringField(body.currentSalesChannels),
       notes: optionalStringField(body.notes),
-      rewardCode: optionalStringField(body.rewardCode)
+      rewardCode: optionalStringField(body.rewardCode),
+      claimGemi: optionalStringField(body.claimGemi)
     };
 
     const receipt = await submitHubProspectApplication({ application, principal, now });

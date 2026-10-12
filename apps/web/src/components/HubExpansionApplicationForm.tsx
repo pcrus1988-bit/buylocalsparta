@@ -59,6 +59,7 @@ type Props = Readonly<{
   billingCycle: HubBillingCycle;
   csrfToken?: string;
   signedInEmail?: string;
+  claimGemi?: string;
 }>;
 
 const categories = [
@@ -75,7 +76,7 @@ const categories = [
   "Άλλη μη διατροφική λιανική"
 ] as const;
 
-export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken, signedInEmail }: Props) {
+export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken, signedInEmail, claimGemi }: Props) {
   const [busy, setBusy] = useState(false);
   const [lookupStage, setLookupStage] = useState<LookupStage>("afm");
   const [lookupError, setLookupError] = useState("");
@@ -144,6 +145,9 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
       if (!response.ok || !data.company || !data.hub) {
         throw new Error(data.error ?? "Δεν ήταν δυνατή η επαλήθευση της επιχείρησης και του HUB.");
       }
+      if (claimGemi && data.company.gemiNumber !== claimGemi) {
+        throw new Error("Το ΑΦΜ δεν αντιστοιχεί στον αριθμό ΓΕΜΗ της καταχώρισης που διεκδικείς.");
+      }
       if (data.hub.isSpartaLegacy) {
         window.location.assign(data.redirectTo ?? "/join/sparta");
         return;
@@ -159,7 +163,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
       setLookupError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η επαλήθευση της επιχείρησης και του HUB.");
       setLookupStage("afm");
     }
-  }, [taxNumber, csrfToken]);
+  }, [taxNumber, csrfToken, claimGemi]);
 
   useEffect(() => {
     if (restoredAfmRef.current) return;
@@ -187,6 +191,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
     const data = new FormData(form);
     const payload: Record<string, unknown> = Object.fromEntries(data.entries());
     payload.rewardCode = rewardCode.trim() || undefined;
+    if (planCode === "claim" && claimGemi) payload.claimGemi = claimGemi;
     payload.acceptedAccuracy = data.get("acceptedAccuracy") === "on";
     payload.acceptedPrivacy = data.get("acceptedPrivacy") === "on";
     payload.acceptedProspectStatus = data.get("acceptedProspectStatus") === "on";

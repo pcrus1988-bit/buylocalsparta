@@ -28,6 +28,7 @@ export type HubProspectApplicationInput = Readonly<{
   currentSalesChannels?: string;
   notes?: string;
   rewardCode?: string;
+  claimGemi?: string;
 }>;
 
 type HubProspectTrial = Readonly<{ applicationId: string; vendorId: string; ownerUserId: string; startedAt: number; expiresAt: number }>;
@@ -130,6 +131,14 @@ export async function submitHubProspectApplication(input: {
     throw new HubProspectApplicationError(503, "gemi_unavailable", registry.message);
   }
 
+  // The public census URL is never proof of ownership. The server independently
+  // verifies that the applicant's AFM resolves to the exact GEMI company they
+  // selected before creating a claim application.
+  if (application.claimGemi && registry.gemiNumber !== application.claimGemi) {
+    throw new HubProspectApplicationError(409, "claim_gemi_mismatch",
+      "Το ΑΦΜ δεν αντιστοιχεί στην επιχείρηση της καταχώρισης ΓΕΜΗ.");
+  }
+
   const resolution = await resolveExpansionHubForGemiCompany(registry);
   if (resolution.status === "unresolved") {
     throw new HubProspectApplicationError(422, "hub_unresolved", resolution.message);
@@ -181,6 +190,19 @@ export async function submitHubProspectApplication(input: {
   return uow.withTransaction(
     { platformAccess: true, marketId: "sparta", requestId: `public-hub-prospect:${applicationId}` },
     async (tx) => {
+      if (application.claimGemi) {
+        const registryListing = await tx.query(
+          "SELECT 1 FROM research_private.hub_gemi_directory " +
+          "WHERE gemi_number=$1 AND assigned_hub_id=$2 " +
+          "AND assignment_status='assigned' AND display_status='published' LIMIT 1",
+          [application.claimGemi, hub.id]
+        );
+        if (!registryListing.rowCount) {
+          throw new HubProspectApplicationError(409, "claim_target_unavailable",
+            "Η καταχώριση ΓΕΜΗ δεν είναι διαθέσιμη προς διεκδίκηση στο επαληθευμένο HUB.");
+        }
+      }
+
       const duplicate = await tx.query(`
         SELECT 1 AS present
         FROM hub_expansion_prospects
@@ -254,6 +276,18 @@ export async function submitHubProspectApplication(input: {
         plan.setupFeeCents,
         reward?.discountCents ?? 0
       ]);
+
+      // Link a registry census dossier to a PENDING CLAIM application only.
+      // Approval, ownership and publication remain separate governance steps;
+      // nothing here grants vendor permissions or marks the listing claimed.
+      if (application.claimGemi && plan.code === "claim") {
+        await tx.query(
+          "UPDATE research_private.hub_gemi_directory " +
+          "SET claim_application_id=$1::uuid,updated_at=now() " +
+          "WHERE gemi_number=$2 AND assigned_hub_id=$3 AND claim_application_id IS NULL",
+          [applicationUuid, application.claimGemi, hub.id]
+        );
+      }
 
       const trial = owner && marketUuid
         ? await provisionHubProspectTrial(tx, {
@@ -675,6 +709,10 @@ function normalizeApplication(input: HubProspectApplicationInput): HubProspectAp
     }
   }
 
+  const claimGemi = input.claimGemi?.trim() || undefined;
+  if (claimGemi && (plan.code !== "claim" || !/^[0-9]{8,20}$/.test(claimGemi))) {
+    throw new HubProspectApplicationError(400, "claim_gemi_invalid", "Μη έγκυρη καταχώριση ΓΕΜΗ προς διεκδίκηση.");
+  }
   return {
     taxNumber,
     planCode: plan.code,
@@ -687,7 +725,8 @@ function normalizeApplication(input: HubProspectApplicationInput): HubProspectAp
     websiteUrl,
     currentSalesChannels: optionalLimited(input.currentSalesChannels, 600),
     notes: optionalLimited(input.notes, 1500),
-    rewardCode: normalizedResearchCode(input.rewardCode)
+    rewardCode: normalizedResearchCode(input.rewardCode),
+    claimGemi
   };
 }
 

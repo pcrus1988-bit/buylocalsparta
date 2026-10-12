@@ -46,6 +46,7 @@ export default async function ResearchVendorsPage({ searchParams }: { searchPara
           <Link className="button" href="/admin/applications">Applications</Link>
           <Link className="button button-secondary" href="/admin/partners/pipeline">Partner pipeline</Link>
           <Link className="button button-secondary" href="/admin/categories">Κατηγορίες</Link>
+          <Link className="button button-secondary" href="/admin/hubs/gemi-directory">GEMI → HUB geography</Link>
           <Link className="text-link" href="/shops">Public directory →</Link>
         </div>
       </div>
