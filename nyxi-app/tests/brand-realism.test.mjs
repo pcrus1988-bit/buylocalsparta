@@ -4,7 +4,7 @@ import test from "node:test";
 import { AVAILABLE_POLISHES, AVAILABLE_BRANDS, findBrandPolish, validManufacturerProfile } from "../app/brand-polishes.ts";
 import { brandMaterial, creativeMaterial } from "../app/nail-material-renderer.ts";
 import { smoothLandmarks, handTrackingUsable } from "../app/nail-tracking.ts";
-import { ambientFromRgb } from "../app/nail-ar-geometry.ts";
+import { ambientFromRgb, calibrateNailPose } from "../app/nail-ar-geometry.ts";
 
 const atelier = readFileSync(new URL("../app/nail-style-studio.tsx", import.meta.url), "utf8");
 const camera = readFileSync(new URL("../app/nail-ar-try-on.tsx", import.meta.url), "utf8");
@@ -62,4 +62,15 @@ test("polish highlight strength follows local lighting instead of always glowing
   assert.ok(ambientFromRgb(20, 20, 20) < ambientFromRgb(200, 200, 200));
   assert.ok(ambientFromRgb(255, 255, 255) <= 0.95);
   assert.ok(ambientFromRgb(NaN, 0, 0) < 1);
+});
+
+test("per-nail fitting adjusts selected finger without altering other nail poses", () => {
+  const base = { x: 100, y: 120, width: 30, height: 55, angle: 0, finger: 2 };
+  const corrected = calibrateNailPose(base, { lateral: 0.2, axial: 0.1, width: 1.2 });
+  assert.ok(corrected.x > base.x);
+  assert.ok(corrected.y < base.y);
+  assert.ok(corrected.width > base.width);
+  assert.deepEqual(calibrateNailPose(base), base);
+  assert.equal(corrected.finger, 2);
+  assert.match(atelier, /Επαναφορά δαχτύλου/);
 });
