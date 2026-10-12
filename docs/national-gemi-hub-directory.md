@@ -20,6 +20,14 @@ The private admin review page flags cross-region municipality matches and munici
 
 Rollout order: obtain address-level evidence with lawful commercial retention, verify physical location and island, check GEMI legal status and privacy/public-interest basis, ensure canonical deduplication with converted CLAIM/vendor pages, secure independent editorial moderation, then publish a bounded informational `noindex` pilot and inspect logs. Only selected high-quality, independently SEO-approved pages should become indexable. Do not create a 313k-page sitemap automatically.
 
+## Address-corroboration pilot and national canonical deduplication (12 October)
+
+The recent official GEMI lookup cache contains seven current active-registration records with a reported street/postcode, all matching their corresponding staged census city/postcode. Their address records are not coordinates or premises verification. Four have matching publicly observable street/postcode sources: business websites for HOSTCHEFS, TRADESOR and ΚΕΡΑΣΙΩΤΗΣ, plus a commercial directory for ΑΦΟΙ ΠΑΠΑΔΑΚΟΥ. The source links and checks live in `research_private.hub_gemi_address_source_evidence`. Evidence remains marked **source_corroborated** and physical_geo_status **unverified**. No automated review approval, privacy approval, business HUB assignment, or public census page results from importing this evidence.
+
+A broader exact-GEMI check of the full 313,911-entity census identifies **15** matching `vendor_businesses` profiles and at least one converted `hub_expansion_prospects` business. National census pages must never compete with existing registered sellers or converted HUB profiles of **any** subscription plan. Public census listing, individual profile reads, category totals, indexability thresholds and legacy canonical redirects now check exact GEMI keys for those records. Only genuinely public, active, directory-visible marketplace sellers are used as redirect targets. Private or inactive vendor profiles are suppressed as competing census entries but not exposed.
+
+The admin `/admin/hubs/gemi-directory` review area displays official registered address, source corroboration and duplicate flags to an authorized operator. Further verification must check the physical street address, location coordinates, island/landmass, single eligible 25-km HUB, legal visibility/GDPR issues, and independent geo/editorial review. Any unverified source is treated as a review lead, never authority to publish.
+
 ## Geographic assignment
 
 Do not substitute the centre of a municipality for a real business location. Obtain licensed and storage-permitted geocode coordinates once per location key, with source_reference, precision_kind and island_group. The source research does not contain latitude/longitude or precise street addresses, so postcode-level assignment remains approximate near boundaries. An address-based second pass is needed for edge cases.
