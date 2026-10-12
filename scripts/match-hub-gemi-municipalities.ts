@@ -8,6 +8,7 @@
  */
 import { readFileSync } from "node:fs";
 import { Pool } from "pg";
+import { matchMunicipalityName, normalizedMunicipalityLabel } from "./gemi-municipality-name-match.ts";
 
 type SourceRecord = {
   id: string; name: string; region: string; latitude: number; longitude: number;
@@ -29,18 +30,6 @@ type Candidate = {
   match_method: string;
 };
 
-const chars: Readonly<Record<string, string>> = {
-  Α: "A", Β: "V", Γ: "G", Δ: "D", Ε: "E", Ζ: "Z",
-  Η: "I", Θ: "TH", Ι: "I", Κ: "K", Λ: "L", Μ: "M", Ν: "N",
-  Ξ: "X", Ο: "O", Π: "P", Ρ: "R", Σ: "S", Τ: "T",
-  Υ: "Y", Φ: "F", Χ: "CH", Ψ: "PS", Ω: "O"
-};
-function latin(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase()
-    .replace(/ΟΥ/g, "OU").replace(/ΑΙ/g, "AI").replace(/ΕΙ/g, "I")
-    .split("").map(char => chars[char] ?? char).join("")
-    .replace(/[^A-Z0-9]+/g, "");
-}
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const rad = Math.PI / 180;
   const a = Math.sin((lat2-lat1)*rad/2)**2 +
@@ -54,7 +43,7 @@ const records = JSON.parse(readFileSync(
 if (records.license !== "CC-BY-4.0") throw new Error("Unexpected source license");
 const map = new Map<string, SourceRecord[]>();
 for (const item of records.records) {
-  const key = latin(item.name);
+  const key = normalizedMunicipalityLabel(item.name);
   const items = map.get(key) ?? [];
   items.push(item);
   map.set(key, items);
@@ -84,19 +73,15 @@ try {
 
   const proposed: Candidate[] = [];
   let unmatched = 0;
+  let genitiveVariantProposals = 0;
   for (const m of ms.rows) {
     if (!/^[1-9][0-9]{3,5}$/.test(m.mid ?? "")) { unmatched++; continue; }
-    const key = latin(m.municipality ?? "");
-    const variants = [
-      key,key.replace(/OU$/, "OS"),key.replace(/AS$/, "A"),
-      key.replace(/ION$/, "IO"),key.replace(/EON$/, "ES"),
-      key.replace(/ON$/, "A")
-    ];
-    const sources = [...new Map(variants.flatMap(v => map.get(v) ?? [])
-      .map(v => [v.id, v])).values()];
-    if (sources.length !== 1) { unmatched++; continue; }
-
-    const gazetteer = sources[0]!;
+    const match = matchMunicipalityName(m.municipality ?? "", map);
+    if (!match) { unmatched++; continue; }
+    if (match.rule === "genitive_variant") genitiveVariantProposals++;
+    // Every match is still only a proposed administrative-centre candidate,
+    // never a verified business coordinate or an assignment.
+    const gazetteer = match.record;
     const closest = hs.rows.map(h => ({
       hub: h, distance: haversine(
         gazetteer.latitude,gazetteer.longitude,Number(h.latitude),Number(h.longitude))
@@ -143,6 +128,7 @@ try {
     candidateBusinesses: proposed.reduce((total, row) => total + row.matching_business_count, 0),
     administrativeCentroidOnly: true,
     verifiedBusinessLocations: 0,
+    genitiveVariantProposals,
     unmatchedMunicipalities: unmatched
   }));
 } finally {
