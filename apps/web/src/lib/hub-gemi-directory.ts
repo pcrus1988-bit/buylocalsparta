@@ -92,6 +92,10 @@ export async function listPublicHubCensus(
     " WHERE assigned_hub_slug=$1 AND assignment_status='assigned' " +
     " AND display_status='published' AND public_slug>$2 " +
     " AND ($3='' OR legal_name ILIKE $4 ESCAPE '\\') " +
+    " AND NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects h " +
+    " WHERE h.gemi_number=research_private.hub_gemi_directory.gemi_number " +
+    " AND h.hub_slug=$1 AND h.plan_code='claim' AND h.status='converted' " +
+    " AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL) " +
     " ORDER BY public_slug ASC LIMIT $5",
     [hubSlug, after, query, pattern, limit + 1]
   );
@@ -118,4 +122,23 @@ export async function getPublicHubCensus(
 
 export function hubCensusBusinessPath(business: HubCensusBusiness): string {
   return "/hubs/" + business.hubSlug + "/business/" + business.slug;
+}
+
+
+/** Preserve old census links after a verified owner activates a CLAIM page. */
+export async function convertedClaimUrlForGemiCensus(
+  hubSlug: string, slug: string
+): Promise<string | undefined> {
+  if (!getExpansionHubBySlug(hubSlug) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ||
+      !productionDatabaseConfigured()) return undefined;
+  const result = await getProductionPostgresRuntime().sqlPool.query<{ public_slug: string }>(
+    "SELECT h.public_slug FROM research_private.hub_gemi_directory d " +
+    "JOIN public.hub_expansion_prospects h ON h.gemi_number=d.gemi_number " +
+    "WHERE d.assigned_hub_slug=$1 AND d.public_slug=$2 AND d.display_status='published' " +
+    "AND h.hub_slug=$1 AND h.plan_code='claim' AND h.status='converted' " +
+    "AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL LIMIT 1",
+    [hubSlug, slug]
+  );
+  return result.rows[0]?.public_slug
+    ? "/hubs/" + hubSlug + "/business/" + result.rows[0].public_slug : undefined;
 }
