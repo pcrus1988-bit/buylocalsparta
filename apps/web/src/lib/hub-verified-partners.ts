@@ -83,13 +83,15 @@ function asPartner(row: PartnerRow): VerifiedHubPartner {
 }
 
 export async function listVerifiedHubPartnersByHub(
-  hubSlug: string, limit = 100
+  hubSlug: string, limit = 100, search = ""
 ): Promise<VerifiedHubPartner[]> {
   if (!/^[a-z0-9-]{2,80}$/.test(hubSlug)) return [];
   const bounded = Math.max(1, Math.min(100, Math.trunc(limit)));
+  const query = search.trim().slice(0, 70);
   const result = await getProductionPostgresRuntime().sqlPool.query<PartnerRow>(
     PARTNER_FIELDS + FROM_VERIFIED_PARTNERS +
-      " AND h.hub_slug=$1 ORDER BY h.updated_at DESC LIMIT $2", [hubSlug, bounded]
+      " AND h.hub_slug=$1 AND ($3='' OR position(lower($3) in lower(h.business_name))>0) " +
+      "ORDER BY h.updated_at DESC LIMIT $2", [hubSlug, bounded, query]
   );
   return result.rows.map(asPartner);
 }
