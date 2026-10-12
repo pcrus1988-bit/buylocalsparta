@@ -62,7 +62,7 @@ export default async function PublicHubBusinessPage({ params }: Params) {
   const hub = getExpansionHubBySlug(hubSlug);
   if (!business || !hub) notFound();
   const directoryPath = "/hubs/" + hub.slug + "/business";
-  const joinPath = "/hubs/join/apply?plan=claim";
+  const joinPath = "/hubs/join/apply?plan=claim&gemi=" + encodeURIComponent(business.gemiNumber);
 
   const jsonLd = {
     "@context": "https://schema.org",
