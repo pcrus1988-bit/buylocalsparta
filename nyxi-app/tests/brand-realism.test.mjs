@@ -4,6 +4,7 @@ import test from "node:test";
 import { AVAILABLE_POLISHES, AVAILABLE_BRANDS, findBrandPolish, validManufacturerProfile } from "../app/brand-polishes.ts";
 import { brandMaterial, creativeMaterial } from "../app/nail-material-renderer.ts";
 import { smoothLandmarks, handTrackingUsable } from "../app/nail-tracking.ts";
+import { ambientFromRgb } from "../app/nail-ar-geometry.ts";
 
 const atelier = readFileSync(new URL("../app/nail-style-studio.tsx", import.meta.url), "utf8");
 const camera = readFileSync(new URL("../app/nail-ar-try-on.tsx", import.meta.url), "utf8");
@@ -55,4 +56,10 @@ test("brand and creative modes remain exclusive in UI and material renderer", ()
   assert.ok(renderer.includes('material.kind !== "matte"'));
   assert.ok(renderer.includes("material.magnetic > 0"));
   assert.ok(camera.includes("handTrackingUsable"));
+});
+
+test("polish highlight strength follows local lighting instead of always glowing", () => {
+  assert.ok(ambientFromRgb(20, 20, 20) < ambientFromRgb(200, 200, 200));
+  assert.ok(ambientFromRgb(255, 255, 255) <= 0.95);
+  assert.ok(ambientFromRgb(NaN, 0, 0) < 1);
 });
