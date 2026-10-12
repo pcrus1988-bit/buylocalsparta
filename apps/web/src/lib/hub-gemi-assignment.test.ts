@@ -54,3 +54,28 @@ test("equal distance matches are stable across executions", () => {
   const point = { latitude: 39.361, longitude: 22.9422, landmass: "mainland" as const };
   assert.deepEqual(resolveCensusHubFromPoint(point), resolveCensusHubFromPoint(point));
 });
+
+test("WHOLE_ISLAND never overrides the verified 25km boundary", () => {
+  const remote = resolveCensusHubFromPoint({
+    latitude: 39.361, longitude: 22.9422, islandHubId: "KM-HUB-005",
+    landmass: "island"
+  });
+  assert.equal(remote?.status, "outside_coverage");
+  assert.equal(remote?.hub.id, "KM-HUB-005");
+});
+
+test("conflicting mainland/island geography cannot be assigned", () => {
+  assert.equal(resolveCensusHubFromPoint({
+    latitude: 37.7467, longitude: 23.4275,
+    landmass: "mainland", islandHubId: "KM-HUB-005"
+  }), undefined);
+});
+
+test("verified WHOLE_ISLAND centre is still eligible", () => {
+  const verified = resolveCensusHubFromPoint({
+    latitude: 36.149, longitude: 22.989,
+    landmass: "island", islandHubId: "KM-HUB-007"
+  });
+  assert.equal(verified?.status, "assigned");
+  assert.equal(verified?.hub.id, "KM-HUB-007");
+});
