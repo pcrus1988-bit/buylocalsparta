@@ -2,6 +2,7 @@
 import {createHash,randomBytes,timingSafeEqual} from "node:crypto";
 import {fiscalPool} from "./fiscal-runtime";
 import {fiscalSecurityDeliveryConfig} from "./fiscal-security-alert-outbox";
+import {reconcileFiscalAlertDelivery} from "./fiscal-security-alert-reconcile";
 import {
  fiscalAlertClassifyProvider,fiscalAlertFinalDecision,fiscalAlertBackoffSeconds,
  type FiscalAlertDeliveryResult
@@ -117,6 +118,12 @@ async function finishOne(item:WorkItem,outcome:FiscalAlertDeliveryResult){
    [item.id,item.lease_hash,status,decision.kind==="accepted"?decision.providerId:null,
     decision.kind==="accepted"?null:decision.code,
     fiscalAlertBackoffSeconds(item.attempts)]);
+  if(result.rowCount===1&&status==="provider_accepted"){
+   // Only known FISCAL provider IDs will be retrieved from Resend.
+   await db.query(
+    `INSERT INTO fiscal_security_alert_reconciliation(outbox_id)
+     VALUES($1) ON CONFLICT(outbox_id) DO NOTHING`,[item.id]);
+  }
   if(result.rowCount===1&&status!=="pending"){
    await db.query(
     `INSERT INTO fiscal_audit_events(actor_kind,actor_ref,action,details)
@@ -141,5 +148,7 @@ export async function runFiscalAlertDispatch(){
   else if(state==="dead")counts.dead++;
   else counts.leaseLost++;
  }
- return counts; // Never return email addresses, provider payloads or token material.
+ const reconciliation=await reconcileFiscalAlertDelivery();
+ return {...counts,reconciliation};
+ // Never return recipient addresses, provider payloads or secrets.
 }
