@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../components/SiteFooter";
 import { getExpansionHubBySlug } from "../../../../lib/expansion-hubs";
-import { hubCensusBusinessPath, listPublicHubCensus } from "../../../../lib/hub-gemi-directory";
+import { hubCensusBusinessPath, listPublicHubCensus, hubHasIndexReadyCensus } from "../../../../lib/hub-gemi-directory";
 import { listPublicHubClaimsByHub } from "../../../../lib/hub-claim-runtime";
 import { hubClaimPublicPath } from "../../../../lib/hub-claim-public-url";
 import styles from "../../claim/claim.module.css";
@@ -22,13 +22,14 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
   const hub = getExpansionHubBySlug(hubSlug);
   if (!hub) return { title: "HUB δεν βρέθηκε · KONTA MOY", robots: { index: false, follow: false } };
   const canonical = "/hubs/" + hub.slug + "/business";
+  const indexable = !query.q && !query.after && await hubHasIndexReadyCensus(hub.slug);
   return {
     title: "Επιχειρήσεις " + hub.nameEl + " · Τοπικός κατάλογος · KONTA MOY",
     description: "Ανακάλυψε καταστήματα και επιχειρήσεις στο HUB " + hub.nameEl +
       ", με διαχωρισμό μεταξύ εγκεκριμένων και μη διεκδικημένων καταχωρίσεων.",
     alternates: { canonical },
     // Research indexation is governed, not granted by a GEMI import alone.
-    robots: { index: false, follow: true },
+    robots: { index: indexable, follow: true },
     openGraph: { url: canonical, title: "Επιχειρήσεις HUB " + hub.nameEl },
     ...(query.q || query.after ? { robots: { index: false, follow: true } } : {})
   };
