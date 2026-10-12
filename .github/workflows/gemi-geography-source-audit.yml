@@ -40,9 +40,18 @@ jobs:
           wc -l "${RUNNER_TEMP}/gemi-postcode-proposals.ndjson"
           echo "Postcode points are NOT verified business addresses or eligible listings." >> "${GITHUB_STEP_SUMMARY}"
           echo "Source: Eurostat GISCO 2025, CC-BY-SA-4.0. No private GEMI records were supplied." >> "${GITHUB_STEP_SUMMARY}"
+      - name: Cross-check the public-source candidates against nonidentifying registry postcodes
+        run: |
+          node --experimental-strip-types scripts/check-gemi-postcode-coverage.ts \
+            data/gemi-postcode-validation-20261012.json \
+            "${RUNNER_TEMP}/gemi-postcode-proposals.ndjson" \
+            | tee "${RUNNER_TEMP}/gemi-source-coverage.json"
+          cat "${RUNNER_TEMP}/gemi-source-coverage.json" >> "${GITHUB_STEP_SUMMARY}"
       - name: Upload advisory evidence (never a business-directory import)
         uses: actions/upload-artifact@v4
         with:
           name: gisco-postcode-review-only
-          path: "${{ runner.temp }}/gemi-postcode-proposals.ndjson"
+          path: |
+            ${{ runner.temp }}/gemi-postcode-proposals.ndjson
+            ${{ runner.temp }}/gemi-source-coverage.json
           retention-days: 7
