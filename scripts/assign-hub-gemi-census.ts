@@ -146,7 +146,7 @@ try {
           "WHERE g.location_key=d.location_key AND g.precision_kind='address' " +
           "AND g.source_reference=a.source_reference AND g.postcode=d.postcode) " +
           "AND NOT EXISTS (SELECT 1 FROM research_private.hub_gemi_directory peer " +
-          "WHERE peer.location_key=d.location_key AND peer.gemi_number<>d.gemi_number)"
+          "WHERE peer.location_key=d.location_key AND peer.gemi_number<>d.gemi_number)",
           [JSON.stringify(updates)]
         );
         await client.query("COMMIT");
