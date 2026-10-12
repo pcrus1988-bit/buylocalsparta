@@ -6,6 +6,7 @@ import { assertExpansionHubMaster } from "../../lib/expansion-hubs";
 import { getExpansionHubById } from "../../lib/hub-resolver";
 import { getExpansionHubRuntimeSnapshot } from "../../lib/expansion-hub-runtime";
 import { listPublicClaimHubSlugs } from "../../lib/hub-claim-runtime";
+import { listVerifiedHubPartnerSlugs } from "../../lib/hub-verified-partners";
 
 export const dynamic = "force-dynamic";
 
@@ -23,20 +24,25 @@ export default async function ChooseLocationPage() {
   assertExpansionHubMaster();
   const runtime = await getExpansionHubRuntimeSnapshot();
 
-  // CLAIM directory presence must not mark the shopping/checkout market as live.
-  // Use one bounded DISTINCT lookup for all hubs, not a per-hub database query.
-  let claimHubSlugs: string[] = [];
-  try {
-    claimHubSlugs = await listPublicClaimHubSlugs();
-  } catch (error) {
-    console.error(JSON.stringify({ event: "hubs.claim_directory_lookup_failed", message: error instanceof Error ? error.message : String(error) }));
-  }
-  const claimPresence = new Set(claimHubSlugs);
+  // CLAIM and activated paid-plan presence are directory-only, never proof that
+  // local shopping or checkout infrastructure is ready for customers.
+  const [claimHubSlugs, partnerHubSlugs] = await Promise.all([
+    listPublicClaimHubSlugs().catch((error) => {
+      console.error(JSON.stringify({ event: "hubs.claim_directory_lookup_failed", message: String(error) }));
+      return [] as string[];
+    }),
+    listVerifiedHubPartnerSlugs().catch((error) => {
+      console.error(JSON.stringify({ event: "hubs.partner_directory_lookup_failed", message: String(error) }));
+      return [] as string[];
+    })
+  ]);
+  const directoryPresence = new Set([...claimHubSlugs, ...partnerHubSlugs]);
   const publicRuntimeHubs: readonly LocationGatewayRuntimeHubV2[] = runtime.hubs.map((hub) => ({
     hubId: hub.hubId,
     lifecycleState: hub.lifecycleState,
     isLive: hub.isLive,
-    hasClaimPresence: claimPresence.has(getExpansionHubById(hub.hubId)?.slug ?? "")
+    // Compatibility field for directory activation; includes all verified HUB plans.
+    hasClaimPresence: directoryPresence.has(getExpansionHubById(hub.hubId)?.slug ?? "")
   }));
 
   return (
