@@ -446,7 +446,7 @@ const cachedBrandDirectoryInventory = unstable_cache(
         b.country_code,
         b.description,
         b.metadata,
-        GREATEST(b.updated_at,COALESCE(brm.updated_at,b.updated_at)) AS updated_at,
+        b.updated_at AS updated_at,
         COALESCE(brm.live_product_count,0) AS live_product_count
       FROM public.brands b
       LEFT JOIN public.storefront_brand_directory_read_model brm ON brm.id=b.id
