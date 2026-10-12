@@ -23,6 +23,20 @@ type Summary = {
   reviewed: number | string;
 };
 
+type AddressCandidate = {
+  gemi_number: string;
+  legal_name: string;
+  address_line1: string;
+  postcode: string | null;
+  city: string | null;
+  source_url: string | null;
+  source_kind: string | null;
+  address_match_status: string | null;
+  vendor_slug: string | null;
+  hub_slug: string | null;
+  hub_business_slug: string | null;
+};
+
 type Candidate = {
   registry_municipality_id: string;
   registry_municipality_name: string;
@@ -74,7 +88,7 @@ export default async function GemiHubGeographyPage({ searchParams }: {
   const status = ["proposed", "reviewed", "rejected"].includes(rawStatus ?? "") ? rawStatus! : "";
   const pool = getProductionPostgresRuntime().sqlPool;
 
-  const [summaryResult, rowsResult] = await Promise.all([
+  const [summaryResult, rowsResult, addressResult] = await Promise.all([
     pool.query<Summary>(
       "SELECT count(*)::integer AS municipality_matches, " +
       "COALESCE(sum(matching_business_count),0)::bigint AS business_candidates, " +
@@ -95,6 +109,24 @@ export default async function GemiHubGeographyPage({ searchParams }: {
       "WHERE ($1='' OR m.candidate_hub_slug=$1) AND ($3='' OR m.review_status=$3) " +
       "ORDER BY m.matching_business_count DESC,m.registry_municipality_id LIMIT 50 OFFSET $2",
       [hub, (page-1)*50, status]
+    ),
+    pool.query<AddressCandidate>(
+      "SELECT d.gemi_number,d.legal_name,c.address_line1,c.postcode,c.city," +
+      "e.source_url,e.source_kind,e.address_match_status," +
+      "(SELECT v.public_slug FROM public.vendor_businesses v " +
+      "WHERE v.gemi_number=d.gemi_number AND v.public_slug IS NOT NULL LIMIT 1) AS vendor_slug," +
+      "(SELECT h.hub_slug FROM public.hub_expansion_prospects h WHERE h.gemi_number=d.gemi_number " +
+      "AND h.status='converted' AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL LIMIT 1) AS hub_slug," +
+      "(SELECT h.public_slug FROM public.hub_expansion_prospects h WHERE h.gemi_number=d.gemi_number " +
+      "AND h.status='converted' AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL LIMIT 1) AS hub_business_slug " +
+      "FROM public.gemi_company_lookup_cache c " +
+      "JOIN research_private.hub_gemi_directory d ON d.gemi_number=c.gemi_number " +
+      "LEFT JOIN LATERAL (SELECT source_url,source_kind,address_match_status " +
+      "FROM research_private.hub_gemi_address_source_evidence e0 " +
+      "WHERE e0.gemi_number=d.gemi_number ORDER BY source_checked_at DESC LIMIT 1) e ON true " +
+      "WHERE c.lookup_status='matched' AND c.company_status='Ενεργή' " +
+      "AND nullif(btrim(c.address_line1),'') IS NOT NULL " +
+      "ORDER BY c.last_checked_at DESC LIMIT 25"
     )
   ]);
   const summary = summaryResult.rows[0] ?? {
@@ -191,6 +223,34 @@ export default async function GemiHubGeographyPage({ searchParams }: {
       </div>
       {page * 50 < Number(summary.municipality_matches) &&
         <Link className="button" href={next}>Επόμενη σελίδα →</Link>}
+      <section className="vendor-section">
+        <h2>Έλεγχος επιχειρηματικών διευθύνσεων ΓΕΜΗ</h2>
+        <p className="workspace-inline-note">Επίσημη καταχωρισμένη οδός και Τ.Κ., με εξωτερική
+          πηγή μόνο όπου υπάρχει. Η αντιστοιχία διευθύνσεων δεν σημαίνει ότι έχει
+          επαληθευτεί γεωγραφικό στίγμα, ακτίνα 25 χλμ. ή δικαίωμα δημοσίευσης.</p>
+        <div className="workspace-queue-list">
+          {addressResult.rows.map(item => <article key={item.gemi_number} className="workspace-queue-card">
+            <div className="workspace-queue-head">
+              <div><strong>{item.legal_name}</strong>
+                <small>ΓΕΜΗ: {item.gemi_number} · {item.address_line1} · {item.postcode ?? "χωρίς ΤΚ"} · {item.city ?? "χωρίς πόλη"}</small></div>
+              <span className="status-pill">{item.address_match_status ?? "χρειάζεται ανεξάρτητη πηγή"}</span>
+            </div>
+            {item.source_url && <p className="workspace-inline-note">
+              <a href={item.source_url} target="_blank" rel="noopener noreferrer">
+                Τεκμήριο διεύθυνσης ({item.source_kind ?? "πηγή"})
+              </a>
+            </p>}
+            {item.vendor_slug && <p className="workspace-inline-note">
+              Υπάρχει ήδη προφίλ vendor: <strong>{item.vendor_slug}</strong>. Δεν επιτρέπεται δεύτερη πληροφοριακή σελίδα.
+            </p>}
+            {item.hub_slug && <p className="workspace-inline-note">
+              Υπάρχει ήδη εγκεκριμένο προφίλ HUB:
+              <strong> {item.hub_slug}/{item.hub_business_slug}</strong>. Δεν επιτρέπεται δεύτερη πληροφοριακή σελίδα.
+            </p>}
+            <small>Κατάσταση: αναμονή επιβεβαιωμένων συντεταγμένων και ανεξάρτητων ελέγχων απορρήτου/έκδοσης.</small>
+          </article>)}
+        </div>
+      </section>
       <p className="workspace-inline-note">Πηγή συντεταγμένων: <a href="https://github.com/open-admin-data/greece-administrative-divisions"
         target="_blank" rel="noopener noreferrer">Greece Administrative Divisions Dataset</a> · CC BY 4.0.
         Πρόκειται για διοικητικά κέντρα και όχι επαληθευμένες επαγγελματικές διευθύνσεις.</p>
