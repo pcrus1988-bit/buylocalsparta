@@ -28,6 +28,7 @@ export type HubProspectApplicationInput = Readonly<{
   currentSalesChannels?: string;
   notes?: string;
   rewardCode?: string;
+  claimGemi?: string;
 }>;
 
 type HubProspectTrial = Readonly<{ applicationId: string; vendorId: string; ownerUserId: string; startedAt: number; expiresAt: number }>;
@@ -128,6 +129,14 @@ export async function submitHubProspectApplication(input: {
   }
   if (registry.lookupStatus === "unavailable") {
     throw new HubProspectApplicationError(503, "gemi_unavailable", registry.message);
+  }
+
+  // The public census URL is never proof of ownership. The server independently
+  // verifies that the applicant's AFM resolves to the exact GEMI company they
+  // selected before creating a claim application.
+  if (application.claimGemi && registry.gemiNumber !== application.claimGemi) {
+    throw new HubProspectApplicationError(409, "claim_gemi_mismatch",
+      "Το ΑΦΜ δεν αντιστοιχεί στην επιχείρηση της καταχώρισης ΓΕΜΗ.");
   }
 
   const resolution = await resolveExpansionHubForGemiCompany(registry);
@@ -254,6 +263,18 @@ export async function submitHubProspectApplication(input: {
         plan.setupFeeCents,
         reward?.discountCents ?? 0
       ]);
+
+      // Link a registry census dossier to a PENDING CLAIM application only.
+      // Approval, ownership and publication remain separate governance steps;
+      // nothing here grants vendor permissions or marks the listing claimed.
+      if (application.claimGemi && plan.code === "claim") {
+        await tx.query(
+          "UPDATE research_private.hub_gemi_directory " +
+          "SET claim_application_id=$1::uuid,updated_at=now() " +
+          "WHERE gemi_number=$2 AND claim_application_id IS NULL",
+          [applicationUuid, application.claimGemi]
+        );
+      }
 
       const trial = owner && marketUuid
         ? await provisionHubProspectTrial(tx, {
@@ -675,6 +696,10 @@ function normalizeApplication(input: HubProspectApplicationInput): HubProspectAp
     }
   }
 
+  const claimGemi = input.claimGemi?.trim() || undefined;
+  if (claimGemi && (plan.code !== "claim" || !/^[0-9]{8,20}$/.test(claimGemi))) {
+    throw new HubProspectApplicationError(400, "claim_gemi_invalid", "Μη έγκυρη καταχώριση ΓΕΜΗ προς διεκδίκηση.");
+  }
   return {
     taxNumber,
     planCode: plan.code,
@@ -687,7 +712,8 @@ function normalizeApplication(input: HubProspectApplicationInput): HubProspectAp
     websiteUrl,
     currentSalesChannels: optionalLimited(input.currentSalesChannels, 600),
     notes: optionalLimited(input.notes, 1500),
-    rewardCode: normalizedResearchCode(input.rewardCode)
+    rewardCode: normalizedResearchCode(input.rewardCode),
+    claimGemi
   };
 }
 
