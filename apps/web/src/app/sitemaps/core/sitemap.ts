@@ -13,6 +13,7 @@ import { listPublicClaimHubSlugs } from "../../../lib/hub-claim-runtime";
 import { listVerifiedHubPartnerSlugs } from "../../../lib/hub-verified-partners";
 import { getExpansionHubBySlug } from "../../../lib/expansion-hubs";
 import { listVerifiedHubBusinessSitemapPaths } from "../../../lib/hub-business-sitemap";
+import { listIndexReadyHubGemiSitemapSlugs } from "../../../lib/hub-gemi-sitemap";
 
 export const dynamic = "force-dynamic";
 
@@ -46,8 +47,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
   let vendors: Awaited<ReturnType<typeof getPublicVendorSitemapInventory>> | null = null;
   if (settings.sitemap.partnerVendors || settings.sitemap.researchVendors) { try { vendors = await getPublicVendorSitemapInventory(); } catch (error) { console.error(JSON.stringify({ level: "error", event: "seo.sitemap_vendors_failed", message: String(error) })); throw error; } }
-  // Only marketplace-active Sparta and owner-accepted CLAIM HUBs are advertised.
-  // Imported/unreviewed GEMI records never qualify a HUB for this sitemap.
+  // Hub pages qualify through Sparta, verified owner membership, or >=10 independently
+  // published + SEO-approved GEMI directory records. Raw GEMI imports never qualify.
   const claimHubSlugs = settings.sitemap.staticPages
     ? await listPublicClaimHubSlugs().catch((error) => {
       console.error(JSON.stringify({ level: "error", event: "seo.sitemap_claim_hubs_failed", message: String(error) }));
@@ -60,8 +61,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       return [] as string[];
     })
     : [];
+  const gemiHubSlugs = settings.sitemap.staticPages
+    ? await listIndexReadyHubGemiSitemapSlugs().catch((error) => {
+      console.error(JSON.stringify({ level: "error", event: "seo.sitemap_reviewed_gemi_hubs_failed", message: String(error) }));
+      return [] as string[];
+    })
+    : [];
   const eligibleHubSlugs = settings.sitemap.staticPages
-    ? [...new Set(["sparti", ...claimHubSlugs, ...paidPlanHubSlugs])].filter((slug) => Boolean(getExpansionHubBySlug(slug)))
+    ? [...new Set(["sparti", ...claimHubSlugs, ...paidPlanHubSlugs, ...gemiHubSlugs])]
+        .filter((slug) => Boolean(getExpansionHubBySlug(slug)))
     : [];
   const hubEntries: MetadataRoute.Sitemap = eligibleHubSlugs.flatMap((slug) =>
     [`/hubs/${slug}`, ...(slug === "sparti" ? [] : [`/hubs/${slug}/business`])]
