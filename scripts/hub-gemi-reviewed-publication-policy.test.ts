@@ -74,33 +74,3 @@ test("the write changes only publication status and updated timestamp", () => {
   assert.ok(reviewedPublicationWriteSql.includes("seo_approved=true,updated_at=now()"));
   assert.ok(!reviewedPublicationWriteSql.includes("SET privacy_review_status="));
 });
-",
-    "d.privacy_review_status='approved'",
-    "d.privacy_reviewed_at IS NOT NULL",
-    "d.privacy_reviewer_id",
-    "d.editorial_reviewed_at IS NOT NULL",
-    "d.editorial_reviewer_id",
-    "d.publication_evidence_note",
-    "m.review_status='reviewed'",
-    "m.candidate_hub_distance_km<=hm.radius_km",
-    "NOT EXISTS (SELECT 1 FROM public.vendor_businesses",
-    "NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects",
-    "h.status='converted'",
-    "d.directory_hub_slug=$3",
-    "d.gemi_number>$2",
-    "LIMIT $1"
-  ]) {
-    assert.ok(reviewedPublicationWriteSql.includes(snippet), "Missing SQL gate: " + snippet);
-  }
-  assert.ok(reviewedPublicationWriteSql.includes("FOR UPDATE OF d SKIP LOCKED"));
-  assert.ok(!reviewedPublicationPreviewSql.includes("UPDATE "));
-});
-
-test("the write changes only publication status and updated timestamp", () => {
-  const setters = reviewedPublicationWriteSql.match(/SET (.*?) FROM candidates c/s)?.[1] ?? "";
-  assert.equal(setters, "display_status='published',updated_at=now()");
-  assert.ok(!reviewedPublicationWriteSql.includes("DELETE FROM"));
-  assert.ok(!reviewedPublicationWriteSql.includes("INSERT INTO"));
-  assert.ok(!reviewedPublicationWriteSql.includes("SET seo_approved="));
-  assert.ok(!reviewedPublicationWriteSql.includes("SET privacy_review_status="));
-});
