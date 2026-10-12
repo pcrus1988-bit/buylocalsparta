@@ -108,7 +108,7 @@ export default async function PublicHubBusinessPage({ params }: Params) {
             και έλεγχος δικαιώματος εκπροσώπησης πριν δοθεί πρόσβαση στον πίνακα CLAIM.</p>
           <div className={styles.actions}>
             <Link href={joinPath} className={styles.button}>Διεκδίκησε την καταχώριση</Link>
-            <Link href="/contact" className={styles.button + " " + styles.secondary}>Αίτημα διόρθωσης</Link>
+            <Link href="mailto:info@kontamou.site?subject=GEMI%20directory%20correction" className={styles.button + " " + styles.secondary}>Αίτημα διόρθωσης</Link>
           </div>
         </article>
       </div>
