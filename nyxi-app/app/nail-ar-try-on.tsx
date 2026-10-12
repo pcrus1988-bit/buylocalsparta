@@ -9,6 +9,8 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "reac
 import type { HandLandmarker } from "@mediapipe/tasks-vision";
 import { coverProjection, drawArNails, type ArLook, type Point } from "./nail-ar-geometry";
 import { smoothLandmarks, handTrackingUsable } from "./nail-tracking";
+import NailContourEditor from "./nail-contour-editor";
+import { validContour, type NailContours, type NailContour } from "./nail-contours";
 
 type TryMode = "live" | "photo";
 type StageStatus = "idle" | "loading" | "tracking" | "no-hand" | "error";
@@ -52,6 +54,9 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
   const trackerRef = useRef<HandLandmarker | null>(null);
   const bitmapRef = useRef<ImageBitmap | null>(null);
   const photoHandsRef = useRef<Point[][]>([]);
+  const liveHandsRef = useRef<Point[][]>([]);
+  const contourRef = useRef<NailContours>({});
+  const precisionRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const generationRef = useRef(0);
@@ -64,6 +69,10 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
   const [detected, setDetected] = useState(0);
   const [cameraSide, setCameraSide] = useState<"user" | "environment">("environment");
   const [hasPhoto, setHasPhoto] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [contours, setContours] = useState<NailContours>({});
+  const [precisionOnly, setPrecisionOnly] = useState(false);
+  const [editorImage, setEditorImage] = useState<ImageBitmap | null>(null);
 
   lookRef.current = look;
   cameraSideRef.current = cameraSide;
@@ -108,13 +117,14 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
     if (mirrored) { ctx.translate(width, 0); ctx.scale(-1, 1); }
     ctx.drawImage(source, crop.cropX, crop.cropY, imageWidth * crop.scale, imageHeight * crop.scale);
     ctx.restore();
-    return drawArNails(ctx, landmarks, projection, lookRef.current, timestamp);
+    return drawArNails(ctx, landmarks, projection, { ...lookRef.current, contours: contourRef.current, precisionOnly: precisionRef.current }, timestamp);
   }, []);
 
   const startCamera = useCallback(async (side: "user" | "environment" = cameraSideRef.current) => {
     stopCamera();
     setMessage("");
     setHasPhoto(false);
+    setEditorOpen(false);
     const generation = generationRef.current;
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       setMessage("Η κάμερα χρειάζεται HTTPS και υποστηριζόμενο browser. Χρησιμοποίησε φωτογραφία εάν δεν είναι διαθέσιμη.");
@@ -165,10 +175,12 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
               previous = smoothLandmarks(previous, newest);
               hands = [previous];
             } else { previous = null; hands = []; }
+            liveHandsRef.current = hands;
             changeStatus(hands.length ? "tracking" : "no-hand");
           } catch {
             hands = [];
             previous = null;
+            liveHandsRef.current = [];
             changeStatus("no-hand");
           }
         }
@@ -193,6 +205,12 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
     stopCamera();
     bitmapRef.current?.close();
     bitmapRef.current = null;
+    setEditorImage(null);
+    setEditorOpen(false);
+    contourRef.current = {};
+    setContours({});
+    precisionRef.current = false;
+    setPrecisionOnly(false);
     photoHandsRef.current = [];
     setHasPhoto(false);
     if (!IMAGE_TYPES.includes(file.type)) { setMessage("Επίλεξε φωτογραφία JPG, PNG ή WebP."); changeStatus("error"); return; }
@@ -210,6 +228,7 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
       const rawHands = tracker.detect(bitmap).landmarks as Point[][];
       const hands = rawHands[0] && handTrackingUsable(rawHands[0]) ? [rawHands[0]] : [];
       bitmapRef.current = bitmap;
+      setEditorImage(bitmap);
       photoHandsRef.current = hands;
       setHasPhoto(true);
       setDetected(render(bitmap, bitmap.width, bitmap.height, hands, false, performance.now()));
@@ -223,6 +242,53 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
       tracker?.close();
     }
   }, [active, changeStatus, render, stopCamera]);
+
+  const redrawSnapshot = useCallback(() => {
+    const bitmap = bitmapRef.current;
+    if (!bitmap || !photoHandsRef.current.length) return;
+    setDetected(render(bitmap, bitmap.width, bitmap.height, photoHandsRef.current, false, performance.now()));
+  }, [render]);
+
+  const updateContour = useCallback((finger: number, polygon: NailContour) => {
+    if (!validContour(polygon)) return;
+    const next = { ...contourRef.current, [finger]: polygon };
+    contourRef.current = next; setContours(next);
+    precisionRef.current = true; setPrecisionOnly(true);
+    // Allow React to paint editor first; update photo canvas synchronously.
+    redrawSnapshot();
+  }, [redrawSnapshot]);
+
+  const resetContour = useCallback((finger: number) => {
+    const next = { ...contourRef.current };
+    delete next[finger];
+    contourRef.current = next; setContours(next); redrawSnapshot();
+  }, [redrawSnapshot]);
+
+  const switchPrecision = useCallback((enabled: boolean) => {
+    precisionRef.current = enabled; setPrecisionOnly(enabled); redrawSnapshot();
+  }, [redrawSnapshot]);
+
+  const captureCalibration = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || !runningRef.current || !liveHandsRef.current.length) {
+      setMessage("Δείξε πρώτα ένα καθαρό χέρι στην κάμερα."); return;
+    }
+    const snapshotHands = liveHandsRef.current.map(hand => hand.map(point => ({ ...point })));
+    try {
+      const bitmap = await createImageBitmap(video);
+      stopCamera();
+      bitmapRef.current?.close();
+      bitmapRef.current = bitmap;
+      setEditorImage(bitmap);
+      photoHandsRef.current = snapshotHands;
+      setHasPhoto(true);
+      changeStatus("tracking");
+      setEditorOpen(true);
+      setDetected(render(bitmap, bitmap.width, bitmap.height, snapshotHands, false, performance.now()));
+    } catch {
+      setMessage("Δεν ήταν δυνατή η λήψη καρέ. Δοκίμασε ξανά.");
+    }
+  }, [stopCamera, changeStatus, render]);
 
   const saveImage = useCallback(() => {
     if (!canvasRef.current || (!hasPhoto && !runningRef.current)) return;
@@ -242,7 +308,7 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
     if (!active || mode !== "photo") return;
     const bitmap = bitmapRef.current;
     if (bitmap) setDetected(render(bitmap, bitmap.width, bitmap.height, photoHandsRef.current, false, performance.now()));
-  }, [look, mode, active, render]);
+  }, [look, mode, active, render, contours, precisionOnly]);
 
   useEffect(() => {
     if (mode !== "live") return;
@@ -284,14 +350,25 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
       <p className="ar-status" aria-live="polite">{currentStatus}</p>
       {message && <p className="notice warning ar-error" role="alert">{message}</p>}
       {mode === "live" ? <div className="ar-actions">
-        {status === "idle" || status === "error" ? <button className="primary-action" type="button" onClick={() => void startCamera()}>◉ Άνοιξε την κάμερα</button> : <button type="button" className="ar-secondary" onClick={stopCamera} disabled={status === "loading"}>■ Κλείσε κάμερα</button>}
+        {status === "idle" || status === "error" || !runningRef.current ? <button className="primary-action" type="button" onClick={() => void startCamera()}>{hasPhoto ? "◉ Συνέχεια live" : "◉ Άνοιξε την κάμερα"}</button> : <button type="button" className="ar-secondary" onClick={stopCamera} disabled={status === "loading"}>■ Κλείσε κάμερα</button>}
         {runningRef.current && <button type="button" className="ar-secondary" onClick={() => { const next = cameraSide === "user" ? "environment" : "user"; setCameraSide(next); void startCamera(next); }}>↻ Εναλλαγή κάμερας</button>}
+        {runningRef.current && detected > 0 && <button type="button" className="ar-secondary" onClick={() => void captureCalibration()}>◎ Πάγωσε και χάραξε νύχια</button>}
         {runningRef.current && <button type="button" className="ar-secondary" onClick={saveImage}>↓ Αποθήκευση look</button>}
       </div> : <div className="ar-actions">
         <label className="primary-action ar-upload" htmlFor="nyxi-ar-photo">＋ {hasPhoto ? "Άλλαξε φωτογραφία" : "Πρόσθεσε φωτογραφία"}</label>
         <input id="nyxi-ar-photo" className="visually-hidden-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={event => void choosePhoto(event)} />
+        {hasPhoto && photoHandsRef.current.length > 0 && <button type="button" className="ar-secondary" onClick={() => setEditorOpen(true)}>◎ Χάραξε περίγραμμα</button>}
         {hasPhoto && <button className="ar-secondary" type="button" onClick={saveImage}>↓ Αποθήκευση look</button>}
       </div>}
+      {Object.keys(contours).length > 0 && <div className="ar-contour-status" role="status">
+        <span>◎ {Object.values(contours).filter(poly => poly && validContour(poly)).length}/5 χειροκίνητα περιγράμματα</span>
+        <button type="button" aria-pressed={precisionOnly} onClick={() => switchPrecision(!precisionOnly)}>{precisionOnly ? "Μόνο επιβεβαιωμένα" : "Ενδεικτική εφαρμογή"}</button>
+      </div>}
+      {editorOpen && editorImage && photoHandsRef.current[0] && <NailContourEditor
+        image={editorImage} landmarks={photoHandsRef.current[0]} look={lookRef.current}
+        contours={contours} onSave={updateContour} onReset={resetContour}
+        onClose={() => { setEditorOpen(false); redrawSnapshot(); }}
+      />}
       <p className="ar-privacy"><strong>Ιδιωτική δοκιμή:</strong> τα καρέ και οι φωτογραφίες επεξεργάζονται μόνο στη συσκευή σου. Η φόρτωση του μοντέλου χρειάζεται σύνδεση, και ο πάροχος του λογισμικού μπορεί να συλλέγει τεχνικά στατιστικά. Το περίγραμμα νυχιών προσεγγίζεται από σημεία του χεριού — δεν είναι ακριβής σάρωση ή φωτορεαλιστική εγγύηση.</p>
       <div className="ar-tips"><span>☼ Φυσικό φως</span><span>↔ Χώρισε τα δάχτυλα</span><span>⌁ Κράτησε το χέρι σταθερό</span></div>
     </div>

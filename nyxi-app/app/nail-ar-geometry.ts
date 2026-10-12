@@ -1,3 +1,4 @@
+import { validContour, type NailContour, type NailContours } from "./nail-contours.ts";
 import type { NailMaterial } from "./nail-material-renderer.ts";
 import { creativeMaterial } from "./nail-material-renderer.ts";
 /**
@@ -10,7 +11,7 @@ export type NailLength = "short" | "medium" | "long";
 export type Point = { x: number; y: number; z?: number };
 export type NailPose = { x: number; y: number; angle: number; width: number; height: number; finger: number };
 export type NailCorrection = { lateral: number; axial: number; width: number };
-export type ArLook = { corrections?: Partial<Record<number, NailCorrection>>; hex: string; shape: NailShape; finish: NailFinish; length: NailLength; opacity: number; fit: number; placement: number; material?: NailMaterial };
+export type ArLook = { contours?: NailContours; precisionOnly?: boolean; corrections?: Partial<Record<number, NailCorrection>>; hex: string; shape: NailShape; finish: NailFinish; length: NailLength; opacity: number; fit: number; placement: number; material?: NailMaterial };
 export type Projected = { width: number; height: number; imageWidth: number; imageHeight: number; mirror: boolean };
 
 export const NAIL_JOINTS = [
@@ -96,6 +97,17 @@ function traceNail(ctx: CanvasRenderingContext2D, width: number, height: number,
   ctx.closePath();
 }
 
+function traceTarget(ctx: CanvasRenderingContext2D, width: number, height: number, shape: NailShape, contour?: NailContour) {
+  if (!contour || !validContour(contour)) { traceNail(ctx, width, height, shape); return; }
+  ctx.beginPath();
+  contour.forEach((p, i) => {
+    const x = p.x * width, y = p.y * height;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+}
+
 function rgba(hex: string, alpha: number) {
   const h = validShade(hex) ? hex : "#B52C4E";
   return "rgba(" + [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(",") + "," + alpha + ")";
@@ -114,7 +126,7 @@ function sampleAmbient(ctx: CanvasRenderingContext2D, x: number, y: number) {
   } catch { return 0.5; }
 }
 
-function drawPolish(ctx: CanvasRenderingContext2D, pose: NailPose, look: ArLook, t: number, ambient: number) {
+function drawPolish(ctx: CanvasRenderingContext2D, pose: NailPose, look: ArLook, t: number, ambient: number, contour?: NailContour) {
   const { width: w, height: h, x, y, angle } = pose;
   const color = validShade(look.hex) ? look.hex : "#B52C4E";
   const material = look.material ?? creativeMaterial(look.finish, look.opacity);
@@ -125,7 +137,7 @@ function drawPolish(ctx: CanvasRenderingContext2D, pose: NailPose, look: ArLook,
   ctx.shadowColor = "rgba(46,12,35,0.11)";
   ctx.shadowBlur = Math.max(1, w * 0.05);
   ctx.shadowOffsetY = Math.max(0.5, h * 0.015);
-  traceNail(ctx, w, h, look.shape);
+  traceTarget(ctx, w, h, look.shape, contour);
   const body = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
   body.addColorStop(0, rgba(color, strength * 0.80));
   body.addColorStop(0.22, rgba(color, strength * 0.95));
@@ -188,7 +200,7 @@ function drawPolish(ctx: CanvasRenderingContext2D, pose: NailPose, look: ArLook,
   ctx.restore();
   ctx.lineWidth = Math.max(0.8, w * .027);
   ctx.strokeStyle = material.kind === "matte" ? "rgba(99,49,62,0.10)" : "rgba(255,247,255,0.19)";
-  traceNail(ctx, w, h, look.shape);
+  traceTarget(ctx, w, h, look.shape, contour);
   ctx.stroke();
   ctx.restore();
 }
@@ -201,7 +213,12 @@ export function drawArNails(ctx: CanvasRenderingContext2D, hands: Point[][], par
       .map(p => calibrateNailPose(p, look.corrections?.[p.finger]));
     // Sample underlying unpainted image first; overlays should not light one another.
     const lights = nails.map(pose => sampleAmbient(ctx, pose.x, pose.y));
-    nails.forEach((pose, i) => { drawPolish(ctx, pose, look, timestamp, lights[i]); painted++; });
+    nails.forEach((pose, i) => {
+      const measured = look.contours?.[pose.finger];
+      if (look.precisionOnly && (!measured || !validContour(measured))) return;
+      drawPolish(ctx, pose, look, timestamp, lights[i], measured);
+      painted++;
+    });
   }
   return painted;
 }
