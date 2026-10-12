@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const [claimed, indexReadyCensus] = await Promise.all([
     listPublicHubClaimsByHub(hubSlug, 1), hubHasIndexReadyCensus(hubSlug)
   ]);
-  const hasListings = claimed.length > 0 || indexReadyCensus;
+  const hasListings = hub.isSpartaLegacy || claimed.length > 0 || indexReadyCensus;
   const canonical = `/hubs/${hub.slug}`;
   const description = `Γνώρισε επαληθευμένες επιχειρήσεις στο KONTA MOY HUB ${hub.nameEl}. Τοπική παρουσία επιχειρήσεων, χωρίς απαραίτητα ενεργές ηλεκτρονικές αγορές.`;
   return {
@@ -53,6 +53,17 @@ export default async function PublicCityHubPage({ params }: Props) {
           <Link className={`${styles.button} ${styles.secondary}`} href="/hubs/join">Καταχώρισε την επιχείρησή σου</Link>
         </div>
       </div>
+      {hub.isSpartaLegacy && <section className={styles.panel}>
+        <div className={styles.kicker}>Ενεργή τοπική αγορά · Σπάρτη</div>
+        <h2>Τα καταστήματα της Σπάρτης είναι ήδη στο KONTA MOY.</h2>
+        <p className={styles.details}>Βρες τους ενεργούς συνεργάτες, τα τοπικά καταστήματα
+          και τα διαθέσιμα προϊόντα της αγοράς Σπάρτης. Οι πληροφοριακές
+          καταχωρίσεις δεν παρουσιάζονται ως ενεργοί πωλητές.</p>
+        <div className={styles.actions}>
+          <Link className={styles.button} href="/shops">Καταστήματα της Σπάρτης →</Link>
+          <Link className={styles.button + " " + styles.secondary} href="/shop">Αγορά προϊόντων →</Link>
+        </div>
+      </section>}
       {businesses.length > 0 ? <>
         <p className={styles.details}>Ενεργός κατάλογος · {businesses.length}{businesses.length === 100 ? "+" : ""} επαληθευμένες καταχωρίσεις</p>
         <div className={styles.grid}>{businesses.map((business) =>
@@ -63,11 +74,11 @@ export default async function PublicCityHubPage({ params }: Props) {
             <Link className={styles.button} href={hubClaimPublicPath(business)}>Δες την επιχείρηση →</Link>
           </article>
         )}</div>
-      </> : <section className={styles.panel}>
+      </> : !hub.isSpartaLegacy ? <section className={styles.panel}>
         <h2>Οι πρώτες επαληθευμένες επιχειρήσεις έρχονται σύντομα.</h2>
         <p>Το HUB έχει σχεδιαστεί για την περιοχή, αλλά δεν υπάρχουν ακόμη δημοσιευμένες καταχωρίσεις CLAIM.</p>
         <Link className={styles.button} href="/hubs/join">Συμμετοχή επιχείρησης →</Link>
-      </section>}
+      </section> : null}
       <p className={styles.footer}>Οι καταχωρίσεις CLAIM αποτελούν επαληθευμένη παρουσία στον κατάλογο και δεν προσφέρουν αγορές μέσα από το KONTA MOY.</p>
     </section>
     <SiteFooter />

@@ -23,6 +23,18 @@ type Summary = {
   reviewed: number | string;
 };
 
+type DirectoryAudit = {
+  total: number | string;
+  with_municipality: number | string;
+  with_coordinates: number | string;
+  assigned: number | string;
+  geo_verified: number | string;
+  privacy_pending: number | string;
+  editorial_reviewed: number | string;
+  published: number | string;
+  seo_approved: number | string;
+};
+
 type Candidate = {
   registry_municipality_id: string;
   registry_municipality_name: string;
@@ -59,7 +71,7 @@ async function reviewMunicipalityAction(form: FormData) {
 }
 
 export default async function GemiHubGeographyPage({ searchParams }: {
-  searchParams: Promise<{ hub?: string | string[]; page?: string | string[]; status?: string | string[] }>
+  searchParams: Promise<{ hub?: string | string[]; page?: string | string[]; status?: string | string[]; audit?: string | string[] }>
 }) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
@@ -72,6 +84,7 @@ export default async function GemiHubGeographyPage({ searchParams }: {
   const page = Math.max(1, Math.min(1000, Number.parseInt(pageRaw ?? "1", 10) || 1));
   const rawStatus = Array.isArray(requested.status) ? requested.status[0] : requested.status;
   const status = ["proposed", "reviewed", "rejected"].includes(rawStatus ?? "") ? rawStatus! : "";
+  const auditRequested = (Array.isArray(requested.audit) ? requested.audit[0] : requested.audit) === "1";
   const pool = getProductionPostgresRuntime().sqlPool;
 
   const [summaryResult, rowsResult] = await Promise.all([
@@ -97,10 +110,27 @@ export default async function GemiHubGeographyPage({ searchParams }: {
       [hub, (page-1)*50, status]
     )
   ]);
+  // A nationwide scan is intentionally opt-in, not repeated on every admin page view.
+  // No status change, geocoding, or publication happens here.
+  const directoryAudit = auditRequested ? (await pool.query<DirectoryAudit>(
+    "SELECT count(*)::bigint AS total, " +
+    "count(*) FILTER (WHERE registry_municipality_id IS NOT NULL)::bigint AS with_municipality, " +
+    "count(*) FILTER (WHERE latitude IS NOT NULL AND longitude IS NOT NULL)::bigint AS with_coordinates, " +
+    "count(*) FILTER (WHERE assignment_status='assigned' AND assigned_hub_id IS NOT NULL)::bigint AS assigned, " +
+    "count(*) FILTER (WHERE business_geo_verified_at IS NOT NULL)::bigint AS geo_verified, " +
+    "count(*) FILTER (WHERE privacy_review_status='pending')::bigint AS privacy_pending, " +
+    "count(*) FILTER (WHERE editorial_reviewed_at IS NOT NULL)::bigint AS editorial_reviewed, " +
+    "count(*) FILTER (WHERE display_status='published')::bigint AS published, " +
+    "count(*) FILTER (WHERE seo_approved=true)::bigint AS seo_approved " +
+    "FROM research_private.hub_gemi_directory"
+  )).rows[0] : undefined;
   const summary = summaryResult.rows[0] ?? {
     municipality_matches: 0, business_candidates: 0, within_radius_estimate: 0, reviewed: 0
   };
   const count = (n: number | string) => Number(n).toLocaleString("el-GR");
+  const auditUrl = "/admin/hubs/gemi-directory?" + new URLSearchParams({
+    ...(hub ? { hub } : {}), ...(status ? { status } : {}), page: String(page), audit: "1"
+  }).toString();
   const next = "/admin/hubs/gemi-directory?" + new URLSearchParams({
     ...(hub ? { hub } : {}), ...(status ? { status } : {}), page: String(page + 1)
   }).toString();
@@ -131,6 +161,23 @@ export default async function GemiHubGeographyPage({ searchParams }: {
         <span>Εντός 25 km βάσει δημοτικού κέντρου μόνο: <strong>{count(summary.within_radius_estimate)}</strong></span>
         <span>Ελεγμένες προτάσεις: <strong>{count(summary.reviewed)}</strong></span>
       </div>
+      <section className="workspace-inline-note">
+        <h2>Ετοιμότητα πανελλαδικού καταλόγου ΓΕΜΗ</h2>
+        <p>Ανάγνωση καταστάσεων από την ιδιωτική βάση. Δεν ξεκινά αυτόματα γεωκωδικοποίηση,
+          έγκριση ή δημοσίευση. Επαλήθευση διοικητικού δήμου δεν αποτελεί έλεγχο διεύθυνσης.</p>
+        <Link className="button button-secondary" href={auditUrl}>Φόρτωση ελέγχου δημοσίευσης →</Link>
+        {directoryAudit && <div className="workspace-queue-primary">
+          <span>Εγγραφές: <strong>{count(directoryAudit.total)}</strong></span>
+          <span>Με δήμο ΓΕΜΗ: <strong>{count(directoryAudit.with_municipality)}</strong></span>
+          <span>Με γεωγραφικές συντεταγμένες: <strong>{count(directoryAudit.with_coordinates)}</strong></span>
+          <span>Ανατεθειμένες σε HUB: <strong>{count(directoryAudit.assigned)}</strong></span>
+          <span>Με φυσική γεω-επαλήθευση: <strong>{count(directoryAudit.geo_verified)}</strong></span>
+          <span>Privacy σε εκκρεμότητα: <strong>{count(directoryAudit.privacy_pending)}</strong></span>
+          <span>Editorial reviewed: <strong>{count(directoryAudit.editorial_reviewed)}</strong></span>
+          <span>Δημοσιευμένες: <strong>{count(directoryAudit.published)}</strong></span>
+          <span>SEO approved: <strong>{count(directoryAudit.seo_approved)}</strong></span>
+        </div>}
+      </section>
       <form method="get" action="/admin/hubs/gemi-directory" className="admin-directory-filters">
         <label><span>HUB</span><select name="hub" defaultValue={hub}>
           <option value="">Όλα τα 131 HUB</option>
