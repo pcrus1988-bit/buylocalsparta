@@ -55,7 +55,10 @@ export default function NailStyleStudio({ sampledShade, active = true }: { sampl
       <button type="button" aria-pressed={viewMode === "photo"} className={viewMode === "photo" ? "selected" : ""} onClick={() => setViewMode("photo")}>▧ Photo Try-On</button>
     </div>
     <div className="atelier-grid">
-      {viewMode !== "preview" ? <NailArTryOn key={viewMode} look={arLook} mode={viewMode} active={active} /> : <div className={"manicure-preview finish-" + finish + " length-" + length + " shape-" + shape}>
+      {viewMode !== "preview" ? <NailArTryOn key={viewMode} look={arLook} mode={viewMode} active={active}
+        onNextShade={() => { setHasPickedCustom(false); setShade(prev => shades[(shades.findIndex(s => s.hex === prev) + 1) % shades.length].hex); }}
+        onNextShape={() => setShape(prev => shapes[(shapes.findIndex(s => s.id === prev) + 1) % shapes.length].id)}
+        onNextFinish={() => setFinish(prev => finishes[(finishes.findIndex(f => f.id === prev) + 1) % finishes.length].id)} /> : <div className={"manicure-preview finish-" + finish + " length-" + length + " shape-" + shape}>
         <div className="preview-topline"><span>YOUR NAIL EDIT</span><span>NYXI. / 001</span></div>
         <div className="hand-art" role="img" aria-label={"Ενδεικτική απεικόνιση πέντε νυχιών: " + shapeLabel + ", " + shadeLabel + ", " + finishLabel}>
           {[0,1,2,3,4].map((i) => <div className={"finger finger-" + i} key={i}><div className="nail-bed"><div className="nail-polish" style={{ backgroundColor: finalShade }} /></div></div>)}
