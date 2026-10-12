@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { HandLandmarker } from "@mediapipe/tasks-vision";
 import { coverProjection, drawArNails, type ArLook, type Point } from "./nail-ar-geometry";
+import { smoothLandmarks, handTrackingUsable } from "./nail-tracking";
 
 type TryMode = "live" | "photo";
 type StageStatus = "idle" | "loading" | "tracking" | "no-hand" | "error";
@@ -146,6 +147,7 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
       let lastDetection = -Infinity;
       let lastVideoTime = -1;
       let hands: Point[][] = [];
+      let previous: Point[] | null = null;
       let prevNailCount = -1;
       const tick = (now: number) => {
         if (!runningRef.current || generation !== generationRef.current) return;
@@ -157,10 +159,16 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
           lastVideoTime = currentVideo.currentTime;
           lastDetection = now;
           try {
-            hands = tracker!.detectForVideo(currentVideo, now).landmarks as Point[][];
+            const tracked = tracker!.detectForVideo(currentVideo, now).landmarks as Point[][];
+            const newest = tracked[0];
+            if (newest && handTrackingUsable(newest)) {
+              previous = smoothLandmarks(previous, newest);
+              hands = [previous];
+            } else { previous = null; hands = []; }
             changeStatus(hands.length ? "tracking" : "no-hand");
           } catch {
             hands = [];
+            previous = null;
             changeStatus("no-hand");
           }
         }
@@ -199,7 +207,8 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
       if (generation !== generationRef.current || !active) { bitmap.close(); return; }
       tracker = await loadTracker("IMAGE");
       if (generation !== generationRef.current || !active) { bitmap.close();tracker.close();return; }
-      const hands = tracker.detect(bitmap).landmarks as Point[][];
+      const rawHands = tracker.detect(bitmap).landmarks as Point[][];
+      const hands = rawHands[0] && handTrackingUsable(rawHands[0]) ? [rawHands[0]] : [];
       bitmapRef.current = bitmap;
       photoHandsRef.current = hands;
       setHasPhoto(true);
