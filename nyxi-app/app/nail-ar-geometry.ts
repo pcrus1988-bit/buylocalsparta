@@ -1,4 +1,4 @@
-import type { NailMaterial } from "./nail-material-renderer";
+import type { NailMaterial } from "./nail-material-renderer.ts";
 import { creativeMaterial } from "./nail-material-renderer";
 /**
  * NYXI approximate AR nail geometry. Hand landmarks locate fingertips/joints,
