@@ -158,11 +158,12 @@ export default async function GemiHubGeographyPage({ searchParams }: {
           <Link className="button button-secondary" href="/admin/hubs/plan-preview">HUB plan preview</Link>
           <Link className="button button-secondary" href="/admin/hubs/gemi-directory/worklist">Λίστα γεωκωδικοποίησης</Link>
           <Link className="button button-secondary" href="/admin/hubs/gemi-directory/evidence">Πηγές διευθύνσεων</Link>
+          <Link className="button button-secondary" href="/admin/hubs/gemi-directory/preliminary">Προκαταρκτικά GEMI ανά HUB</Link>
         </div>
       </div>
     </section>
     <section className="shell vendor-section">
-      <div className="workspace-inline-note">Οι εγγραφές βρίσκονται σε κατάσταση <strong>proposed</strong>.
+      <div className="workspace-inline-note">Οι διοικητικές ταυτίσεις μπορούν να είναι <strong>proposed</strong> ή <strong>reviewed</strong> (χειροκίνητες ή αυτοματοποιημένες με εξουσιοδότηση).
         Ούτε η αντιστοίχιση ούτε η εκτίμηση ακτίνας δημοσιεύουν επιχείρηση ή ενεργοποιούν τη συμμετοχή της.
         Για οριστική κατάταξη απαιτούνται συντεταγμένες της πραγματικής τοποθεσίας και έλεγχος
         νησιού/ηπειρωτικής χώρας. Οι υπόλοιπες επιχειρήσεις παραμένουν χωρίς πρόταση.</div>
