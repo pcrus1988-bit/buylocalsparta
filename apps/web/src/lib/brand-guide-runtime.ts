@@ -403,14 +403,29 @@ const cachedPublicBrandGuide = unstable_cache(
       shopHref: brandShopHref(row.name)
     };
   },
-  ["public-brand-guide-v5-all-brand-taxonomy"],
+  ["public-brand-guide-v6-sellable-index-policy"],
   { revalidate: BRAND_GUIDE_CACHE_SECONDS }
 );
 
 export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBrandGuide | undefined> => {
   const cleanSlug = slug.trim().toLowerCase().slice(0, 180);
   if (!/^[a-z0-9][a-z0-9-]*$/.test(cleanSlug)) return undefined;
-  return cachedPublicBrandGuide(cleanSlug);
+  const brand = await cachedPublicBrandGuide(cleanSlug);
+  if (!brand) return undefined;
+  // Keep SEO admission derived from the current policy even when Next/Vercel
+  // serves a previously cached catalogue projection. Otherwise a policy
+  // rollout can leave valid brand pages stuck with cached noindex metadata.
+  return {
+    ...brand,
+    indexable: brandGuideCanIndex({
+      guide: brand.guide,
+      description: brand.description,
+      countryCode: brand.countryCode,
+      website: brand.website,
+      hasLogo: Boolean(brand.logoUrl),
+      liveProductCount: brand.liveProductCount
+    })
+  };
 });
 
 const cachedBrandDirectoryInventory = unstable_cache(
