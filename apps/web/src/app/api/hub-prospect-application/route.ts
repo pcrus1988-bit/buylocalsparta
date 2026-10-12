@@ -68,7 +68,8 @@ export async function POST(request: Request) {
       currentSalesChannels: optionalStringField(body.currentSalesChannels),
       notes: optionalStringField(body.notes),
       rewardCode: optionalStringField(body.rewardCode),
-      claimGemi: optionalStringField(body.claimGemi)
+      // Accept the older CLAIM-only field for in-flight application forms.
+      listingGemi: optionalStringField(body.listingGemi) ?? optionalStringField(body.claimGemi)
     };
 
     const receipt = await submitHubProspectApplication({ application, principal, now });
