@@ -21,6 +21,7 @@ type Summary = {
   business_candidates: number | string;
   within_radius_estimate: number | string;
   reviewed: number | string;
+  automated_reviews: number | string;
 };
 
 type DirectoryAudit = {
@@ -47,6 +48,7 @@ type Candidate = {
   match_method: string;
   source_region: string | null;
   hub_region_code: string | null;
+  latest_review_actor: string | null;
 };
 
 async function reviewMunicipalityAction(form: FormData) {
@@ -92,16 +94,23 @@ export default async function GemiHubGeographyPage({ searchParams }: {
       "SELECT count(*)::integer AS municipality_matches, " +
       "COALESCE(sum(matching_business_count),0)::bigint AS business_candidates, " +
       "COALESCE(sum(matching_business_count) FILTER (WHERE candidate_hub_distance_km<=25),0)::bigint AS within_radius_estimate, " +
-      "count(*) FILTER (WHERE review_status='reviewed')::integer AS reviewed " +
-      "FROM research_private.hub_gemi_municipality_matches WHERE ($1='' OR candidate_hub_slug=$1) " +
-      "AND ($2='' OR review_status=$2)",
+      "count(*) FILTER (WHERE m.review_status='reviewed')::integer AS reviewed, " +
+      "count(*) FILTER (WHERE m.review_status='reviewed' AND EXISTS ( " +
+      "SELECT 1 FROM research_private.hub_gemi_municipality_review_events e " +
+      "WHERE e.registry_municipality_id=m.registry_municipality_id " +
+      "AND e.actor_user_id LIKE 'automation:%'))::integer AS automated_reviews " +
+      "FROM research_private.hub_gemi_municipality_matches m WHERE ($1='' OR m.candidate_hub_slug=$1) " +
+      "AND ($2='' OR m.review_status=$2)",
       [hub, status]
     ),
     pool.query<Candidate>(
       "SELECT m.registry_municipality_id,m.registry_municipality_name," +
       "m.gazetteer_source_id,g.municipality_name AS gazetteer_name,g.source_region," +
       "m.candidate_hub_slug,m.candidate_hub_distance_km,m.matching_business_count,m.review_status,m.match_method," +
-      "h.region_code AS hub_region_code " +
+      "h.region_code AS hub_region_code, " +
+      "(SELECT e.actor_user_id FROM research_private.hub_gemi_municipality_review_events e " +
+      "WHERE e.registry_municipality_id=m.registry_municipality_id " +
+      "ORDER BY e.created_at DESC LIMIT 1) AS latest_review_actor " +
       "FROM research_private.hub_gemi_municipality_matches m " +
       "JOIN research_private.hub_gemi_municipality_centroids g ON g.source_id=m.gazetteer_source_id " +
       "LEFT JOIN research_private.hub_gemi_hub_master h ON h.hub_id=m.candidate_hub_id " +
@@ -125,7 +134,7 @@ export default async function GemiHubGeographyPage({ searchParams }: {
     "FROM research_private.hub_gemi_directory"
   )).rows[0] : undefined;
   const summary = summaryResult.rows[0] ?? {
-    municipality_matches: 0, business_candidates: 0, within_radius_estimate: 0, reviewed: 0
+    municipality_matches: 0, business_candidates: 0, within_radius_estimate: 0, reviewed: 0, automated_reviews: 0
   };
   const count = (n: number | string) => Number(n).toLocaleString("el-GR");
   const auditUrl = "/admin/hubs/gemi-directory?" + new URLSearchParams({
@@ -162,6 +171,8 @@ export default async function GemiHubGeographyPage({ searchParams }: {
         <span>Επιχειρήσεις με υποψήφια περιοχή: <strong>{count(summary.business_candidates)}</strong></span>
         <span>Εντός 25 km βάσει δημοτικού κέντρου μόνο: <strong>{count(summary.within_radius_estimate)}</strong></span>
         <span>Ελεγμένες προτάσεις: <strong>{count(summary.reviewed)}</strong></span>
+        <span>Αυτοματοποιημένη διοικητική αντιστοίχιση (με εξουσιοδότηση): <strong>{count(summary.automated_reviews)}</strong></span>
+        <span>Ατομικά ελεγμένες από διαχειριστή: <strong>{count(Number(summary.reviewed) - Number(summary.automated_reviews))}</strong></span>
       </div>
       <section className="workspace-inline-note">
         <h2>Ετοιμότητα πανελλαδικού καταλόγου ΓΕΜΗ</h2>
@@ -200,7 +211,8 @@ export default async function GemiHubGeographyPage({ searchParams }: {
           <div className="workspace-queue-head">
             <div><strong>{row.registry_municipality_name}</strong>
               <small>ΓΕΜΗ δήμος {row.registry_municipality_id} · Open Admin Data: {row.gazetteer_name}</small></div>
-            <span className="status-pill">{row.review_status}</span>
+            <span className="status-pill">{row.review_status === "reviewed" && row.latest_review_actor?.startsWith("automation:")
+              ? "reviewed · automated" : row.review_status}</span>
           </div>
           {municipalityProposalRisks({
             sourceRegion: row.source_region,
