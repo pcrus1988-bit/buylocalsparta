@@ -44,7 +44,8 @@ export default async function PublicCityHubPage({ params }: Props) {
         <h1 className={styles.title}>Οι επιχειρήσεις του {hub.nameEl === "Βόλος" ? "Βόλου" : `HUB ${hub.nameEl}`}.</h1>
         <p className={styles.lead}>Ανακάλυψε επαληθευμένες τοπικές επιχειρήσεις. Η ενεργή παρουσία σε ένα HUB δεν σημαίνει απαραίτητα ότι υποστηρίζονται ήδη online παραγγελίες και πληρωμές.</p>
         <div className={styles.actions}>
-          <Link className={styles.button} href="/hubs/businesses">Όλες οι επιχειρήσεις HUB</Link>
+          <Link className={styles.button} href={"/hubs/" + hub.slug + "/business"}>Επιχειρήσεις αυτού του HUB</Link>
+          <Link className={`${styles.button} ${styles.secondary}`} href="/hubs/businesses">Επαληθευμένες επιχειρήσεις όλων των HUB</Link>
           <Link className={`${styles.button} ${styles.secondary}`} href="/hubs/join">Καταχώρισε την επιχείρησή σου</Link>
         </div>
       </div>
@@ -59,7 +60,7 @@ export default async function PublicCityHubPage({ params }: Props) {
           </article>
         )}</div>
       </> : <section className={styles.panel}>
-        <h2>Οι πρώτες επιχειρήσεις έρχονται σύντομα.</h2>
+        <h2>Οι πρώτες επαληθευμένες επιχειρήσεις έρχονται σύντομα.</h2>
         <p>Το HUB έχει σχεδιαστεί για την περιοχή, αλλά δεν υπάρχουν ακόμη δημοσιευμένες καταχωρίσεις CLAIM.</p>
         <Link className={styles.button} href="/hubs/join">Συμμετοχή επιχείρησης →</Link>
       </section>}
