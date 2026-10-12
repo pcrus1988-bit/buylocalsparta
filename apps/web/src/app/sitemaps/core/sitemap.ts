@@ -12,6 +12,7 @@ import { getIndexableBrandGuideSitemapInventory } from "../../../lib/brand-guide
 import { listPublicClaimHubSlugs } from "../../../lib/hub-claim-runtime";
 import { listVerifiedHubPartnerSlugs } from "../../../lib/hub-verified-partners";
 import { getExpansionHubBySlug } from "../../../lib/expansion-hubs";
+import { listVerifiedHubBusinessSitemapPaths } from "../../../lib/hub-business-sitemap";
 
 export const dynamic = "force-dynamic";
 
@@ -74,12 +75,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         }] : [];
       })
   );
+  // Individually verified owner-controlled HUB pages must also be discoverable.
+  // This inventory explicitly excludes unpublished or unreviewed GEMI census.
+  const verifiedBusinessPaths = settings.sitemap.staticPages
+    ? await listVerifiedHubBusinessSitemapPaths().catch((error) => {
+      console.error(JSON.stringify({ level: "error", event: "seo.sitemap_verified_hub_businesses_failed", message: String(error) }));
+      return [] as string[];
+    })
+    : [];
+  const verifiedBusinessEntries: MetadataRoute.Sitemap = verifiedBusinessPaths.flatMap((path) => {
+    const reference: SeoEntityReference = { kind: "static", id: path };
+    const { override, control } = governed(reference, true, true);
+    return control.sitemapAllowed ? [{
+      url: absoluteSeoCanonical(origin, reference, override),
+      changeFrequency: "weekly" as const,
+      priority: 0.65
+    }] : [];
+  });
   const brandEntries: MetadataRoute.Sitemap = brandGuides.map((brand) => ({
     url: new URL(`/brands/${brand.slug}`, `${origin}/`).toString(),
     changeFrequency: "weekly" as const,
     priority: 0.72,
     lastModified: safeLastModified(brand.updatedAt)
   }));
-  const entries: MetadataRoute.Sitemap = [...fixed, ...hubEntries, ...brandEntries, ...(vendors ? vendors.flatMap((vendor) => { const isPartner = vendor.directoryStatus === "partner"; if (isPartner && !settings.sitemap.partnerVendors) return []; if (!isPartner && !settings.sitemap.researchVendors) return []; const reference: SeoEntityReference = { kind: isPartner ? "partner_vendor" : "research_vendor", id: vendor.id }; const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore }); const { override, control } = governed(reference, isPartner || quality.blockingReasons.length === 0, isPartner || (settings.researchVendorIndexingEnabled && quality.eligible)); return control.sitemapAllowed ? [{ url: new URL(override?.canonicalPath ?? `/vendor/${encodeURIComponent(vendor.slug)}`, `${origin}/`).toString(), changeFrequency: isPartner ? "weekly" as const : "monthly" as const, priority: isPartner ? 0.7 : 0.6, lastModified: safeLastModified(override?.lastReviewedAt ?? vendor.research?.checkedAt) }] : []; }) : [])];
+  const entries: MetadataRoute.Sitemap = [...fixed, ...hubEntries, ...verifiedBusinessEntries, ...brandEntries, ...(vendors ? vendors.flatMap((vendor) => { const isPartner = vendor.directoryStatus === "partner"; if (isPartner && !settings.sitemap.partnerVendors) return []; if (!isPartner && !settings.sitemap.researchVendors) return []; const reference: SeoEntityReference = { kind: isPartner ? "partner_vendor" : "research_vendor", id: vendor.id }; const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore }); const { override, control } = governed(reference, isPartner || quality.blockingReasons.length === 0, isPartner || (settings.researchVendorIndexingEnabled && quality.eligible)); return control.sitemapAllowed ? [{ url: new URL(override?.canonicalPath ?? `/vendor/${encodeURIComponent(vendor.slug)}`, `${origin}/`).toString(), changeFrequency: isPartner ? "weekly" as const : "monthly" as const, priority: isPartner ? 0.7 : 0.6, lastModified: safeLastModified(override?.lastReviewedAt ?? vendor.research?.checkedAt) }] : []; }) : [])];
   return [...new Map(entries.map((entry) => [entry.url, entry])).values()];
 }
