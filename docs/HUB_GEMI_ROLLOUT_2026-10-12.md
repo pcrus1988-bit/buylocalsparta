@@ -25,6 +25,7 @@ Baseline: 12 October 2026 (live read-only production audit). All database quanti
 
 - Treat a verified owner-accepted CLAIM business as sufficient to index its unfiltered HUB directory. Previously Volos directory remained noindex despite indexable HostChefs and Volos landing pages.
 - Keep all search, category and pagination combinations noindex/follow; do not index empty HUB directories.
+- Advertise only Sparta's marketplace HUB landing page plus verified owner-accepted CLAIM HUB landing/directory pages in the core sitemap. GEMI pages require separate reviewed and sharded sitemap eligibility.
 - Represent Sparta's existing active marketplace on `/hubs/sparti` and link `/hubs/sparti/business` to `/shops` to prevent a misleading empty-market interpretation.
 - Make the national geographic status visible on demand at `/admin/hubs/gemi-directory?audit=1`, gated by admin session and permission. Audit is SELECT-only to avoid accidental mass changes and unnecessary full-table scans for normal admin navigation.
 
