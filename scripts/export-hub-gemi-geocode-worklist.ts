@@ -34,7 +34,7 @@ try {
     "count(d.gemi_number)::integer AS business_count " +
     "FROM research_private.hub_gemi_geo_keys g " +
     "JOIN research_private.hub_gemi_directory d ON d.location_key=g.location_key " +
-    "AND d.display_status='unpublished' " +
+    "AND d.display_status='unpublished' AND d.assignment_status='awaiting_geocode' " +
     "WHERE g.latitude IS NULL AND g.longitude IS NULL " +
     "AND g.location_key>$1 AND ($3 OR g.postcode ~ '^[0-9]{5}$') " +
     "GROUP BY g.location_key,g.postcode,g.city,g.municipality,g.prefecture " +
