@@ -27,11 +27,12 @@ function forbidText(source: string, needle: string, message: string) {
   if (source.includes(needle)) errors.push(message);
 }
 
-requireText(landing, "<HubJoinRewardComparison featureRows={featureRows} />", "HUB join must mount the governed plan comparison");
+requireText(landing, "<HubJoinRewardComparison featureRows={featureRows} listingGemi={listingGemi} />", "HUB join must preserve GEMI context in governed plan comparison");
 requireText(comparison, "styles.comparisonTable", "HUB comparison component must render the plan table");
 requireText(comparison, "HUB_EXPANSION_PLANS.map", "HUB comparison must derive columns from governed HUB plans");
-requireText(landing, "/hubs/join/apply?plan=claim#application-form", "HUB join must expose zero-friction CLAIM onboarding");
-requireText(landing, "billing=annual#application-form", "Paid-plan CTA must default explicitly to annual billing");
+requireText(landing, "href={claimApply + \"#application-form\"}", "HUB join must expose zero-friction CLAIM onboarding");
+requireText(landing, 'const claimApply = hubGemiApplicationPath({ plan: "claim", billing: "annual", gemi: listingGemi })', "HUB join must retain exact GEMI identity when opening CLAIM");
+requireText(comparison, 'hubGemiApplicationPath({ plan: plan.code, billing: "annual", gemi: listingGemi })', "All five plan CTAs must preserve GEMI and default to annual billing");
 forbidText(landing, 'name=\"hub\"', "HUB join must not ask a prospect to select a HUB manually");
 
 requireText(plans, "monthlyFeeCents: 1900", "SHOP monthly price must remain €19");
