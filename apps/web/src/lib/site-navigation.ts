@@ -154,6 +154,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/terms",
   "/join/apply",
   "/hubs/join/apply",
+  "/hubs/[hubSlug]/business/map",
   "/hubs/claim/[id]",
   "/account",
   "/account/ask-local",
