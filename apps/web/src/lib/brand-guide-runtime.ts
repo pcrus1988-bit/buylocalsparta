@@ -403,39 +403,67 @@ const cachedPublicBrandGuide = unstable_cache(
       shopHref: brandShopHref(row.name)
     };
   },
-  ["public-brand-guide-v5-all-brand-taxonomy"],
+  ["public-brand-guide-v7-sourced-editorial-index-policy"],
   { revalidate: BRAND_GUIDE_CACHE_SECONDS }
 );
 
 export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBrandGuide | undefined> => {
   const cleanSlug = slug.trim().toLowerCase().slice(0, 180);
   if (!/^[a-z0-9][a-z0-9-]*$/.test(cleanSlug)) return undefined;
-  return cachedPublicBrandGuide(cleanSlug);
+  const brand = await cachedPublicBrandGuide(cleanSlug);
+  if (!brand) return undefined;
+  // Keep SEO admission derived from the current policy even when Next/Vercel
+  // serves a previously cached catalogue projection. Otherwise a policy
+  // rollout can leave valid brand pages stuck with cached noindex metadata.
+  return {
+    ...brand,
+    indexable: brandGuideCanIndex({
+      guide: brand.guide,
+      description: brand.description,
+      countryCode: brand.countryCode,
+      website: brand.website,
+      hasLogo: Boolean(brand.logoUrl),
+      liveProductCount: brand.liveProductCount
+    })
+  };
 });
 
 const cachedBrandDirectoryInventory = unstable_cache(
   async (): Promise<readonly BrandDirectoryRow[]> => {
     if (!productionDatabaseConfigured()) return [];
+    // Sitemap admission must include both sellable catalogue brands and
+    // source-backed standalone editorial guides. The public directory itself
+    // remains restricted to available products via cachedBrandDirectoryPage.
     const result = await getProductionPostgresRuntime().nativePool.query<BrandDirectoryRow>(`
       SELECT
-        brm.id,
-        brm.name,
-        brm.normalized_name,
-        brm.public_slug,
-        brm.website,
-        brm.logo_object_key,
-        brm.logo_external_url,
-        brm.country_code,
-        brm.description,
-        brm.metadata,
-        brm.updated_at,
-        brm.live_product_count
-      FROM public.storefront_brand_directory_read_model brm
-      ORDER BY brm.live_product_count DESC,lower(brm.name),brm.id
+        b.id,
+        b.name,
+        b.normalized_name,
+        b.public_slug,
+        b.website,
+        b.logo_object_key,
+        b.metadata->>'logo_external_url' AS logo_external_url,
+        b.country_code,
+        b.description,
+        b.metadata,
+        GREATEST(b.updated_at,COALESCE(brm.updated_at,b.updated_at)) AS updated_at,
+        COALESCE(brm.live_product_count,0) AS live_product_count
+      FROM public.brands b
+      LEFT JOIN public.storefront_brand_directory_read_model brm ON brm.id=b.id
+      WHERE b.status='active'
+        AND (
+          brm.id IS NOT NULL
+          OR (
+            length(COALESCE(b.description,''))>=70
+            AND length(COALESCE(b.metadata #>> '{brand_guide,brand_story}',''))>=120
+            AND length(COALESCE(b.metadata #>> '{brand_guide,why_it_stands_out}',''))>=100
+          )
+        )
+      ORDER BY COALESCE(brm.live_product_count,0) DESC,lower(b.name),b.id
     `);
     return result.rows;
   },
-  ["public-brand-directory-v6-read-model"],
+  ["public-brand-directory-v7-live-and-editorial-sitemap"],
   { revalidate: BRAND_DIRECTORY_CACHE_SECONDS }
 );
 

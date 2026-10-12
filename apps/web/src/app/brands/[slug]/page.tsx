@@ -35,7 +35,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     ?? `Ανακάλυψε ${brand.name} στο ΚΟΝΤΑ ΜΟΥ: κατηγορίες και ${brand.liveProductCount.toLocaleString("el-GR")} διαθέσιμα προϊόντα.`;
 
   return {
-    title: `${brand.name} — Brand Guide & διαθέσιμα προϊόντα`,
+    title: brand.liveProductCount > 0
+      ? `${brand.name} — Brand Guide & διαθέσιμα προϊόντα`
+      : `${brand.name} — Ιστορία, ταυτότητα & Brand Guide`,
     description: description.slice(0, 160),
     alternates: { canonical: `/brands/${brand.slug}` },
     robots: { index: brand.indexable, follow: true },
@@ -119,10 +121,11 @@ export default async function BrandGuidePage({ params }: Props) {
   const liveCatalogueHighlights = catalogueHighlights.length
     ? catalogueHighlights
     : brand.categories.slice(0, 3).map((category) => category.label);
-  const catalogueStory = liveCatalogueHighlights.length
+  const hasLiveCatalogue = brand.liveProductCount > 0;
+  const catalogueStory = !hasLiveCatalogue ? undefined : liveCatalogueHighlights.length
     ? `Στο ενεργό catalogue του ΚΟΝΤΑ ΜΟΥ, η σημερινή παρουσία της μάρκας αποτυπώνεται κυρίως σε ${greekList(liveCatalogueHighlights)}. Η εικόνα αυτή συνδέει την τεκμηριωμένη ιστορία και την ταυτότητα του brand με ό,τι υπάρχει πραγματικά στον κατάλογο αυτή τη στιγμή.`
     : brand.guide.catalogueStoryBridge ?? brand.guide.catalogueSummary;
-  const hasCatalogueDepth = Boolean(
+  const hasCatalogueDepth = hasLiveCatalogue && Boolean(
     catalogueStory
     || brand.guide.catalogueProfile
     || brand.guide.catalogueSummary
@@ -159,6 +162,13 @@ export default async function BrandGuidePage({ params }: Props) {
         </aside>
       </section>
 
+
+      {!hasLiveCatalogue ? <section className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <div><div className="eyebrow">Διαθεσιμότητα</div><h2>Προς το παρόν χωρίς διαθέσιμα προϊόντα.</h2></div>
+          <p className={styles.copy}>Ο οδηγός παρουσιάζει την ταυτότητα και την ιστορία του {brand.name}. Δεν υπάρχουν αυτή τη στιγμή διαθέσιμα προϊόντα της μάρκας στο ΚΟΝΤΑ ΜΟΥ.</p>
+        </div>
+      </section> : null}
 
       {brand.guide.whyItStandsOut ? <section className={styles.section}>
         <div className={styles.sectionHeader}>

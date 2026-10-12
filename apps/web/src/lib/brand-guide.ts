@@ -230,12 +230,22 @@ export function brandGuideQualityScore(input: BrandGuideQualityInput): number {
  *
  * This policy is shared by page metadata and the sitemap inventory. Only
  * active brands are passed in by the public brand runtime/read model, so
- * empty or non-sellable brands remain noindex and absent from the sitemap.
+ * content-free brands remain noindex and absent from the sitemap; a substantive\n * evidenced editorial guide may stay indexable even at zero stock.
  * Keep the editorial quality score for enrichment/review; never use it to
  * suppress an otherwise live brand landing page from search.
  */
 export function brandGuideCanIndex(input: BrandGuideQualityInput): boolean {
-  return Number.isSafeInteger(input.liveProductCount) && input.liveProductCount > 0;
+  // Live stock makes a brand landing useful even without a published article.
+  if (Number.isSafeInteger(input.liveProductCount) && input.liveProductCount > 0) return true;
+
+  // A well-researched, source-backed Brand Guide is also useful as an
+  // independent editorial landing when its stock temporarily falls to zero.
+  // Never index empty placeholders or auto-generated name-only brand pages.
+  return (input.description?.trim().length ?? 0) >= 70
+    && (input.guide.whyItStandsOut?.trim().length ?? 0) >= 100
+    && (input.guide.brandStory?.trim().length ?? 0) >= 120
+    && input.guide.sourceUrls.length >= 1
+    && brandGuideQualityScore(input) >= 70;
 }
 
 export function brandGuideStatusLabel(status: BrandGuideStatus): string {
