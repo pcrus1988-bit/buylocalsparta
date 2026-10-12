@@ -147,6 +147,47 @@ remains mandatory; this display is not an automatic incident response
 engine. Signed webhook secret rotation and independent outage tests are
 pending.
 
+### Bounded late/early webhook reconciliation (draft, never enabled in production)
+
+Isolated migration `0021_security_alert_reconciliation.sql` adds private,
+RLS-protected reconciliation leases and distinguishes
+`signed_webhook` from `provider_api` receipt evidence. It intentionally
+stores **no uncorrelated Resend events, recipients, message contents, or
+arbitrary email IDs**.
+
+When a FISCAL notification send is accepted, the dispatcher atomically
+persists its provider ID and enqueues a reconciliation job for that exact
+outbox row. The same **private** five-minute dispatcher (when explicitly
+enabled) retrieves only `GET /emails/:id` for those previously accepted
+FISCAL IDs; it checks the Resend-reported message ID **and exact recipient**
+before creating a bounded `provider_api` observation. A signed webhook
+which arrived too early may have been safely acknowledged and ignored;
+subsequent API lookup recovers the provider's current `last_event` without
+ever retaining unrelated webhook messages. Status is a **snapshot**:
+it does not reconstruct the full provider event sequence or original
+event timestamps. Unexpected or unrecognized states remain unconfirmed.
+
+The queue is isolated, leased for 90 seconds, processed in batches of three,
+limited to twelve checks within 23 hours and has terminal reconciliation
+states. A recipient mismatch is a security failure, never a delivery receipt.
+`email.delivered` indicates acceptance by the receiving mail server, not
+human reading; the final event may be overwritten by a later bounce.
+Successful delivered snapshots are checked again every two hours while
+inside the bounded period. Webhook signatures remain the primary source of
+timestamped delivery events.
+
+`FISCAL_SECURITY_ALERT_RECONCILIATION_ENABLED` must explicitly be set to
+`true` **in the dedicated FISCAL project** before any recovery action can
+execute. It is not configured in current production. Unknown, delayed,
+unavailable and API-invalid provider states never count as verified delivery.
+
+This closes the deterministic **accepted-row vs callback ordering gap**
+when the Resend API last-event snapshot still exposes the missing outcome.
+It does not guarantee historical event completeness, sender-domain
+deliverability, incident detection, or real recipient notification.
+Operator-owned escalation and real-provider drill requirements remain open
+under Issue #1477; do not activate recovery based on synthetic tests.
+
 ## 4. Additional release requirements and missing integrations
 
 Automatic independent out-of-band **security notifications** must be
