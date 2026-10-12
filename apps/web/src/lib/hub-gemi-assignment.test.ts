@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { resolveCensusHubFromPoint } from "./hub-gemi-assignment.ts";
+import { businessHasPremiseLevelGeoEvidence } from "./hub-gemi-assignment-evidence.ts";
 
 test("Volos merchant point belongs to the Volos HUB", () => {
   const location = resolveCensusHubFromPoint({
@@ -78,4 +79,29 @@ test("verified WHOLE_ISLAND centre is still eligible", () => {
   });
   assert.equal(verified?.status, "assigned");
   assert.equal(verified?.hub.id, "KM-HUB-007");
+});
+
+test("postcode or municipality coordinate must never auto-assign an individual GEMI business", () => {
+  const valid = {
+    precisionKind: "address",
+    geoSource: "verified_geocode",
+    sourceReference: "official-premise-address-123",
+    businessEvidenceReference: "official-premise-address-123",
+    businessEvidenceKind: "verified_premise_address",
+    hasVerifiedPhysicalAddress: true,
+    businessGeoVerified: true,
+    businessGeoReviewed: true,
+    hasBusinessGeoReviewer: true,
+    sourcePostcode: "23100", registryPostcode: "23100",
+    locationKeyUniqueToBusiness: true
+  };
+  assert.equal(businessHasPremiseLevelGeoEvidence(valid), true);
+  assert.equal(businessHasPremiseLevelGeoEvidence({ ...valid, precisionKind: "postcode" }), false);
+  assert.equal(businessHasPremiseLevelGeoEvidence({ ...valid, precisionKind: "locality" }), false);
+  assert.equal(businessHasPremiseLevelGeoEvidence({ ...valid, businessGeoReviewed: false }), false);
+  assert.equal(businessHasPremiseLevelGeoEvidence({ ...valid, hasBusinessGeoReviewer: false }), false);
+  assert.equal(businessHasPremiseLevelGeoEvidence({ ...valid, locationKeyUniqueToBusiness: false }), false);
+  assert.equal(businessHasPremiseLevelGeoEvidence({ ...valid, registryPostcode: "38333" }), false);
+  assert.equal(businessHasPremiseLevelGeoEvidence({ ...valid, businessEvidenceReference: "different-evidence-source" }), false);
+  assert.equal(businessHasPremiseLevelGeoEvidence({ ...valid, businessEvidenceKind: null }), false);
 });
