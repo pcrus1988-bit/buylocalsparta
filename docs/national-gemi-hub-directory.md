@@ -94,3 +94,14 @@ Keep contact vault, study sample, survey responses, suppressions, email and pers
 Tests: node --experimental-strip-types --test apps/web/src/lib/hub-gemi-assignment.test.ts
 
 Outstanding: permitted geocodes, assignment batches, boundary review, operator review interface, directory page publication, GSC-led SEO tuning, sitemap governance and deployment.
+
+## 12 October: address-source evidence and existing-plan canonical collision review
+
+Production GEMI lookup gives seven officially matched active businesses with street/postcode. Public source observations corroborated four of those seven business addresses, with five evidence URLs, retained privately in `research_private.hub_gemi_address_source_evidence` (migrations 0445 and 0446). They are **source_corroborated** but physical_geo_status **unverified**; no purported human geographic, privacy or editorial approval was generated. The new admin queue lists the official address, public corroboration URL (if any), and existing vendor/converted HUB relationship.
+
+National exact-GEMI reconciliation identified **15** census identities already represented by a `vendor_businesses` public slug and one converted, owner-linked HUB prospect in the first official-address cohort. All census public projection paths must filter exact-GEMI collisions with marketplace vendors and converted HUB prospects for **any** plan (including CLAIM, PRESENCE, SHOP, GROWTH and PRO). If an earlier census URL was published, redirect to a genuinely public, active, visible existing vendor or converted HUB canonical. Do not expose private or inactive vendor pages.
+
+Schema 0445 retains the corroboration source and business key with private RLS. Schema 0446 corrects the PostgreSQL URL regex repetition-range limitation without rewriting the immutable 0445 SQL. Canonical regression tests are included in `npm run test:hub-gemi-assignment`. No private source row is itself geocoded, assigned or indexable.
+
+Postcode GISCO context and municipality centre distances cannot establish physical address. The initial 7-company cohort still requires independent premises geolocation and legal/privacy/editorial review before any census publication. For national-scale business-address matching, acquire a licensed, cacheable geocoding source or confirmed INSPIRE address feature dataset under permitted commercial terms; do **not** run systematic lookups against the public Nominatim service.
+
