@@ -231,3 +231,11 @@ footer p,footer span{font-size:12px;color:#927e89}
 @media(max-width:600px){.tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.tabs button{min-height:69px;flex-direction:row;align-items:center;padding:12px}.tabs button span:nth-child(2){font-size:12px}.tab-arrow{display:block}.journey-card{padding:23px 19px}.context-list{grid-template-columns:1fr}.manicure-preview{min-height:425px}.hand-art{height:285px}.finger{transform:scale(.70);margin-left:-8px;margin-right:-8px}.finger-0{transform:rotate(-13deg) scale(.70)}.finger-3{transform:rotate(4deg) scale(.70)}.finger-4{transform:rotate(18deg) scale(.70)}.preview-word{display:none}}
 @media(max-width:380px){.concern-option{padding:15px 12px;min-height:182px}.concern-option strong{font-size:13px}.shape-option{padding:9px 3px}.shape-option strong{font-size:10px}.manicure-preview{padding:17px}.hand-art{gap:0}.finger{margin-left:-12px;margin-right:-12px}.preview-bottom small{font-size:10px}}
 @media(prefers-reduced-motion:reduce){.concern-option:hover{transform:none}}
+
+/* Research release gate */
+.research-holding{background:linear-gradient(130deg,#fbf1f3,#fff 65%,#f9eef1);border:1px solid #e8d6dd;border-radius:23px;padding:clamp(27px,5vw,52px);max-width:790px;margin-top:30px;position:relative;overflow:hidden}
+.research-holding:after{content:"";position:absolute;width:210px;height:210px;border-radius:50%;background:linear-gradient(130deg,#f3d6e2,#fff3);right:-75px;top:-85px;pointer-events:none}
+.holding-mark{font-size:38px;color:#b16e8b;margin-bottom:19px}
+.research-holding h3{font-size:clamp(22px,3vw,29px);max-width:480px;letter-spacing:-.04em;margin:16px 0;line-height:1.2}
+.research-holding p{color:#806a76;line-height:1.8;max-width:570px;font-size:14px;margin-bottom:25px}
+.research-holding .primary-action{position:relative;z-index:1}
