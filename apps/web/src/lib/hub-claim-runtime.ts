@@ -86,17 +86,8 @@ export async function listPublicHubClaimsByHub(
   if (!/^[a-z0-9-]{2,80}$/.test(hubSlug)) return [];
   const boundedLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
   const query = search.trim().slice(0, 70);
-  const pattern = "%" + query.replace(/[\\%_]/g, "\\export async function listPublicHubClaimsByHub(hubSlug: string, limit = 50): Promise<HubClaimPublicProfile[]> {
-  if (!/^[a-z0-9-]{2,80}$/.test(hubSlug)) return [];
-  const boundedLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
-  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(
-    SQL_PROFILE + " AND h.hub_slug=$1 ORDER BY h.updated_at DESC LIMIT $2",
-    [hubSlug, boundedLimit]
-  );
-  return result.rows.map(asProfile);
-}") + "%";
-  // Search before LIMIT; filtering only the first N CLAIM profiles omits
-  // legitimate matches in a HUB with many claimed businesses.
+  const pattern = "%" + query.replace(/[\\%_]/g, "\\$&") + "%";
+  // Search before LIMIT so matches beyond the first page remain discoverable.
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(
     SQL_PROFILE + " AND h.hub_slug=$1 " +
     "AND ($3='' OR h.business_name ILIKE $4 ESCAPE '\\') " +
