@@ -7,7 +7,7 @@ export type NailFinish = "gloss" | "soft" | "pearl" | "chrome" | "cat-eye";
 export type NailLength = "short" | "medium" | "long";
 export type Point = { x: number; y: number; z?: number };
 export type NailPose = { x: number; y: number; angle: number; width: number; height: number; finger: number };
-export type ArLook = { hex: string; shape: NailShape; finish: NailFinish; length: NailLength; opacity: number };
+export type ArLook = { hex: string; shape: NailShape; finish: NailFinish; length: NailLength; opacity: number; fit: number; placement: number };
 export type Projected = { width: number; height: number; imageWidth: number; imageHeight: number; mirror: boolean };
 
 export const NAIL_JOINTS = [
@@ -34,7 +34,7 @@ export function projectPoint(p: Point, params: Projected) {
   return { x: params.mirror ? params.width - x : x, y: crop.cropY + p.y * params.imageHeight * crop.scale };
 }
 
-export function deriveNails(landmarks: Point[], params: Projected, length: NailLength): NailPose[] {
+export function deriveNails(landmarks: Point[], params: Projected, length: NailLength, fit = 1, placement = 0): NailPose[] {
   if (!Array.isArray(landmarks) || landmarks.length < 21 || !coverProjection(params)) return [];
   const multipliers: Record<NailLength, number> = { short: 0.72, medium: 0.94, long: 1.15 };
   return NAIL_JOINTS.flatMap(({ tip, dip, pip, finger }) => {
@@ -47,9 +47,9 @@ export function deriveNails(landmarks: Point[], params: Projected, length: NailL
     // Reject implausible projection (hand too small, too large or inaccurate tracking).
     if (distal < 7 || distal > 165 || proximal < 8 || proximal > 210) return [];
     const axisX = dx / distal, axisY = dy / distal;
-    const width = distal * (finger === 0 ? 0.95 : 0.82);
+    const width = distal * (finger === 0 ? 0.95 : 0.82) * Math.max(0.72, Math.min(1.25, fit));
     const height = distal * multipliers[length];
-    const centerAlongTip = length === "long" ? 0.3 : 0.40;
+    const centerAlongTip = (length === "long" ? 0.3 : 0.40) + Math.max(-0.2, Math.min(0.2, placement));
     const centerX = T.x - axisX * distal * centerAlongTip;
     const centerY = T.y - axisY * distal * centerAlongTip;
     const angle = Math.atan2(axisX, -axisY);
@@ -163,7 +163,7 @@ export function drawArNails(ctx: CanvasRenderingContext2D, hands: Point[][], par
   if (!hands?.length) return 0;
   let painted = 0;
   for (const hand of hands.slice(0, 1)) {
-    const nails = deriveNails(hand, params, look.length);
+    const nails = deriveNails(hand, params, look.length, look.fit, look.placement);
     nails.forEach(pose => { drawPolish(ctx, pose, look, timestamp); painted++; });
   }
   return painted;
