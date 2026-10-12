@@ -53,7 +53,7 @@ function nearbyShades(color: RGB) {
   }).sort((left, right) => left.distance - right.distance).slice(0, 3);
 }
 
-export default function PhotoColorStudio() {
+export default function PhotoColorStudio({ onColorPick }: { onColorPick?: (hex: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [color, setColor] = useState<RGB | null>(null);
@@ -118,7 +118,9 @@ export default function PhotoColorStudio() {
       r += data[i]; g += data[i + 1]; b += data[i + 2]; total++;
     }
     if (!total) return;
-    setColor({ r: r / total, g: g / total, b: b / total });
+    const picked = { r: r / total, g: g / total, b: b / total };
+    setColor(picked);
+    onColorPick?.(hexFromRgb(picked));
     setPoint({ x: 100 * cx / canvas.width, y: 100 * cy / canvas.height });
     setCopyState("");
   }
