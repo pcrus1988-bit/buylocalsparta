@@ -66,7 +66,7 @@ export const directGemiCandidatesSql = [
 export const directGemiUpdateSql = [
   "UPDATE research_private.hub_gemi_directory d",
   "SET registry_verified_at=now(),registry_verification_ref=$5,",
-  "registry_verified_by='automation:official-gemi-live-exact-v1',updated_at=now()",
+  "registry_verified_by='automation:official-gemi-live-active-v2',updated_at=now()",
   "WHERE d.gemi_number=$1 AND d.legal_name=$2 AND d.postcode=$3",
   "AND d.registry_municipality_id=$4 AND d.directory_hub_slug=$6",
   "AND d.display_status='unpublished' AND d.registry_verified_at IS NULL",
