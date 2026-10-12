@@ -32,7 +32,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const page = pageNumber(params.page);
   const hasFilterState = Boolean(params.q?.trim() || params.letter?.trim());
   const invalidPageState = Boolean(
-    params.page && (!/^[1-9]\\d*$/.test(params.page) || String(page) !== params.page)
+    params.page && (!/^[1-9][0-9]*$/.test(params.page) || String(page) !== params.page)
   );
   const governed = await governedStaticSeoMetadata("/brands", {
     title: "Brands στο ΚΟΝΤΑ ΜΟΥ",
