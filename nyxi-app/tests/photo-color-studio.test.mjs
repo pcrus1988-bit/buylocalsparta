@@ -28,14 +28,14 @@ test("local shade suggestions do not imply catalogue matches", () => {
 });
 
 test("standalone homepage keeps reviewed-only research and conservative care", () => {
-  assert.match(home, /<PhotoColorStudio\s*\/>/);
-  assert.match(home, /\/api\/search/);
-  assert.match(home, /no_approved_evidence/);
+  assert.ok(home.includes("<PhotoColorStudio onColorPick={setSampledShade} />"));
+  assert.ok(home.includes("/api/search"));
+  assert.ok(home.includes("no_approved_evidence"));
   const guide = readFileSync(new URL("../app/guided-care.tsx", import.meta.url), "utf8");
-  assert.match(guide, /Δεν προτείνουμε θεραπεία/);
-  assert.match(guide, /warningSigns/);
-  assert.match(home, /<GuidedCare \\/>/);
-  assert.match(home, /<NailStyleStudio sampledShade=\\{sampledShade\\} \\/>/);
+  assert.ok(guide.includes("Δεν προτείνουμε θεραπεία"));
+  assert.ok(guide.includes("warningSigns"));
+  assert.ok(home.includes("<GuidedCare />"));
+  assert.ok(home.includes("<NailStyleStudio sampledShade={sampledShade} />"));
   assert.match(layout, /index:\s*false/);
 });
 
