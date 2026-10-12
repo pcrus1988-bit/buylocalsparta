@@ -142,3 +142,22 @@ export async function convertedClaimUrlForGemiCensus(
   return result.rows[0]?.public_slug
     ? "/hubs/" + hubSlug + "/business/" + result.rows[0].public_slug : undefined;
 }
+
+
+/**
+ * Allow the hub-level census directory to enter organic search only when at
+ * least ten independently SEO-reviewed business pages exist in that HUB.
+ * Individual pages remain governed by the separate seo_approved flag.
+ */
+export async function hubHasIndexReadyCensus(hubSlug: string): Promise<boolean> {
+  if (!getExpansionHubBySlug(hubSlug) || !productionDatabaseConfigured()) return false;
+  const result = await getProductionPostgresRuntime().sqlPool.query<{ ready: boolean }>(
+    "SELECT count(*) >= 10 AS ready FROM (" +
+    "SELECT 1 FROM research_private.hub_gemi_directory " +
+    "WHERE assigned_hub_slug=$1 AND assignment_status='assigned' " +
+    "AND display_status='published' AND seo_approved=true LIMIT 10" +
+    ") eligible",
+    [hubSlug]
+  );
+  return result.rows[0]?.ready === true;
+}
