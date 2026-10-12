@@ -98,8 +98,9 @@ const DIRECTORY_COLUMNS = [
 const PUBLIC_HUB_MATCH =
   " ((d.publication_basis='premise' AND d.assigned_hub_slug=$1 AND d.assignment_status='assigned')" +
   " OR (d.publication_basis='municipality' AND d.directory_hub_slug=$1" +
+  " AND d.registry_verified_at IS NOT NULL))" +
   " AND d.registry_verified_at IS NOT NULL" +
-  " AND d.registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}$')) ";
+  " AND d.registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}$' ";
 
 /**
  * Public projection from a PRIVATE registry census. Never expose the research
