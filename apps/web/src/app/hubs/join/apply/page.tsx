@@ -70,7 +70,7 @@ export default async function HubExpansionApplyPage({ searchParams }: { searchPa
               key={plan.code}
             ><strong>{plan.name}</strong><span>{plan.setupLabel} · {billingLabelForPlan(plan, targetBilling)} · {plan.commissionLabel}</span>{plan.code === selectedPlan.code && <small>Τρέχουσα επιλογή</small>}</a>;
           })}</div>
-          <a className={styles.compare} href="/hubs/join#plans">Σύγκριση με checkmarks →</a>
+          <a className={styles.compare} href={`/hubs/join${listingGemi ? "?gemi=" + encodeURIComponent(listingGemi) : ""}#plans`}>Σύγκριση με checkmarks →</a>
         </>}
       </div>
 
