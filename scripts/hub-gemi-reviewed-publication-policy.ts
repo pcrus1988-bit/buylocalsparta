@@ -43,13 +43,17 @@ const candidateConditions = [
   "AND d.gemi_number>$2",
   "AND ($3='' OR d.directory_hub_slug=$3)",
   "AND d.directory_hub_slug IS NOT NULL",
-  "AND d.seo_approved=true",
+  "AND d.seo_approved=false",
   "AND d.public_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'",
   "AND length(d.public_slug)<=128",
   "AND nullif(btrim(d.legal_name),'') IS NOT NULL",
+  "AND d.sector_code IN ('food_groceries','retail_intermediation','automotive_trade',",
+  " 'home_living','fashion_footwear','diy_building','other_retail',",
+  " 'beauty_personal_care','fuel_retail','sports_books_hobby','pharmacy_medical',",
+  " 'flowers_pets','electronics','jewellery_watches','second_hand','other_non_food_retail')",
   "AND d.source_checked_at>=now()-interval '90 days'",
   "AND d.registry_verified_at>=now()-interval '30 days'",
-  "AND length(btrim(d.registry_verification_ref))>=12",
+  "AND d.registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}$'",
   "AND nullif(btrim(d.registry_verified_by),'') IS NOT NULL",
   "AND d.privacy_review_status='approved'",
   "AND d.privacy_reviewed_at IS NOT NULL",
@@ -84,7 +88,7 @@ export const reviewedPublicationPreviewSql = candidates(false) +
 
 export const reviewedPublicationWriteSql = candidates(true) +
   ",published AS (UPDATE research_private.hub_gemi_directory d" +
-  " SET display_status='published',updated_at=now() FROM candidates c" +
+  " SET display_status='published',seo_approved=true,updated_at=now() FROM candidates c" +
   " WHERE d.gemi_number=c.gemi_number AND d.display_status='unpublished'" +
   " RETURNING d.gemi_number)" +
   " SELECT count(*)::integer AS selected," +

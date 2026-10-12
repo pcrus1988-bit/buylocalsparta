@@ -8,7 +8,8 @@ import {
 
 const candidate: CandidateIdentity = {
   gemi_number: "001234567890", legal_name: "ΠΑΡΑΔΕΙΓΜΑ Α.Ε.",
-  postcode: "38221", registry_municipality_id: "123", directory_hub_slug: "volos"
+  postcode: "38221", registry_municipality_id: "123", directory_hub_slug: "volos",
+  matched_activity_codes: ["47.71"]
 };
 const valid = {
   arGemi: 1234567890,
@@ -17,6 +18,7 @@ const valid = {
   municipality: { id: 123, descr: "Βόλος" },
   status: { id: 1, descr: "Ενεργή" },
   autoRegistered: true,
+  activities: [{ activity: { id: "47.71" } }],
   persons: [{ personName: "not used" }]
 };
 
@@ -50,7 +52,11 @@ test("accepts exact GEMI/name/municipality/postcode and active status only", () 
   assert.equal(exactGemiIdentityMatch(candidate, { ...valid, municipality: { id: 124 } }), false);
   assert.equal(exactGemiIdentityMatch(candidate, { ...valid, municipality: undefined }), false);
   assert.equal(exactGemiIdentityMatch(candidate, { ...valid, status: { descr: "Διαγραμμένη" } }), false);
-  assert.equal(exactGemiIdentityMatch(candidate, { ...valid, autoRegistered: false }), false);
+  // autoRegistered=false means incomplete self-registration, not inactivity.
+  // Exact status, legal identity, municipality and category evidence still qualify.
+  assert.equal(exactGemiIdentityMatch(candidate, { ...valid, autoRegistered: false }), true);
+  assert.equal(exactGemiIdentityMatch(candidate, { ...valid, activities: [] }), false);
+  assert.equal(exactGemiIdentityMatch(candidate, { ...valid, activities: [{activity:{id:"47.72"}}] }), false);
   assert.equal(exactGemiIdentityMatch(candidate, { ...valid, status: undefined }), false);
   assert.equal(exactGemiIdentityMatch(candidate, {}), false);
   assert.equal(exactGemiIdentityMatch(candidate, null), false);
@@ -59,7 +65,7 @@ test("accepts exact GEMI/name/municipality/postcode and active status only", () 
 test("SQL never modifies public status, rights, SEO or location evidence", () => {
   for (const check of [
     "registry_verified_at=now()", "registry_verification_ref=$5",
-    "registry_verified_by='automation:official-gemi-live-exact-v1'",
+    "registry_verified_by='automation:official-gemi-live-active-v2'",
     "d.registry_municipality_id=$4", "d.directory_hub_slug=$6",
     "d.display_status='unpublished'", "d.registry_verified_at IS NULL",
     "m.review_status='reviewed'", "m.candidate_hub_distance_km<=hub.radius_km",

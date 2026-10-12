@@ -101,7 +101,7 @@ try {
       continue;
     }
     const hash = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
-    const evidenceRef = "gemi-opendata-live:sha256:" + hash;
+    const evidenceRef = "gemi-opendata-active:sha256:" + hash;
     const updated = await client.query<{ gemi_number: string }>(directGemiUpdateSql, [
       candidate.gemi_number,
       candidate.legal_name,

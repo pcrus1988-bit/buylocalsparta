@@ -14,6 +14,8 @@ export type HubCensusBusiness = Readonly<{
   seoApproved: boolean;
   distanceKm?: number;
   locationBasis: "premise" | "municipality";
+  registryVerifiedAt?: string;
+  gemiActiveVerified: boolean;
 }>;
 
 type HubCensusRow = {
@@ -29,6 +31,8 @@ type HubCensusRow = {
   seo_approved: boolean;
   hub_distance_km: number | string | null;
   publication_basis: "premise" | "municipality";
+  registry_verified_at: string | null;
+  gemi_active_verified: boolean;
 };
 
 const CATEGORY_LABELS: Readonly<Record<string, string>> = {
@@ -68,7 +72,9 @@ function fromRow(row: HubCensusRow): HubCensusBusiness {
     hubSlug: row.assigned_hub_slug,
     seoApproved: row.seo_approved === true,
     distanceKm: Number.isFinite(distance) ? distance : undefined,
-    locationBasis: row.publication_basis
+    locationBasis: row.publication_basis,
+    registryVerifiedAt: row.registry_verified_at || undefined,
+    gemiActiveVerified: row.gemi_active_verified === true
   };
 }
 
@@ -83,7 +89,8 @@ const DIRECTORY_COLUMNS = [
   "gemi_number", "public_slug", "legal_name", "city", "municipality",
   "prefecture", "postcode", "sector_code",
   "CASE WHEN publication_basis='municipality' THEN directory_hub_slug ELSE assigned_hub_slug END AS assigned_hub_slug",
-  "seo_approved", "hub_distance_km", "publication_basis"
+  "seo_approved", "hub_distance_km", "publication_basis", "registry_verified_at",
+  "(registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}$') AS gemi_active_verified"
 ].join(",");
 
 // Private, separately approved municipal directory grouping versus exact
@@ -91,7 +98,9 @@ const DIRECTORY_COLUMNS = [
 const PUBLIC_HUB_MATCH =
   " ((d.publication_basis='premise' AND d.assigned_hub_slug=$1 AND d.assignment_status='assigned')" +
   " OR (d.publication_basis='municipality' AND d.directory_hub_slug=$1" +
-  " AND d.registry_verified_at IS NOT NULL)) ";
+  " AND d.registry_verified_at IS NOT NULL))" +
+  " AND d.registry_verified_at IS NOT NULL" +
+  " AND d.registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}$' ";
 
 /**
  * Public projection from a PRIVATE registry census. Never expose the research

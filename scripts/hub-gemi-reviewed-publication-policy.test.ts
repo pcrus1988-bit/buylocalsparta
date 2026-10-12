@@ -41,9 +41,10 @@ test("SQL allows only current, independently approved municipality listings", ()
   for (const snippet of [
     "d.publication_basis='municipality'",
     "d.display_status='unpublished'",
-    "d.seo_approved=true",
+    "d.seo_approved=false",
     "d.registry_verified_at>=now()-interval '30 days'",
     "d.source_checked_at>=now()-interval '90 days'",
+    "d.registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}$'",
     "d.privacy_review_status='approved'",
     "d.privacy_reviewed_at IS NOT NULL",
     "d.privacy_reviewer_id",
@@ -67,9 +68,9 @@ test("SQL allows only current, independently approved municipality listings", ()
 
 test("the write changes only publication status and updated timestamp", () => {
   const setters = reviewedPublicationWriteSql.match(/SET (.*?) FROM candidates c/s)?.[1] ?? "";
-  assert.equal(setters, "display_status='published',updated_at=now()");
+  assert.equal(setters, "display_status='published',seo_approved=true,updated_at=now()");
   assert.ok(!reviewedPublicationWriteSql.includes("DELETE FROM"));
   assert.ok(!reviewedPublicationWriteSql.includes("INSERT INTO"));
-  assert.ok(!reviewedPublicationWriteSql.includes("SET seo_approved="));
+  assert.ok(reviewedPublicationWriteSql.includes("seo_approved=true,updated_at=now()"));
   assert.ok(!reviewedPublicationWriteSql.includes("SET privacy_review_status="));
 });

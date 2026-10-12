@@ -10,6 +10,7 @@ import { getVerifiedHubPartnerBySlug } from "../../../../../lib/hub-verified-par
 import { hubClaimPublicPath } from "../../../../../lib/hub-claim-public-url";
 import { getPublicHubCensus, hubCensusBusinessPath, convertedClaimUrlForGemiCensus, supersedingPartnerUrlForGemiCensus } from "../../../../../lib/hub-gemi-directory";
 import { getExpansionHubBySlug } from "../../../../../lib/expansion-hubs";
+import { officialGemiPublicityUrl } from "../../../../../lib/hub-gemi-publicity";
 import { HUB_EXPANSION_PLANS, billingLabelForPlan } from "../../../../../lib/hub-expansion-plans";
 import { hubGemiApplicationPath } from "../../../../../lib/hub-gemi-join-links";
 import styles from "../../../claim/claim.module.css";
@@ -111,6 +112,7 @@ export default async function PublicHubBusinessPage({ params }: Params) {
   if (!business || !hub) notFound();
   const directoryPath = "/hubs/" + hub.slug + "/business";
   const joinPath = hubGemiApplicationPath({ plan: "claim", billing: "annual", gemi: business.gemiNumber, showPlans: true });
+  const gemiSourceUrl = officialGemiPublicityUrl(business.gemiNumber);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -131,9 +133,9 @@ export default async function PublicHubBusinessPage({ params }: Params) {
         <div className={styles.kicker}>KONTA MOY · HUB {hub.nameEl} · Επιχειρηματικός κατάλογος</div>
         <h1 className={styles.title}>{business.legalName}</h1>
         <p className={styles.lead}>{business.category} · {business.city || business.municipality || hub.nameEl}</p>
-        <p className={styles.hint}>Μη διεκδικημένη πληροφοριακή καταχώριση. Η επωνυμία και
-          ο αριθμός ΓΕΜΗ έχουν ελεγχθεί ως στοιχεία μητρώου, όχι ως επιβεβαίωση ιδιοκτησίας,
-          τρέχουσας λειτουργίας ή συνεργασίας με το KONTA MOY.</p>
+        <p className={styles.hint}>Μη διεκδικημένη πληροφοριακή καταχώριση.
+          {business.gemiActiveVerified ? " Η κατάσταση «Ενεργή» και η ταυτότητα της επιχείρησης ελέγχθηκαν μέσω ΓΕΜΗ κατά την ημερομηνία επαλήθευσης." : " Τα στοιχεία της επιχείρησης προέρχονται από δημόσιο μητρώο."}
+          {" "}Η καταχώριση δεν αποδεικνύει ιδιοκτησία, τρέχον ωράριο ή εμπορική συνεργασία με το KONTA MOY.</p>
         {business.locationBasis === "municipality" && <p className={styles.hint}>
           Γεωγραφική κατάταξη σε επίπεδο δήμου. Η ακριβής θέση της επιχείρησης και
           η απόσταση από το HUB δεν έχουν ακόμη επαληθευτεί.
@@ -151,9 +153,24 @@ export default async function PublicHubBusinessPage({ params }: Params) {
           </p>}
           {business.postcode && <p className={styles.details}><strong>Τ.Κ.:</strong> {business.postcode}</p>}
           <p className={styles.details}><strong>Αριθμός ΓΕΜΗ:</strong> {business.gemiNumber}</p>
-          <p className={styles.details}><strong>Πηγή:</strong> ΓΕΜΗ OpenData (στοιχεία έρευνας).</p>
-          <p className={styles.details}>Τα στοιχεία ενδέχεται να έχουν μεταβληθεί. Δεν δημοσιεύονται
-            προσωπικές επαφές από το αρχείο συμμετεχόντων της έρευνας.</p>
+          {business.gemiActiveVerified && <p className={styles.details}><strong>Κατάσταση ΓΕΜΗ κατά τον έλεγχο:</strong> Ενεργή</p>}
+          {business.registryVerifiedAt && <p className={styles.details}><strong>Ημερομηνία επαλήθευσης ΓΕΜΗ:</strong> {new Date(business.registryVerifiedAt).toLocaleDateString("el-GR")}</p>}
+          {gemiSourceUrl && <p className={styles.details}><strong>Επίσημη μερίδα ΓΕΜΗ:</strong>{" "}
+            <a href={gemiSourceUrl} target="_blank" rel="noopener noreferrer">Δες τα δημόσια στοιχεία στο ΓΕΜΗ ↗</a>
+          </p>}
+          <p className={styles.details}><strong>Email:</strong>{" "}
+            {gemiSourceUrl ? <a href={gemiSourceUrl} target="_blank" rel="noopener noreferrer">Δες την επίσημη μερίδα ΓΕΜΗ ↗</a> : "Δεν δημοσιεύεται"}
+          </p>
+          <p className={styles.details}><strong>Τηλέφωνο:</strong>{" "}
+            {gemiSourceUrl ? <a href={gemiSourceUrl} target="_blank" rel="noopener noreferrer">Δες την επίσημη μερίδα ΓΕΜΗ ↗</a> : "Δεν δημοσιεύεται"}
+          </p>
+          <p className={styles.details}><strong>Πηγή:</strong> ΓΕΜΗ OpenData (στοιχεία δημόσιου μητρώου).</p>
+          <p className={styles.details}>Δεν αντιγράφονται τηλέφωνα ή email από το ΓΕΜΗ ή τα ερευνητικά αρχεία.
+            Η επίσημη μερίδα μπορεί να έχει νεότερα στοιχεία.</p>
+          <p className={styles.details}>Η καταχώριση χρησιμοποιεί μόνο τα αναγκαία εταιρικά στοιχεία
+            για ενημέρωση και εύρεση επιχειρήσεων στην περιοχή. Δεν αποτελεί συνεργασία ή διαφήμιση από την επιχείρηση.
+            Για διόρθωση, ένσταση ή αίτημα αφαίρεσης μπορείς να επικοινωνήσεις μαζί μας από τη φόρμα επικοινωνίας
+            και να διαβάσεις την <Link href="/privacy">πολιτική απορρήτου</Link>.</p>
         </article>
         <article className={styles.panel}>
           <h2>Είναι δική σου η επιχείρηση;</h2>
