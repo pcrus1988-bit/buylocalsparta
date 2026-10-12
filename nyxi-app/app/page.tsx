@@ -22,6 +22,7 @@ export default function Home() {
   const [data, setData] = useState<SearchReply>({});
   const [busy, setBusy] = useState(false);
   const [sampledShade, setSampledShade] = useState<string | null>(null);
+  const searchEnabled = process.env.NEXT_PUBLIC_NYXI_SEARCH_ENABLED === "true";
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -72,6 +73,7 @@ export default function Home() {
         <span className="overline">04 / KNOWLEDGE LIBRARY</span>
         <h2 id="search-title">Γνώση που μπορείς να ελέγξεις.</h2>
         <p className="muted search-intro">Εξερεύνησε πληροφορίες για συστατικά, προϊόντα και περιποίηση. Εμφανίζονται μόνο στοιχεία με ανεξάρτητα εγκεκριμένη τεκμηρίωση.</p>
+        {searchEnabled ? <>
         <form className="searchform" onSubmit={submit}>
           <label htmlFor="query" className="sr-only">Όρος αναζήτησης</label>
           <input id="query" value={q} maxLength={100} disabled={busy} onChange={e => setQ(e.target.value)} placeholder="π.χ. INCI, gel polish, συστατικά" />
@@ -84,6 +86,7 @@ export default function Home() {
           {data.status === "no_matches" && <p className="notice">Δεν βρέθηκαν εγκεκριμένα αποτελέσματα.</p>}
           {data.results?.map(x => <article className="result" key={x.id}><div className="resultmeta">{x.authority || "Πρωτογενής πηγή"}{x.category ? " · " + x.category : ""}</div><p>{x.excerpt}</p><a href={x.citation_url} target="_blank" rel="noopener noreferrer">Δες την πηγή <span aria-hidden="true">↗</span></a></article>)}
         </div>
+        </> : <div className="research-holding" role="status"><div className="holding-mark" aria-hidden="true">✧</div><span className="overline">QUALITY FIRST</span><h3>Η βιβλιοθήκη προετοιμάζεται με προσοχή.</h3><p>Ελέγχουμε κάθε πηγή ανεξάρτητα πριν εμφανιστεί εδώ. Στο μεταξύ, μπορείς να εξερευνήσεις το Color Studio, να σχεδιάσεις το μανικιούρ σου ή να δεις τον οδηγό ήπιας φροντίδας.</p><button type="button" className="primary-action" onClick={() => setTab("care")}>Εξερεύνησε το Nail Care <span aria-hidden="true">↗</span></button></div>}
         <p className="source-note">Η NYXI δεν δημοσιεύει ανεπιβεβαίωτα ευρήματα. Το περιεχόμενο προστίθεται σταδιακά μετά από έλεγχο.</p>
       </section>}
 
