@@ -53,7 +53,7 @@ const candidateConditions = [
   " 'flowers_pets','electronics','jewellery_watches','second_hand','other_non_food_retail')",
   "AND d.source_checked_at>=now()-interval '90 days'",
   "AND d.registry_verified_at>=now()-interval '30 days'",
-  "AND d.registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}
+  "AND d.registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}$'",
   "AND nullif(btrim(d.registry_verified_by),'') IS NOT NULL",
   "AND d.privacy_review_status='approved'",
   "AND d.privacy_reviewed_at IS NOT NULL",
