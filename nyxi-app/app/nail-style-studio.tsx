@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import NailArTryOn from "./nail-ar-try-on";
-import type { ArLook, NailShape, NailFinish, NailLength } from "./nail-ar-geometry";
+import type { ArLook, NailShape, NailFinish, NailLength, NailCorrection } from "./nail-ar-geometry";
 import { AVAILABLE_BRANDS, AVAILABLE_POLISHES, findBrandPolish } from "./brand-polishes";
 import { brandMaterial, creativeMaterial } from "./nail-material-renderer";
 type Shape = NailShape;
@@ -41,6 +41,13 @@ export default function NailStyleStudio({ sampledShade, active = true }: { sampl
   const [opacity, setOpacity] = useState(0.9);
   const [fit, setFit] = useState(1);
   const [placement, setPlacement] = useState(0);
+  const [selectedFinger, setSelectedFinger] = useState(2);
+  const [corrections, setCorrections] = useState<Partial<Record<number, NailCorrection>>>({});
+  const fingerNames = ["Αντίχειρας", "Δείκτης", "Μέσος", "Παράμεσος", "Μικρό"];
+  const fingerCorrection = corrections[selectedFinger] ?? { lateral: 0, axial: 0, width: 1 };
+  const adjustFinger = (field: keyof NailCorrection, value: number) => setCorrections(prev => ({
+    ...prev, [selectedFinger]: { ...(prev[selectedFinger] ?? { lateral: 0, axial: 0, width: 1 }), [field]: value },
+  }));
   const [message, setMessage] = useState("");
   const profile = polishMode === "brand" ? findBrandPolish(selectedPolishId) : null;
   const finalShade = profile ? profile.approximateHex : hasPickedCustom && sampledShade ? sample(sampledShade) : shade;
@@ -50,7 +57,7 @@ export default function NailStyleStudio({ sampledShade, active = true }: { sampl
   const finishLabel = profile ? profile.material === "cream" ? "Κλασικό λαμπερό" : profile.material === "sheer" ? "Ημιδιάφανο" : profile.material :
     finishes.find(s => s.id === finish)?.text || "Gloss";
   const arLook: ArLook = { hex: finalShade, shape, finish, length, opacity, fit, placement,
-    material: profile ? brandMaterial(profile) : creativeMaterial(finish, opacity) };
+    material: profile ? brandMaterial(profile) : creativeMaterial(finish, opacity), corrections };
   const cyclePolish = () => {
     if (profile) {
       const next = AVAILABLE_POLISHES[(AVAILABLE_POLISHES.findIndex(p => p.id === profile.id) + 1) % AVAILABLE_POLISHES.length];
@@ -128,6 +135,20 @@ export default function NailStyleStudio({ sampledShade, active = true }: { sampl
           <input id="nyxi-nail-shift" type="range" min="-0.2" max="0.2" step="0.05" value={placement} onChange={e => setPlacement(Number(e.target.value))} />
           <p className="microcopy">Η ακριβής επιφάνεια του νυχιού δεν αναγνωρίζεται ακόμη αυτόματα. Ρύθμισε την εφαρμογή για πιο φυσικό αποτέλεσμα.</p>
           <button type="button" className="ar-calibration-reset" onClick={() => { setFit(1); setPlacement(0); }}>Επαναφορά προσαρμογής</button>
+        </div>}
+        {viewMode !== "preview" && <div className="control-group ar-finger-adjust">
+          <div className="control-heading"><h3><span>07</span> Ακριβής διόρθωση ανά νύχι</h3></div>
+          <p className="microcopy">Αν κάποιο νύχι δεν ευθυγραμμίζεται σωστά, ρύθμισέ το ξεχωριστά. Οι αλλαγές ακολουθούν την κίνησή του.</p>
+          <div className="finger-selector" role="group" aria-label="Επιλογή δαχτύλου">
+            {fingerNames.map((name, index) => <button type="button" key={name} aria-pressed={selectedFinger === index} className={selectedFinger === index ? "selected" : ""} onClick={() => setSelectedFinger(index)}>{name}</button>)}
+          </div>
+          <label htmlFor="nyxi-finger-width">Πλάτος <span>{Math.round(fingerCorrection.width * 100)}%</span></label>
+          <input id="nyxi-finger-width" type="range" min="0.7" max="1.3" step="0.05" value={fingerCorrection.width} onChange={event => adjustFinger("width", Number(event.target.value))}/>
+          <label htmlFor="nyxi-finger-x">Οριζόντια θέση <span>{Math.round(fingerCorrection.lateral * 100)}%</span></label>
+          <input id="nyxi-finger-x" type="range" min="-0.3" max="0.3" step="0.03" value={fingerCorrection.lateral} onChange={event => adjustFinger("lateral", Number(event.target.value))}/>
+          <label htmlFor="nyxi-finger-y">Κατακόρυφη θέση <span>{Math.round(fingerCorrection.axial * 100)}%</span></label>
+          <input id="nyxi-finger-y" type="range" min="-0.2" max="0.2" step="0.02" value={fingerCorrection.axial} onChange={event => adjustFinger("axial", Number(event.target.value))}/>
+          <button type="button" className="ar-calibration-reset" onClick={() => setCorrections(prev => { const next = { ...prev }; delete next[selectedFinger]; return next; })}>Επαναφορά δαχτύλου</button>
         </div>}
         <button className="primary-action look-copy" type="button" onClick={copyLook}>Αντέγραψε το look σου <span aria-hidden="true">↗</span></button>
         {message && <p className="microcopy" role="status">{message}</p>}
