@@ -31,7 +31,11 @@ test("standalone homepage keeps reviewed-only research and conservative care", (
   assert.match(home, /<PhotoColorStudio\s*\/>/);
   assert.match(home, /\/api\/search/);
   assert.match(home, /no_approved_evidence/);
-  assert.match(home, /Δεν προτείνουμε θεραπεία/);
+  const guide = readFileSync(new URL("../app/guided-care.tsx", import.meta.url), "utf8");
+  assert.match(guide, /Δεν προτείνουμε θεραπεία/);
+  assert.match(guide, /warningSigns/);
+  assert.match(home, /<GuidedCare \\/>/);
+  assert.match(home, /<NailStyleStudio sampledShade=\\{sampledShade\\} \\/>/);
   assert.match(layout, /index:\s*false/);
 });
 
@@ -39,4 +43,11 @@ test("mobile and reduced-motion layouts are supported", () => {
   assert.match(stylesheet, /max-width:760px/);
   assert.match(stylesheet, /max-width:480px/);
   assert.match(stylesheet, /prefers-reduced-motion/);
+});
+
+test("color samples stay in memory and connect the two studios", () => {
+  const atelier = readFileSync(new URL("../app/nail-style-studio.tsx", import.meta.url), "utf8");
+  assert.match(studio, /onColorPick\?\.\(hexFromRgb\(picked\)\)/);
+  assert.match(atelier, /sampledShade/);
+  assert.doesNotMatch(atelier, /fetch\(|XMLHttpRequest|localStorage|sessionStorage/);
 });
