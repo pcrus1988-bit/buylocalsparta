@@ -159,9 +159,14 @@ export async function hubHasIndexReadyCensus(hubSlug: string): Promise<boolean> 
   if (!getExpansionHubBySlug(hubSlug) || !productionDatabaseConfigured()) return false;
   const result = await getProductionPostgresRuntime().sqlPool.query<{ ready: boolean }>(
     "SELECT count(*) >= 10 AS ready FROM (" +
-    "SELECT 1 FROM research_private.hub_gemi_directory " +
-    "WHERE assigned_hub_slug=$1 AND assignment_status='assigned' " +
-    "AND display_status='published' AND seo_approved=true LIMIT 10" +
+    "SELECT 1 FROM research_private.hub_gemi_directory d " +
+    "WHERE d.assigned_hub_slug=$1 AND d.assignment_status='assigned' " +
+    "AND d.display_status='published' AND d.seo_approved=true " +
+    "AND NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects h " +
+    "WHERE h.gemi_number=d.gemi_number AND h.hub_slug=$1 " +
+    "AND h.plan_code='claim' AND h.status='converted' " +
+    "AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL) " +
+    "LIMIT 10" +
     ") eligible",
     [hubSlug]
   );
@@ -174,9 +179,13 @@ export async function publicHubCensusCategoryCounts(
 ): Promise<ReadonlyArray<{ slug: string; label: string; count: number }>> {
   if (!getExpansionHubBySlug(hubSlug) || !productionDatabaseConfigured()) return [];
   const result = await getProductionPostgresRuntime().sqlPool.query<{ sector_code: string; n: number | string }>(
-    "SELECT sector_code,count(*)::integer AS n FROM research_private.hub_gemi_directory " +
-    "WHERE assigned_hub_slug=$1 AND assignment_status='assigned' AND display_status='published' " +
-    "GROUP BY sector_code ORDER BY count(*) DESC LIMIT 32",
+    "SELECT d.sector_code,count(*)::integer AS n FROM research_private.hub_gemi_directory d " +
+    "WHERE d.assigned_hub_slug=$1 AND d.assignment_status='assigned' AND d.display_status='published' " +
+    "AND NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects h " +
+    "WHERE h.gemi_number=d.gemi_number AND h.hub_slug=$1 " +
+    "AND h.plan_code='claim' AND h.status='converted' " +
+    "AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL) " +
+    "GROUP BY d.sector_code ORDER BY count(*) DESC LIMIT 32",
     [hubSlug]
   );
   return result.rows.filter(row => Object.hasOwn(CATEGORY_LABELS, row.sector_code))
