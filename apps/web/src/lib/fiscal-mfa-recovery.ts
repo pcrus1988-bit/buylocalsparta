@@ -11,6 +11,7 @@ import {
 import type {FiscalRecoveryInput} from "./fiscal-mfa-recovery-input";
 import {enqueueFiscalRecoveryAlerts,fiscalSecurityDeliveryConfig} from "./fiscal-security-alert-outbox";
 import {fiscalSecurityWebhookConfigured} from "./fiscal-security-alert-webhook";
+import {fiscalReconcileEnabled} from "./fiscal-security-alert-reconcile";
 
 type CaseRow={id:string;target_kind:"marketplace_super_admin"|"fiscal_admin";
  target_ref:string;evidence_ref:string;state:string;expires_at:Date};
@@ -46,6 +47,7 @@ export async function fiscalRecoveryReadiness(actor:FiscalAdminActor){
   schemaPresent:result.rows[0]?.schema_present===true,
   alertSchemaPresent,
   signedWebhookConfigured:fiscalSecurityWebhookConfigured(),
+  providerReconciliationEnabled:fiscalReconcileEnabled(),
   verifiedAlertContacts,
   alertDeliveryConfigured:process.env.FISCAL_SECURITY_ALERT_DELIVERY_ENABLED==="true" &&
    Boolean(process.env.RESEND_API_KEY?.trim()&&process.env.FISCAL_SECURITY_ALERT_FROM?.trim()&&
@@ -61,6 +63,7 @@ function enabled(){
  if(!fiscalMfaSetupEnabled())throw error("MFA_SETUP_DISABLED",503);
  fiscalSecurityDeliveryConfig();
  if(!fiscalSecurityWebhookConfigured())throw error("RECOVERY_SIGNED_WEBHOOK_NOT_READY",503);
+ if(!fiscalReconcileEnabled())throw error("RECOVERY_PROVIDER_RECONCILIATION_REQUIRED",503);
  try{parseFiscalMfaKey(process.env.FISCAL_OPERATOR_MFA_ENCRYPTION_KEY??"");}
  catch{throw error("MFA_KEY_NOT_READY",503);}
 }
