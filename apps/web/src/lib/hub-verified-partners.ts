@@ -1,5 +1,6 @@
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import type { HubExpansionPlanCode } from "./hub-expansion-plans";
+import { isVerifiedHubPartner } from "./hub-partner-eligibility";
 
 /**
  * Paid HUB plans are verified independently of CLAIM. A pending application,
@@ -17,29 +18,6 @@ export type VerifiedHubPartner = Readonly<{
   publicPath: string;
 }>;
 
-export type PartnerEligibility = Readonly<{
-  planCode: string;
-  applicationStatus: string;
-  hasVerifiedOwner: boolean;
-  vendorStatus: string;
-  directoryVisible: boolean;
-  demoMode: boolean;
-  vendorSlug?: string | null;
-}>;
-
-const LIVE_HUB_PLANS = new Set(["presence", "shop", "growth", "pro"]);
-
-export function isVerifiedHubPartner(input: PartnerEligibility): boolean {
-  return LIVE_HUB_PLANS.has(input.planCode) &&
-    input.applicationStatus === "converted" &&
-    input.hasVerifiedOwner &&
-    input.vendorStatus === "active" &&
-    input.directoryVisible &&
-    !input.demoMode &&
-    typeof input.vendorSlug === "string" &&
-    /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.vendorSlug);
-}
-
 type PartnerRow = {
   id: string;
   hub_slug: string;
@@ -48,6 +26,11 @@ type PartnerRow = {
   primary_category: string;
   plan_code: Exclude<HubExpansionPlanCode, "claim">;
   vendor_slug: string;
+  application_status: string;
+  vendor_status: string;
+  owner_verified: boolean;
+  directory_visible: boolean;
+  demo_mode: boolean;
 };
 
 const FROM_VERIFIED_PARTNERS = `
@@ -66,10 +49,23 @@ const FROM_VERIFIED_PARTNERS = `
 const PARTNER_FIELDS = `
   SELECT h.public_id AS id, h.hub_slug, h.hub_city,
          h.business_name, h.primary_category, h.plan_code,
-         v.public_slug AS vendor_slug
+         v.public_slug AS vendor_slug, h.status::text AS application_status,
+         v.status::text AS vendor_status,
+         (u.status='active' AND u.email_verified_at IS NOT NULL) AS owner_verified,
+         v.public_directory_visible AS directory_visible,
+         COALESCE(v.demo_mode,false) AS demo_mode
 `;
 
 function asPartner(row: PartnerRow): VerifiedHubPartner {
+  if (!isVerifiedHubPartner({
+    planCode: row.plan_code,
+    applicationStatus: row.application_status,
+    hasVerifiedOwner: row.owner_verified,
+    vendorStatus: row.vendor_status,
+    directoryVisible: row.directory_visible,
+    demoMode: row.demo_mode,
+    vendorSlug: row.vendor_slug
+  })) throw new Error("HUB_PUBLIC_PARTNER_NOT_VERIFIED");
   return {
     id: row.id,
     hubSlug: row.hub_slug,
@@ -119,7 +115,8 @@ export async function getVerifiedHubPartnerBySlug(
   hubSlug: string, slug: string
 ): Promise<VerifiedHubPartner | undefined> {
   if (!/^[a-z0-9-]{2,80}$/.test(hubSlug) ||
-      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 128) return undefined;
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 128 ||
+      /-gemi-[0-9]{8,20}$/.test(slug)) return undefined;
   const result = await getProductionPostgresRuntime().sqlPool.query<PartnerRow>(
     PARTNER_FIELDS + FROM_VERIFIED_PARTNERS +
       " AND h.hub_slug=$1 AND v.public_slug=$2 ORDER BY h.updated_at DESC LIMIT 1",
