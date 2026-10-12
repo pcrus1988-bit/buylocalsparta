@@ -12,16 +12,8 @@ ALTER TABLE public.fiscal_security_alert_delivery_events
       (verification_source='signed_webhook' AND provider_event_at IS NOT NULL)
       OR (verification_source='provider_api' AND provider_event_at IS NULL)
     );
-ALTER TABLE public.fiscal_security_alert_delivery_events
-  DROP CONSTRAINT IF EXISTS fiscal_security_alert_delivery_events_check;
--- The original time bound is re-established for genuinely timestamped
--- signed webhook events; provider GET /emails/:id reports only last_event,
--- not the time at which that event occurred.
-ALTER TABLE public.fiscal_security_alert_delivery_events
-  ADD CONSTRAINT fiscal_alert_provider_event_time_guard
-  CHECK(provider_event_at IS NULL OR
-       (provider_event_at<=received_at+interval '10 minutes' AND
-        provider_event_at>received_at-interval '14 days'));
+-- The original CHECK allows NULL for API status observations while still
+-- bounding timestamps on signed webhook events.
 
 CREATE TABLE public.fiscal_security_alert_reconciliation (
  outbox_id uuid PRIMARY KEY REFERENCES public.fiscal_security_alert_outbox(id) ON DELETE RESTRICT,
