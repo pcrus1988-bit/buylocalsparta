@@ -65,11 +65,11 @@ export default function Home() {
         </button>)}
       </nav>
 
-      {tab === "color" && <PhotoColorStudio onColorPick={setSampledShade} />}
+      <div hidden={tab !== "color"}><PhotoColorStudio onColorPick={setSampledShade} /></div>
 
-      {tab === "style" && <NailStyleStudio sampledShade={sampledShade} />}
+      <div hidden={tab !== "style"}><NailStyleStudio sampledShade={sampledShade} /></div>
 
-      {tab === "search" && <section className="panel" aria-labelledby="search-title">
+      <div hidden={tab !== "search"}><section className="panel" aria-labelledby="search-title">
         <span className="overline">04 / KNOWLEDGE LIBRARY</span>
         <h2 id="search-title">Γνώση που μπορείς να ελέγξεις.</h2>
         <p className="muted search-intro">Εξερεύνησε πληροφορίες για συστατικά, προϊόντα και περιποίηση. Εμφανίζονται μόνο στοιχεία με ανεξάρτητα εγκεκριμένη τεκμηρίωση.</p>
@@ -88,9 +88,9 @@ export default function Home() {
         </div>
         </> : <div className="research-holding" role="status"><div className="holding-mark" aria-hidden="true">✧</div><span className="overline">QUALITY FIRST</span><h3>Η βιβλιοθήκη προετοιμάζεται με προσοχή.</h3><p>Ελέγχουμε κάθε πηγή ανεξάρτητα πριν εμφανιστεί εδώ. Στο μεταξύ, μπορείς να εξερευνήσεις το Color Studio, να σχεδιάσεις το μανικιούρ σου ή να δεις τον οδηγό ήπιας φροντίδας.</p><button type="button" className="primary-action" onClick={() => setTab("care")}>Εξερεύνησε το Nail Care <span aria-hidden="true">↗</span></button></div>}
         <p className="source-note">Η NYXI δεν δημοσιεύει ανεπιβεβαίωτα ευρήματα. Το περιεχόμενο προστίθεται σταδιακά μετά από έλεγχο.</p>
-      </section>}
+      </section></div>
 
-      {tab === "care" && <GuidedCare />}
+      <div hidden={tab !== "care"}><GuidedCare /></div>
 
     </section>
 
