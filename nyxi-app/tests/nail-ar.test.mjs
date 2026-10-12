@@ -39,6 +39,10 @@ test("landmark geometry returns a stable nail for each valid fingertip", () => {
   assert.equal(long.length, 5);
   assert.ok(long.every((n, i) => n.height > short[i].height));
   assert.ok(short.every(n => Number.isFinite(n.angle) && n.width > 5));
+  const narrow = deriveNails(hand, params, "medium", 0.75, -0.2);
+  const wide = deriveNails(hand, params, "medium", 1.25, 0.2);
+  assert.ok(wide[0].width > narrow[0].width);
+  assert.notEqual(wide[0].y, narrow[0].y);
 });
 
 test("invalid or tiny landmarks never produce fictitious nails", () => {
@@ -55,6 +59,8 @@ test("AR stays opt-in, on-device, and has explicit camera teardown", () => {
   assert.match(ar, /getUserMedia\(/);
   assert.match(ar, /getTracks\(\)\.forEach\(track => track\.stop\(\)\)/);
   assert.match(ar, /cancelAnimationFrame/);
+  assert.match(ar, /visibilitychange/);
+  assert.match(ar, /pagehide/);
   assert.match(ar, /document\.createElement\("a"\)/);
   assert.match(ar, /toBlob\(/);
   assert.match(ar, /const DETECTION_INTERVAL_MS = 90/);
@@ -67,6 +73,8 @@ test("controls are linked, camera shuts down on tab leave, photo fallback exists
   assert.match(atelier, /viewMode === "live"/);
   assert.match(atelier, /viewMode === "photo"/);
   assert.match(atelier, /opacity/);
+  assert.match(atelier, /setFit/);
+  assert.match(atelier, /setPlacement/);
   assert.match(atelier, /cat-eye/);
   assert.match(atelier, /NailArTryOn/);
   assert.ok(homepage.includes('active={tab === "style"}'));
