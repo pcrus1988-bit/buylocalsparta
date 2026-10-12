@@ -294,7 +294,8 @@ API, a customer-facing credit-note button, an accounting posting, a tax-reversal
 engine, an AADE operation, a payment refund, or an immutable fiscal document.
 
 - Takes one tenant-authorized original draft snapshot (UUID, test lane, EUR,
-  1–30 contiguous original lines with positive integer gross cents).
+  declared original gross total and 1–30 contiguous lines with positive integer gross cents).
+  Rejects truncated or modified line sets whose sum differs from the original total.
 - Consumes **complete** tenant-scoped prior test credit allocations (maximum 100)
   and one proposed adjustment (1–30 distinct original-line references).
 - Enforces stable external references, no reuse of historical references,
