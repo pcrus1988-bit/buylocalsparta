@@ -198,8 +198,24 @@ export async function submitHubProspectApplication(input: {
           [application.listingGemi, hub.id]
         );
         if (!registryListing.rowCount) {
-          throw new HubProspectApplicationError(409, "claim_target_unavailable",
-            "Η καταχώριση ΓΕΜΗ δεν είναι διαθέσιμη προς διεκδίκηση στο επαληθευμένο HUB.");
+          // Owner-verified CLAIM pages can request a paid upgrade even when they
+          // predate the nationwide census. Never grant this exception to someone
+          // who cannot prove ownership through the authenticated account.
+          const ownedClaim = plan.code !== "claim" && input.principal?.userId
+            ? await tx.query(
+                "SELECT 1 FROM public.hub_expansion_prospects h " +
+                "JOIN public.users u ON u.id=h.owner_user_id " +
+                "WHERE h.gemi_number=$1 AND h.hub_id=$2 " +
+                "AND h.plan_code='claim' AND h.status='converted' " +
+                "AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL " +
+                "AND u.public_id=$3 AND u.status='active' AND u.email_verified_at IS NOT NULL LIMIT 1",
+                [application.listingGemi, hub.id, input.principal.userId]
+              )
+            : undefined;
+          if (!ownedClaim?.rowCount) {
+            throw new HubProspectApplicationError(409, "claim_target_unavailable",
+              "Η καταχώριση ΓΕΜΗ δεν είναι διαθέσιμη στο επαληθευμένο HUB ή απαιτείται σύνδεση του νόμιμου κατόχου.");
+          }
         }
       }
 
