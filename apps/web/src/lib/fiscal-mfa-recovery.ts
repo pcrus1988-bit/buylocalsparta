@@ -18,13 +18,15 @@ type CaseRow={id:string;target_kind:"marketplace_super_admin"|"fiscal_admin";
 const digest=(s:string)=>createHash("sha256").update(s).digest("hex");
 export const fiscalRecoveryEnabled=()=>process.env.FISCAL_MFA_RECOVERY_ENABLED==="true";
 export async function fiscalRecoveryReadiness(actor:FiscalAdminActor){
- const result=await fiscalPool().query<{enrolled_count:number;schema_present:boolean;alert_schema:boolean}>(
+ const result=await fiscalPool().query<{enrolled_count:number;schema_present:boolean;alert_schema:boolean;reconcile_schema:boolean}>(
   `SELECT (SELECT count(*)::int FROM fiscal_operator_mfa_factors
       WHERE actor_kind='marketplace_super_admin' AND status='active') AS enrolled_count,
     (to_regclass('public.fiscal_mfa_recovery_cases') IS NOT NULL
      AND to_regclass('public.fiscal_mfa_recovery_approvals') IS NOT NULL) AS schema_present,
     (to_regclass('public.fiscal_security_alert_contacts') IS NOT NULL
-     AND to_regclass('public.fiscal_security_alert_outbox') IS NOT NULL) AS alert_schema`);
+     AND to_regclass('public.fiscal_security_alert_outbox') IS NOT NULL) AS alert_schema,
+    (to_regclass('public.fiscal_security_alert_reconciliation') IS NOT NULL
+     AND to_regclass('public.fiscal_security_alert_delivery_events') IS NOT NULL) AS reconcile_schema`);
  const enrolled=result.rows[0]?.enrolled_count??0;
  const alertSchemaPresent=result.rows[0]?.alert_schema===true;
  let verifiedAlertContacts=false;
@@ -46,6 +48,7 @@ export async function fiscalRecoveryReadiness(actor:FiscalAdminActor){
   // Enrollment counts are not proof of different human beings.
   schemaPresent:result.rows[0]?.schema_present===true,
   alertSchemaPresent,
+  providerReconciliationSchemaPresent:result.rows[0]?.reconcile_schema===true,
   signedWebhookConfigured:fiscalSecurityWebhookConfigured(),
   providerReconciliationEnabled:fiscalReconcileEnabled(),
   verifiedAlertContacts,
@@ -111,6 +114,14 @@ export async function fiscalRecoveryList(actor:FiscalAdminActor){
 }
 export async function fiscalRecoveryAction(actor:FiscalAdminActor,input:FiscalRecoveryInput){
  enabled();
+ const schema=await fiscalPool().query<{available:boolean}>(
+  `SELECT (to_regclass('public.fiscal_mfa_recovery_cases') IS NOT NULL
+     AND to_regclass('public.fiscal_mfa_recovery_approvals') IS NOT NULL
+     AND to_regclass('public.fiscal_security_alert_outbox') IS NOT NULL
+     AND to_regclass('public.fiscal_security_alert_contacts') IS NOT NULL
+     AND to_regclass('public.fiscal_security_alert_delivery_events') IS NOT NULL
+     AND to_regclass('public.fiscal_security_alert_reconciliation') IS NOT NULL) AS available`);
+ if(schema.rows[0]?.available!==true)throw error("RECOVERY_INFRASTRUCTURE_NOT_READY",503);
  await limit(actor,input.action);
  if(input.action==="approve"){
   if(actor.kind!=="marketplace_super_admin")throw error("RECOVERY_APPROVER_FORBIDDEN",403);
