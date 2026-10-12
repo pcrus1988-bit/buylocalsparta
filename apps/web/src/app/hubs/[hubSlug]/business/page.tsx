@@ -6,6 +6,7 @@ import { SiteFooter } from "../../../../components/SiteFooter";
 import { getExpansionHubBySlug } from "../../../../lib/expansion-hubs";
 import { hubCensusBusinessPath, listPublicHubCensus, hubHasIndexReadyCensus, publicHubCensusCategoryCounts } from "../../../../lib/hub-gemi-directory";
 import { listPublicHubClaimsByHub } from "../../../../lib/hub-claim-runtime";
+import { listVerifiedHubPartnersByHub } from "../../../../lib/hub-verified-partners";
 import { hubClaimPublicPath } from "../../../../lib/hub-claim-public-url";
 import { hubGemiApplicationPath } from "../../../../lib/hub-gemi-join-links";
 import { hubBusinessDirectoryIndexable } from "../../../../lib/public-hub-availability";
@@ -25,14 +26,15 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
   if (!hub) return { title: "HUB δεν βρέθηκε · KONTA MOY", robots: { index: false, follow: false } };
   const canonical = "/hubs/" + hub.slug + "/business";
   const hasFilters = Boolean(query.q || query.after || query.category);
-  const [verifiedClaims, indexReadyCensus] = hasFilters
-    ? [[], false] as const
+  const [verifiedClaims, verifiedPartners, indexReadyCensus] = hasFilters
+    ? [[], [], false] as const
     : await Promise.all([
       listPublicHubClaimsByHub(hub.slug, 1),
+      listVerifiedHubPartnersByHub(hub.slug, 1),
       hubHasIndexReadyCensus(hub.slug)
     ]);
   const indexable = hubBusinessDirectoryIndexable({
-    hasVerifiedClaim: verifiedClaims.length > 0,
+    hasVerifiedClaim: verifiedClaims.length > 0 || verifiedPartners.length > 0,
     hasIndexReadyCensus: indexReadyCensus,
     hasFilters
   });
@@ -55,13 +57,15 @@ export default async function HubBusinessesDirectoryPage({ params, searchParams 
   const q = typeof query.q === "string" ? query.q.trim().slice(0, 70) : "";
   const after = typeof query.after === "string" ? query.after : "";
   const category = typeof query.category === "string" ? query.category : "";
-  const [census, claimedAll, categories] = await Promise.all([
+  const [census, claimedAll, partnersAll, categories] = await Promise.all([
     listPublicHubCensus(hub.slug, { q, after, category, limit: 24 }),
     listPublicHubClaimsByHub(hub.slug, 24, q),
+    listVerifiedHubPartnersByHub(hub.slug, 100, q),
     publicHubCensusCategoryCounts(hub.slug)
   ]);
   // Registry sectors and seller-defined CLAIM categories are not equivalent.
   const claimed = category ? [] : claimedAll;
+  const partners = category || after ? [] : partnersAll;
   const next = new URLSearchParams();
   if (q) next.set("q", q);
   if (category) next.set("category", category);
@@ -108,6 +112,18 @@ export default async function HubBusinessesDirectoryPage({ params, searchParams 
         <button className={styles.button} type="submit">Αναζήτηση</button>
       </form>
 
+      {partners.length > 0 && <section>
+        <h2>Ενεργοί συνεργάτες από τα προγράμματα HUB</h2>
+        <p className={styles.details}>Επαληθευμένοι συνεργάτες με ολοκληρωμένη δημόσια ενεργοποίηση. Η εμφάνιση εδώ δεν ενεργοποιεί από μόνη της αγορές.</p>
+        <div className={styles.grid}>{partners.map((partner) =>
+          <article key={partner.id} className={styles.panel}>
+            <div className={styles.kicker}>Ενεργή παρουσία</div>
+            <h3>{partner.businessName}</h3>
+            <p className={styles.details}>{partner.category}</p>
+            <Link className={styles.button} href={partner.publicPath}>Προφίλ επιχείρησης →</Link>
+          </article>
+        )}</div>
+      </section>}
       {claimed.length > 0 && !after && <section>
         <h2>Επαληθευμένες καταχωρίσεις CLAIM</h2>
         <div className={styles.grid}>{claimed.map((business) =>

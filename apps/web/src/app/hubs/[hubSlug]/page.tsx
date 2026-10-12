@@ -6,6 +6,7 @@ import { SiteFooter } from "../../../components/SiteFooter";
 import { getExpansionHubBySlug } from "../../../lib/expansion-hubs";
 import { hubHasIndexReadyCensus } from "../../../lib/hub-gemi-directory";
 import { listPublicHubClaimsByHub } from "../../../lib/hub-claim-runtime";
+import { listVerifiedHubPartnersByHub } from "../../../lib/hub-verified-partners";
 import { hubClaimPublicPath } from "../../../lib/hub-claim-public-url";
 import styles from "../claim/claim.module.css";
 
@@ -18,10 +19,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { hubSlug } = await params;
   const hub = getExpansionHubBySlug(hubSlug);
   if (!hub) return { title: "HUB δεν βρέθηκε · KONTA MOY", robots: { index: false, follow: false } };
-  const [claimed, indexReadyCensus] = await Promise.all([
-    listPublicHubClaimsByHub(hubSlug, 1), hubHasIndexReadyCensus(hubSlug)
+  const [claimed, partners, indexReadyCensus] = await Promise.all([
+    listPublicHubClaimsByHub(hubSlug, 1), listVerifiedHubPartnersByHub(hubSlug, 1), hubHasIndexReadyCensus(hubSlug)
   ]);
-  const hasListings = hub.isSpartaLegacy || claimed.length > 0 || indexReadyCensus;
+  const hasListings = hub.isSpartaLegacy || claimed.length > 0 || partners.length > 0 || indexReadyCensus;
   const canonical = `/hubs/${hub.slug}`;
   const description = `Γνώρισε επαληθευμένες επιχειρήσεις στο KONTA MOY HUB ${hub.nameEl}. Τοπική παρουσία επιχειρήσεων, χωρίς απαραίτητα ενεργές ηλεκτρονικές αγορές.`;
   return {
@@ -38,7 +39,9 @@ export default async function PublicCityHubPage({ params }: Props) {
   const hub = getExpansionHubBySlug(hubSlug);
   if (!hub) notFound();
 
-  const businesses = await listPublicHubClaimsByHub(hubSlug, 100);
+  const [businesses, partners] = await Promise.all([
+    listPublicHubClaimsByHub(hubSlug, 100), listVerifiedHubPartnersByHub(hubSlug, 100)
+  ]);
 
   return <main>
     <SiteHeader compact />
@@ -64,6 +67,17 @@ export default async function PublicCityHubPage({ params }: Props) {
           <Link className={styles.button + " " + styles.secondary} href="/shop">Αγορά προϊόντων →</Link>
         </div>
       </section>}
+      {partners.length > 0 && <section>
+        <h2>Επαληθευμένοι συνεργάτες του HUB</h2>
+        <div className={styles.grid}>{partners.map((partner) =>
+          <article key={partner.id} className={styles.panel}>
+            <div className={styles.kicker}>Ενεργή παρουσία · HUB {hub.nameEl}</div>
+            <h3>{partner.businessName}</h3>
+            <p className={styles.details}>{partner.category}</p>
+            <Link className={styles.button} href={partner.publicPath}>Προφίλ επιχείρησης →</Link>
+          </article>
+        )}</div>
+      </section>}
       {businesses.length > 0 ? <>
         <p className={styles.details}>Ενεργός κατάλογος · {businesses.length}{businesses.length === 100 ? "+" : ""} επαληθευμένες καταχωρίσεις</p>
         <div className={styles.grid}>{businesses.map((business) =>
@@ -74,12 +88,12 @@ export default async function PublicCityHubPage({ params }: Props) {
             <Link className={styles.button} href={hubClaimPublicPath(business)}>Δες την επιχείρηση →</Link>
           </article>
         )}</div>
-      </> : !hub.isSpartaLegacy ? <section className={styles.panel}>
+      </> : !hub.isSpartaLegacy && partners.length === 0 ? <section className={styles.panel}>
         <h2>Οι πρώτες επαληθευμένες επιχειρήσεις έρχονται σύντομα.</h2>
-        <p>Το HUB έχει σχεδιαστεί για την περιοχή, αλλά δεν υπάρχουν ακόμη δημοσιευμένες καταχωρίσεις CLAIM.</p>
+        <p>Το HUB έχει σχεδιαστεί για την περιοχή, αλλά δεν υπάρχουν ακόμη δημοσιευμένες επαληθευμένες επιχειρήσεις.</p>
         <Link className={styles.button} href="/hubs/join">Συμμετοχή επιχείρησης →</Link>
       </section> : null}
-      <p className={styles.footer}>Οι καταχωρίσεις CLAIM αποτελούν επαληθευμένη παρουσία στον κατάλογο και δεν προσφέρουν αγορές μέσα από το KONTA MOY.</p>
+      <p className={styles.footer}>Οι καταχωρίσεις CLAIM και PRESENCE είναι ενημερωτική παρουσία χωρίς αγορές μέσα από το KONTA MOY. Οι δυνατότητες παραγγελιών άλλων προγραμμάτων εξαρτώνται από την ξεχωριστή εμπορική ενεργοποίηση.</p>
     </section>
     <SiteFooter />
   </main>;

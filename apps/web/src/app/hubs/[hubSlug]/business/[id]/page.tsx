@@ -6,6 +6,7 @@ import { SiteFooter } from "../../../../../components/SiteFooter";
 import { HubClaimPublicContent } from "../../../../../components/HubClaimPublicContent";
 import { listPublicHubClaimMedia } from "../../../../../lib/hub-claim-media-runtime";
 import { getPublicHubClaim } from "../../../../../lib/hub-claim-runtime";
+import { getVerifiedHubPartnerBySlug } from "../../../../../lib/hub-verified-partners";
 import { hubClaimPublicPath } from "../../../../../lib/hub-claim-public-url";
 import { getPublicHubCensus, hubCensusBusinessPath, convertedClaimUrlForGemiCensus } from "../../../../../lib/hub-gemi-directory";
 import { getExpansionHubBySlug } from "../../../../../lib/expansion-hubs";
@@ -29,6 +30,18 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       alternates: { canonical },
       robots: { index: true, follow: true },
       openGraph: { title: profile.businessName + " · KONTA MOY", description, url: canonical, type: "website" }
+    };
+  }
+  const partner = await getVerifiedHubPartnerBySlug(hubSlug, id);
+  if (partner) {
+    const description = partner.businessName + " · " + partner.category +
+      " · Επαληθευμένος συνεργάτης KONTA MOY HUB " + partner.hubCity + ".";
+    return {
+      title: partner.businessName + " · HUB " + partner.hubCity + " · KONTA MOY",
+      description,
+      alternates: { canonical: partner.publicPath },
+      robots: { index: true, follow: true },
+      openGraph: { title: partner.businessName + " · KONTA MOY", description, url: partner.publicPath, type: "website" }
     };
   }
   const business = await getPublicHubCensus(hubSlug, id);
@@ -56,6 +69,35 @@ export default async function PublicHubBusinessPage({ params }: Params) {
     return <main>
       <SiteHeader compact />
       <section className="shell"><HubClaimPublicContent profile={profile} media={photos} /></section>
+      <SiteFooter />
+    </main>;
+  }
+
+  const partner = await getVerifiedHubPartnerBySlug(hubSlug, id);
+  if (partner) {
+    const plan = HUB_EXPANSION_PLANS.find((entry) => entry.code === partner.planCode);
+    const directoryPath = "/hubs/" + partner.hubSlug + "/business";
+    return <main>
+      <SiteHeader compact />
+      <section className="shell">
+        <div className={styles.hero}>
+          <div className={styles.kicker}>KONTA MOY · HUB {partner.hubCity} · Ενεργή παρουσία</div>
+          <h1 className={styles.title}>{partner.businessName}</h1>
+          <p className={styles.lead}>{partner.category}</p>
+          <p className={styles.hint}>Επαληθευμένη συμμετοχή στο τοπικό HUB. Η ενεργή
+            παρουσία στον κατάλογο δεν σημαίνει ότι το marketplace της περιοχής
+            υποστηρίζει ήδη παραγγελίες ή ηλεκτρονικές πληρωμές.</p>
+        </div>
+        <article className={styles.panel}>
+          <h2>Στοιχεία παρουσίας</h2>
+          <p className={styles.details}><strong>HUB:</strong> {partner.hubCity}</p>
+          <p className={styles.details}><strong>Κατηγορία:</strong> {partner.category}</p>
+          {plan && <p className={styles.details}><strong>Πρόγραμμα:</strong> {plan.name}</p>}
+          <p className={styles.details}>Η παρουσία και η διαθεσιμότητα αγοράς αποτελούν
+            διαφορετικά στάδια ενεργοποίησης του KONTA MOY.</p>
+          <Link className={styles.button} href={directoryPath}>← Όλες οι επιχειρήσεις του HUB</Link>
+        </article>
+      </section>
       <SiteFooter />
     </main>;
   }

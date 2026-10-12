@@ -10,6 +10,7 @@ import { EDITORIAL_COLLECTIONS } from "../../../lib/editorial-collections";
 import { getPublicVendorSitemapInventory } from "../../../lib/vendor-sitemap-inventory";
 import { getIndexableBrandGuideSitemapInventory } from "../../../lib/brand-guide-runtime";
 import { listPublicClaimHubSlugs } from "../../../lib/hub-claim-runtime";
+import { listVerifiedHubPartnerSlugs } from "../../../lib/hub-verified-partners";
 import { getExpansionHubBySlug } from "../../../lib/expansion-hubs";
 
 export const dynamic = "force-dynamic";
@@ -52,8 +53,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       return [] as string[];
     })
     : [];
+  const paidPlanHubSlugs = settings.sitemap.staticPages
+    ? await listVerifiedHubPartnerSlugs().catch((error) => {
+      console.error(JSON.stringify({ level: "error", event: "seo.sitemap_verified_hub_partners_failed", message: String(error) }));
+      return [] as string[];
+    })
+    : [];
   const eligibleHubSlugs = settings.sitemap.staticPages
-    ? [...new Set(["sparti", ...claimHubSlugs])].filter((slug) => Boolean(getExpansionHubBySlug(slug)))
+    ? [...new Set(["sparti", ...claimHubSlugs, ...paidPlanHubSlugs])].filter((slug) => Boolean(getExpansionHubBySlug(slug)))
     : [];
   const hubEntries: MetadataRoute.Sitemap = eligibleHubSlugs.flatMap((slug) =>
     [`/hubs/${slug}`, ...(slug === "sparti" ? [] : [`/hubs/${slug}/business`])]
