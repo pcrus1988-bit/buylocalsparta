@@ -2,22 +2,18 @@
 
 import { useState, type FormEvent } from "react";
 import PhotoColorStudio from "./photo-color-studio";
+import GuidedCare from "./guided-care";
+import NailStyleStudio from "./nail-style-studio";
 
 type Result = { id: string; type: string; excerpt: string; citation_url: string; authority: string | null; category: string | null };
 type SearchReply = { status?: string; results?: Result[]; error?: string };
-type Tab = "color" | "search" | "care";
-
-const care = [
-  { name: "Εύθραυστα νύχια", subtitle: "Όταν τα νύχια σπάνε εύκολα", tips: ["Προτίμησε ήπια περιποίηση και περιόρισε το έντονο λιμάρισμα.", "Προστάτευσε τα χέρια κατά την παρατεταμένη επαφή με νερό."] },
-  { name: "Ξεφλούδισμα", subtitle: "Όταν οι στρώσεις του νυχιού διαχωρίζονται", tips: ["Μην αφαιρείς επιστρώσεις τραβώντας τες με δύναμη.", "Περιόρισε την καταπόνηση κατά την αφαίρεση προϊόντων."] },
-  { name: "Ξηρά επωνύχια", subtitle: "Όταν η περιοχή γύρω από το νύχι χρειάζεται φροντίδα", tips: ["Ενυδάτωνε απαλά την επιδερμίδα γύρω από τα νύχια.", "Μην κόβεις ή τραβάς ερεθισμένο δέρμα."] },
-  { name: "Αδύναμα νύχια", subtitle: "Για πιο ήπιες καθημερινές συνήθειες", tips: ["Κράτησε πρακτικό μήκος και απόφυγε μηχανική πίεση.", "Δώσε προτεραιότητα στην ήπια αφαίρεση επιστρώσεων."] }
-];
+type Tab = "color" | "care" | "style" | "search";
 
 const tabLabels: { value: Tab; number: string; label: string }[] = [
   { value: "color", number: "01", label: "Color Studio" },
   { value: "care", number: "02", label: "Nail Problem Solver" },
-  { value: "search", number: "03", label: "Έρευνα & πηγές" }
+  { value: "style", number: "03", label: "Nail Atelier" },
+  { value: "search", number: "04", label: "Γνώση & πηγές" }
 ];
 
 export default function Home() {
@@ -25,7 +21,7 @@ export default function Home() {
   const [q, setQ] = useState("");
   const [data, setData] = useState<SearchReply>({});
   const [busy, setBusy] = useState(false);
-  const [selected, setSelected] = useState(0);
+  const [sampledShade, setSampledShade] = useState<string | null>(null);
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -53,13 +49,13 @@ export default function Home() {
       <div className="hero-copy">
         <span className="eyebrow"><span className="eyebrow-mark" aria-hidden="true">✳</span> THE NAIL EXPERIENCE</span>
         <h1 id="hero-title">Η ομορφιά<br />έχει <em>απόχρωση.</em></h1>
-        <p>Ανακάλυψε τα χρώματα που σε εμπνέουν, εξερεύνησε ήπιες συνήθειες φροντίδας και αναζήτησε τεκμηριωμένη γνώση. Όλα σε ένα μέρος, φτιαγμένο για τα νύχια σου.</p>
+        <p>Βρες το χρώμα σου, σχεδίασε το επόμενο μανικιούρ και φρόντισε τα νύχια σου με ήπιες, πρακτικές συμβουλές. Μια προσωπική εμπειρία ομορφιάς με τη γνώση στο πλευρό σου.</p>
         <button type="button" className="hero-cta" onClick={() => { setTab("color"); document.getElementById("nyxi-tools")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Ξεκίνα με το χρώμα <span aria-hidden="true">↗</span></button>
       </div>
       <div className="hero-art" aria-hidden="true"><div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" /><div className="art-orbit orbit-three" /><span className="art-word">color is personal.</span><div className="art-caption">NYXI / YOUR SHADE</div></div>
     </section>
 
-    <div className="intro-line"><span>DISCOVER · CARE · LEARN</span><span>Μια νέα εμπειρία ομορφιάς</span></div>
+    <div className="intro-line"><span>COLOR · CARE · CREATE · LEARN</span><span>Το δικό σου nail ritual</span></div>
 
     <section id="nyxi-tools" className="tools" aria-label="Εργαλεία NYXI">
       <nav className="tabs" aria-label="Επιλογή εργαλείου">
@@ -68,10 +64,12 @@ export default function Home() {
         </button>)}
       </nav>
 
-      {tab === "color" && <PhotoColorStudio />}
+      {tab === "color" && <PhotoColorStudio onColorPick={setSampledShade} />}
+
+      {tab === "style" && <NailStyleStudio sampledShade={sampledShade} />}
 
       {tab === "search" && <section className="panel" aria-labelledby="search-title">
-        <span className="overline">03 / KNOWLEDGE LIBRARY</span>
+        <span className="overline">04 / KNOWLEDGE LIBRARY</span>
         <h2 id="search-title">Γνώση που μπορείς να ελέγξεις.</h2>
         <p className="muted search-intro">Εξερεύνησε πληροφορίες για συστατικά, προϊόντα και περιποίηση. Εμφανίζονται μόνο στοιχεία με ανεξάρτητα εγκεκριμένη τεκμηρίωση.</p>
         <form className="searchform" onSubmit={submit}>
@@ -89,23 +87,8 @@ export default function Home() {
         <p className="source-note">Η NYXI δεν δημοσιεύει ανεπιβεβαίωτα ευρήματα. Το περιεχόμενο προστίθεται σταδιακά μετά από έλεγχο.</p>
       </section>}
 
-      {tab === "care" && <section className="panel care-panel" aria-labelledby="care-title">
-        <span className="overline">02 / NAIL CARE</span>
-        <h2 id="care-title">Η φροντίδα αρχίζει<br /><em>με τη σωστή ερώτηση.</em></h2>
-        <p className="muted">Τι σε απασχολεί περισσότερο; Επίλεξε ένα θέμα για γενικές προτάσεις ήπιας περιποίησης. Δεν πρόκειται για διάγνωση ή θεραπεία.</p>
-        <div className="care-layout">
-          <div className="choices" role="group" aria-label="Θέματα περιποίησης">
-            {care.map((x, i) => <button type="button" key={x.name} className={selected === i ? "chosen" : ""} aria-pressed={selected === i} onClick={() => setSelected(i)}>
-              <span>{String(i + 1).padStart(2, "0")}</span><strong>{x.name}</strong><span aria-hidden="true">↗</span>
-            </button>)}
-          </div>
-          <div className="carecard" aria-live="polite">
-            <span className="overline">GENTLE CARE GUIDE</span><h3>{care[selected].name}</h3><p className="care-subtitle">{care[selected].subtitle}</p>
-            <ul>{care[selected].tips.map(x => <li key={x}>{x}</li>)}</ul>
-            <p className="disclaimer">Αν υπάρχει πόνος, πρήξιμο, φλεγμονή ή επίμονη αλλαγή, απευθύνσου σε επαγγελματία υγείας. Δεν προτείνουμε θεραπεία ή συγκεκριμένο προϊόν χωρίς τεκμηρίωση.</p>
-          </div>
-        </div>
-      </section>}
+      {tab === "care" && <GuidedCare />}
+
     </section>
 
     <footer><div><a className="footer-brand" href="/">NYXI<span className="dot">.</span></a><p>Η δική σου εμπειρία νυχιών.</p></div><div className="footer-meta"><span>Ερευνητική έκδοση · BETA</span><span>Οι πληροφορίες δεν αντικαθιστούν επαγγελματική συμβουλή.</span></div></footer>
