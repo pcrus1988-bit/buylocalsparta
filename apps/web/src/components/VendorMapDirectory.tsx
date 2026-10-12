@@ -121,7 +121,7 @@ function formatDistance(distance: number): string {
   return distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} μ.` : `${distance.toLocaleString("el-GR", { maximumFractionDigits: 1 })} χλμ.`;
 }
 
-export function VendorMapDirectory({ vendors, facets, initialVendorId, centerLatitude = SPARTA_CENTER[0], centerLongitude = SPARTA_CENTER[1] }: { vendors: readonly VendorMapEntry[]; facets: readonly VendorMapFacet[]; initialVendorId?: string; centerLatitude?: number; centerLongitude?: number }) {
+export function VendorMapDirectory({ vendors, facets, initialVendorId, centerLatitude = SPARTA_CENTER[0], centerLongitude = SPARTA_CENTER[1], partnerLabel = "Ενεργός συνεργάτης", researchLabel = "Χαρτογραφημένη επιχείρηση" }: { vendors: readonly VendorMapEntry[]; facets: readonly VendorMapFacet[]; initialVendorId?: string; centerLatitude?: number; centerLongitude?: number; partnerLabel?: string; researchLabel?: string }) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const layerRef = useRef<LeafletLayerGroup | null>(null);
@@ -351,7 +351,7 @@ export function VendorMapDirectory({ vendors, facets, initialVendorId, centerLat
               <article className={`${styles.vendorCard}${active ? ` ${styles.vendorCardActive}` : ""}`} key={vendor.id}>
                 <button type="button" className={styles.vendorSelect} onClick={() => setSelectedId(vendor.id)}>
                   <span className={styles.vendorCardTop}>
-                    <span className={vendor.status === "partner" ? styles.partnerBadge : styles.researchBadge}>{vendor.status === "partner" ? "Συνεργάτης" : "Invited"}</span>
+                    <span className={vendor.status === "partner" ? styles.partnerBadge : styles.researchBadge}>{vendor.status === "partner" ? partnerLabel : researchLabel}</span>
                     {distance !== undefined ? <strong>{formatDistance(distance)}</strong> : vendor.researchDistanceKm !== undefined ? <strong>≈ {vendor.researchDistanceKm.toLocaleString("el-GR", { maximumFractionDigits: 1 })} χλμ. από κέντρο</strong> : null}
                   </span>
                   <strong className={styles.vendorName}>{vendor.name}</strong>
@@ -369,8 +369,8 @@ export function VendorMapDirectory({ vendors, facets, initialVendorId, centerLat
       <section className={styles.mapPanel} aria-label="Χάρτης τοπικών επιχειρήσεων">
         <div className={styles.mapToolbar}>
           <div>
-            <span className={styles.legendPartner}><i /> Ενεργός συνεργάτης</span>
-            <span className={styles.legendResearch}><i /> Χαρτογραφημένη επιχείρηση</span>
+            <span className={styles.legendPartner}><i /> {partnerLabel}</span>
+            <span className={styles.legendResearch}><i /> {researchLabel}</span>
           </div>
           <a href="/shops">Προβολή λίστας →</a>
         </div>
