@@ -18,3 +18,18 @@ export function publicHubAvailability(runtime?: PublicHubRuntimeInput): PublicHu
   if (runtime?.lifecycleState === "prospect") return "preparing";
   return "planned";
 }
+
+
+/**
+ * A public HUB business directory may be indexed when it has at least one
+ * verified, owner-accepted CLAIM listing, OR enough independently reviewed
+ * and published GEMI pages. Query/filter/pagination URLs stay noindex.
+ * The existence of a research import alone never passes this gate.
+ */
+export function hubBusinessDirectoryIndexable(input: Readonly<{
+  hasVerifiedClaim: boolean;
+  hasIndexReadyCensus: boolean;
+  hasFilters: boolean;
+}>): boolean {
+  return !input.hasFilters && (input.hasVerifiedClaim || input.hasIndexReadyCensus);
+}
