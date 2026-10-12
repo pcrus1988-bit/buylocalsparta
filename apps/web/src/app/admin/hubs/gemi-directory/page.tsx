@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { getAdminSession } from "../../../../lib/admin-session";
-import { hasAdminPermission } from "../../../../lib/admin-runtime";
+import { hasAdminPermission, assertAdminCsrf } from "../../../../lib/admin-runtime";
+import { reviewGemiMunicipalityCorrespondence } from "../../../../lib/hub-gemi-municipality-review";
 import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
 import { EXPANSION_HUBS, getExpansionHubBySlug } from "../../../../lib/expansion-hubs";
 
@@ -29,11 +31,33 @@ type Candidate = {
   candidate_hub_distance_km: number | string | null;
   matching_business_count: number | string;
   review_status: string;
+  match_method: string;
   source_region: string | null;
 };
 
+async function reviewMunicipalityAction(form: FormData) {
+  "use server";
+  const principal = await getAdminSession();
+  if (!principal) throw new Error("ADMIN_AUTH_REQUIRED");
+  assertAdminCsrf(principal, String(form.get("csrf") ?? ""));
+  await reviewGemiMunicipalityCorrespondence(principal, {
+    municipalityId: String(form.get("municipalityId") ?? ""),
+    sourceId: String(form.get("sourceId") ?? ""),
+    decision: String(form.get("decision") ?? ""),
+    reason: String(form.get("reason") ?? ""),
+    attestation: String(form.get("attestation") ?? "")
+  });
+  revalidatePath("/admin/hubs/gemi-directory");
+  const rawHub = String(form.get("hub") ?? "");
+  const hub = getExpansionHubBySlug(rawHub) ? rawHub : "";
+  const page = Math.max(1, Math.min(1000, Number.parseInt(String(form.get("page") ?? "1"), 10) || 1));
+  redirect("/admin/hubs/gemi-directory?" + new URLSearchParams({
+    ...(hub ? { hub } : {}), page: String(page), status: "proposed"
+  }).toString());
+}
+
 export default async function GemiHubGeographyPage({ searchParams }: {
-  searchParams: Promise<{ hub?: string | string[]; page?: string | string[] }>
+  searchParams: Promise<{ hub?: string | string[]; page?: string | string[]; status?: string | string[] }>
 }) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
@@ -44,6 +68,8 @@ export default async function GemiHubGeographyPage({ searchParams }: {
   const hub = requestedHub && getExpansionHubBySlug(requestedHub) ? requestedHub : "";
   const pageRaw = Array.isArray(requested.page) ? requested.page[0] : requested.page;
   const page = Math.max(1, Math.min(1000, Number.parseInt(pageRaw ?? "1", 10) || 1));
+  const rawStatus = Array.isArray(requested.status) ? requested.status[0] : requested.status;
+  const status = ["proposed", "reviewed", "rejected"].includes(rawStatus ?? "") ? rawStatus! : "";
   const pool = getProductionPostgresRuntime().sqlPool;
 
   const [summaryResult, rowsResult] = await Promise.all([
@@ -52,18 +78,19 @@ export default async function GemiHubGeographyPage({ searchParams }: {
       "COALESCE(sum(matching_business_count),0)::bigint AS business_candidates, " +
       "COALESCE(sum(matching_business_count) FILTER (WHERE candidate_hub_distance_km<=25),0)::bigint AS within_radius_estimate, " +
       "count(*) FILTER (WHERE review_status='reviewed')::integer AS reviewed " +
-      "FROM research_private.hub_gemi_municipality_matches WHERE ($1='' OR candidate_hub_slug=$1)",
-      [hub]
+      "FROM research_private.hub_gemi_municipality_matches WHERE ($1='' OR candidate_hub_slug=$1) " +
+      "AND ($2='' OR review_status=$2)",
+      [hub, status]
     ),
     pool.query<Candidate>(
       "SELECT m.registry_municipality_id,m.registry_municipality_name," +
       "m.gazetteer_source_id,g.municipality_name AS gazetteer_name,g.source_region," +
-      "m.candidate_hub_slug,m.candidate_hub_distance_km,m.matching_business_count,m.review_status " +
+      "m.candidate_hub_slug,m.candidate_hub_distance_km,m.matching_business_count,m.review_status,m.match_method " +
       "FROM research_private.hub_gemi_municipality_matches m " +
       "JOIN research_private.hub_gemi_municipality_centroids g ON g.source_id=m.gazetteer_source_id " +
-      "WHERE ($1='' OR m.candidate_hub_slug=$1) " +
+      "WHERE ($1='' OR m.candidate_hub_slug=$1) AND ($3='' OR m.review_status=$3) " +
       "ORDER BY m.matching_business_count DESC,m.registry_municipality_id LIMIT 50 OFFSET $2",
-      [hub, (page-1)*50]
+      [hub, (page-1)*50, status]
     )
   ]);
   const summary = summaryResult.rows[0] ?? {
@@ -71,7 +98,7 @@ export default async function GemiHubGeographyPage({ searchParams }: {
   };
   const count = (n: number | string) => Number(n).toLocaleString("el-GR");
   const next = "/admin/hubs/gemi-directory?" + new URLSearchParams({
-    ...(hub ? { hub } : {}), page: String(page + 1)
+    ...(hub ? { hub } : {}), ...(status ? { status } : {}), page: String(page + 1)
   }).toString();
 
   return <main className="vendor-app admin-app">
@@ -107,6 +134,12 @@ export default async function GemiHubGeographyPage({ searchParams }: {
             {item.nameEl} ({item.id})
           </option>)}
         </select></label>
+        <label><span>Αξιολόγηση ονόματος</span><select name="status" defaultValue={status}>
+          <option value="">Όλες οι καταστάσεις</option>
+          <option value="proposed">Προς εξέταση</option>
+          <option value="reviewed">Ελεγμένη αντιστοιχία</option>
+          <option value="rejected">Απορρίφθηκε</option>
+        </select></label>
         <button className="button" type="submit">Φίλτρο</button>
       </form>
       <div className="workspace-queue-list">
@@ -122,7 +155,26 @@ export default async function GemiHubGeographyPage({ searchParams }: {
             <span>Απόσταση κέντρων: {row.candidate_hub_distance_km === null ?
               "—" : Number(row.candidate_hub_distance_km).toFixed(1) + " km"}</span>
             <span>{row.source_region ?? "Περιφέρεια άγνωστη"}</span>
+            <span>Μέθοδος: {row.match_method}</span>
           </div>
+          {row.review_status === "proposed" && <form action={reviewMunicipalityAction}
+            className="workspace-inline-note">
+            <input type="hidden" name="csrf" value={principal.csrfToken} />
+            <input type="hidden" name="municipalityId" value={row.registry_municipality_id} />
+            <input type="hidden" name="sourceId" value={row.gazetteer_source_id} />
+            <input type="hidden" name="hub" value={hub} />
+            <input type="hidden" name="page" value={page} />
+            <label>Τεκμηρίωση ελέγχου ταυτοσημίας δήμου (20–600 χαρακτήρες)
+              <textarea name="reason" minLength={20} maxLength={600} required rows={2}
+                placeholder="Πηγή και αιτιολόγηση, μόνο για την ταύτιση ονόματος δήμου" />
+            </label>
+            <label><input type="checkbox" name="attestation" value="municipality_only" required />
+              Ελέγχω μόνο τη διοικητική αντιστοίχιση. Δεν πιστοποιώ θέση επιχείρησης ή δικαίωμα δημοσίευσης.</label>
+            <div className="hero-actions">
+              <button className="button" name="decision" value="reviewed" type="submit">Έγκριση ταύτισης δήμου</button>
+              <button className="button button-secondary" name="decision" value="rejected" type="submit">Απόρριψη πρότασης</button>
+            </div>
+          </form>}
         </article>)}
       </div>
       {page * 50 < Number(summary.municipality_matches) &&
