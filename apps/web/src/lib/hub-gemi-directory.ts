@@ -90,7 +90,8 @@ const DIRECTORY_COLUMNS = [
   "prefecture", "postcode", "sector_code",
   "CASE WHEN publication_basis='municipality' THEN directory_hub_slug ELSE assigned_hub_slug END AS assigned_hub_slug",
   "seo_approved", "hub_distance_km", "publication_basis", "registry_verified_at",
-  "(registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}].join(",");
+  "(registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}
+].join(",");
 
 // Private, separately approved municipal directory grouping versus exact
 // geocoded business assignment. Municipality pages never imply a 25-km radius.
