@@ -10,6 +10,7 @@ import {
   type HubBillingCycle
 } from "../../../../lib/hub-expansion-plans";
 import { hubProspectApplicationReadiness } from "../../../../lib/hub-prospect-application-runtime";
+import { hubGemiApplicationPath } from "../../../../lib/hub-gemi-join-links";
 import { getAccountSession } from "../../../../lib/account-session";
 import styles from "./page.module.css";
 
@@ -35,7 +36,7 @@ export default async function HubExpansionApplyPage({ searchParams }: { searchPa
   const billingLabel = billingLabelForPlan(selectedPlan, billingCycle);
   const showPlanChoices = first(params.plans) === "1";
   const candidateGemi = first(params.gemi) ?? "";
-  const claimGemi = selectedPlan.code === "claim" && /^[0-9]{8,20}$/.test(candidateGemi) ? candidateGemi : undefined;
+  const listingGemi = /^[0-9]{8,20}$/.test(candidateGemi) ? candidateGemi : undefined;
   const readiness = hubProspectApplicationReadiness();
   const principal = await getAccountSession();
 
@@ -48,6 +49,8 @@ export default async function HubExpansionApplyPage({ searchParams }: { searchPa
         <p>Όπως και στο ενεργό onboarding της Σπάρτης, πρώτα επαληθεύουμε την επιχείρηση στο Γ.Ε.ΜΗ. Το HUB προκύπτει αυτόματα από την επαληθευμένη τοποθεσία — δεν το επιλέγει ο vendor.</p>
       </div>
 
+      {listingGemi && <p className={styles.contextStrip}>Η καταχώριση Γ.Ε.ΜΗ. {listingGemi} παραμένει συνδεδεμένη με κάθε πρόγραμμα. Η ταυτότητα και το HUB θα επαληθευτούν ξανά μέσω ΑΦΜ πριν την υποβολή.</p>}
+
       <div className={styles.planSelector} id="plan-choice">
         {!showPlanChoices ? <div className={styles.planSummary}>
           <div>
@@ -55,13 +58,13 @@ export default async function HubExpansionApplyPage({ searchParams }: { searchPa
             <strong>{selectedPlan.name}</strong>
             <small>{selectedPlan.setupLabel} ένταξη · {billingLabel} · {selectedPlan.commissionLabel} προμήθεια</small>
           </div>
-          <a href={`/hubs/join/apply?plan=${selectedPlan.code}&billing=${billingCycle}&plans=1#plan-choice`}>Αλλαγή</a>
+          <a href={`${hubGemiApplicationPath({ plan: selectedPlan.code, billing: billingCycle, gemi: listingGemi, showPlans: true })}#plan-choice`}>Αλλαγή</a>
         </div> : <>
-          <div className={styles.planChoiceHeader}><strong>Διάλεξε πρόγραμμα</strong><a href={`/hubs/join/apply?plan=${selectedPlan.code}&billing=${billingCycle}#application-form`}>Κλείσιμο</a></div>
+          <div className={styles.planChoiceHeader}><strong>Διάλεξε πρόγραμμα</strong><a href={`${hubGemiApplicationPath({ plan: selectedPlan.code, billing: billingCycle, gemi: listingGemi })}#application-form`}>Κλείσιμο</a></div>
           <div className={styles.planGrid}>{HUB_EXPANSION_PLANS.map((plan) => {
             const targetBilling = plan.code === "claim" ? "annual" : billingCycle;
             return <a
-              href={`/hubs/join/apply?plan=${plan.code}&billing=${targetBilling}#application-form`}
+              href={`${hubGemiApplicationPath({ plan: plan.code, billing: targetBilling, gemi: listingGemi })}#application-form`}
               className={`${styles.planOption} ${plan.code === selectedPlan.code ? styles.selected : ""}`}
               aria-current={plan.code === selectedPlan.code ? "true" : undefined}
               key={plan.code}
@@ -78,12 +81,12 @@ export default async function HubExpansionApplyPage({ searchParams }: { searchPa
         </div>
         <div className={styles.billingGrid}>
           <a
-            href={`/hubs/join/apply?plan=${selectedPlan.code}&billing=annual#billing-choice`}
+            href={`${hubGemiApplicationPath({ plan: selectedPlan.code, billing: "annual", gemi: listingGemi })}#billing-choice`}
             className={`${styles.planOption} ${billingCycle === "annual" ? styles.selected : ""}`}
             aria-current={billingCycle === "annual" ? "true" : undefined}
           ><strong>Ετήσια</strong><span>{selectedPlan.annualLabel} · περίπου 2 μήνες χωρίς συνδρομή</span>{billingCycle === "annual" && <small>Τρέχουσα επιλογή</small>}</a>
           <a
-            href={`/hubs/join/apply?plan=${selectedPlan.code}&billing=monthly#billing-choice`}
+            href={`${hubGemiApplicationPath({ plan: selectedPlan.code, billing: "monthly", gemi: listingGemi })}#billing-choice`}
             className={`${styles.planOption} ${billingCycle === "monthly" ? styles.selected : ""}`}
             aria-current={billingCycle === "monthly" ? "true" : undefined}
           ><strong>Μηνιαία</strong><span>{selectedPlan.monthlyLabel} · μεγαλύτερη ευελιξία</span>{billingCycle === "monthly" && <small>Τρέχουσα επιλογή</small>}</a>
@@ -100,7 +103,7 @@ export default async function HubExpansionApplyPage({ searchParams }: { searchPa
       <div id="application-form" className={styles.formPanel}>
         {!readiness.ready
           ? <div className={styles.unavailable}><strong>Η αίτηση δεν είναι διαθέσιμη σε αυτό το περιβάλλον.</strong><p>{readiness.message}</p></div>
-          : <HubExpansionApplicationForm planCode={selectedPlan.code} billingCycle={billingCycle} csrfToken={principal?.csrfToken} signedInEmail={principal?.email} claimGemi={claimGemi} />}
+          : <HubExpansionApplicationForm planCode={selectedPlan.code} billingCycle={billingCycle} csrfToken={principal?.csrfToken} signedInEmail={principal?.email} listingGemi={listingGemi} />}
       </div>
     </section>
     <SiteFooter />
