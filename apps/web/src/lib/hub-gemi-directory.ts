@@ -100,8 +100,11 @@ export async function listPublicHubCensus(
     " AND ($6='' OR sector_code=$6) " +
     " AND NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects h " +
     " WHERE h.gemi_number=research_private.hub_gemi_directory.gemi_number " +
-    " AND h.hub_slug=$1 AND h.plan_code='claim' AND h.status='converted' " +
+    " AND h.status='converted' " +
     " AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL) " +
+    " AND NOT EXISTS (SELECT 1 FROM public.vendor_businesses v " +
+    " WHERE v.gemi_number=research_private.hub_gemi_directory.gemi_number " +
+    " AND v.public_slug IS NOT NULL) " +
     " ORDER BY public_slug ASC LIMIT $5",
     [hubSlug, after, query, pattern, limit + 1, category]
   );
@@ -120,7 +123,13 @@ export async function getPublicHubCensus(
     "SELECT " + DIRECTORY_COLUMNS +
     " FROM research_private.hub_gemi_directory " +
     " WHERE assigned_hub_slug=$1 AND public_slug=$2 " +
-    " AND assignment_status='assigned' AND display_status='published' LIMIT 1",
+    " AND assignment_status='assigned' AND display_status='published' " +
+    " AND NOT EXISTS (SELECT 1 FROM public.vendor_businesses v " +
+    " WHERE v.gemi_number=research_private.hub_gemi_directory.gemi_number " +
+    " AND v.public_slug IS NOT NULL) " +
+    " AND NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects h " +
+    " WHERE h.gemi_number=research_private.hub_gemi_directory.gemi_number " +
+    " AND h.status='converted' AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL) LIMIT 1",
     [hubSlug, slug]
   );
   return result.rows[0] ? fromRow(result.rows[0]) : undefined;
@@ -141,7 +150,7 @@ export async function convertedClaimUrlForGemiCensus(
     "SELECT h.public_slug FROM research_private.hub_gemi_directory d " +
     "JOIN public.hub_expansion_prospects h ON h.gemi_number=d.gemi_number " +
     "WHERE d.assigned_hub_slug=$1 AND d.public_slug=$2 AND d.display_status='published' " +
-    "AND h.hub_slug=$1 AND h.plan_code='claim' AND h.status='converted' " +
+    "AND h.hub_slug=$1 AND h.status='converted' " +
     "AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL LIMIT 1",
     [hubSlug, slug]
   );
@@ -164,8 +173,10 @@ export async function hubHasIndexReadyCensus(hubSlug: string): Promise<boolean> 
     "AND d.display_status='published' AND d.seo_approved=true " +
     "AND NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects h " +
     "WHERE h.gemi_number=d.gemi_number AND h.hub_slug=$1 " +
-    "AND h.plan_code='claim' AND h.status='converted' " +
+    "AND h.status='converted' " +
     "AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL) " +
+    "AND NOT EXISTS (SELECT 1 FROM public.vendor_businesses v " +
+    "WHERE v.gemi_number=d.gemi_number AND v.public_slug IS NOT NULL) " +
     "LIMIT 10" +
     ") eligible",
     [hubSlug]
@@ -183,8 +194,10 @@ export async function publicHubCensusCategoryCounts(
     "WHERE d.assigned_hub_slug=$1 AND d.assignment_status='assigned' AND d.display_status='published' " +
     "AND NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects h " +
     "WHERE h.gemi_number=d.gemi_number AND h.hub_slug=$1 " +
-    "AND h.plan_code='claim' AND h.status='converted' " +
+    "AND h.status='converted' " +
     "AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL) " +
+    "AND NOT EXISTS (SELECT 1 FROM public.vendor_businesses v " +
+    "WHERE v.gemi_number=d.gemi_number AND v.public_slug IS NOT NULL) " +
     "GROUP BY d.sector_code ORDER BY count(*) DESC LIMIT 32",
     [hubSlug]
   );
