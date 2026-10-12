@@ -67,7 +67,7 @@ export default function Home() {
 
       <div hidden={tab !== "color"}><PhotoColorStudio onColorPick={setSampledShade} /></div>
 
-      <div hidden={tab !== "style"}><NailStyleStudio sampledShade={sampledShade} /></div>
+      <div hidden={tab !== "style"}><NailStyleStudio sampledShade={sampledShade} active={tab === "style"} /></div>
 
       <div hidden={tab !== "search"}><section className="panel" aria-labelledby="search-title">
         <span className="overline">04 / KNOWLEDGE LIBRARY</span>
