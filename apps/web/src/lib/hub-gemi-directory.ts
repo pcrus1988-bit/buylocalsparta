@@ -48,6 +48,10 @@ const CATEGORY_LABELS: Readonly<Record<string, string>> = {
   other_non_food_retail: "Λοιπό μη διατροφικό εμπόριο"
 };
 
+export function hubCensusCategoryOptions(): ReadonlyArray<{ slug: string; label: string }> {
+  return Object.entries(CATEGORY_LABELS).map(([slug, label]) => ({ slug, label }));
+}
+
 function fromRow(row: HubCensusRow): HubCensusBusiness {
   const distance = row.hub_distance_km === null ? undefined : Number(row.hub_distance_km);
   return {
@@ -78,13 +82,14 @@ const DIRECTORY_COLUMNS = [
  */
 export async function listPublicHubCensus(
   hubSlug: string,
-  options: Readonly<{ after?: string; q?: string; limit?: number }> = {}
+  options: Readonly<{ after?: string; q?: string; category?: string; limit?: number }> = {}
 ): Promise<Readonly<{ items: HubCensusBusiness[]; nextAfter?: string }>> {
   if (!getExpansionHubBySlug(hubSlug) || !productionDatabaseConfigured()) return { items: [] };
   const limit = Math.max(1, Math.min(48, Math.trunc(options.limit ?? 24)));
   const after = options.after && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(options.after)
     ? options.after.slice(0, 128) : "";
   const query = (options.q ?? "").trim().slice(0, 70);
+  const category = options.category && Object.hasOwn(CATEGORY_LABELS, options.category) ? options.category : "";
   const pattern = "%" + query.replace(/[\\%_]/g, "\\$&") + "%";
   const result = await getProductionPostgresRuntime().sqlPool.query<HubCensusRow>(
     "SELECT " + DIRECTORY_COLUMNS +
@@ -92,12 +97,13 @@ export async function listPublicHubCensus(
     " WHERE assigned_hub_slug=$1 AND assignment_status='assigned' " +
     " AND display_status='published' AND public_slug>$2 " +
     " AND ($3='' OR legal_name ILIKE $4 ESCAPE '\\') " +
+    " AND ($6='' OR sector_code=$6) " +
     " AND NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects h " +
     " WHERE h.gemi_number=research_private.hub_gemi_directory.gemi_number " +
     " AND h.hub_slug=$1 AND h.plan_code='claim' AND h.status='converted' " +
     " AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL) " +
     " ORDER BY public_slug ASC LIMIT $5",
-    [hubSlug, after, query, pattern, limit + 1]
+    [hubSlug, after, query, pattern, limit + 1, category]
   );
   const hasNext = result.rows.length > limit;
   const rows = result.rows.slice(0, limit);
@@ -160,4 +166,19 @@ export async function hubHasIndexReadyCensus(hubSlug: string): Promise<boolean> 
     [hubSlug]
   );
   return result.rows[0]?.ready === true;
+}
+
+
+export async function publicHubCensusCategoryCounts(
+  hubSlug: string
+): Promise<ReadonlyArray<{ slug: string; label: string; count: number }>> {
+  if (!getExpansionHubBySlug(hubSlug) || !productionDatabaseConfigured()) return [];
+  const result = await getProductionPostgresRuntime().sqlPool.query<{ sector_code: string; n: number | string }>(
+    "SELECT sector_code,count(*)::integer AS n FROM research_private.hub_gemi_directory " +
+    "WHERE assigned_hub_slug=$1 AND assignment_status='assigned' AND display_status='published' " +
+    "GROUP BY sector_code ORDER BY count(*) DESC LIMIT 32",
+    [hubSlug]
+  );
+  return result.rows.filter(row => Object.hasOwn(CATEGORY_LABELS, row.sector_code))
+    .map(row => ({ slug: row.sector_code, label: CATEGORY_LABELS[row.sector_code], count: Number(row.n) }));
 }
