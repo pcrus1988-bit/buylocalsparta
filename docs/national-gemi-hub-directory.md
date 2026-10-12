@@ -63,11 +63,22 @@ the coordinates, mainland/island verification, and individual review near radius
 boundaries. Do not upload the private worklist to a third-party service without an
 approved data-processing and licensing assessment.
 
-## New public routes (code prepared; not deployed)
+## National listing → all HUB subscriptions (12 October 2026)
+
+- The researched/unclaimed business presentation reuses the Sparta invited-vendor distinction between informational directory records and verified commercial partners. A public GEMI record is **not** proof an invitation was sent; invitation delivery belongs in the private outreach/audit system.
+- Any published, geographically verified GEMI business can now open its existing page and choose **CLAIM, PRESENCE, SHOP, GROWTH, or PRO**. The same `gemi` URL context survives switching plan, billing cycle, and authentication.
+- The browser submits a `listingGemi` reference for *any* selected plan; server-side application creation re-resolves AFM → GEMI → HUB and requires an exact matching published, assigned census record. Forged or mismatched references fail; the page itself does not confer ownership.
+- The existing `claim_application_id` foreign key currently links a census record to the first pending subscription application regardless of plan (legacy column name). Any later schema rename must preserve historical referrals. There is no automatic commercial activation.
+- For paid plans, user authentication is still required to start the private three-day trial; the login return path retains GEMI and billing choices. The free CLAIM procedure remains separately moderated.
+- Keep only one canonical researched-business URL per legal GEMI entity, with a stable slug and a verified HUB assignment. Preserve existing owner-linked CLAIM redirects and prevent duplicate census/CLAIM cards. Paid activated storefront canonicalization remains a separate task pending its activation schema contract.
+- No mass publication is authorized by these UI/onboarding changes. Permit only individually quality-reviewed entries with licensed geocode/address evidence and explicit SEO approval; no automated invitations or billing.
+- Tests: `node --experimental-strip-types --test apps/web/src/lib/hub-gemi-join-links.test.ts`.
+
+## New public routes (application code implemented; publication governed)
 
 - /hubs/volos/business: paginated, searchable research directory alongside approved CLAIM business pages.
-- /hubs/volos/business/<slug>: unclaimed informational profile (no checkout), registry identity and correction/claim actions.
-- /hubs/join/apply?plan=claim&gemi=<registration>: reuse AFM-first onboarding; server rechecks official GEMI number, verified HUB and a published census target. A pending claim does not grant vendor ownership.
+- /hubs/volos/business/<slug>: unclaimed informational profile (no checkout), registry identity and correction/any-plan joining actions.
+- /hubs/join/apply?plan=<claim|presence|shop|growth|pro>&gemi=<registration>: reuse AFM-first onboarding; server rechecks official GEMI number, verified HUB and a published census target. A pending application does not grant vendor ownership.
 - On converted, owner-linked CLAIM, the census link redirects to the canonical approved CLAIM slug and does not duplicate directory results.
 - The legacy Sparta /shops and /vendor/<slug> routes remain intact.
 
