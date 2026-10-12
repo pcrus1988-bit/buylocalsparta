@@ -29,6 +29,12 @@ Baseline: 12 October 2026 (live read-only production audit). All database quanti
 - Represent Sparta's existing active marketplace on `/hubs/sparti` and link `/hubs/sparti/business` to `/shops` to prevent a misleading empty-market interpretation.
 - Make the national geographic status visible on demand at `/admin/hubs/gemi-directory?audit=1`, gated by admin session and permission. Audit is SELECT-only to avoid accidental mass changes and unnecessary full-table scans for normal admin navigation.
 
+## Private GEO evidence acquisition worklist
+
+Open `/admin/hubs/gemi-directory/worklist` (super administrator or `vendor.manage`) for a bounded 25-key page of unresolved aggregate location keys. Use the postcode filter for a locality-focused batch. Each card displays only the geo-key, available administrative geography and number of awaiting/unpublished entries, without exposing GEMI numbers, company identities, research participants or contact data. This page is strictly read-only; its controls cannot assign, approve, publish, or enable checkout.
+
+The private `scripts/export-hub-gemi-geocode-worklist.ts` exporter supports an equivalent bounded, keyset-paginated NDJSON handoff to an evidence-acquisition provider, but external licensing and coordinate storage terms must be verified before ingesting coordinates. Postal-code or municipal centroids can only support review prioritization, not address-level proof.
+
 ## GEO verification — safe rollout sequence
 
 1. Review administrative **name** correspondence in `hub_gemi_municipality_matches` and retain reviewer ID, source, reason and status events. It is **not** automatic HUB assignment.
