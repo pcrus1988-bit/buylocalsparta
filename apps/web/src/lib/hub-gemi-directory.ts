@@ -13,6 +13,7 @@ export type HubCensusBusiness = Readonly<{
   hubSlug: string;
   seoApproved: boolean;
   distanceKm?: number;
+  locationBasis: "premise" | "municipality";
 }>;
 
 type HubCensusRow = {
@@ -27,6 +28,7 @@ type HubCensusRow = {
   assigned_hub_slug: string;
   seo_approved: boolean;
   hub_distance_km: number | string | null;
+  publication_basis: "premise" | "municipality";
 };
 
 const CATEGORY_LABELS: Readonly<Record<string, string>> = {
@@ -65,7 +67,8 @@ function fromRow(row: HubCensusRow): HubCensusBusiness {
     category: CATEGORY_LABELS[row.sector_code ?? ""] ?? "Τοπική επιχείρηση",
     hubSlug: row.assigned_hub_slug,
     seoApproved: row.seo_approved === true,
-    distanceKm: Number.isFinite(distance) ? distance : undefined
+    distanceKm: Number.isFinite(distance) ? distance : undefined,
+    locationBasis: row.publication_basis
   };
 }
 
@@ -78,9 +81,17 @@ const ACTIVE_VENDOR_SUPPRESSION =
 
 const DIRECTORY_COLUMNS = [
   "gemi_number", "public_slug", "legal_name", "city", "municipality",
-  "prefecture", "postcode", "sector_code", "assigned_hub_slug",
-  "seo_approved", "hub_distance_km"
+  "prefecture", "postcode", "sector_code",
+  "CASE WHEN publication_basis='municipality' THEN directory_hub_slug ELSE assigned_hub_slug END AS assigned_hub_slug",
+  "seo_approved", "hub_distance_km", "publication_basis"
 ].join(",");
+
+// Private, separately approved municipal directory grouping versus exact
+// geocoded business assignment. Municipality pages never imply a 25-km radius.
+const PUBLIC_HUB_MATCH =
+  " ((d.publication_basis='premise' AND d.assigned_hub_slug=$1 AND d.assignment_status='assigned')" +
+  " OR (d.publication_basis='municipality' AND d.directory_hub_slug=$1" +
+  " AND d.registry_verified_at IS NOT NULL)) ";
 
 /**
  * Public projection from a PRIVATE registry census. Never expose the research
@@ -101,7 +112,7 @@ export async function listPublicHubCensus(
   const result = await getProductionPostgresRuntime().sqlPool.query<HubCensusRow>(
     "SELECT " + DIRECTORY_COLUMNS +
     " FROM research_private.hub_gemi_directory d " +
-    " WHERE assigned_hub_slug=$1 AND assignment_status='assigned' " +
+    " WHERE " + PUBLIC_HUB_MATCH + " " +
     " AND display_status='published' AND public_slug>$2 " +
     " AND ($3='' OR legal_name ILIKE $4 ESCAPE '\\') " +
     " AND ($6='' OR sector_code=$6) " +
@@ -127,8 +138,8 @@ export async function getPublicHubCensus(
   const result = await getProductionPostgresRuntime().sqlPool.query<HubCensusRow>(
     "SELECT " + DIRECTORY_COLUMNS +
     " FROM research_private.hub_gemi_directory d " +
-    " WHERE assigned_hub_slug=$1 AND public_slug=$2 " +
-    " AND assignment_status='assigned' AND display_status='published' " +
+    " WHERE " + PUBLIC_HUB_MATCH + " AND public_slug=$2 " +
+    " AND display_status='published' " +
     ACTIVE_VENDOR_SUPPRESSION + " LIMIT 1",
     [hubSlug, slug]
   );
@@ -149,7 +160,7 @@ export async function convertedClaimUrlForGemiCensus(
   const result = await getProductionPostgresRuntime().sqlPool.query<{ public_slug: string }>(
     "SELECT h.public_slug FROM research_private.hub_gemi_directory d " +
     "JOIN public.hub_expansion_prospects h ON h.gemi_number=d.gemi_number " +
-    "WHERE d.assigned_hub_slug=$1 AND d.public_slug=$2 AND d.display_status='published' " +
+    "WHERE " + PUBLIC_HUB_MATCH + " AND d.public_slug=$2 AND d.display_status='published' " +
     "AND h.hub_slug=$1 AND h.plan_code='claim' AND h.status='converted' " +
     "AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL LIMIT 1",
     [hubSlug, slug]
@@ -177,7 +188,7 @@ export async function supersedingPartnerUrlForGemiCensus(
     "AND h.plan_code IN ('presence','shop','growth','pro') AND h.owner_user_id IS NOT NULL " +
     "AND EXISTS (SELECT 1 FROM public.users u WHERE u.id=h.owner_user_id " +
     "AND u.status='active' AND u.email_verified_at IS NOT NULL) " +
-    "WHERE d.assigned_hub_slug=$1 AND d.public_slug=$2 AND d.display_status='published' " +
+    "WHERE " + PUBLIC_HUB_MATCH + " AND d.public_slug=$2 AND d.display_status='published' " +
     "AND v.status='active' AND v.public_directory_visible=true " +
     "AND COALESCE(v.demo_mode,false)=false " +
     "AND v.public_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' " +
@@ -198,7 +209,7 @@ export async function hubHasIndexReadyCensus(hubSlug: string): Promise<boolean> 
   const result = await getProductionPostgresRuntime().sqlPool.query<{ ready: boolean }>(
     "SELECT count(*) >= 10 AS ready FROM (" +
     "SELECT 1 FROM research_private.hub_gemi_directory d " +
-    "WHERE d.assigned_hub_slug=$1 AND d.assignment_status='assigned' " +
+    "WHERE " + PUBLIC_HUB_MATCH + " " +
     "AND d.display_status='published' AND d.seo_approved=true " +
     "AND NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects h " +
     "WHERE h.gemi_number=d.gemi_number AND h.hub_slug=$1 " +
@@ -218,7 +229,7 @@ export async function publicHubCensusCategoryCounts(
   if (!getExpansionHubBySlug(hubSlug) || !productionDatabaseConfigured()) return [];
   const result = await getProductionPostgresRuntime().sqlPool.query<{ sector_code: string; n: number | string }>(
     "SELECT d.sector_code,count(*)::integer AS n FROM research_private.hub_gemi_directory d " +
-    "WHERE d.assigned_hub_slug=$1 AND d.assignment_status='assigned' AND d.display_status='published' " +
+    "WHERE " + PUBLIC_HUB_MATCH + " AND d.display_status='published' " +
     "AND NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects h " +
     "WHERE h.gemi_number=d.gemi_number AND h.hub_slug=$1 " +
     "AND h.plan_code='claim' AND h.status='converted' " +

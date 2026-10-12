@@ -131,8 +131,13 @@ export default async function PublicHubBusinessPage({ params }: Params) {
         <div className={styles.kicker}>KONTA MOY · HUB {hub.nameEl} · Επιχειρηματικός κατάλογος</div>
         <h1 className={styles.title}>{business.legalName}</h1>
         <p className={styles.lead}>{business.category} · {business.city || business.municipality || hub.nameEl}</p>
-        <p className={styles.hint}>Μη διεκδικημένη πληροφοριακή καταχώριση. Η επιχείρηση δεν έχει
-          επιβεβαιώσει αυτά τα στοιχεία και δεν παρουσιάζεται ως συνεργάτης ή ενεργός πωλητής του KONTA MOY.</p>
+        <p className={styles.hint}>Μη διεκδικημένη πληροφοριακή καταχώριση. Η επωνυμία και
+          ο αριθμός ΓΕΜΗ έχουν ελεγχθεί ως στοιχεία μητρώου, όχι ως επιβεβαίωση ιδιοκτησίας,
+          τρέχουσας λειτουργίας ή συνεργασίας με το KONTA MOY.</p>
+        {business.locationBasis === "municipality" && <p className={styles.hint}>
+          Γεωγραφική κατάταξη σε επίπεδο δήμου. Η ακριβής θέση της επιχείρησης και
+          η απόσταση από το HUB δεν έχουν ακόμη επαληθευτεί.
+        </p>}
       </div>
       <div className={styles.grid}>
         <article className={styles.panel}>
@@ -141,6 +146,9 @@ export default async function PublicHubBusinessPage({ params }: Params) {
           <p className={styles.details}><strong>Κλάδος:</strong> {business.category}</p>
           {business.city && <p className={styles.details}><strong>Πόλη:</strong> {business.city}</p>}
           {business.municipality && <p className={styles.details}><strong>Δήμος:</strong> {business.municipality}</p>}
+          {business.locationBasis === "municipality" && <p className={styles.details}>
+            <strong>Χωρική ακρίβεια:</strong> Δήμος (χωρίς επαληθευμένες συντεταγμένες ή κάλυψη 25 χλμ.)
+          </p>}
           {business.postcode && <p className={styles.details}><strong>Τ.Κ.:</strong> {business.postcode}</p>}
           <p className={styles.details}><strong>Αριθμός ΓΕΜΗ:</strong> {business.gemiNumber}</p>
           <p className={styles.details}><strong>Πηγή:</strong> ΓΕΜΗ OpenData (στοιχεία έρευνας).</p>
