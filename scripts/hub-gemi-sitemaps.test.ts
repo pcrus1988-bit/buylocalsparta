@@ -37,6 +37,17 @@ test("main sitemap index advertises only approved census shards", () => {
   assert.ok(index.includes('getSeoGlobalSettingsSnapshot()'));
 });
 
+test("GEMI-only HUBs are promoted only at reviewed ten-listing threshold", () => {
+  const helper = source("apps/web/src/lib/hub-gemi-sitemap.ts");
+  const core = source("apps/web/src/app/sitemaps/core/sitemap.ts");
+  assert.ok(helper.includes("Number(row.entry_count) >= 10"));
+  assert.ok(helper.includes("listIndexReadyHubGemiSitemapSlugs"));
+  assert.ok(core.includes("listIndexReadyHubGemiSitemapSlugs()"));
+  assert.ok(core.includes("...gemiHubSlugs"));
+  assert.ok(core.includes("listPublicClaimHubSlugs()"));
+  assert.ok(core.includes("listVerifiedHubPartnerSlugs()"));
+});
+
 test("HUB shard output uses the canonical domain and keeps private records out", () => {
   const route = source("apps/web/src/app/sitemaps/hubs/[hubSlug]/[shard]/route.ts");
   assert.ok(route.includes("listIndexableHubGemiSitemapPage(hubSlug, shard)"));
