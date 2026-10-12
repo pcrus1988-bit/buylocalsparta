@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { getExpansionHubBySlug } from "../../../lib/expansion-hubs";
+import { hubHasIndexReadyCensus } from "../../../lib/hub-gemi-directory";
 import { listPublicHubClaimsByHub } from "../../../lib/hub-claim-runtime";
 import { hubClaimPublicPath } from "../../../lib/hub-claim-public-url";
 import styles from "../claim/claim.module.css";
@@ -17,7 +18,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { hubSlug } = await params;
   const hub = getExpansionHubBySlug(hubSlug);
   if (!hub) return { title: "HUB δεν βρέθηκε · KONTA MOY", robots: { index: false, follow: false } };
-  const hasListings = (await listPublicHubClaimsByHub(hubSlug, 1)).length > 0;
+  const [claimed, indexReadyCensus] = await Promise.all([
+    listPublicHubClaimsByHub(hubSlug, 1), hubHasIndexReadyCensus(hubSlug)
+  ]);
+  const hasListings = claimed.length > 0 || indexReadyCensus;
   const canonical = `/hubs/${hub.slug}`;
   const description = `Γνώρισε επαληθευμένες επιχειρήσεις στο KONTA MOY HUB ${hub.nameEl}. Τοπική παρουσία επιχειρήσεων, χωρίς απαραίτητα ενεργές ηλεκτρονικές αγορές.`;
   return {
