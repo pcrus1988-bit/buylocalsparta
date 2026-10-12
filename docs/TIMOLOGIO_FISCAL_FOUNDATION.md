@@ -283,3 +283,45 @@ The next governed phase must separately establish merchant-submitted evidence co
 - CI covers RFC test vector, encryption/decryption/actor isolation, TOTP replay, detached SQL session expiry/tenant checks and real HTTP enrollment, denied pre-MFA mutations, valid step-up, code reuse refusal and normal admin review after verification.
 - **Rollout order:** first migrate 0017 in isolated FISCAL PostgreSQL; pass independent/marketplace CI; deploy with both MFA flags OFF; provision a strong environment encryption key only to isolated FISCAL production; enable `FISCAL_OPERATOR_MFA_SETUP_ENABLED=true` and test a real operator enrollment; establish an independently verified lost-device recovery/rotation procedure; only then consider `FISCAL_OPERATOR_MFA_ENFORCED=true`. Do not enable enforcement merely because code built.
 - This does **not** enable legal invoice issuance, merchant approval, merchant identity verification, automatic email sends, marketplace fiscal posting or PCI/POS processing. Recovery codes and a governed device-recovery flow remain outstanding.
+
+
+## Milestone 23 — bounded credit/refund allocation preview (12 October 2026)
+
+This change adds a **pure calculation-only** partial/full credit allocation model in
+\`apps/web/src/lib/fiscal-sandbox-credit-allocation.ts\`. It applies uniformly to
+B2C, POS, B2B and B2G **non-fiscal test drafts**. It is deliberately not an
+API, a customer-facing credit-note button, an accounting posting, a tax-reversal
+engine, an AADE operation, a payment refund, or an immutable fiscal document.
+
+- Takes one tenant-authorized original draft snapshot (UUID, test lane, EUR,
+  1–30 contiguous original lines with positive integer gross cents).
+- Consumes **complete** tenant-scoped prior test credit allocations (maximum 100)
+  and one proposed adjustment (1–30 distinct original-line references).
+- Enforces stable external references, no reuse of historical references,
+  strictly bounded positive integer amounts and individual line ceilings.
+  A draft cannot be over-credited even when total remaining value elsewhere
+  would cover an excessive proposed adjustment.
+- Reconciles every source line with BigInt arithmetic and emits immutable
+  plain-value results (original, previously allocated, newly proposed and
+  remaining EUR cents) in stable line order. The aggregate residual must equal
+  the sum of line residuals; fully allocated lines may reach zero, never negative.
+- Rejects arbitrary fiscal, approval, tax, issuer and posting attributes.
+  All outputs explicitly set \`legalCreditNoteIssued=false\`,
+  \`taxReversalDetermined=false\`, \`refundExecuted=false\`,
+  \`officialAccounting=false\` and \`fiscalIssuanceEnabled=false\`.
+- A dedicated Node regression suite checks every lane, partial and full
+  allocations, over-credit, forged lines, duplicate references, incomplete
+  source indices, oversized history, invalid amounts and extra legal fields.
+  It is included in Fiscal Foundation CI.
+
+**Deliberate release boundary:** The module cannot assert that any historical
+allocations actually exist or are complete; its caller must establish
+organization-specific authorization, immutable source version, complete
+adjustment history, idempotent transaction persistence and concurrent locking.
+Until those are implemented and audited, **do not expose it as a live mutation
+API**. A real credit note must also determine lawful tax reversal, reference the
+issued original document, meet applicable numbering/retention rules, and use
+the approved AADE/provider delivery path before activation.
+
+Production status: code in a separate review PR, no database migration,
+environment change, marketplace order hook or fiscal issuance activation.
