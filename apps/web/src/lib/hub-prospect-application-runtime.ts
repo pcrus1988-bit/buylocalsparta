@@ -190,6 +190,19 @@ export async function submitHubProspectApplication(input: {
   return uow.withTransaction(
     { platformAccess: true, marketId: "sparta", requestId: `public-hub-prospect:${applicationId}` },
     async (tx) => {
+      if (application.claimGemi) {
+        const registryListing = await tx.query(
+          "SELECT 1 FROM research_private.hub_gemi_directory " +
+          "WHERE gemi_number=$1 AND assigned_hub_id=$2 " +
+          "AND assignment_status='assigned' AND display_status='published' LIMIT 1",
+          [application.claimGemi, hub.id]
+        );
+        if (!registryListing.rowCount) {
+          throw new HubProspectApplicationError(409, "claim_target_unavailable",
+            "Η καταχώριση ΓΕΜΗ δεν είναι διαθέσιμη προς διεκδίκηση στο επαληθευμένο HUB.");
+        }
+      }
+
       const duplicate = await tx.query(`
         SELECT 1 AS present
         FROM hub_expansion_prospects
@@ -271,8 +284,8 @@ export async function submitHubProspectApplication(input: {
         await tx.query(
           "UPDATE research_private.hub_gemi_directory " +
           "SET claim_application_id=$1::uuid,updated_at=now() " +
-          "WHERE gemi_number=$2 AND claim_application_id IS NULL",
-          [applicationUuid, application.claimGemi]
+          "WHERE gemi_number=$2 AND assigned_hub_id=$3 AND claim_application_id IS NULL",
+          [applicationUuid, application.claimGemi, hub.id]
         );
       }
 
