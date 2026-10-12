@@ -9,7 +9,8 @@ export type NailFinish = "gloss" | "soft" | "pearl" | "chrome" | "cat-eye";
 export type NailLength = "short" | "medium" | "long";
 export type Point = { x: number; y: number; z?: number };
 export type NailPose = { x: number; y: number; angle: number; width: number; height: number; finger: number };
-export type ArLook = { hex: string; shape: NailShape; finish: NailFinish; length: NailLength; opacity: number; fit: number; placement: number; material?: NailMaterial };
+export type NailCorrection = { lateral: number; axial: number; width: number };
+export type ArLook = { corrections?: Partial<Record<number, NailCorrection>>; hex: string; shape: NailShape; finish: NailFinish; length: NailLength; opacity: number; fit: number; placement: number; material?: NailMaterial };
 export type Projected = { width: number; height: number; imageWidth: number; imageHeight: number; mirror: boolean };
 
 export const NAIL_JOINTS = [
@@ -58,6 +59,21 @@ export function deriveNails(landmarks: Point[], params: Projected, length: NailL
     if (!Number.isFinite(angle) || width < 5 || height < 5) return [];
     return [{ x: centerX, y: centerY, angle, width, height, finger }];
   });
+}
+
+/** Manual per-nail offsets are anchored to each moving fingertip's own axes. */
+export function calibrateNailPose(pose: NailPose, correction?: NailCorrection): NailPose {
+  if (!correction) return pose;
+  const lateral = Math.max(-0.32, Math.min(0.32, correction.lateral));
+  const axial = Math.max(-0.22, Math.min(0.22, correction.axial));
+  const w = pose.width;
+  const h = pose.height;
+  return {
+    ...pose,
+    x: pose.x + Math.cos(pose.angle) * lateral * w + Math.sin(pose.angle) * axial * h,
+    y: pose.y + Math.sin(pose.angle) * lateral * w - Math.cos(pose.angle) * axial * h,
+    width: w * Math.max(0.70, Math.min(1.30, correction.width)),
+  };
 }
 
 export function validShade(hex: string) { return /^#[0-9a-f]{6}$/i.test(hex); }
@@ -181,7 +197,8 @@ export function drawArNails(ctx: CanvasRenderingContext2D, hands: Point[][], par
   if (!hands?.length) return 0;
   let painted = 0;
   for (const hand of hands.slice(0, 1)) {
-    const nails = deriveNails(hand, params, look.length, look.fit, look.placement);
+    const nails = deriveNails(hand, params, look.length, look.fit, look.placement)
+      .map(p => calibrateNailPose(p, look.corrections?.[p.finger]));
     // Sample underlying unpainted image first; overlays should not light one another.
     const lights = nails.map(pose => sampleAmbient(ctx, pose.x, pose.y));
     nails.forEach((pose, i) => { drawPolish(ctx, pose, look, timestamp, lights[i]); painted++; });
