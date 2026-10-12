@@ -1,3 +1,5 @@
+import type { NailMaterial } from "./nail-material-renderer.ts";
+import { creativeMaterial } from "./nail-material-renderer.ts";
 /**
  * NYXI approximate AR nail geometry. Hand landmarks locate fingertips/joints,
  * not the exact nail cuticles: masks are estimates, not nail segmentation.
@@ -7,7 +9,8 @@ export type NailFinish = "gloss" | "soft" | "pearl" | "chrome" | "cat-eye";
 export type NailLength = "short" | "medium" | "long";
 export type Point = { x: number; y: number; z?: number };
 export type NailPose = { x: number; y: number; angle: number; width: number; height: number; finger: number };
-export type ArLook = { hex: string; shape: NailShape; finish: NailFinish; length: NailLength; opacity: number; fit: number; placement: number };
+export type NailCorrection = { lateral: number; axial: number; width: number };
+export type ArLook = { corrections?: Partial<Record<number, NailCorrection>>; hex: string; shape: NailShape; finish: NailFinish; length: NailLength; opacity: number; fit: number; placement: number; material?: NailMaterial };
 export type Projected = { width: number; height: number; imageWidth: number; imageHeight: number; mirror: boolean };
 
 export const NAIL_JOINTS = [
@@ -58,6 +61,21 @@ export function deriveNails(landmarks: Point[], params: Projected, length: NailL
   });
 }
 
+/** Manual per-nail offsets are anchored to each moving fingertip's own axes. */
+export function calibrateNailPose(pose: NailPose, correction?: NailCorrection): NailPose {
+  if (!correction) return pose;
+  const lateral = Math.max(-0.32, Math.min(0.32, correction.lateral));
+  const axial = Math.max(-0.22, Math.min(0.22, correction.axial));
+  const w = pose.width;
+  const h = pose.height;
+  return {
+    ...pose,
+    x: pose.x + Math.cos(pose.angle) * lateral * w + Math.sin(pose.angle) * axial * h,
+    y: pose.y + Math.sin(pose.angle) * lateral * w - Math.cos(pose.angle) * axial * h,
+    width: w * Math.max(0.70, Math.min(1.30, correction.width)),
+  };
+}
+
 export function validShade(hex: string) { return /^#[0-9a-f]{6}$/i.test(hex); }
 
 function traceNail(ctx: CanvasRenderingContext2D, width: number, height: number, shape: NailShape) {
@@ -83,22 +101,36 @@ function rgba(hex: string, alpha: number) {
   return "rgba(" + [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(",") + "," + alpha + ")";
 }
 
-function drawPolish(ctx: CanvasRenderingContext2D, pose: NailPose, look: ArLook, t: number) {
+/** Adapts artificial highlight strength to measured ambient illumination. */
+export function ambientFromRgb(r: number, g: number, b: number) {
+  if (![r, g, b].every(Number.isFinite)) return 0.5;
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return Math.max(0.18, Math.min(0.95, 0.16 + luminance * 0.85));
+}
+function sampleAmbient(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  try {
+    const p = ctx.getImageData(Math.max(0, Math.min(ctx.canvas.width - 1, Math.round(x))), Math.max(0, Math.min(ctx.canvas.height - 1, Math.round(y))), 1, 1).data;
+    return ambientFromRgb(p[0], p[1], p[2]);
+  } catch { return 0.5; }
+}
+
+function drawPolish(ctx: CanvasRenderingContext2D, pose: NailPose, look: ArLook, t: number, ambient: number) {
   const { width: w, height: h, x, y, angle } = pose;
   const color = validShade(look.hex) ? look.hex : "#B52C4E";
-  const strength = Math.max(0.2, Math.min(1, look.opacity));
+  const material = look.material ?? creativeMaterial(look.finish, look.opacity);
+  const strength = Math.max(0.10, Math.min(0.98, material.coverage));
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
-  ctx.shadowColor = "rgba(46,12,35,0.26)";
-  ctx.shadowBlur = Math.max(2, w * 0.13);
-  ctx.shadowOffsetY = Math.max(1, h * 0.045);
+  ctx.shadowColor = "rgba(46,12,35,0.11)";
+  ctx.shadowBlur = Math.max(1, w * 0.05);
+  ctx.shadowOffsetY = Math.max(0.5, h * 0.015);
   traceNail(ctx, w, h, look.shape);
   const body = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
-  body.addColorStop(0, rgba(color, strength * 0.88));
-  body.addColorStop(0.22, rgba(color, strength * 0.99));
-  body.addColorStop(0.54, rgba(color, strength * 0.91));
-  body.addColorStop(1, rgba(color, strength * 0.79));
+  body.addColorStop(0, rgba(color, strength * 0.80));
+  body.addColorStop(0.22, rgba(color, strength * 0.95));
+  body.addColorStop(0.54, rgba(color, strength * 0.96));
+  body.addColorStop(1, rgba(color, strength * 0.82));
   ctx.fillStyle = body;
   ctx.fill();
   ctx.shadowColor = "transparent";
@@ -108,52 +140,54 @@ function drawPolish(ctx: CanvasRenderingContext2D, pose: NailPose, look: ArLook,
   ctx.clip();
   // Subtle curved edge and ridge shading make the lacquer read as a curved surface.
   const rim = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
-  rim.addColorStop(0, "rgba(38,12,32,0.22)");
+  rim.addColorStop(0, "rgba(38,12,32,0.11)");
   rim.addColorStop(0.18, "rgba(255,255,255,0.03)");
   rim.addColorStop(0.75, "rgba(255,255,255,0.06)");
-  rim.addColorStop(1, "rgba(35,13,32,0.25)");
+  rim.addColorStop(1, "rgba(35,13,32,0.12)");
   ctx.fillStyle = rim;
   ctx.fillRect(-w, -h, w * 2, h * 2);
 
-  if (look.finish === "gloss") {
-    const gloss = ctx.createLinearGradient(-w * .36, -h * .42, w * .10, h * .36);
-    gloss.addColorStop(0, "rgba(255,255,255,0.04)");
-    gloss.addColorStop(0.36, "rgba(255,255,255,0.58)");
-    gloss.addColorStop(0.52, "rgba(255,255,255,0.15)");
+  if (material.reflectivity > 0.10 && material.kind !== "matte") {
+    const gloss = ctx.createLinearGradient(-w * 0.35, -h * 0.4, w * 0.1, h * 0.3);
+    gloss.addColorStop(0, "rgba(255,255,255,0)");
+    gloss.addColorStop(0.44, "rgba(255,255,255," + (material.reflectivity * 0.50 * ambient).toFixed(3) + ")");
+    gloss.addColorStop(0.65, "rgba(255,255,255,0.035)");
     gloss.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = gloss;
     ctx.beginPath();
-    ctx.ellipse(-w * 0.19, -h * 0.16, w * 0.115, h * 0.30, -0.12, 0, Math.PI * 2);
+    ctx.ellipse(-w * 0.17, -h * 0.12, w * 0.10, h * 0.25, -0.12, 0, Math.PI * 2);
     ctx.fill();
-  } else if (look.finish === "pearl") {
-    const pearl = ctx.createLinearGradient(-w * .6, 0, w * .6, 0);
-    pearl.addColorStop(0, "rgba(230,215,255,0.03)");
-    pearl.addColorStop(.35, "rgba(245,224,255,0.40)");
-    pearl.addColorStop(.58, "rgba(254,241,213,0.35)");
-    pearl.addColorStop(1, "rgba(192,202,255,0.13)");
-    ctx.fillStyle = pearl;ctx.fillRect(-w, -h, w * 2, h * 2);
-  } else if (look.finish === "chrome" || look.finish === "cat-eye") {
-    const travel = Math.sin(t / 640 + pose.finger * 0.12) * w * .14;
-    const shine = ctx.createLinearGradient(-w * .5 + travel, 0, w * .5 + travel, 0);
-    if (look.finish === "chrome") {
-      shine.addColorStop(0, "rgba(15,15,20,.48)");
-      shine.addColorStop(.27, "rgba(246,246,255,.85)");
-      shine.addColorStop(.48, "rgba(255,255,255,.17)");
-      shine.addColorStop(.73, "rgba(250,247,255,.72)");
-      shine.addColorStop(1, "rgba(22,16,28,.40)");
-    } else {
-      shine.addColorStop(0, "rgba(0,0,0,.17)");
-      shine.addColorStop(.38, "rgba(255,255,255,0)");
-      shine.addColorStop(.55, "rgba(255,239,192,.83)");
-      shine.addColorStop(.67, "rgba(255,255,255,.08)");
-      shine.addColorStop(1, "rgba(0,0,0,.24)");
+  }
+  if (material.pearl > 0) {
+    const pearl = ctx.createLinearGradient(-w * 0.5, 0, w * 0.5, 0);
+    pearl.addColorStop(0, "rgba(240,225,250,0.01)");
+    pearl.addColorStop(0.48, "rgba(250,236,250," + (material.pearl * 0.36 * ambient).toFixed(3) + ")");
+    pearl.addColorStop(1, "rgba(238,222,253,0.02)");
+    ctx.fillStyle = pearl; ctx.fillRect(-w, -h, w * 2, h * 2);
+  }
+  if (material.chrome > 0 || material.magnetic > 0) {
+    const power = Math.max(material.chrome, material.magnetic);
+    const shift = Math.sin(t / 1000 + pose.finger * 0.12) * w * 0.06;
+    const band = ctx.createLinearGradient(-w * 0.5 + shift, 0, w * 0.5 + shift, 0);
+    band.addColorStop(0, "rgba(31,25,29," + (power * 0.16).toFixed(3) + ")");
+    band.addColorStop(material.magnetic > 0 ? 0.48 : 0.26, "rgba(255,251,241," + (power * 0.34 * ambient).toFixed(3) + ")");
+    band.addColorStop(0.63, "rgba(255,255,255,0.02)");
+    band.addColorStop(1, "rgba(38,26,38," + (power * 0.16).toFixed(3) + ")");
+    ctx.fillStyle = band; ctx.fillRect(-w, -h, w * 2, h * 2);
+  }
+  if (material.glitter > 0) {
+    // No unverified particle effects on sourced non-glitter polishes.
+    ctx.fillStyle = "rgba(255,255,255," + (material.glitter * 0.25).toFixed(3) + ")";
+    for (let i = 0; i < 14; i++) {
+      const x = (Math.sin(i * 12.9898 + pose.finger * 3.1) * 0.5) * w * 0.7;
+      const y = (Math.cos(i * 7.133 + pose.finger * 1.9) * 0.5) * h * 0.76;
+      ctx.fillRect(x, y, Math.max(0.6, w * 0.012), Math.max(0.6, w * 0.012));
     }
-    ctx.fillStyle = shine;ctx.fillRect(-w, -h, w * 2, h * 2);
   }
   // Matte is intentionally flat: only the body, low-reflection rim.
   ctx.restore();
   ctx.lineWidth = Math.max(0.8, w * .027);
-  ctx.strokeStyle = look.finish === "soft" ? "rgba(99,49,62,0.13)" : "rgba(255,247,255,.33)";
+  ctx.strokeStyle = material.kind === "matte" ? "rgba(99,49,62,0.10)" : "rgba(255,247,255,0.19)";
   traceNail(ctx, w, h, look.shape);
   ctx.stroke();
   ctx.restore();
@@ -163,8 +197,11 @@ export function drawArNails(ctx: CanvasRenderingContext2D, hands: Point[][], par
   if (!hands?.length) return 0;
   let painted = 0;
   for (const hand of hands.slice(0, 1)) {
-    const nails = deriveNails(hand, params, look.length, look.fit, look.placement);
-    nails.forEach(pose => { drawPolish(ctx, pose, look, timestamp); painted++; });
+    const nails = deriveNails(hand, params, look.length, look.fit, look.placement)
+      .map(p => calibrateNailPose(p, look.corrections?.[p.finger]));
+    // Sample underlying unpainted image first; overlays should not light one another.
+    const lights = nails.map(pose => sampleAmbient(ctx, pose.x, pose.y));
+    nails.forEach((pose, i) => { drawPolish(ctx, pose, look, timestamp, lights[i]); painted++; });
   }
   return painted;
 }

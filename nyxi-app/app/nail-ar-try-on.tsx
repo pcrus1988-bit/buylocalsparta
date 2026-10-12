@@ -8,10 +8,11 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { HandLandmarker } from "@mediapipe/tasks-vision";
 import { coverProjection, drawArNails, type ArLook, type Point } from "./nail-ar-geometry";
+import { smoothLandmarks, handTrackingUsable } from "./nail-tracking";
 
 type TryMode = "live" | "photo";
 type StageStatus = "idle" | "loading" | "tracking" | "no-hand" | "error";
-type Props = { look: ArLook; mode: TryMode; active: boolean; onNextShade: () => void; onNextShape: () => void; onNextFinish: () => void };
+type Props = { look: ArLook; mode: TryMode; active: boolean; onNextShade: () => void; onNextShape: () => void; onNextFinish: () => void; branded: boolean };
 const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm";
 const MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -44,7 +45,7 @@ function readableCameraError(error: unknown): string {
   return "Δεν ήταν δυνατή η εκκίνηση της κάμερας ή η φόρτωση του μοντέλου. Δοκίμασε ξανά ή επίλεξε φωτογραφία.";
 }
 
-export default function NailArTryOn({ look, mode, active, onNextShade, onNextShape, onNextFinish }: Props) {
+export default function NailArTryOn({ look, mode, active, onNextShade, onNextShape, onNextFinish, branded }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -146,6 +147,7 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
       let lastDetection = -Infinity;
       let lastVideoTime = -1;
       let hands: Point[][] = [];
+      let previous: Point[] | null = null;
       let prevNailCount = -1;
       const tick = (now: number) => {
         if (!runningRef.current || generation !== generationRef.current) return;
@@ -157,10 +159,16 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
           lastVideoTime = currentVideo.currentTime;
           lastDetection = now;
           try {
-            hands = tracker!.detectForVideo(currentVideo, now).landmarks as Point[][];
+            const tracked = tracker!.detectForVideo(currentVideo, now).landmarks as Point[][];
+            const newest = tracked[0];
+            if (newest && handTrackingUsable(newest)) {
+              previous = smoothLandmarks(previous, newest);
+              hands = [previous];
+            } else { previous = null; hands = []; }
             changeStatus(hands.length ? "tracking" : "no-hand");
           } catch {
             hands = [];
+            previous = null;
             changeStatus("no-hand");
           }
         }
@@ -199,7 +207,8 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
       if (generation !== generationRef.current || !active) { bitmap.close(); return; }
       tracker = await loadTracker("IMAGE");
       if (generation !== generationRef.current || !active) { bitmap.close();tracker.close();return; }
-      const hands = tracker.detect(bitmap).landmarks as Point[][];
+      const rawHands = tracker.detect(bitmap).landmarks as Point[][];
+      const hands = rawHands[0] && handTrackingUsable(rawHands[0]) ? [rawHands[0]] : [];
       bitmapRef.current = bitmap;
       photoHandsRef.current = hands;
       setHasPhoto(true);
@@ -265,9 +274,9 @@ export default function NailArTryOn({ look, mode, active, onNextShade, onNextSha
       {status === "loading" && <div className="ar-loading" role="status"><span className="ar-loader" />Προετοιμάζουμε τη δοκιμή σου…</div>}
       {status === "no-hand" && mode === "live" && <div className="ar-guidance" aria-live="polite">Άνοιξε λίγο τα δάχτυλα και βάλε το χέρι στο κέντρο.</div>}
       {(status === "tracking" && detected > 0) && <div className="ar-quick-controls" role="group" aria-label="Γρήγορες αλλαγές live μανικιούρ">
-        <button type="button" aria-label="Επόμενο χρώμα" onClick={onNextShade}>◉ <span>Χρώμα</span></button>
+        <button type="button" aria-label="Επόμενο χρώμα" onClick={onNextShade}>◉ <span>{branded ? "Απόχρωση" : "Χρώμα"}</span></button>
         <button type="button" aria-label="Επόμενο σχήμα" onClick={onNextShape}>◇ <span>Σχήμα</span></button>
-        <button type="button" aria-label="Επόμενο φινίρισμα" onClick={onNextFinish}>✦ <span>Εφέ</span></button>
+        {!branded && <button type="button" aria-label="Επόμενο φινίρισμα" onClick={onNextFinish}>✦ <span>Εφέ</span></button>}
       </div>}
       <div className="ar-live-indicator"><span className={runningRef.current ? "ar-on" : ""} />{mode === "live" ? "LIVE AR · BETA" : "PHOTO AR · BETA"}</div>
     </div>

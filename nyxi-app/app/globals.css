@@ -292,3 +292,29 @@ footer p,footer span{font-size:12px;color:#927e89}
 .ar-quick-controls button:active{background:#fff}
 .ar-quick-controls button span{font-size:11px}
 @media(max-width:480px){.ar-quick-controls{bottom:12px;gap:4px;padding:5px}.ar-quick-controls button{min-width:68px;padding:9px 8px}.ar-quick-controls button span{font-size:10px}}
+
+/* Brand-sourced polish studio. Evidence and creative controls are visually distinct. */
+.atelier-realism-modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:2px 0 16px}
+.atelier-realism-modes button{border:1px solid #e5cfda;background:#fff;color:#794b62;min-height:51px;border-radius:16px;font-weight:800;font-size:13px;padding:11px 14px}
+.atelier-realism-modes button.selected{background:#73324f;color:white;border-color:#73324f}
+.brand-polish-controls{background:linear-gradient(155deg,#fffafa,#fcf3f6);border:1px solid #ead9e2;padding:20px;border-radius:19px;margin-bottom:24px}
+.brand-polish-controls>label{font-size:12px;color:#755268;font-weight:800;display:block;margin:18px 0 8px}
+.brand-polish-controls select{width:100%;min-height:45px;border:1px solid #e0cdd8;border-radius:12px;background:#fff;color:#4f3240;padding:10px 12px;font-size:13px;appearance:auto}
+.brand-polish-controls select:focus-visible{outline:3px solid #b65885;outline-offset:2px}
+.brand-evidence{display:flex;align-items:start;gap:15px;border-top:1px solid #e8d9e0;margin-top:22px;padding-top:18px}
+.brand-evidence-swatch{width:51px;height:51px;border-radius:13px;flex:none;border:1px solid #0001}
+.brand-evidence strong{color:#482636;display:block;font-size:15px}
+.brand-evidence p{color:#785968;font-size:12px;line-height:1.6;margin:7px 0}
+.brand-evidence a{color:#8c3f62;font-size:12px;font-weight:800;text-decoration:underline;text-underline-offset:3px}
+.brand-trust-note{color:#856a78;line-height:1.7;border-left:3px solid #b5688a;padding:11px 13px;margin:20px 0 0;background:#fff;border-radius:0 9px 9px 0;font-size:11px}
+.brand-trust-note strong{color:#68364e}
+@media(max-width:520px){.atelier-realism-modes{gap:7px}.atelier-realism-modes button{font-size:11px;padding:10px 9px}.brand-polish-controls{padding:16px}.brand-evidence{gap:11px}.brand-evidence-swatch{width:42px;height:42px}}
+
+.ar-finger-adjust .microcopy{margin-top:3px}
+.ar-finger-adjust label{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;font-weight:750;color:#754d62;margin:14px 0 6px}
+.ar-finger-adjust label span{color:#997887;font-size:11px}
+.ar-finger-adjust input[type="range"]{width:100%;accent-color:#933f64}
+.finger-selector{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin:15px 0 17px}
+.finger-selector button{border:1px solid #e7d5df;border-radius:10px;padding:9px 2px;background:white;color:#755568;font-size:10px;font-weight:750;min-height:43px;overflow-wrap:anywhere}
+.finger-selector button.selected{background:#7b3b59;color:white;border-color:#7b3b59}
+@media(max-width:420px){.finger-selector{grid-template-columns:repeat(3,minmax(0,1fr))}.finger-selector button{font-size:11px}}
