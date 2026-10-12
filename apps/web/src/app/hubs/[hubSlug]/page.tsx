@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { getExpansionHubBySlug } from "../../../lib/expansion-hubs";
-import { hubHasIndexReadyCensus } from "../../../lib/hub-gemi-directory";
+import { hubHasIndexReadyCensus, listPublicHubCensus } from "../../../lib/hub-gemi-directory";
 import { listPublicHubClaimsByHub } from "../../../lib/hub-claim-runtime";
 import { listVerifiedHubPartnersByHub } from "../../../lib/hub-verified-partners";
 import { hubClaimPublicPath } from "../../../lib/hub-claim-public-url";
@@ -39,8 +39,10 @@ export default async function PublicCityHubPage({ params }: Props) {
   const hub = getExpansionHubBySlug(hubSlug);
   if (!hub) notFound();
 
-  const [businesses, partners] = await Promise.all([
-    listPublicHubClaimsByHub(hubSlug, 100), listVerifiedHubPartnersByHub(hubSlug, 100)
+  const [businesses, partners, census] = await Promise.all([
+    listPublicHubClaimsByHub(hubSlug, 100),
+    listVerifiedHubPartnersByHub(hubSlug, 100),
+    listPublicHubCensus(hubSlug, { limit: 6 })
   ]);
 
   return <main>
@@ -78,6 +80,19 @@ export default async function PublicCityHubPage({ params }: Props) {
           </article>
         )}</div>
       </section>}
+      {census.items.length > 0 && <section>
+        <h2>Επιχειρήσεις από δημόσιο μητρώο</h2>
+        <p className={styles.details}>Ανεξάρτητες πληροφοριακές καταχωρίσεις. Η ταξινόμηση ανά δήμο
+          δεν αποτελεί επαλήθευση φυσικής θέσης ή σχέσης συνεργασίας.</p>
+        <div className={styles.grid}>{census.items.map((entry) =>
+          <article key={entry.gemiNumber} className={styles.panel}>
+            <div className={styles.kicker}>ΓΕΜΗ · Μη διεκδικημένη</div>
+            <h3>{entry.legalName}</h3>
+            <p className={styles.details}>{entry.category} · {entry.city || entry.municipality || hub.nameEl}</p>
+            <Link className={styles.button} href={"/hubs/" + hub.slug + "/business/" + entry.slug}>Πληροφορίες →</Link>
+          </article>
+        )}</div>
+      </section>}
       {businesses.length > 0 ? <>
         <p className={styles.details}>Ενεργός κατάλογος · {businesses.length}{businesses.length === 100 ? "+" : ""} επαληθευμένες καταχωρίσεις</p>
         <div className={styles.grid}>{businesses.map((business) =>
@@ -88,7 +103,7 @@ export default async function PublicCityHubPage({ params }: Props) {
             <Link className={styles.button} href={hubClaimPublicPath(business)}>Δες την επιχείρηση →</Link>
           </article>
         )}</div>
-      </> : !hub.isSpartaLegacy && partners.length === 0 ? <section className={styles.panel}>
+      </> : !hub.isSpartaLegacy && partners.length === 0 && census.items.length === 0 ? <section className={styles.panel}>
         <h2>Οι πρώτες επαληθευμένες επιχειρήσεις έρχονται σύντομα.</h2>
         <p>Το HUB έχει σχεδιαστεί για την περιοχή, αλλά δεν υπάρχουν ακόμη δημοσιευμένες επαληθευμένες επιχειρήσεις.</p>
         <Link className={styles.button} href="/hubs/join">Συμμετοχή επιχείρησης →</Link>
