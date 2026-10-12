@@ -10,6 +10,7 @@ export type DirectGemiOptions = Readonly<{ apply: boolean; limit: number; after:
 export type CandidateIdentity = Readonly<{
   gemi_number: string; legal_name: string; postcode: string;
   registry_municipality_id: string; directory_hub_slug: string;
+  matched_activity_codes: string[];
 }>;
 
 export function parseDirectGemiOptions(
@@ -39,16 +40,20 @@ export function parseDirectGemiOptions(
 }
 
 export const directGemiCandidatesSql = [
-  "SELECT d.gemi_number,d.legal_name,d.postcode,d.registry_municipality_id,d.directory_hub_slug",
+  "SELECT d.gemi_number,d.legal_name,d.postcode,d.registry_municipality_id,d.directory_hub_slug,d.matched_activity_codes",
   "FROM research_private.hub_gemi_directory d",
   "WHERE d.gemi_number>$2 AND ($3='' OR d.directory_hub_slug=$3)",
   "AND d.publication_basis='municipality'",
+  "AND jsonb_typeof(d.matched_activity_codes)='array'",
+  "AND jsonb_array_length(d.matched_activity_codes)>0",
   "AND d.directory_hub_slug IS NOT NULL AND d.display_status='unpublished'",
   "AND d.registry_verified_at IS NULL",
   "AND d.source_checked_at>=now()-interval '90 days'",
   "AND d.gemi_number ~ '^[0-9]{8,20}$'",
   "AND d.postcode ~ '^[0-9]{5}$'",
   "AND length(btrim(d.legal_name))>=5",
+  "AND jsonb_typeof(d.matched_activity_codes)='array'",
+  "AND jsonb_array_length(d.matched_activity_codes)>0",
   "AND EXISTS (SELECT 1 FROM research_private.hub_gemi_municipality_matches m",
   "JOIN research_private.hub_gemi_hub_master hub",
   "ON hub.hub_id=m.candidate_hub_id AND hub.hub_slug=m.candidate_hub_slug",
@@ -107,10 +112,21 @@ export function exactGemiIdentityMatch(
   candidate: CandidateIdentity, payload: unknown
 ): boolean {
   const company = object(payload);
-  if (!company || company.autoRegistered === false) return false;
+  if (!company) return false;
   const status = object(company.status);
   const municipality = object(company.municipality);
   if (!status || !municipality) return false;
+  // GEMI autoRegistered=false means incomplete *self-registration*, not closed.
+  // Independently match the individual facts we will actually publish: identity,
+  // status, locality and at least one current published KAD/category input.
+  const codes = candidate.matched_activity_codes;
+  const activities = company.activities;
+  if (!Array.isArray(codes) || !codes.length || !Array.isArray(activities)) return false;
+  const officialCodes = new Set(activities.map(row => {
+    const item = object(row);
+    return asString(object(item?.activity)?.id);
+  }).filter(Boolean));
+  if (!codes.some(code => typeof code === "string" && officialCodes.has(code))) return false;
   return digits(company.arGemi) !== "" &&
     digits(company.arGemi) === digits(candidate.gemi_number) &&
     normName(company.coNameEl).length >= 5 &&
