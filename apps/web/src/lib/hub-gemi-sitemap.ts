@@ -62,6 +62,22 @@ export function hubGemiSitemapShardPaths(
   return paths;
 }
 
+/** HUB landing/directory pages become indexable only after 10 reviewed entries. */
+export function indexReadyHubGemiSlugsFromCounts(counts: readonly HubGemiSitemapCount[]): string[] {
+  return counts.filter(row => Number(row.entry_count) >= 10 &&
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(row.hub_slug) &&
+    Boolean(getExpansionHubBySlug(row.hub_slug)))
+    .map(row => row.hub_slug);
+}
+
+export async function listIndexReadyHubGemiSitemapSlugs(): Promise<string[]> {
+  if (!productionDatabaseConfigured()) return [];
+  const result = await getProductionPostgresRuntime().sqlPool.query<HubGemiSitemapCount>(
+    publicGemiHubSitemapCountSql
+  );
+  return indexReadyHubGemiSlugsFromCounts(result.rows);
+}
+
 /** Discovery for the sitemap index. Never promote unpublished GEMI research. */
 export async function listIndexableHubGemiSitemapPaths(): Promise<string[]> {
   if (!productionDatabaseConfigured()) return [];
