@@ -7,7 +7,7 @@ import { HubClaimPublicContent } from "../../../../../components/HubClaimPublicC
 import { listPublicHubClaimMedia } from "../../../../../lib/hub-claim-media-runtime";
 import { getPublicHubClaim } from "../../../../../lib/hub-claim-runtime";
 import { hubClaimPublicPath } from "../../../../../lib/hub-claim-public-url";
-import { getPublicHubCensus, hubCensusBusinessPath } from "../../../../../lib/hub-gemi-directory";
+import { getPublicHubCensus, hubCensusBusinessPath, convertedClaimUrlForGemiCensus } from "../../../../../lib/hub-gemi-directory";
 import { getExpansionHubBySlug } from "../../../../../lib/expansion-hubs";
 import styles from "../../../claim/claim.module.css";
 
@@ -58,6 +58,8 @@ export default async function PublicHubBusinessPage({ params }: Params) {
     </main>;
   }
 
+  const converted = await convertedClaimUrlForGemiCensus(hubSlug, id);
+  if (converted) permanentRedirect(converted);
   const business = await getPublicHubCensus(hubSlug, id);
   const hub = getExpansionHubBySlug(hubSlug);
   if (!business || !hub) notFound();
