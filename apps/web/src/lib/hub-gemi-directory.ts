@@ -185,7 +185,7 @@ export async function hubHasIndexReadyCensus(hubSlug: string): Promise<boolean> 
     "WHERE d.assigned_hub_slug=$1 AND d.assignment_status='assigned' " +
     "AND d.display_status='published' AND d.seo_approved=true " +
     "AND NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects h " +
-    "WHERE h.gemi_number=d.gemi_number AND h.hub_slug=$1 " +
+    "WHERE h.gemi_number=d.gemi_number " +
     "AND h.status='converted' " +
     "AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL) " +
     "AND NOT EXISTS (SELECT 1 FROM public.vendor_businesses v " +
@@ -206,7 +206,7 @@ export async function publicHubCensusCategoryCounts(
     "SELECT d.sector_code,count(*)::integer AS n FROM research_private.hub_gemi_directory d " +
     "WHERE d.assigned_hub_slug=$1 AND d.assignment_status='assigned' AND d.display_status='published' " +
     "AND NOT EXISTS (SELECT 1 FROM public.hub_expansion_prospects h " +
-    "WHERE h.gemi_number=d.gemi_number AND h.hub_slug=$1 " +
+    "WHERE h.gemi_number=d.gemi_number " +
     "AND h.status='converted' " +
     "AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL) " +
     "AND NOT EXISTS (SELECT 1 FROM public.vendor_businesses v " +
