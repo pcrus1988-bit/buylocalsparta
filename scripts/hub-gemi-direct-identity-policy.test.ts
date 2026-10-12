@@ -74,6 +74,6 @@ test("SQL never modifies public status, rights, SEO or location evidence", () =>
   assert.ok(!changed.includes("privacy_review_status"));
   assert.ok(!changed.includes("latitude"));
   assert.ok(directGemiCandidatesSql.includes("LIMIT $1"));
-  assert.ok(directGemiCandidatesSql.includes("AND d.gemi_number>$2"));
+  assert.ok(directGemiCandidatesSql.includes("WHERE d.gemi_number>$2"));
   assert.ok(directGemiCandidatesSql.includes("AND ($3='' OR d.directory_hub_slug=$3)"));
 });
