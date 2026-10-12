@@ -309,3 +309,12 @@ footer p,footer span{font-size:12px;color:#927e89}
 .brand-trust-note{color:#856a78;line-height:1.7;border-left:3px solid #b5688a;padding:11px 13px;margin:20px 0 0;background:#fff;border-radius:0 9px 9px 0;font-size:11px}
 .brand-trust-note strong{color:#68364e}
 @media(max-width:520px){.atelier-realism-modes{gap:7px}.atelier-realism-modes button{font-size:11px;padding:10px 9px}.brand-polish-controls{padding:16px}.brand-evidence{gap:11px}.brand-evidence-swatch{width:42px;height:42px}}
+
+.ar-finger-adjust .microcopy{margin-top:3px}
+.ar-finger-adjust label{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;font-weight:750;color:#754d62;margin:14px 0 6px}
+.ar-finger-adjust label span{color:#997887;font-size:11px}
+.ar-finger-adjust input[type="range"]{width:100%;accent-color:#933f64}
+.finger-selector{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin:15px 0 17px}
+.finger-selector button{border:1px solid #e7d5df;border-radius:10px;padding:9px 2px;background:white;color:#755568;font-size:10px;font-weight:750;min-height:43px;overflow-wrap:anywhere}
+.finger-selector button.selected{background:#7b3b59;color:white;border-color:#7b3b59}
+@media(max-width:420px){.finger-selector{grid-template-columns:repeat(3,minmax(0,1fr))}.finger-selector button{font-size:11px}}
