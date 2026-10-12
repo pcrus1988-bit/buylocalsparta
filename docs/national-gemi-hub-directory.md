@@ -18,6 +18,16 @@ Assignment scripts/assign-hub-gemi-census.ts reads only geocoded keys and assign
 
 One GEMI registration means one canonical legal entity. Multiple physical branches require a separate physical-location business graph rather than duplicating the company.
 
+## Implementation continuation — guarded matching and import safety
+
+- The municipality matcher now recognizes a conservative set of common Greek genitive endings against the pinned licensed municipal-centre dataset. Exact matches take precedence; ambiguous matches fail closed. These remain **review-only candidates**, not business point coordinates or publishable HUB assignments.
+- An island hub identifier is not sufficient to bypass the 25-km boundary, even for a `WHOLE_ISLAND` hub. Contradictory mainland/island evidence is refused. A true whole-island exception would need separately verified island geometry, not merely a supplied HUB identifier.
+- Evidence imports refuse island points outside the nominated island HUB's 25-km radius. Existing manually verified geocodes and location keys backing published census businesses are protected against automatic overwrite.
+- Automatic assignment skips published records and manually reviewed assignments. Category counts and index-readiness thresholds exclude entries converted into approved owner-linked CLAIM profiles.
+- Approved CLAIM business search is applied in SQL *before* the limit, so a result does not disappear simply because it was outside the first page.
+- The directory remains unpublished and noindex until per-business geographic verification and privacy/editorial review are complete. Merely improving municipality matching does **not** increase the number of public businesses.
+- Regression tests: `npm run test:hub-gemi-assignment`.
+
 ## New public routes (code prepared; not deployed)
 
 - /hubs/volos/business: paginated, searchable research directory alongside approved CLAIM business pages.
