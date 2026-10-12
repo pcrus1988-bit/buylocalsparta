@@ -59,7 +59,7 @@ test("accepts exact GEMI/name/municipality/postcode and active status only", () 
 test("SQL never modifies public status, rights, SEO or location evidence", () => {
   for (const check of [
     "registry_verified_at=now()", "registry_verification_ref=$5",
-    "registry_verified_by='automation:official-gemi-live-exact-v1'",
+    "registry_verified_by='automation:official-gemi-live-active-v2'",
     "d.registry_municipality_id=$4", "d.directory_hub_slug=$6",
     "d.display_status='unpublished'", "d.registry_verified_at IS NULL",
     "m.review_status='reviewed'", "m.candidate_hub_distance_km<=hub.radius_km",
