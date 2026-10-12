@@ -47,6 +47,10 @@ const candidateConditions = [
   "AND d.public_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'",
   "AND length(d.public_slug)<=128",
   "AND nullif(btrim(d.legal_name),'') IS NOT NULL",
+  "AND d.sector_code IN ('food_groceries','retail_intermediation','automotive_trade',",
+  " 'home_living','fashion_footwear','diy_building','other_retail',",
+  " 'beauty_personal_care','fuel_retail','sports_books_hobby','pharmacy_medical',",
+  " 'flowers_pets','electronics','jewellery_watches','second_hand','other_non_food_retail')",
   "AND d.source_checked_at>=now()-interval '90 days'",
   "AND d.registry_verified_at>=now()-interval '30 days'",
   "AND d.registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}
