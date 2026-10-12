@@ -34,7 +34,7 @@ test("mock provider request is narrowly scoped to the one outbox ID and does not
  const result=await retrieveFiscalResendStatus({
   messageId:id,recipient,apiKey:"isolated-test-key",
   fetchImpl:async (url,request)=>{
-   calls.push({url:String(url),header:request.headers.authorization});
+   calls.push({url:String(url),header:new Headers(request?.headers).get("authorization")});
    return Response.json(valid);
   }
  });
