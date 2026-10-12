@@ -8,6 +8,7 @@ import { hasAdminPermission, assertAdminCsrf } from "../../../../lib/admin-runti
 import { reviewGemiMunicipalityCorrespondence } from "../../../../lib/hub-gemi-municipality-review";
 import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
 import { EXPANSION_HUBS, getExpansionHubBySlug } from "../../../../lib/expansion-hubs";
+import { municipalityProposalRisks } from "../../../../lib/hub-gemi-municipality-risk";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ type Candidate = {
   review_status: string;
   match_method: string;
   source_region: string | null;
+  hub_region_code: string | null;
 };
 
 async function reviewMunicipalityAction(form: FormData) {
@@ -85,9 +87,11 @@ export default async function GemiHubGeographyPage({ searchParams }: {
     pool.query<Candidate>(
       "SELECT m.registry_municipality_id,m.registry_municipality_name," +
       "m.gazetteer_source_id,g.municipality_name AS gazetteer_name,g.source_region," +
-      "m.candidate_hub_slug,m.candidate_hub_distance_km,m.matching_business_count,m.review_status,m.match_method " +
+      "m.candidate_hub_slug,m.candidate_hub_distance_km,m.matching_business_count,m.review_status,m.match_method," +
+      "h.region_code AS hub_region_code " +
       "FROM research_private.hub_gemi_municipality_matches m " +
       "JOIN research_private.hub_gemi_municipality_centroids g ON g.source_id=m.gazetteer_source_id " +
+      "LEFT JOIN research_private.hub_gemi_hub_master h ON h.hub_id=m.candidate_hub_id " +
       "WHERE ($1='' OR m.candidate_hub_slug=$1) AND ($3='' OR m.review_status=$3) " +
       "ORDER BY m.matching_business_count DESC,m.registry_municipality_id LIMIT 50 OFFSET $2",
       [hub, (page-1)*50, status]
@@ -149,6 +153,14 @@ export default async function GemiHubGeographyPage({ searchParams }: {
               <small>ΓΕΜΗ δήμος {row.registry_municipality_id} · Open Admin Data: {row.gazetteer_name}</small></div>
             <span className="status-pill">{row.review_status}</span>
           </div>
+          {municipalityProposalRisks({
+            sourceRegion: row.source_region,
+            hubRegionCode: row.hub_region_code,
+            centroidDistanceKm: row.candidate_hub_distance_km
+          }).length > 0 && <p className="workspace-inline-note">
+            <strong>Χρειάζεται γεωγραφικό έλεγχο:</strong> ασυμφωνία περιφέρειας ή απόσταση δημοτικού κέντρου
+            εκτός 25 χλμ. Η πρόταση δεν αποτελεί γεωεντοπισμό επιχείρησης.
+          </p>}
           <div className="workspace-queue-primary">
             <span>{count(row.matching_business_count)} υποψήφια businesses</span>
             <span>HUB: {row.candidate_hub_slug ?? "—"}</span>
