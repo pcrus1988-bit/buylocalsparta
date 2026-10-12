@@ -28,6 +28,15 @@ One GEMI registration means one canonical legal entity. Multiple physical branch
 - The directory remains unpublished and noindex until per-business geographic verification and privacy/editorial review are complete. Merely improving municipality matching does **not** increase the number of public businesses.
 - Regression tests: `npm run test:hub-gemi-assignment`.
 
+## Administrative municipality-name review — migration 0443
+
+- `/admin/hubs/gemi-directory` supports an explicitly authenticated, CSRF-protected, permission-checked decision on a single proposed municipality name match, with a 20–600 character explanation and mandatory municipality-only attestation.
+- The database changes only `review_status` from `proposed` to `reviewed` or `rejected` in a transaction that also creates an append-only review event containing reviewer ID, gazetteer reference, rationale and decision.
+- Reviewed refers **only** to the administrative-name equivalence. It is never permission to copy municipal centroid coordinates into businesses, mark businesses inside 25 km, or publish/index their records.
+- The matcher now preserves `normalized_genitive_variant` provenance distinctly from exact transliteration. Rejected/reviewed suggestions are protected from automated overwrite.
+- Migration 0443 needs explicit production rollout and checksum-ledger verification before deploying the new runtime schema gate (443). The migration does not modify, geocode, assign, publish or index businesses.
+- Do not run the municipality matching script with `--apply` until 0443 is installed and a fresh dry-run has been reviewed. Never use municipal centroids as business-level geocoding evidence.
+
 ## New public routes (code prepared; not deployed)
 
 - /hubs/volos/business: paginated, searchable research directory alongside approved CLAIM business pages.
