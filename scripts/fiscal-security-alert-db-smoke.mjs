@@ -10,7 +10,7 @@ const db=new pg.Client({connectionString:raw});
 await db.connect();
 try{
  await db.query("BEGIN");
- for(const table of ["fiscal_security_alert_contacts","fiscal_security_alert_outbox","fiscal_security_alert_delivery_events"]){
+ for(const table of ["fiscal_security_alert_contacts","fiscal_security_alert_outbox","fiscal_security_alert_delivery_events","fiscal_security_alert_reconciliation"]){
   const r=await db.query("SELECT relrowsecurity FROM pg_class WHERE oid=$1::regclass",["public."+table]);
   assert.equal(r.rows[0]?.relrowsecurity,true,table+" requires RLS");
  }
@@ -67,6 +67,42 @@ try{
   `UPDATE fiscal_security_alert_outbox SET status='provider_accepted',
    lease_until=NULL,lease_token_hash=NULL,provider_message_id='ci-provider-12345',
    provider_accepted_at=now() WHERE id=$1`,[id]);
+ const reconciliation=await db.query(
+  "INSERT INTO fiscal_security_alert_reconciliation(outbox_id) VALUES($1) RETURNING outbox_id",
+  [id]);
+ assert.equal(reconciliation.rows[0].outbox_id,id,"Only an accepted own-outbox ID is queued");
+ await db.query("UPDATE fiscal_security_alert_reconciliation SET state='checking',attempts=1,lease_until=now()+interval '90 seconds',lease_token_hash=$2 WHERE outbox_id=$1",
+  [id,"d".repeat(64)]);
+ const apiEvent=await db.query(
+  `INSERT INTO fiscal_security_alert_delivery_events(
+      outbox_id,provider_event_id,event_type,verification_source,provider_event_at)
+    VALUES($1,'api_ci_test_001','email.delivery_delayed','provider_api',NULL)
+    RETURNING id`,[id]);
+ assert.ok(apiEvent.rows[0].id,"Provider API status remains distinct from signed webhooks");
+ await db.query("SAVEPOINT spoof_signed");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_security_alert_delivery_events(
+      outbox_id,provider_event_id,event_type,verification_source,provider_event_at)
+    VALUES($1,'api_ci_spoofed_signed','email.delivered','signed_webhook',NULL)`,[id]));
+ await db.query("ROLLBACK TO SAVEPOINT spoof_signed");
+ await db.query("SAVEPOINT spoof_api");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_security_alert_delivery_events(
+      outbox_id,provider_event_id,event_type,verification_source,provider_event_at)
+    VALUES($1,'api_ci_spoofed_api','email.delivered','provider_api',now())`,[id]));
+ await db.query("ROLLBACK TO SAVEPOINT spoof_api");
+ await db.query("SAVEPOINT premature_requeue");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_security_alert_reconciliation SET state='pending',attempts=0 WHERE outbox_id=$1",[id]));
+ await db.query("ROLLBACK TO SAVEPOINT premature_requeue");
+ await db.query("UPDATE fiscal_security_alert_reconciliation SET state='pending',lease_until=NULL,lease_token_hash=NULL,next_attempt_at=now()+interval '1 hour' WHERE outbox_id=$1",[id]);
+ await db.query("UPDATE fiscal_security_alert_reconciliation SET state='checking',attempts=2,lease_until=now()+interval '90 seconds',lease_token_hash=$2 WHERE outbox_id=$1",
+  [id,"e".repeat(64)]);
+ await db.query("UPDATE fiscal_security_alert_reconciliation SET state='complete',lease_until=NULL,lease_token_hash=NULL,last_observed_event='bounced' WHERE outbox_id=$1",[id]);
+ await db.query("SAVEPOINT terminal_reconcile");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_security_alert_reconciliation SET state='pending' WHERE outbox_id=$1",[id]));
+ await db.query("ROLLBACK TO SAVEPOINT terminal_reconcile");
  const delivery=await db.query(
   `INSERT INTO fiscal_security_alert_delivery_events(outbox_id,provider_event_id,event_type,provider_event_at)
    VALUES($1,'ci_svx_event_000001','email.delivered',now()) RETURNING id`,[id]);
@@ -98,6 +134,6 @@ try{
  await assert.rejects(()=>db.query("DELETE FROM fiscal_security_alert_outbox WHERE id=$1",[id]));
  await db.query("ROLLBACK TO SAVEPOINT accepted_delete");
  await db.query("ROLLBACK");
- console.log("FISCAL SECURITY ALERT OUTBOX PASSED: RLS, unique event/recipient, append-only signed receipts and terminal delivery state");
+ console.log("FISCAL SECURITY ALERT OUTBOX PASSED: RLS, unique event/recipient, source-labelled immutable receipts, safe reconciliation transitions and terminal delivery state");
 }catch(e){await db.query("ROLLBACK").catch(()=>undefined);throw e;}
 finally{await db.end();}
