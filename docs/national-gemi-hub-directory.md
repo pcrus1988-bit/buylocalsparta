@@ -8,6 +8,18 @@
 - The 131 official HUB master points are versioned in the database and the repository. Coverage defaults to a hard 25 km radius, with explicit island handling.
 - All new records default to unpublished and noindex, without a vendor login, a commerce relationship, or proof of operating status.
 
+## 12 October geographic source audit and publication integrity
+
+Business-level location verification is a **hard prerequisite** for national GEMI census publication. The staged snapshot has 313,911 businesses, 26,166 location keys, 24,285 keys with valid 5-digit postcodes, and 1,918 distinct postcodes. The 104 municipality-name proposals are **not** business points; 16 of the 104 have municipality centres more than 25 km from their nearest proposed hub and two also cross region boundaries. These are automated **triage flags**, not a rejection of the individual businesses.
+
+Migration `0444_hub_gemi_business_address_publication_gate.sql` adds a database-enforced, fail-closed publication gate. Census publication requires verified business-level address text and provenance, real address coordinates within 25 km of a single eligible hub, the manual geographic-review assignment method, a recent source-check record, an independently documented privacy and editorial review, and named reviewers. Existing postcode and municipality geocoding remains usable **only** as private advisory evidence. No ZIP centroid, municipal centre, or assumed island ID can satisfy the publication gate. `seo_approved` remains separate.
+
+A reproducible no-secrets CI audit can download the licensed [Eurostat GISCO 2025 postcode point GeoJSON](https://gisco-services.ec.europa.eu/distribution/v2/pcode/geojson/PCODE_PT_2025_4326.geojson), extract only the Greek postcode points and produce review-only hub-proximity suggestions using `scripts/gemi-postcode-point-review.ts`. It never reads GEMI records, sets business coordinates, assigns hubs, or publishes pages. Attribution: © European Union - GISCO, 2024, postal code point dataset, CC-BY-SA-4.0. GISCO explicitly warns that points may be missing/inaccurate. The source is **not** sufficient for business address verification.
+
+The private admin review page flags cross-region municipality matches and municipality-centre distances over 25 km. These prompts guide independent verification; reviewing a municipality name does not certify the location of a business. No automatic human-review acknowledgements are generated.
+
+Rollout order: obtain address-level evidence with lawful commercial retention, verify physical location and island, check GEMI legal status and privacy/public-interest basis, ensure canonical deduplication with converted CLAIM/vendor pages, secure independent editorial moderation, then publish a bounded informational `noindex` pilot and inspect logs. Only selected high-quality, independently SEO-approved pages should become indexable. Do not create a 313k-page sitemap automatically.
+
 ## Geographic assignment
 
 Do not substitute the centre of a municipality for a real business location. Obtain licensed and storage-permitted geocode coordinates once per location key, with source_reference, precision_kind and island_group. The source research does not contain latitude/longitude or precise street addresses, so postcode-level assignment remains approximate near boundaries. An address-based second pass is needed for edge cases.

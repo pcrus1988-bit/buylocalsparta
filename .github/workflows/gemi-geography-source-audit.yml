@@ -1,0 +1,57 @@
+name: GEMI geography source audit (read-only)
+
+on:
+  pull_request:
+    paths:
+      - "scripts/gemi-postcode-point-review.ts"
+      - "scripts/gemi-postcode-point-review.test.ts"
+      - ".github/workflows/gemi-geography-source-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postcode-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify source parser
+        run: node --experimental-strip-types --test scripts/gemi-postcode-point-review.test.ts
+      - name: Download pinned, published GISCO 2025 postcode points
+        run: |
+          curl --fail --location --silent --show-error --retry 2 \
+            --connect-timeout 20 --max-time 360 \
+            'https://gisco-services.ec.europa.eu/distribution/v2/pcode/geojson/PCODE_PT_2025_4326.geojson' \
+            --output "${RUNNER_TEMP}/pcode-2025-4326.geojson"
+          sha256sum "${RUNNER_TEMP}/pcode-2025-4326.geojson"
+      - name: Build nonpublishable, postcode-only review candidates
+        run: |
+          node --max-old-space-size=3072 --experimental-strip-types \
+            scripts/gemi-postcode-point-review.ts \
+            "${RUNNER_TEMP}/pcode-2025-4326.geojson" \
+            > "${RUNNER_TEMP}/gemi-postcode-proposals.ndjson"
+          wc -l "${RUNNER_TEMP}/gemi-postcode-proposals.ndjson"
+          echo "Postcode points are NOT verified business addresses or eligible listings." >> "${GITHUB_STEP_SUMMARY}"
+          echo "Source: Eurostat GISCO 2025, CC-BY-SA-4.0. No private GEMI records were supplied." >> "${GITHUB_STEP_SUMMARY}"
+      - name: Cross-check the public-source candidates against nonidentifying registry postcodes
+        run: |
+          node --experimental-strip-types scripts/check-gemi-postcode-coverage.ts \
+            data/gemi-postcode-validation-20261012.json \
+            "${RUNNER_TEMP}/gemi-postcode-proposals.ndjson" \
+            | tee "${RUNNER_TEMP}/gemi-source-coverage.json"
+          cat "${RUNNER_TEMP}/gemi-source-coverage.json" >> "${GITHUB_STEP_SUMMARY}"
+      - name: Upload advisory evidence (never a business-directory import)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gisco-postcode-review-only
+          path: |
+            ${{ runner.temp }}/gemi-postcode-proposals.ndjson
+            ${{ runner.temp }}/gemi-source-coverage.json
+          retention-days: 7
