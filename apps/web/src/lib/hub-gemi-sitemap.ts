@@ -14,8 +14,8 @@ const GOOD_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const QUALIFIED_DIRECTORY = [
   "d.display_status='published'",
   "AND d.seo_approved=true",
-  "AND (d.publication_basis <> 'municipality'",
-  " OR d.registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}$')",
+  "AND d.registry_verified_at IS NOT NULL",
+  "AND d.registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}$'",
   "AND length(d.public_slug)<=128",
   "AND d.public_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'",
   "AND (",
