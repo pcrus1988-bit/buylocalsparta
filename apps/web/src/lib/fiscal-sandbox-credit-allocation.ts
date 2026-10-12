@@ -91,7 +91,7 @@ function allocation(raw: unknown, max: number): {id: string; lines: Map<number, 
 export function previewFiscalSandboxCredit(input: unknown): FiscalSandboxCreditPreview {
   const request = recordOf(input, ["original", "previous", "candidate"], "CREDIT_INVALID_INPUT");
   const original = recordOf(
-    request.original, ["draftId", "lane", "currency", "lines"], "CREDIT_INVALID_ORIGINAL"
+    request.original, ["draftId", "lane", "currency", "grossMinor", "lines"], "CREDIT_INVALID_ORIGINAL"
   );
   if (typeof original.draftId !== "string" || !UUID_PATTERN.test(original.draftId))
     throw new Error("CREDIT_INVALID_DRAFT_ID");
@@ -114,6 +114,10 @@ export function previewFiscalSandboxCredit(input: unknown): FiscalSandboxCreditP
     if (totalOriginal > BigInt(MAX_MINOR)) throw new Error("CREDIT_ORIGINAL_TOO_LARGE");
     source.set(i + 1, amount);
   }
+
+  // An incomplete line snapshot cannot masquerade as the original draft.
+  if (totalOriginal !== positiveMinor(original.grossMinor))
+    throw new Error("CREDIT_ORIGINAL_TOTAL_MISMATCH");
 
   if (!Array.isArray(request.previous) || request.previous.length > MAX_PREVIOUS)
     throw new Error("CREDIT_INVALID_HISTORY");
