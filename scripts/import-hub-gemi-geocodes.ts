@@ -16,6 +16,7 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { Pool } from "pg";
+import { resolveCensusHubFromPoint } from "../apps/web/src/lib/hub-gemi-assignment.ts";
 
 type GeoEvidence = {
   location_key: string;
@@ -63,6 +64,15 @@ function validate(raw: unknown): GeoEvidence {
   if (island_group !== "mainland" && !/^hub:KM-HUB-[0-9]{3}$/.test(island_group)) {
     throw new Error("Verified mainland or island hub is required");
   }
+  if (island_group !== "mainland") {
+    const hubId = island_group.slice(4);
+    const match = resolveCensusHubFromPoint({
+      latitude, longitude, landmass: "island", islandHubId: hubId
+    });
+    if (!match || match.hub.id !== hubId || match.status !== "assigned") {
+      throw new Error("Island coordinate is outside the verified 25-km hub boundary");
+    }
+  }
   return { location_key, latitude, longitude,
     geo_source: geo_source as GeoEvidence["geo_source"],
     precision_kind: precision_kind as GeoEvidence["precision_kind"],
@@ -74,6 +84,7 @@ let read = 0;
 let matched = 0;
 let missing = 0;
 let duplicates = 0;
+let protectedLocations = 0;
 const seen = new Set<string>();
 const batch: GeoEvidence[] = [];
 async function flush() {
@@ -90,7 +101,7 @@ async function flush() {
     matched += Number(result.rows[0]?.count ?? 0);
     missing += copy.length - Number(result.rows[0]?.count ?? 0);
     if (write) {
-      await client.query(
+      const updated = await client.query(
         "WITH evidence AS (SELECT * FROM jsonb_to_recordset($1::jsonb) AS e(" +
           "location_key text,latitude double precision,longitude double precision," +
           "geo_source text,precision_kind text,source_reference text,island_group text)) " +
@@ -98,9 +109,13 @@ async function flush() {
           "latitude=e.latitude,longitude=e.longitude,geo_source=e.geo_source," +
           "precision_kind=e.precision_kind,source_reference=e.source_reference," +
           "island_group=e.island_group,checked_at=now() " +
-        "FROM evidence e WHERE g.location_key=e.location_key",
+        "FROM evidence e WHERE g.location_key=e.location_key " +
+        "AND g.geo_source IS DISTINCT FROM 'verified_manual' " +
+        "AND NOT EXISTS (SELECT 1 FROM research_private.hub_gemi_directory d " +
+        "WHERE d.location_key=g.location_key AND d.display_status='published')",
         [JSON.stringify(copy)]
       );
+      protectedLocations += Number(result.rows[0]?.count ?? 0) - (updated.rowCount ?? 0);
       await client.query("COMMIT");
     }
   } catch (error) {
@@ -123,7 +138,7 @@ try {
   }
   await flush();
   console.log(JSON.stringify({ mode: write ? "applied" : "dry_run",
-    rows: read, unique: seen.size, matched, missing, duplicates }));
+    rows: read, unique: seen.size, matched, missing, duplicates, protectedLocations }));
 } finally {
   await pool.end();
 }
