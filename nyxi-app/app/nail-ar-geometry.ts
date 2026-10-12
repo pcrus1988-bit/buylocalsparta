@@ -85,7 +85,20 @@ function rgba(hex: string, alpha: number) {
   return "rgba(" + [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(",") + "," + alpha + ")";
 }
 
-function drawPolish(ctx: CanvasRenderingContext2D, pose: NailPose, look: ArLook, t: number) {
+/** Adapts artificial highlight strength to measured ambient illumination. */
+export function ambientFromRgb(r: number, g: number, b: number) {
+  if (![r, g, b].every(Number.isFinite)) return 0.5;
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return Math.max(0.18, Math.min(0.95, 0.16 + luminance * 0.85));
+}
+function sampleAmbient(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  try {
+    const p = ctx.getImageData(Math.max(0, Math.min(ctx.canvas.width - 1, Math.round(x))), Math.max(0, Math.min(ctx.canvas.height - 1, Math.round(y))), 1, 1).data;
+    return ambientFromRgb(p[0], p[1], p[2]);
+  } catch { return 0.5; }
+}
+
+function drawPolish(ctx: CanvasRenderingContext2D, pose: NailPose, look: ArLook, t: number, ambient: number) {
   const { width: w, height: h, x, y, angle } = pose;
   const color = validShade(look.hex) ? look.hex : "#B52C4E";
   const material = look.material ?? creativeMaterial(look.finish, look.opacity);
@@ -121,7 +134,7 @@ function drawPolish(ctx: CanvasRenderingContext2D, pose: NailPose, look: ArLook,
   if (material.reflectivity > 0.10 && material.kind !== "matte") {
     const gloss = ctx.createLinearGradient(-w * 0.35, -h * 0.4, w * 0.1, h * 0.3);
     gloss.addColorStop(0, "rgba(255,255,255,0)");
-    gloss.addColorStop(0.44, "rgba(255,255,255," + (material.reflectivity * 0.50).toFixed(3) + ")");
+    gloss.addColorStop(0.44, "rgba(255,255,255," + (material.reflectivity * 0.50 * ambient).toFixed(3) + ")");
     gloss.addColorStop(0.65, "rgba(255,255,255,0.035)");
     gloss.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = gloss;
@@ -132,7 +145,7 @@ function drawPolish(ctx: CanvasRenderingContext2D, pose: NailPose, look: ArLook,
   if (material.pearl > 0) {
     const pearl = ctx.createLinearGradient(-w * 0.5, 0, w * 0.5, 0);
     pearl.addColorStop(0, "rgba(240,225,250,0.01)");
-    pearl.addColorStop(0.48, "rgba(250,236,250," + (material.pearl * 0.36).toFixed(3) + ")");
+    pearl.addColorStop(0.48, "rgba(250,236,250," + (material.pearl * 0.36 * ambient).toFixed(3) + ")");
     pearl.addColorStop(1, "rgba(238,222,253,0.02)");
     ctx.fillStyle = pearl; ctx.fillRect(-w, -h, w * 2, h * 2);
   }
@@ -141,7 +154,7 @@ function drawPolish(ctx: CanvasRenderingContext2D, pose: NailPose, look: ArLook,
     const shift = Math.sin(t / 1000 + pose.finger * 0.12) * w * 0.06;
     const band = ctx.createLinearGradient(-w * 0.5 + shift, 0, w * 0.5 + shift, 0);
     band.addColorStop(0, "rgba(31,25,29," + (power * 0.16).toFixed(3) + ")");
-    band.addColorStop(material.magnetic > 0 ? 0.48 : 0.26, "rgba(255,251,241," + (power * 0.34).toFixed(3) + ")");
+    band.addColorStop(material.magnetic > 0 ? 0.48 : 0.26, "rgba(255,251,241," + (power * 0.34 * ambient).toFixed(3) + ")");
     band.addColorStop(0.63, "rgba(255,255,255,0.02)");
     band.addColorStop(1, "rgba(38,26,38," + (power * 0.16).toFixed(3) + ")");
     ctx.fillStyle = band; ctx.fillRect(-w, -h, w * 2, h * 2);
@@ -169,7 +182,9 @@ export function drawArNails(ctx: CanvasRenderingContext2D, hands: Point[][], par
   let painted = 0;
   for (const hand of hands.slice(0, 1)) {
     const nails = deriveNails(hand, params, look.length, look.fit, look.placement);
-    nails.forEach(pose => { drawPolish(ctx, pose, look, timestamp); painted++; });
+    // Sample underlying unpainted image first; overlays should not light one another.
+    const lights = nails.map(pose => sampleAmbient(ctx, pose.x, pose.y));
+    nails.forEach((pose, i) => { drawPolish(ctx, pose, look, timestamp, lights[i]); painted++; });
   }
   return painted;
 }
