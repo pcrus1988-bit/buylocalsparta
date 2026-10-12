@@ -4,33 +4,34 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { getExpansionHubBySlug } from "../../../lib/expansion-hubs";
-import { hubHasIndexReadyCensus, listPublicHubCensus } from "../../../lib/hub-gemi-directory";
+import { hubHasIndexReadyCensus, listPublicHubCensus, publicHubCensusCategoryCounts } from "../../../lib/hub-gemi-directory";
 import { listPublicHubClaimsByHub } from "../../../lib/hub-claim-runtime";
 import { listVerifiedHubPartnersByHub } from "../../../lib/hub-verified-partners";
 import { hubClaimPublicPath } from "../../../lib/hub-claim-public-url";
-import styles from "../claim/claim.module.css";
+import { hubGemiApplicationPath } from "../../../lib/hub-gemi-join-links";
 
 type Props = { params: Promise<{ hubSlug: string }> };
 
-// A city becomes indexable only after a real, owner-claimed public listing exists.
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { hubSlug } = await params;
   const hub = getExpansionHubBySlug(hubSlug);
   if (!hub) return { title: "HUB δεν βρέθηκε · KONTA MOY", robots: { index: false, follow: false } };
-  const [claimed, partners, indexReadyCensus] = await Promise.all([
-    listPublicHubClaimsByHub(hubSlug, 1), listVerifiedHubPartnersByHub(hubSlug, 1), hubHasIndexReadyCensus(hubSlug)
+  const [claims, partners, indexReadyCensus] = await Promise.all([
+    listPublicHubClaimsByHub(hubSlug, 1),
+    listVerifiedHubPartnersByHub(hubSlug, 1),
+    hubHasIndexReadyCensus(hubSlug)
   ]);
-  const hasListings = hub.isSpartaLegacy || claimed.length > 0 || partners.length > 0 || indexReadyCensus;
-  const canonical = `/hubs/${hub.slug}`;
-  const description = `Γνώρισε επαληθευμένες επιχειρήσεις στο KONTA MOY HUB ${hub.nameEl}. Τοπική παρουσία επιχειρήσεων, χωρίς απαραίτητα ενεργές ηλεκτρονικές αγορές.`;
+  const hasListings = hub.isSpartaLegacy || claims.length > 0 || partners.length > 0 || indexReadyCensus;
+  const canonical = "/hubs/" + hub.slug;
+  const description = "Γνώρισε την τοπική αγορά του HUB " + hub.nameEl + " στο KONTA MOY. Κατηγορίες, κατάλογος επιχειρήσεων και χάρτης με επαληθευμένες θέσεις.";
   return {
-    title: `HUB ${hub.nameEl} · Τοπικές επιχειρήσεις · KONTA MOY`,
+    title: "HUB " + hub.nameEl + " · Τοπικές επιχειρήσεις · KONTA MOY",
     description,
     alternates: { canonical },
     robots: { index: hasListings, follow: true },
-    openGraph: { title: `KONTA MOY HUB ${hub.nameEl}`, description, url: canonical, type: "website" }
+    openGraph: { title: "KONTA MOY HUB " + hub.nameEl, description, url: canonical, type: "website" }
   };
 }
 
@@ -38,78 +39,126 @@ export default async function PublicCityHubPage({ params }: Props) {
   const { hubSlug } = await params;
   const hub = getExpansionHubBySlug(hubSlug);
   if (!hub) notFound();
-
-  const [businesses, partners, census] = await Promise.all([
+  const directoryPath = "/hubs/" + hub.slug + "/business";
+  const joinPath = hubGemiApplicationPath({ plan: "claim", billing: "annual", showPlans: true });
+  const [claims, partners, census, categories] = await Promise.all([
     listPublicHubClaimsByHub(hubSlug, 100),
     listVerifiedHubPartnersByHub(hubSlug, 100),
-    listPublicHubCensus(hubSlug, { limit: 6 })
+    listPublicHubCensus(hubSlug, { limit: 6 }),
+    publicHubCensusCategoryCounts(hubSlug)
   ]);
+  const directoryCount = categories.reduce((sum, item) => sum + item.count, 0);
+  const approved = [
+    ...partners.map((item) => ({
+      id: item.id, name: item.businessName, category: item.category, href: item.publicPath,
+      label: "Ενεργή παρουσία · " + item.planCode.toUpperCase()
+    })),
+    ...claims.map((item) => ({
+      id: item.id, name: item.businessName, category: item.category,
+      href: hubClaimPublicPath(item), label: "Επαληθευμένη παρουσία · CLAIM"
+    }))
+  ];
 
-  return <main>
-    <SiteHeader compact />
-    <section className="shell">
-      <div className={styles.hero}>
-        <div className={styles.kicker}>KONTA MOY · HUB {hub.nameEl}</div>
-        <h1 className={styles.title}>Οι επιχειρήσεις του {hub.nameEl === "Βόλος" ? "Βόλου" : `HUB ${hub.nameEl}`}.</h1>
-        <p className={styles.lead}>Ανακάλυψε επαληθευμένες τοπικές επιχειρήσεις. Η ενεργή παρουσία σε ένα HUB δεν σημαίνει απαραίτητα ότι υποστηρίζονται ήδη online παραγγελίες και πληρωμές.</p>
-        <div className={styles.actions}>
-          <Link className={styles.button} href={"/hubs/" + hub.slug + "/business"}>Επιχειρήσεις αυτού του HUB</Link>
-          <Link className={`${styles.button} ${styles.secondary}`} href="/hubs/businesses">Επαληθευμένες επιχειρήσεις όλων των HUB</Link>
-          <Link className={`${styles.button} ${styles.secondary}`} href="/hubs/join">Καταχώρισε την επιχείρησή σου</Link>
+  return (
+    <main>
+      <div className="announcement">HUB {hub.nameEl} · Η τοπική αγορά κοντά σου.</div>
+      <SiteHeader />
+      <section className="shops-hero">
+        <div className="shell shops-hero-grid">
+          <div>
+            <div className="eyebrow">Explore {hub.nameEl} locally</div>
+            <h1>Ανακάλυψε την τοπική αγορά του HUB {hub.nameEl}.</h1>
+            <p>Ένα μέρος για τις επιχειρήσεις της περιοχής, με τις επαληθευμένες παρουσίες πρώτες και
+              τις μη διεκδικημένες δημόσιες καταχωρίσεις οργανωμένες ανά κατηγορία.
+              Το HUB δεν ενεργοποιεί απαραίτητα ηλεκτρονικές αγορές ή παραδόσεις.</p>
+            <div className="hero-actions">
+              <Link className="button" href={directoryPath + "/map"}>Δες τα στον χάρτη</Link>
+              <Link className="button button-secondary" href={directoryPath}>Προβολή ως λίστα</Link>
+              <Link className="button button-secondary" href={joinPath}>Καταχώρισε την επιχείρησή σου</Link>
+            </div>
+          </div>
+          <div className="shops-hero-art" aria-hidden="true">
+            <div className="shops-orbit"><span className="shops-orbit-mark">HUB<br />{hub.nameEl}</span></div>
+            <span className="shops-orbit-note shops-orbit-note-a">Εγκεκριμένες επιχειρήσεις πρώτα</span>
+            <span className="shops-orbit-note shops-orbit-note-b">Δημόσια στοιχεία · ανά κατηγορία</span>
+          </div>
         </div>
+      </section>
+      <div className="shops-principles" aria-label="Πώς λειτουργεί ο κατάλογος">
+        <div><strong>Εγκεκριμένες παρουσίες πρώτα</strong><span>Επιχειρήσεις με ενεργοποιημένο πρόγραμμα CLAIM ή άλλη εγκεκριμένη παρουσία.</span></div>
+        <div><strong>Όλες οι κατηγορίες σε τάξη</strong><span>Η δημόσια αγορά παρουσιάζεται με αναζήτηση, φίλτρα και αναδιπλούμενες κατηγορίες.</span></div>
+        <div><strong>Χάρτης χωρίς αυθαίρετα pins</strong><span>Επιχειρήσεις χωρίς επιβεβαιωμένη φυσική θέση φαίνονται στη λίστα, όχι σε φανταστική τοποθεσία.</span></div>
       </div>
-      {hub.isSpartaLegacy && <section className={styles.panel}>
-        <div className={styles.kicker}>Ενεργή τοπική αγορά · Σπάρτη</div>
-        <h2>Τα καταστήματα της Σπάρτης είναι ήδη στο KONTA MOY.</h2>
-        <p className={styles.details}>Βρες τους ενεργούς συνεργάτες, τα τοπικά καταστήματα
-          και τα διαθέσιμα προϊόντα της αγοράς Σπάρτης. Οι πληροφοριακές
-          καταχωρίσεις δεν παρουσιάζονται ως ενεργοί πωλητές.</p>
-        <div className={styles.actions}>
-          <Link className={styles.button} href="/shops">Καταστήματα της Σπάρτης →</Link>
-          <Link className={styles.button + " " + styles.secondary} href="/shop">Αγορά προϊόντων →</Link>
+
+      <section className="shell section" aria-labelledby="hub-overview-title">
+        <div className="shops-directory-head">
+          <div><div className="eyebrow">Η αγορά σου</div><h2 id="hub-overview-title">Βρες επιχειρήσεις στο HUB {hub.nameEl}</h2></div>
+          <p>{approved.length} εγκεκριμένες παρουσίες · {directoryCount} μη διεκδικημένες δημόσιες καταχωρίσεις.
+            {" "}<Link className="text-link" href={directoryPath}>Άνοιξε τον πλήρη κατάλογο →</Link></p>
         </div>
-      </section>}
-      {partners.length > 0 && <section>
-        <h2>Επαληθευμένοι συνεργάτες του HUB</h2>
-        <div className={styles.grid}>{partners.map((partner) =>
-          <article key={partner.id} className={styles.panel}>
-            <div className={styles.kicker}>Ενεργή παρουσία · HUB {hub.nameEl}</div>
-            <h3>{partner.businessName}</h3>
-            <p className={styles.details}>{partner.category}</p>
-            <Link className={styles.button} href={partner.publicPath}>Προφίλ επιχείρησης →</Link>
-          </article>
-        )}</div>
-      </section>}
-      {census.items.length > 0 && <section>
-        <h2>Επιχειρήσεις από δημόσιο μητρώο</h2>
-        <p className={styles.details}>Ανεξάρτητες πληροφοριακές καταχωρίσεις. Η ταξινόμηση ανά δήμο
-          δεν αποτελεί επαλήθευση φυσικής θέσης ή σχέσης συνεργασίας.</p>
-        <div className={styles.grid}>{census.items.map((entry) =>
-          <article key={entry.gemiNumber} className={styles.panel}>
-            <div className={styles.kicker}>ΓΕΜΗ · Μη διεκδικημένη</div>
-            <h3>{entry.legalName}</h3>
-            <p className={styles.details}>{entry.category} · {entry.city || entry.municipality || hub.nameEl}</p>
-            <Link className={styles.button} href={"/hubs/" + hub.slug + "/business/" + entry.slug}>Πληροφορίες →</Link>
-          </article>
-        )}</div>
-      </section>}
-      {businesses.length > 0 ? <>
-        <p className={styles.details}>Ενεργός κατάλογος · {businesses.length}{businesses.length === 100 ? "+" : ""} επαληθευμένες καταχωρίσεις</p>
-        <div className={styles.grid}>{businesses.map((business) =>
-          <article key={business.id} className={styles.panel}>
-            <div className={styles.kicker}>HUB {business.hubCity}</div>
-            <h2>{business.businessName}</h2>
-            <p className={styles.details}>{business.category} · {business.hubRegion}</p>
-            <Link className={styles.button} href={hubClaimPublicPath(business)}>Δες την επιχείρηση →</Link>
-          </article>
-        )}</div>
-      </> : !hub.isSpartaLegacy && partners.length === 0 && census.items.length === 0 ? <section className={styles.panel}>
-        <h2>Οι πρώτες επαληθευμένες επιχειρήσεις έρχονται σύντομα.</h2>
-        <p>Το HUB έχει σχεδιαστεί για την περιοχή, αλλά δεν υπάρχουν ακόμη δημοσιευμένες επαληθευμένες επιχειρήσεις.</p>
-        <Link className={styles.button} href="/hubs/join">Συμμετοχή επιχείρησης →</Link>
-      </section> : null}
-      <p className={styles.footer}>Οι καταχωρίσεις CLAIM και PRESENCE είναι ενημερωτική παρουσία χωρίς αγορές μέσα από το KONTA MOY. Οι δυνατότητες παραγγελιών άλλων προγραμμάτων εξαρτώνται από την ξεχωριστή εμπορική ενεργοποίηση.</p>
-    </section>
-    <SiteFooter />
-  </main>;
+        <nav className="shop-category-list" aria-label="Κατηγορίες επιχειρήσεων">
+          {categories.map((entry) => <Link className="shop-category-chip" key={entry.slug}
+            href={directoryPath + "?category=" + encodeURIComponent(entry.slug) + "&status=research"}>
+            {entry.label} · {entry.count}
+          </Link>)}
+        </nav>
+
+        {approved.length > 0 && <div className="section">
+          <div className="shops-directory-head">
+            <div><div className="eyebrow">Δημοσιευμένη παρουσία</div><h2>Εγκεκριμένες επιχειρήσεις</h2></div>
+            <p>Τα προγράμματα παρουσίας δεν αποτελούν ένδειξη λειτουργίας marketplace checkout.</p>
+          </div>
+          <div className="shops-grid">
+            {approved.slice(0, 6).map((business, index) => (
+              <article className="shop-card" key={business.id}>
+                <div className="shop-card-visual" aria-hidden="true">
+                  <span className="shop-card-index">ΕΓΚΕΚΡΙΜΕΝΟ · {String(index + 1).padStart(2, "0")}</span>
+                  <span className="shop-card-initial">{business.name.slice(0, 1).toUpperCase()}</span>
+                </div>
+                <div className="shop-card-body">
+                  <span className="eyebrow">{business.label}</span>
+                  <h2>{business.name}</h2>
+                  <p className="shop-card-copy">{business.category}</p>
+                  <div className="shop-card-action"><small>Δημόσιο προφίλ</small>
+                    <Link className="text-link" href={business.href}>Γνώρισε την επιχείρηση →</Link>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>}
+
+        {census.items.length > 0 && <div className="section">
+          <div className="shops-directory-head">
+            <div><div className="eyebrow">Ευρύτερη τοπική αγορά</div><h2>Περισσότερες επιχειρήσεις</h2></div>
+            <p>Μη διεκδικημένες καταχωρίσεις από δημόσια μητρώα, χωρίς ισχυρισμό συνεργασίας.</p>
+          </div>
+          <div className="shops-grid">
+            {census.items.map((entry) => <article className="shop-card" key={entry.gemiNumber}>
+              <div className="shop-card-body">
+                <span className="eyebrow">ΓΕΜΗ · Μη διεκδικημένη</span>
+                <h2>{entry.legalName}</h2>
+                <p className="shop-card-copy">{entry.category} · {entry.city || entry.municipality || hub.nameEl}</p>
+                <div className="shop-card-action"><small>Πληροφοριακή καταχώριση</small>
+                  <Link className="text-link" href={directoryPath + "/" + entry.slug}>Άνοιγμα dossier →</Link>
+                </div>
+              </div>
+            </article>)}
+          </div>
+        </div>}
+
+        {!approved.length && !census.items.length && <div className="empty-state">
+          <h2>Το HUB {hub.nameEl} ετοιμάζεται.</h2>
+          <p>Δεν υπάρχουν ακόμη δημοσιευμένες επαληθευμένες επιχειρήσεις. Μπορείς να δηλώσεις ενδιαφέρον ή να καταχωρίσεις την επιχείρησή σου.</p>
+          <Link className="button" href={joinPath}>Συμμετοχή επιχείρησης</Link>
+        </div>}
+        {hub.isSpartaLegacy && <p className="shop-card-copy">Η τοπική αγορά της Σπάρτης υποστηρίζει επιπλέον <Link className="text-link" href="/shops">καταστήματα</Link> και <Link className="text-link" href="/shop">online προϊόντα</Link>.</p>}
+        <div className="hero-actions" style={{ marginTop: 28 }}>
+          <Link className="button" href={directoryPath}>Όλες οι επιχειρήσεις & φίλτρα</Link>
+          <Link className="button button-secondary" href={directoryPath + "/map"}>Χάρτης HUB</Link>
+        </div>
+      </section>
+      <SiteFooter />
+    </main>
+  );
 }

@@ -10,6 +10,9 @@ export type HubCensusBusiness = Readonly<{
   prefecture?: string;
   postcode?: string;
   category: string;
+  sectorCode: string;
+  // Only approved, independently reviewed premise-level coordinates can become pins.
+  coordinates?: Readonly<{ latitude: number; longitude: number }>;
   hubSlug: string;
   seoApproved: boolean;
   distanceKm?: number;
@@ -33,6 +36,8 @@ type HubCensusRow = {
   publication_basis: "premise" | "municipality";
   registry_verified_at: string | null;
   gemi_active_verified: boolean;
+  public_latitude: number | null;
+  public_longitude: number | null;
 };
 
 const CATEGORY_LABELS: Readonly<Record<string, string>> = {
@@ -60,6 +65,10 @@ export function hubCensusCategoryOptions(): ReadonlyArray<{ slug: string; label:
 
 function fromRow(row: HubCensusRow): HubCensusBusiness {
   const distance = row.hub_distance_km === null ? undefined : Number(row.hub_distance_km);
+  const latitude = row.public_latitude === null ? NaN : Number(row.public_latitude);
+  const longitude = row.public_longitude === null ? NaN : Number(row.public_longitude);
+  const hasReviewedPin = Number.isFinite(latitude) && Number.isFinite(longitude) &&
+    latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
   return {
     gemiNumber: row.gemi_number,
     slug: row.public_slug,
@@ -69,6 +78,8 @@ function fromRow(row: HubCensusRow): HubCensusBusiness {
     prefecture: row.prefecture || undefined,
     postcode: row.postcode || undefined,
     category: CATEGORY_LABELS[row.sector_code ?? ""] ?? "Τοπική επιχείρηση",
+    sectorCode: row.sector_code ?? "other_retail",
+    coordinates: hasReviewedPin ? { latitude, longitude } : undefined,
     hubSlug: row.assigned_hub_slug,
     seoApproved: row.seo_approved === true,
     distanceKm: Number.isFinite(distance) ? distance : undefined,
@@ -90,7 +101,15 @@ const DIRECTORY_COLUMNS = [
   "prefecture", "postcode", "sector_code",
   "CASE WHEN publication_basis='municipality' THEN directory_hub_slug ELSE assigned_hub_slug END AS assigned_hub_slug",
   "seo_approved", "hub_distance_km", "publication_basis", "registry_verified_at",
-  "(registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}$') AS gemi_active_verified"
+  "(registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}$') AS gemi_active_verified",
+  "CASE WHEN d.publication_basis='premise' AND d.business_geo_verified_at IS NOT NULL" +
+  " AND d.business_geo_reviewed_at IS NOT NULL AND d.business_geo_reviewer_id IS NOT NULL" +
+  " AND d.business_geo_evidence_kind IN ('verified_premise_address','verified_registry_address')" +
+  " THEN d.latitude ELSE NULL END AS public_latitude",
+  "CASE WHEN d.publication_basis='premise' AND d.business_geo_verified_at IS NOT NULL" +
+  " AND d.business_geo_reviewed_at IS NOT NULL AND d.business_geo_reviewer_id IS NOT NULL" +
+  " AND d.business_geo_evidence_kind IN ('verified_premise_address','verified_registry_address')" +
+  " THEN d.longitude ELSE NULL END AS public_longitude"
 ].join(",");
 
 // Private, separately approved municipal directory grouping versus exact
