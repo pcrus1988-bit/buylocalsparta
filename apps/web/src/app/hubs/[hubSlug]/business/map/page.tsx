@@ -113,6 +113,9 @@ export default async function HubBusinessesMapPage({ params, searchParams }: Pro
           centerLatitude={hub.latitude} centerLongitude={hub.longitude}
           partnerLabel="Εγκεκριμένη παρουσία"
           researchLabel="ΓΕΜΗ · Μη διεκδικημένη"
+          listHref={directoryPath}
+          profileLabel="Δες το δημόσιο προφίλ επιχείρησης"
+          noCoordinatesMessage="Για τις διαθέσιμες εγγραφές αυτού του HUB δεν υπάρχουν ακόμη επαληθευμένες συντεταγμένες φυσικών επιχειρήσεων. Η αντιστοίχιση δήμου δεν δημιουργεί σημείο στον χάρτη. Χρησιμοποίησε τη λίστα και τα φίλτρα για να δεις τα δημόσια προφίλ."
         /> : <div className="empty-state">
           <h2>Οι πρώτες δημόσιες επιχειρήσεις έρχονται σύντομα.</h2>
           <p>Δεν υπάρχουν ακόμη δημοσιευμένες επαληθευμένες επιχειρήσεις σε αυτό το HUB.</p>
