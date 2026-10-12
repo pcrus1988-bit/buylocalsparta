@@ -34,12 +34,14 @@ export default function NailStyleStudio({ sampledShade, active = true }: { sampl
   const [length, setLength] = useState<NailLength>("medium");
   const [viewMode, setViewMode] = useState<"preview" | "live" | "photo">("preview");
   const [opacity, setOpacity] = useState(0.9);
+  const [fit, setFit] = useState(1);
+  const [placement, setPlacement] = useState(0);
   const [message, setMessage] = useState("");
   const finalShade = hasPickedCustom && sampledShade ? sample(sampledShade) : shade;
   const shadeLabel = hasPickedCustom && sampledShade ? "Το χρώμα της φωτογραφίας σου" : shades.find(s => s.hex === shade)?.name || "Custom";
   const shapeLabel = shapes.find(s => s.id === shape)?.text || "Οβάλ";
   const finishLabel = finishes.find(s => s.id === finish)?.text || "Gloss";
-  const arLook: ArLook = { hex: finalShade, shape, finish, length, opacity };
+  const arLook: ArLook = { hex: finalShade, shape, finish, length, opacity, fit, placement };
   const copyLook = async () => {
     const txt = "NYXI Nail Look — " + shadeLabel + " (" + finalShade + ") · " + shapeLabel + " · " + finishLabel + " · " + (length === "short" ? "Κοντό" : length === "long" ? "Μακρύ" : "Μεσαίο") + " μήκος";
     try { await navigator.clipboard.writeText(txt); setMessage("Η ιδέα αντιγράφηκε."); }
@@ -70,6 +72,14 @@ export default function NailStyleStudio({ sampledShade, active = true }: { sampl
         <div className="control-group"><div className="control-heading"><h3><span>03</span> Φινίρισμα</h3><small>{finishLabel}</small></div><div className="finish-grid">{finishes.map(item => <button type="button" key={item.id} className={finish === item.id ? "selected" : ""} aria-pressed={finish === item.id} onClick={() => setFinish(item.id)}><strong>{item.text}</strong><small>{item.caption}</small></button>)}</div></div>
         <div className="control-group"><div className="control-heading"><h3><span>04</span> Μήκος</h3></div><div className="length-grid">{([["short","Κοντό"],["medium","Μεσαίο"],["long","Μακρύ"]] as const).map(([id,label]) => <button type="button" key={id} className={length === id ? "selected" : ""} aria-pressed={length === id} onClick={() => setLength(id)}>{label}</button>)}</div></div>
         {viewMode !== "preview" && <div className="control-group ar-opacity-control"><div className="control-heading"><h3><span>05</span> Κάλυψη βερνικιού</h3><small>{Math.round(opacity * 100)}%</small></div><label htmlFor="nyxi-opacity" className="sr-only">Πυκνότητα επικάλυψης</label><input id="nyxi-opacity" type="range" min="0.45" max="1" step="0.05" value={opacity} onChange={event => setOpacity(Number(event.target.value))} /><p className="microcopy">Προσάρμοσε την ένταση του εφέ στο φυσικό φως.</p></div>}
+        {viewMode !== "preview" && <div className="control-group ar-calibration"><div className="control-heading"><h3><span>06</span> Προσαρμογή στα νύχια σου</h3></div>
+          <label htmlFor="nyxi-nail-width">Πλάτος <span>{Math.round(fit * 100)}%</span></label>
+          <input id="nyxi-nail-width" type="range" min="0.75" max="1.25" step="0.05" value={fit} onChange={e => setFit(Number(e.target.value))} />
+          <label htmlFor="nyxi-nail-shift">Θέση πάνω στο νύχι <span>{placement === 0 ? "Κέντρο" : placement > 0 ? "Προς τη βάση" : "Προς την άκρη"}</span></label>
+          <input id="nyxi-nail-shift" type="range" min="-0.2" max="0.2" step="0.05" value={placement} onChange={e => setPlacement(Number(e.target.value))} />
+          <p className="microcopy">Η ακριβής επιφάνεια του νυχιού δεν αναγνωρίζεται ακόμη αυτόματα. Ρύθμισε την εφαρμογή για πιο φυσικό αποτέλεσμα.</p>
+          <button type="button" className="ar-calibration-reset" onClick={() => { setFit(1); setPlacement(0); }}>Επαναφορά προσαρμογής</button>
+        </div>}
         <button className="primary-action look-copy" type="button" onClick={copyLook}>Αντέγραψε το look σου <span aria-hidden="true">↗</span></button>
         {message && <p className="microcopy" role="status">{message}</p>}
       </div>
