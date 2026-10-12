@@ -46,7 +46,8 @@ try {
       " JOIN research_private.hub_gemi_geo_keys g ON g.location_key=d.location_key " +
       " WHERE d.gemi_number>$1 AND g.latitude IS NOT NULL AND g.longitude IS NOT NULL " +
       " AND g.geo_source IS NOT NULL AND g.precision_kind IS NOT NULL " +
-      " AND g.source_reference IS NOT NULL AND d.display_status<>'suppressed' " +
+      " AND g.source_reference IS NOT NULL AND d.display_status='unpublished' " +
+      " AND d.assignment_method IS DISTINCT FROM 'manual_geo_review' " +
       " ORDER BY d.gemi_number ASC LIMIT $2",
       [cursor, fetchSize]
     );
@@ -93,7 +94,9 @@ try {
             "assigned_hub_id=a.hub_id,assigned_hub_slug=a.hub_slug,hub_distance_km=a.distance_km," +
             "assignment_status=a.assignment_status,assignment_method=a.assignment_method," +
             "latitude=a.latitude,longitude=a.longitude,updated_at=now() " +
-          "FROM assignments a WHERE d.gemi_number=a.gemi_number AND d.display_status<>'suppressed'",
+          "FROM assignments a WHERE d.gemi_number=a.gemi_number " +
+          "AND d.display_status='unpublished' " +
+          "AND d.assignment_method IS DISTINCT FROM 'manual_geo_review'",
           [JSON.stringify(updates)]
         );
         await client.query("COMMIT");
