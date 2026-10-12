@@ -24,6 +24,10 @@ export function resolveCensusHubFromPoint(point: CensusGeoPoint): CensusHubAssig
       point.latitude < 34 || point.latitude > 43 ||
       point.longitude < 19 || point.longitude > 30) return undefined;
 
+  // Reject contradictory evidence rather than letting a supplied island hub
+  // override an explicit mainland classification.
+  if (point.islandHubId && point.landmass === "mainland") return undefined;
+
   // Island contexts must be explicitly confirmed by a source that distinguishes
   // the landmass. A mainland hub across a bay is never an acceptable substitute.
   const candidates = point.islandHubId
@@ -42,8 +46,10 @@ export function resolveCensusHubFromPoint(point: CensusGeoPoint): CensusHubAssig
     .sort((a, b) => a.distanceKm - b.distanceKm || a.hub.id.localeCompare(b.hub.id));
   const nearest = ranked[0];
   if (!nearest) return undefined;
-  const inside = nearest.distanceKm <= nearest.hub.radiusKm ||
-    (Boolean(point.islandHubId) && nearest.hub.coverageMode === "WHOLE_ISLAND");
+  // A hub's WHOLE_ISLAND designation is a routing restriction, not proof
+  // that arbitrary coordinates belong to that island. Until a verified
+  // island polygon is available, keep the same 25-km physical radius.
+  const inside = nearest.distanceKm <= nearest.hub.radiusKm;
   return {
     hub: nearest.hub,
     distanceKm: nearest.distanceKm,
