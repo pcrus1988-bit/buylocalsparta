@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { getHubExpansionPlan, type HubBillingCycle, type HubExpansionPlanCode } from "../lib/hub-expansion-plans";
+import { hubGemiApplicationPath } from "../lib/hub-gemi-join-links";
 import styles from "./HubExpansionApplicationForm.module.css";
 
 type LookupStage = "afm" | "loading" | "matched";
@@ -59,7 +60,7 @@ type Props = Readonly<{
   billingCycle: HubBillingCycle;
   csrfToken?: string;
   signedInEmail?: string;
-  claimGemi?: string;
+  listingGemi?: string;
 }>;
 
 const categories = [
@@ -76,7 +77,7 @@ const categories = [
   "Άλλη μη διατροφική λιανική"
 ] as const;
 
-export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken, signedInEmail, claimGemi }: Props) {
+export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken, signedInEmail, listingGemi }: Props) {
   const [busy, setBusy] = useState(false);
   const [lookupStage, setLookupStage] = useState<LookupStage>("afm");
   const [lookupError, setLookupError] = useState("");
@@ -145,8 +146,8 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
       if (!response.ok || !data.company || !data.hub) {
         throw new Error(data.error ?? "Δεν ήταν δυνατή η επαλήθευση της επιχείρησης και του HUB.");
       }
-      if (claimGemi && data.company.gemiNumber !== claimGemi) {
-        throw new Error("Το ΑΦΜ δεν αντιστοιχεί στον αριθμό ΓΕΜΗ της καταχώρισης που διεκδικείς.");
+      if (listingGemi && data.company.gemiNumber !== listingGemi) {
+        throw new Error("Το ΑΦΜ δεν αντιστοιχεί στον αριθμό ΓΕΜΗ της καταχώρισης που επέλεξες.");
       }
       if (data.hub.isSpartaLegacy) {
         window.location.assign(data.redirectTo ?? "/join/sparta");
@@ -163,7 +164,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
       setLookupError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η επαλήθευση της επιχείρησης και του HUB.");
       setLookupStage("afm");
     }
-  }, [taxNumber, csrfToken, claimGemi]);
+  }, [taxNumber, csrfToken, listingGemi]);
 
   useEffect(() => {
     if (restoredAfmRef.current) return;
@@ -191,7 +192,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
     const data = new FormData(form);
     const payload: Record<string, unknown> = Object.fromEntries(data.entries());
     payload.rewardCode = rewardCode.trim() || undefined;
-    if (planCode === "claim" && claimGemi) payload.claimGemi = claimGemi;
+    if (listingGemi) payload.listingGemi = listingGemi;
     payload.acceptedAccuracy = data.get("acceptedAccuracy") === "on";
     payload.acceptedPrivacy = data.get("acceptedPrivacy") === "on";
     payload.acceptedProspectStatus = data.get("acceptedProspectStatus") === "on";
@@ -209,7 +210,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
           return;
         }
         if (result.code === "login_required") {
-          const returnTo = `/hubs/join/apply?plan=${encodeURIComponent(planCode)}&billing=${encodeURIComponent(billingCycle)}`;
+          const returnTo = hubGemiApplicationPath({ plan: planCode, billing: billingCycle, gemi: listingGemi });
           window.location.assign(`/login?next=${encodeURIComponent(returnTo)}`);
           return;
         }
