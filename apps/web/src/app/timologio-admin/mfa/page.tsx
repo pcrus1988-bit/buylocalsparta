@@ -15,5 +15,6 @@ export default async function FiscalMfaPage(){
  <h1>Έλεγχος δύο παραγόντων</h1>
  <p>Δεύτερος παράγοντας για ευαίσθητες ενέργειες διαχειριστή FISCAL. Δεν αλλάζει το υφιστάμενο SSO.</p></section>
  <FiscalOperatorMfaWorkbench csrfToken={actor.csrfToken} initial={initial}/>
+ <section className="fiscal-panel fiscal-section"><h2>Ανάκτηση Authenticator</h2><p>Ελεγχόμενη διαδικασία δύο ανεξάρτητων εγκρίσεων · απενεργοποιημένη μέχρι να ολοκληρωθεί η αξιολόγηση.</p><p><Link href="/timologio-admin/mfa/recovery" className="fiscal-button secondary">Διαδικασία ανάκτησης MFA</Link></p></section>
  </div></main>;
 }

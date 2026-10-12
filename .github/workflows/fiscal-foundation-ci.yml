@@ -58,6 +58,20 @@ jobs:
         run: node scripts/fiscal-migrate.mjs
       - name: Verify schema and forbidden fiscal transitions
         run: node scripts/fiscal-db-smoke.mjs
+      - name: Verify isolated dual-approval recovery constraints
+        env:
+          CI: "true"
+        run: node scripts/fiscal-mfa-recovery-db-smoke.mjs
+      - name: Verify security outbox RLS and provider acceptance transitions
+        env:
+          CI: "true"
+        run: node scripts/fiscal-security-alert-db-smoke.mjs
+      - name: Check bounded, idempotent recovery alert retry rules
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-security-alert-delivery-policy.test.ts
+      - name: Verify bounded provider status reconciliation and strict email ownership
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-security-alert-provider-status.test.ts
+      - name: Check recovery request and approval input validation
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-mfa-recovery-input.test.ts
       - name: Refuse migration against marketplace database
         run: |
           if FISCAL_DATABASE_URL="$DATABASE_URL" node scripts/fiscal-migrate.mjs; then

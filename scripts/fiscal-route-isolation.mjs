@@ -30,6 +30,8 @@ for(const expected of [
  "timologio/counterparties/page.tsx",
  "timologio/journal/page.tsx","timologio/invite/page.tsx",
  "timologio/verify-email/page.tsx","timologio/api/email-verification/route.ts",
+ "timologio/api/security-alert-dispatch/route.ts",
+ "timologio/api/security-alert-webhook/route.ts",
  "timologio/api/invitations/redeem/route.ts","timologio/api/console/journal-preview/route.ts",
  "timologio/api/console/journal/route.ts",
  "timologio/api/console/drafts/route.ts","timologio/api/console/preview/route.ts","timologio/api/v1/drafts/route.ts",
@@ -38,6 +40,8 @@ for(const expected of [
  "timologio-admin/api/invitations/route.ts",
  "timologio-admin/api/kyb-evidence/route.ts",
  "timologio-admin/api/mfa/route.ts","timologio-admin/mfa/page.tsx",
+ "timologio-admin/api/mfa/recovery/route.ts","timologio-admin/mfa/recovery/page.tsx",
+ "timologio-admin/api/mfa/alerts/route.ts","timologio-admin/mfa/alerts/page.tsx",
  "timologio-admin/accounts/[id]/page.tsx","timologio-admin/sso/callback/route.ts"
 ])assert.ok(routes.includes(expected),"Missing Fiscal route: "+expected);
 // Route re-exports do not inherit Next.js static segment configuration.
@@ -49,6 +53,7 @@ for(const route of [
  "timologio/verify-email/page.tsx",
  "timologio-admin/invitations/page.tsx",
  "timologio-admin/mfa/page.tsx",
+ "timologio-admin/mfa/recovery/page.tsx",
  "timologio-admin/login/page.tsx","timologio-admin/compliance/page.tsx",
  "timologio-admin/accounts/[id]/page.tsx"
 ]){
