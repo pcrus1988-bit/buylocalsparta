@@ -35,7 +35,7 @@ DO $ddl$ BEGIN
       AND conname='hub_gemi_verified_publication_gate') THEN
     ALTER TABLE research_private.hub_gemi_directory
       ADD CONSTRAINT hub_gemi_verified_publication_gate CHECK (
-        display_status <> 'published' OR (
+        display_status <> 'published' OR COALESCE((
           assignment_status='assigned'
           AND assignment_method='manual_geo_review'
           AND assigned_hub_id IS NOT NULL
@@ -55,7 +55,7 @@ DO $ddl$ BEGIN
           AND nullif(btrim(editorial_reviewer_id),'') IS NOT NULL
           AND nullif(btrim(publication_evidence_note),'') IS NOT NULL
           AND source_checked_at IS NOT NULL
-        )
+        ), false)
       );
   END IF;
 END $ddl$;
