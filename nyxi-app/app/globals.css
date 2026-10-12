@@ -239,3 +239,56 @@ footer p,footer span{font-size:12px;color:#927e89}
 .research-holding h3{font-size:clamp(22px,3vw,29px);max-width:480px;letter-spacing:-.04em;margin:16px 0;line-height:1.2}
 .research-holding p{color:#806a76;line-height:1.8;max-width:570px;font-size:14px;margin-bottom:25px}
 .research-holding .primary-action{position:relative;z-index:1}
+
+/* NYXI LIVE NAIL AR */
+.atelier-view-modes{display:flex;align-items:stretch;flex-wrap:wrap;gap:9px;margin:-4px 0 23px}
+.atelier-view-modes button{background:#fff;border:1px solid #ead8e0;border-radius:999px;padding:13px 18px;color:#7d5b6c;font-size:12px;font-weight:800;min-height:46px}
+.atelier-view-modes button.selected{color:#fff;background:#772f51;border-color:#772f51}
+.atelier-view-modes button:focus-visible,.ar-actions button:focus-visible{outline:3px solid #b65885;outline-offset:3px}
+.ar-beta{font-size:9px;margin-left:5px;border-radius:8px;background:#ead6df;color:#873957;padding:3px 5px;letter-spacing:.07em}
+.atelier-view-modes button.selected .ar-beta{background:#ffffff2a;color:#fff}
+.nyxi-ar{position:sticky;top:20px;align-self:start;border-radius:25px;border:1px solid #e8d5df;background:#fff;overflow:hidden;min-width:0}
+.ar-stage{position:relative;background:radial-gradient(circle at 40% 35%,#f7e5e7,#d2a9bf);aspect-ratio:4/5;max-height:min(80vh,690px);overflow:hidden;isolation:isolate}
+.ar-canvas{display:block;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;z-index:1}
+.ar-video-source{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.ar-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;color:#8c526e;z-index:2;pointer-events:none;text-align:center;padding:20px;background:radial-gradient(circle,#f9eaedb0,#ebc9d9)}
+.ar-empty .ar-hand{font-size:clamp(75px,12vw,120px);filter:drop-shadow(0 14px 24px #9151692a);opacity:.8}
+.ar-empty>span{letter-spacing:.2em;font-size:11px;font-weight:850;color:#7d4963}
+.ar-empty>small{font-size:14px;font-family:Georgia,serif;font-style:italic}
+.ar-loading{position:absolute;inset:0;z-index:4;background:#faf2f3dc;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;color:#78425e;font-size:13px;font-weight:750}
+.ar-loader{width:37px;height:37px;border:3px solid #e7bccc;border-top-color:#8a365b;border-radius:50%;animation:nyxi-spin .8s linear infinite}
+@keyframes nyxi-spin{to{transform:rotate(360deg)}}
+.ar-live-indicator{position:absolute;top:20px;left:19px;z-index:5;display:flex;align-items:center;gap:7px;border-radius:999px;background:#351527af;color:#fff;padding:10px 12px;font-size:10px;font-weight:800;letter-spacing:.12em;backdrop-filter:blur(12px)}
+.ar-live-indicator>span{width:7px;height:7px;border-radius:50%;background:#b9b6b7}
+.ar-live-indicator>span.ar-on{background:#f16f87;box-shadow:0 0 0 5px #f16f872c}
+.ar-guidance{position:absolute;bottom:22px;left:13px;right:13px;background:#2d1a27bd;color:#fff;text-align:center;z-index:5;border-radius:13px;padding:13px;font-size:12px;line-height:1.5}
+.ar-under{padding:20px}
+.ar-status{margin:0 0 13px;color:#7d5369;font-weight:750;font-size:12px}
+.ar-actions{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-bottom:17px}
+.ar-actions .primary-action,.ar-actions .ar-secondary{display:inline-flex;align-items:center;justify-content:center;min-height:45px;padding:11px 15px;white-space:normal;text-align:center}
+.ar-secondary{border:1px solid #e3c9d6;background:#fff;color:#7b3c5c;border-radius:999px;font-size:12px;font-weight:750}
+.ar-upload{cursor:pointer}
+.ar-error{padding:13px 15px;margin:6px 0 18px;font-size:12px}
+.ar-privacy{font-size:11px;line-height:1.7;color:#816e7b;border-top:1px solid #f0e5e8;padding-top:16px;margin:10px 0 16px}
+.ar-privacy strong{color:#6d3b54}
+.ar-tips{display:flex;flex-wrap:wrap;gap:8px;font-size:10px;color:#8b6076}
+.ar-tips span{border:1px solid #eddae2;background:#fcf6f9;padding:7px 9px;border-radius:999px}
+.ar-opacity-control input[type="range"]{display:block;width:100%;accent-color:#87395c}
+.finish-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.finish-grid button{min-height:60px;white-space:normal}
+.finish-chrome .nail-polish{background-image:linear-gradient(105deg,#3e3943a3 0%,#fff9 22%,#46404ab9 38%,#fffa 61%,#322b3c9e 82%,#fff9)!important;background-blend-mode:screen}
+.finish-cat-eye .nail-polish{background-image:linear-gradient(103deg,#28121d85 19%,#fff0 39%,#fff4c1a8 53%,#fff0 65%,#32192c77 79%)!important;background-blend-mode:screen}
+@media(max-width:850px){.nyxi-ar{position:relative;top:auto}.ar-stage{max-height:590px}.atelier-view-modes{margin-bottom:16px}}
+@media(max-width:520px){.atelier-view-modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.atelier-view-modes button{font-size:10px;padding:10px 6px;line-height:1.3;border-radius:15px}.ar-beta{display:block;width:max-content;margin:3px auto 0}.ar-under{padding:17px}.ar-stage{aspect-ratio:4/5;max-height:65vh}.ar-privacy{font-size:10px}.ar-actions .primary-action,.ar-actions .ar-secondary{font-size:11px;flex:1 1 auto}}
+@media(prefers-reduced-motion:reduce){.ar-loader{animation:none}}
+
+.ar-calibration label{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:12px;color:#70485b;font-weight:800;margin:14px 0 7px}
+.ar-calibration label span{font-size:11px;font-weight:500;color:#947385}
+.ar-calibration input[type="range"]{width:100%;accent-color:#92395f}
+.ar-calibration-reset{border:0;background:transparent;color:#873e61;text-decoration:underline;text-underline-offset:3px;padding:8px 0;font-size:11px;font-weight:800}
+
+.ar-quick-controls{display:flex;gap:8px;position:absolute;z-index:6;bottom:15px;left:50%;transform:translateX(-50%);background:#fff3;border:1px solid #ffffffb0;border-radius:999px;padding:7px;backdrop-filter:blur(20px);box-shadow:0 6px 25px #4d27414b;max-width:calc(100% - 26px)}
+.ar-quick-controls button{border:0;border-radius:99px;background:#fff9;color:#69334f;padding:9px 12px;font-size:14px;font-weight:800;white-space:nowrap;min-width:72px;display:flex;align-items:center;justify-content:center;gap:6px}
+.ar-quick-controls button:active{background:#fff}
+.ar-quick-controls button span{font-size:11px}
+@media(max-width:480px){.ar-quick-controls{bottom:12px;gap:4px;padding:5px}.ar-quick-controls button{min-width:68px;padding:9px 8px}.ar-quick-controls button span{font-size:10px}}

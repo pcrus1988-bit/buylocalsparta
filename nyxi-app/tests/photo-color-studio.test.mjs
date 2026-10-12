@@ -35,7 +35,7 @@ test("standalone homepage keeps reviewed-only research and conservative care", (
   assert.ok(guide.includes("Δεν προτείνουμε θεραπεία"));
   assert.ok(guide.includes("warningSigns"));
   assert.ok(home.includes("<GuidedCare />"));
-  assert.ok(home.includes("<NailStyleStudio sampledShade={sampledShade} />"));
+  assert.ok(home.includes("<NailStyleStudio sampledShade={sampledShade} active={tab === \"style\"} />"));
   assert.match(layout, /index:\s*false/);
 });
 
