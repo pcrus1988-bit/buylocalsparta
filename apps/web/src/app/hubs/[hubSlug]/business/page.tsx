@@ -4,14 +4,14 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../components/SiteFooter";
 import { getExpansionHubBySlug } from "../../../../lib/expansion-hubs";
-import { hubCensusBusinessPath, listPublicHubCensus, hubHasIndexReadyCensus } from "../../../../lib/hub-gemi-directory";
+import { hubCensusBusinessPath, listPublicHubCensus, hubHasIndexReadyCensus, publicHubCensusCategoryCounts } from "../../../../lib/hub-gemi-directory";
 import { listPublicHubClaimsByHub } from "../../../../lib/hub-claim-runtime";
 import { hubClaimPublicPath } from "../../../../lib/hub-claim-public-url";
 import styles from "../../claim/claim.module.css";
 
 type Params = {
   params: Promise<{ hubSlug: string }>;
-  searchParams: Promise<{ q?: string; after?: string }>;
+  searchParams: Promise<{ q?: string; after?: string; category?: string }>;
 };
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
   const hub = getExpansionHubBySlug(hubSlug);
   if (!hub) return { title: "HUB δεν βρέθηκε · KONTA MOY", robots: { index: false, follow: false } };
   const canonical = "/hubs/" + hub.slug + "/business";
-  const indexable = !query.q && !query.after && await hubHasIndexReadyCensus(hub.slug);
+  const indexable = !query.q && !query.after && !query.category && await hubHasIndexReadyCensus(hub.slug);
   return {
     title: "Επιχειρήσεις " + hub.nameEl + " · Τοπικός κατάλογος · KONTA MOY",
     description: "Ανακάλυψε καταστήματα και επιχειρήσεις στο HUB " + hub.nameEl +
@@ -31,7 +31,7 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
     // Research indexation is governed, not granted by a GEMI import alone.
     robots: { index: indexable, follow: true },
     openGraph: { url: canonical, title: "Επιχειρήσεις HUB " + hub.nameEl },
-    ...(query.q || query.after ? { robots: { index: false, follow: true } } : {})
+    ...(query.q || query.after || query.category ? { robots: { index: false, follow: true } } : {})
   };
 }
 
@@ -42,12 +42,16 @@ export default async function HubBusinessesDirectoryPage({ params, searchParams 
   const query = await searchParams;
   const q = typeof query.q === "string" ? query.q.trim().slice(0, 70) : "";
   const after = typeof query.after === "string" ? query.after : "";
-  const [census, claimed] = await Promise.all([
-    listPublicHubCensus(hub.slug, { q, after, limit: 24 }),
-    listPublicHubClaimsByHub(hub.slug, 24)
+  const category = typeof query.category === "string" ? query.category : "";
+  const [census, claimedAll, categories] = await Promise.all([
+    listPublicHubCensus(hub.slug, { q, after, category, limit: 24 }),
+    listPublicHubClaimsByHub(hub.slug, 24),
+    publicHubCensusCategoryCounts(hub.slug)
   ]);
+  const claimed = claimedAll.filter(business => !q || business.businessName.toLocaleLowerCase("el").includes(q.toLocaleLowerCase("el")));
   const next = new URLSearchParams();
   if (q) next.set("q", q);
+  if (category) next.set("category", category);
   if (census.nextAfter) next.set("after", census.nextAfter);
   const nextUrl = "/hubs/" + hub.slug + "/business?" + next.toString();
 
@@ -72,6 +76,14 @@ export default async function HubBusinessesDirectoryPage({ params, searchParams 
       <form method="get" action={"/hubs/" + hub.slug + "/business"} className={styles.panel}>
         <label className={styles.field}>Αναζήτηση επιχείρησης
           <input name="q" maxLength={70} defaultValue={q} placeholder="Επωνυμία επιχείρησης" />
+        </label>
+        <label className={styles.field}>Κατηγορία
+          <select name="category" defaultValue={category}>
+            <option value="">Όλες οι κατηγορίες</option>
+            {categories.map(entry => <option key={entry.slug} value={entry.slug}>
+              {entry.label} ({entry.count.toLocaleString("el-GR")})
+            </option>)}
+          </select>
         </label>
         <button className={styles.button} type="submit">Αναζήτηση</button>
       </form>
