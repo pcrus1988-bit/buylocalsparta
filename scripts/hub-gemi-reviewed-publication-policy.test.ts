@@ -44,7 +44,7 @@ test("SQL allows only current, independently approved municipality listings", ()
     "d.seo_approved=false",
     "d.registry_verified_at>=now()-interval '30 days'",
     "d.source_checked_at>=now()-interval '90 days'",
-    "d.registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}
+    "d.registry_verification_ref ~ '^gemi-opendata-active:sha256:[a-f0-9]{64}$'",
     "d.privacy_review_status='approved'",
     "d.privacy_reviewed_at IS NOT NULL",
     "d.privacy_reviewer_id",
