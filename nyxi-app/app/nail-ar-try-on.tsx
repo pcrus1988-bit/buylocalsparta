@@ -235,6 +235,18 @@ export default function NailArTryOn({ look, mode, active }: Props) {
     if (bitmap) setDetected(render(bitmap, bitmap.width, bitmap.height, photoHandsRef.current, false, performance.now()));
   }, [look, mode, active, render]);
 
+  useEffect(() => {
+    if (mode !== "live") return;
+    const stopWhenBackgrounded = () => { if (document.visibilityState === "hidden") stopCamera(); };
+    const stopOnPageLeave = () => stopCamera();
+    document.addEventListener("visibilitychange", stopWhenBackgrounded);
+    window.addEventListener("pagehide", stopOnPageLeave);
+    return () => {
+      document.removeEventListener("visibilitychange", stopWhenBackgrounded);
+      window.removeEventListener("pagehide", stopOnPageLeave);
+    };
+  }, [mode, stopCamera]);
+
   useEffect(() => () => {
     generationRef.current++;
     runningRef.current = false;
