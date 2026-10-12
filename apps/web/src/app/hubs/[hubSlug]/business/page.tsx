@@ -7,6 +7,7 @@ import { getExpansionHubBySlug } from "../../../../lib/expansion-hubs";
 import { hubCensusBusinessPath, listPublicHubCensus, hubHasIndexReadyCensus, publicHubCensusCategoryCounts } from "../../../../lib/hub-gemi-directory";
 import { listPublicHubClaimsByHub } from "../../../../lib/hub-claim-runtime";
 import { hubClaimPublicPath } from "../../../../lib/hub-claim-public-url";
+import { hubGemiApplicationPath } from "../../../../lib/hub-gemi-join-links";
 import styles from "../../claim/claim.module.css";
 
 type Params = {
@@ -66,8 +67,8 @@ export default async function HubBusinessesDirectoryPage({ params, searchParams 
           Οι πληροφοριακές καταχωρίσεις βασίζονται σε δημόσια μητρώα και δεν σημαίνουν
           συμμετοχή, συνεργασία ή δυνατότητα παραγγελίας.</p>
         <div className={styles.actions}>
-          <Link className={styles.button} href="/hubs/join/apply?plan=claim">
-            Καταχώρισε ή διεκδίκησε την επιχείρησή σου
+          <Link className={styles.button} href={hubGemiApplicationPath({ plan: "claim", billing: "annual", showPlans: true })}>
+            Διεκδίκησε την επιχείρησή σου · όλα τα προγράμματα
           </Link>
           <Link className={styles.button + " " + styles.secondary} href={"/hubs/" + hub.slug}>
             Επιστροφή στο HUB
@@ -112,7 +113,13 @@ export default async function HubBusinessesDirectoryPage({ params, searchParams 
               <div className={styles.kicker}>Μη διεκδικημένη · Πληροφοριακή καταχώριση</div>
               <h3>{business.legalName}</h3>
               <p className={styles.details}>{business.category} · {business.city || business.municipality || hub.nameEl}</p>
-              <Link className={styles.button} href={hubCensusBusinessPath(business)}>Πληροφορίες επιχείρησης →</Link>
+              <div className={styles.actions}>
+                <Link className={styles.button} href={hubCensusBusinessPath(business)}>Πληροφορίες επιχείρησης →</Link>
+                <Link className={styles.button + " " + styles.secondary}
+                  href={hubGemiApplicationPath({ plan: "claim", billing: "annual", gemi: business.gemiNumber, showPlans: true })}>
+                  Συμμετοχή / προγράμματα →
+                </Link>
+              </div>
             </article>
           )}</div>}
         {census.nextAfter && <div className={styles.actions}><Link className={styles.button} href={nextUrl}>

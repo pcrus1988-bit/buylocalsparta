@@ -3,6 +3,7 @@ import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { HubJoinRewardComparison } from "../../../components/HubJoinRewardComparison";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
+import { hubGemiApplicationPath } from "../../../lib/hub-gemi-join-links";
 import styles from "./page.module.css";
 
 export function generateMetadata(): Promise<Metadata> {
@@ -32,7 +33,13 @@ const featureRows = [
   { label: "Priority support", plans: ["pro"] }
 ] as const;
 
-export default function HubExpansionJoinPage() {
+export default async function HubExpansionJoinPage({ searchParams }: {
+  searchParams: Promise<{ gemi?: string | string[] }>
+}) {
+  const query = await searchParams;
+  const candidateGemi = Array.isArray(query.gemi) ? query.gemi[0] : query.gemi;
+  const listingGemi = candidateGemi && /^[0-9]{8,20}$/.test(candidateGemi) ? candidateGemi : undefined;
+  const claimApply = hubGemiApplicationPath({ plan: "claim", billing: "annual", gemi: listingGemi });
   return <main>
     <div className={styles.announcement}>Για επιχειρήσεις στα 130 HUB επέκτασης · το HUB προκύπτει αυτόματα από Γ.Ε.ΜΗ.</div>
     <SiteHeader compact />
@@ -42,7 +49,7 @@ export default function HubExpansionJoinPage() {
       <h1>Τοπική παρουσία με ένα ΑΦΜ.</h1>
       <p className="lead">Δεν χρειάζεται να ξέρεις ποιο HUB να διαλέξεις. Βάζεις το ΑΦΜ, βρίσκουμε την επιχείρησή σου στο Γ.Ε.ΜΗ., διαβάζουμε την επαληθευμένη τοποθεσία και αντιστοιχίζουμε αυτόματα το σωστό KONTA MOY HUB.</p>
       <div className={styles.heroActions}>
-        <a className="button" href="/hubs/join/apply?plan=claim#application-form">Ξεκίνα δωρεάν με ΑΦΜ</a>
+        <a className="button" href={claimApply + "#application-form"}>Ξεκίνα δωρεάν με ΑΦΜ</a>
         <a className="button button-secondary" href="#plans">Σύγκρινε προγράμματα</a>
       </div>
       <p className="section-note">Αν η τοποθεσία Γ.Ε.ΜΗ. ανήκει στο ενεργό HUB Σπάρτης, σε μεταφέρουμε αυτόματα στα προγράμματα που ισχύουν αποκλειστικά για τη Σπάρτη.</p>
@@ -67,7 +74,7 @@ export default function HubExpansionJoinPage() {
           <p>CLAIM για δωρεάν παρουσία ή εμπορικό πλάνο όταν θέλεις περισσότερες λειτουργίες. Μηνιαία ή ετήσια χρέωση επιλέγεται πριν την υποβολή· καμία πληρωμή δεν γίνεται μέσα στην αίτηση.</p>
         </div>
 
-        <HubJoinRewardComparison featureRows={featureRows} />
+        <HubJoinRewardComparison featureRows={featureRows} listingGemi={listingGemi} />
         <p className={styles.swipeHint}>Σε κινητό: σύρε οριζόντια για να συγκρίνεις όλα τα πλάνα. Η ετήσια επιλογή αντιστοιχεί περίπου σε δύο μήνες χωρίς συνδρομή σε σχέση με τη μηνιαία.</p>
         <p className={styles.footnote}>Οι τιμές εμφανίζονται προ ΦΠΑ όπου εφαρμόζεται. Το CLAIM δεν απαιτεί πληρωμή. Τα υψηλότερα πλάνα αγοράζουν περισσότερες υπηρεσίες και χαμηλότερη προμήθεια — όχι προνομιακή κατάταξη. Η δίκαιη συμμετοχή παραμένει κοινή για όλους.</p>
       </div>
@@ -102,7 +109,7 @@ export default function HubExpansionJoinPage() {
     <section className={`shell section ${styles.finalCta}`}>
       <div><div className="eyebrow">Έτοιμος;</div><h2>Ξεκίνα με το ΑΦΜ.</h2><p>Το CLAIM είναι προεπιλεγμένο και δωρεάν. Μπορείς να αλλάξεις πλάνο και κύκλο χρέωσης πριν την υποβολή.</p></div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <a className="button" href="/hubs/join/apply?plan=claim&billing=annual#application-form">Βρες την επιχείρησή μου</a>
+        <a className="button" href={claimApply + "#application-form"}>Βρες την επιχείρησή μου</a>
         <a className="button button-secondary" href="/hubs/businesses">Δες τις επιχειρήσεις των HUB</a>
       </div>
     </section>

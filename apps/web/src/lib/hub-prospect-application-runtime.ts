@@ -28,7 +28,7 @@ export type HubProspectApplicationInput = Readonly<{
   currentSalesChannels?: string;
   notes?: string;
   rewardCode?: string;
-  claimGemi?: string;
+  listingGemi?: string;
 }>;
 
 type HubProspectTrial = Readonly<{ applicationId: string; vendorId: string; ownerUserId: string; startedAt: number; expiresAt: number }>;
@@ -131,10 +131,10 @@ export async function submitHubProspectApplication(input: {
     throw new HubProspectApplicationError(503, "gemi_unavailable", registry.message);
   }
 
-  // The public census URL is never proof of ownership. The server independently
+  // The public census URL is never proof of ownership, on any subscription. The server independently
   // verifies that the applicant's AFM resolves to the exact GEMI company they
-  // selected before creating a claim application.
-  if (application.claimGemi && registry.gemiNumber !== application.claimGemi) {
+  // selected before creating a subscription application.
+  if (application.listingGemi && registry.gemiNumber !== application.listingGemi) {
     throw new HubProspectApplicationError(409, "claim_gemi_mismatch",
       "Το ΑΦΜ δεν αντιστοιχεί στην επιχείρηση της καταχώρισης ΓΕΜΗ.");
   }
@@ -190,16 +190,32 @@ export async function submitHubProspectApplication(input: {
   return uow.withTransaction(
     { platformAccess: true, marketId: "sparta", requestId: `public-hub-prospect:${applicationId}` },
     async (tx) => {
-      if (application.claimGemi) {
+      if (application.listingGemi) {
         const registryListing = await tx.query(
           "SELECT 1 FROM research_private.hub_gemi_directory " +
           "WHERE gemi_number=$1 AND assigned_hub_id=$2 " +
           "AND assignment_status='assigned' AND display_status='published' LIMIT 1",
-          [application.claimGemi, hub.id]
+          [application.listingGemi, hub.id]
         );
         if (!registryListing.rowCount) {
-          throw new HubProspectApplicationError(409, "claim_target_unavailable",
-            "Η καταχώριση ΓΕΜΗ δεν είναι διαθέσιμη προς διεκδίκηση στο επαληθευμένο HUB.");
+          // Owner-verified CLAIM pages can request a paid upgrade even when they
+          // predate the nationwide census. Never grant this exception to someone
+          // who cannot prove ownership through the authenticated account.
+          const ownedClaim = plan.code !== "claim" && input.principal?.userId
+            ? await tx.query(
+                "SELECT 1 FROM public.hub_expansion_prospects h " +
+                "JOIN public.users u ON u.id=h.owner_user_id " +
+                "WHERE h.gemi_number=$1 AND h.hub_id=$2 " +
+                "AND h.plan_code='claim' AND h.status='converted' " +
+                "AND h.owner_user_id IS NOT NULL AND h.public_slug IS NOT NULL " +
+                "AND u.public_id=$3 AND u.status='active' AND u.email_verified_at IS NOT NULL LIMIT 1",
+                [application.listingGemi, hub.id, input.principal.userId]
+              )
+            : undefined;
+          if (!ownedClaim?.rowCount) {
+            throw new HubProspectApplicationError(409, "claim_target_unavailable",
+              "Η καταχώριση ΓΕΜΗ δεν είναι διαθέσιμη στο επαληθευμένο HUB ή απαιτείται σύνδεση του νόμιμου κατόχου.");
+          }
         }
       }
 
@@ -277,15 +293,15 @@ export async function submitHubProspectApplication(input: {
         reward?.discountCents ?? 0
       ]);
 
-      // Link a registry census dossier to a PENDING CLAIM application only.
+      // Link a verified published registry dossier to a pending application for ANY HUB subscription.
       // Approval, ownership and publication remain separate governance steps;
       // nothing here grants vendor permissions or marks the listing claimed.
-      if (application.claimGemi && plan.code === "claim") {
+      if (application.listingGemi) {
         await tx.query(
           "UPDATE research_private.hub_gemi_directory " +
           "SET claim_application_id=$1::uuid,updated_at=now() " +
           "WHERE gemi_number=$2 AND assigned_hub_id=$3 AND claim_application_id IS NULL",
-          [applicationUuid, application.claimGemi, hub.id]
+          [applicationUuid, application.listingGemi, hub.id]
         );
       }
 
@@ -709,8 +725,8 @@ function normalizeApplication(input: HubProspectApplicationInput): HubProspectAp
     }
   }
 
-  const claimGemi = input.claimGemi?.trim() || undefined;
-  if (claimGemi && (plan.code !== "claim" || !/^[0-9]{8,20}$/.test(claimGemi))) {
+  const listingGemi = input.listingGemi?.trim() || undefined;
+  if (listingGemi && !/^[0-9]{8,20}$/.test(listingGemi)) {
     throw new HubProspectApplicationError(400, "claim_gemi_invalid", "Μη έγκυρη καταχώριση ΓΕΜΗ προς διεκδίκηση.");
   }
   return {
@@ -726,7 +742,7 @@ function normalizeApplication(input: HubProspectApplicationInput): HubProspectAp
     currentSalesChannels: optionalLimited(input.currentSalesChannels, 600),
     notes: optionalLimited(input.notes, 1500),
     rewardCode: normalizedResearchCode(input.rewardCode),
-    claimGemi
+    listingGemi
   };
 }
 

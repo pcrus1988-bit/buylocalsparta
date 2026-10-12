@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { VendorExternalWebsiteFrame } from "./VendorExternalWebsiteFrame";
+import { HUB_EXPANSION_PLANS, billingLabelForPlan } from "../lib/hub-expansion-plans";
+import { hubGemiApplicationPath } from "../lib/hub-gemi-join-links";
 import type { HubClaimPublicProfile } from "../lib/hub-claim-runtime";
 import type { HubClaimMedia } from "../lib/hub-claim-media-runtime";
 import styles from "../app/hubs/claim/claim.module.css";
@@ -49,6 +51,19 @@ export function HubClaimPublicContent({
         <div className={styles.actions}>{preview
           ? <span className={styles.button + " " + styles.secondary} aria-disabled="true">Γνώρισε το KONTA MOY HUB</span>
           : <Link className={styles.button + " " + styles.secondary} href={`/hubs/${profile.hubSlug}`}>Γνώρισε το KONTA MOY HUB</Link>}</div>
+        {!preview && !unpublished && profile.gemiNumber && /^[0-9]{8,20}$/.test(profile.gemiNumber) && <>
+          <h3>Αναβάθμιση παρουσίας</h3>
+          <p className={styles.details}>Η υπάρχουσα επαληθευμένη καταχώριση παραμένει ενεργή όσο
+            εξετάζεται η αίτηση για μεγαλύτερο πρόγραμμα. Καμία χρέωση ή εμπορική ενεργοποίηση δεν γίνεται αυτόματα.</p>
+          <div className={styles.actions}>
+            {HUB_EXPANSION_PLANS.filter(plan => plan.code !== "claim").map(plan =>
+              <Link key={plan.code} className={styles.button + " " + styles.secondary}
+                href={hubGemiApplicationPath({ plan: plan.code, billing: "annual", gemi: profile.gemiNumber })}>
+                {plan.name} · {billingLabelForPlan(plan, "annual")}
+              </Link>
+            )}
+          </div>
+        </>}
       </aside>
     </div>
     {gallery.length > 0 && <section className={styles.panel} style={{ marginTop: 20 }} aria-label="Φωτογραφίες επιχείρησης">

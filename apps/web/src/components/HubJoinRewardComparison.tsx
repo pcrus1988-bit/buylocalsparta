@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { HUB_EXPANSION_PLANS } from "../lib/hub-expansion-plans";
+import { hubGemiApplicationPath } from "../lib/hub-gemi-join-links";
 import styles from "../app/hubs/join/page.module.css";
 
 const STORAGE_KEY = "kontamou:research-onboarding-reward";
 const eur = (cents: number) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(cents / 100);
 
-export function HubJoinRewardComparison({ featureRows }: {
+export function HubJoinRewardComparison({ featureRows, listingGemi }: {
   featureRows: readonly { label: string; plans: readonly string[] }[];
+  listingGemi?: string;
 }) {
   const [code, setCode] = useState("");
   const [discountValid, setDiscountValid] = useState(false);
@@ -92,7 +94,7 @@ export function HubJoinRewardComparison({ featureRows }: {
               <tr className={styles.actionRow}>
                 <th scope="row"><span className={styles.srOnly}>Επιλογή προγράμματος</span></th>
                 {HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}>
-                  <a className={`button ${styles.planButton}`} href={`/hubs/join/apply?plan=${plan.code}&billing=annual#application-form`}>{plan.code === "claim" ? "Δωρεάν CLAIM" : `Επίλεξε ${plan.name}`}</a>
+                  <a className={`button ${styles.planButton}`} href={`${hubGemiApplicationPath({ plan: plan.code, billing: "annual", gemi: listingGemi })}#application-form`}>{plan.code === "claim" ? "Δωρεάν CLAIM" : `Επίλεξε ${plan.name}`}</a>
                 </td>)}
               </tr>
             </tbody>

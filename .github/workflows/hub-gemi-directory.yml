@@ -1,0 +1,43 @@
+name: HUB GEMI Directory Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/hubs/**"
+      - "apps/web/src/app/api/hub-prospect-application/**"
+      - "apps/web/src/components/HubExpansionApplicationForm.tsx"
+      - "apps/web/src/lib/hub-gemi-**"
+      - "apps/web/src/lib/hub-prospect-application-runtime.ts"
+      - "docs/national-gemi-hub-directory.md"
+      - "db/migrations/044*.sql"
+      - "package.json"
+      - ".github/workflows/hub-gemi-directory.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/src/app/hubs/**"
+      - "apps/web/src/app/api/hub-prospect-application/**"
+      - "apps/web/src/components/HubExpansionApplicationForm.tsx"
+      - "apps/web/src/lib/hub-gemi-**"
+      - "apps/web/src/lib/hub-prospect-application-runtime.ts"
+      - "db/migrations/044*.sql"
+      - "package.json"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: GEMI geographic & all-plan onboarding tests
+        run: npm run test:hub-gemi-assignment
+      - name: Verify DB migration manifest
+        run: npm run db:verify

@@ -5,6 +5,7 @@ import { normalizeVendorExternalWebsiteUrl, publicVendorExternalWebsiteUrl } fro
 export type HubClaimPublicProfile = Readonly<{
   id: string; slug: string; hubSlug: string; hubCity: string; hubRegion: string;
   businessName: string; category: string; phone: string; website?: string; websiteEmbedEnabled: boolean;
+  gemiNumber?: string;
   address: string; postcode: string;
   description: string; openingHours: string;
   instagramUrl?: string; facebookUrl?: string;
@@ -18,7 +19,7 @@ export type HubClaimInvitation = Readonly<{
 
 const SQL_PROFILE = `
   SELECT h.public_id AS id,h.public_slug AS slug,h.hub_slug,h.hub_city,h.hub_region,
-         h.business_name,h.primary_category,h.phone,h.website_url,
+         h.business_name,h.primary_category,h.phone,h.website_url,h.gemi_number,
          COALESCE((to_jsonb(h)->>'website_embed_enabled')::boolean,false) AS website_embed_enabled,
          h.address_line,h.postal_code,
          COALESCE(cp.description,'') AS claim_description,
@@ -35,6 +36,7 @@ function asProfile(row: SqlRow): HubClaimPublicProfile {
     id: String(row.id), slug: String(row.slug), hubSlug: String(row.hub_slug),
     hubCity: String(row.hub_city), hubRegion: String(row.hub_region),
     businessName: String(row.business_name), category: String(row.primary_category),
+    gemiNumber: row.gemi_number ? String(row.gemi_number) : undefined,
     phone: String(row.phone), website: row.website_url ? String(row.website_url) : undefined,
     websiteEmbedEnabled: Boolean(publicVendorExternalWebsiteUrl({ enabled: row.website_embed_enabled === true, url: row.website_url })),
     address: String(row.address_line), postcode: String(row.postal_code),
