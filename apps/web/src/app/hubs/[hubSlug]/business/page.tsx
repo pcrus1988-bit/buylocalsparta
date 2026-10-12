@@ -8,6 +8,7 @@ import { hubCensusBusinessPath, listPublicHubCensus, hubHasIndexReadyCensus, pub
 import { listPublicHubClaimsByHub } from "../../../../lib/hub-claim-runtime";
 import { hubClaimPublicPath } from "../../../../lib/hub-claim-public-url";
 import { hubGemiApplicationPath } from "../../../../lib/hub-gemi-join-links";
+import { hubBusinessDirectoryIndexable } from "../../../../lib/public-hub-availability";
 import styles from "../../claim/claim.module.css";
 
 type Params = {
@@ -23,7 +24,18 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
   const hub = getExpansionHubBySlug(hubSlug);
   if (!hub) return { title: "HUB δεν βρέθηκε · KONTA MOY", robots: { index: false, follow: false } };
   const canonical = "/hubs/" + hub.slug + "/business";
-  const indexable = !query.q && !query.after && !query.category && await hubHasIndexReadyCensus(hub.slug);
+  const hasFilters = Boolean(query.q || query.after || query.category);
+  const [verifiedClaims, indexReadyCensus] = hasFilters
+    ? [[], false] as const
+    : await Promise.all([
+      listPublicHubClaimsByHub(hub.slug, 1),
+      hubHasIndexReadyCensus(hub.slug)
+    ]);
+  const indexable = hubBusinessDirectoryIndexable({
+    hasVerifiedClaim: verifiedClaims.length > 0,
+    hasIndexReadyCensus: indexReadyCensus,
+    hasFilters
+  });
   return {
     title: "Επιχειρήσεις " + hub.nameEl + " · Τοπικός κατάλογος · KONTA MOY",
     description: "Ανακάλυψε καταστήματα και επιχειρήσεις στο HUB " + hub.nameEl +
@@ -31,8 +43,7 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
     alternates: { canonical },
     // Research indexation is governed, not granted by a GEMI import alone.
     robots: { index: indexable, follow: true },
-    openGraph: { url: canonical, title: "Επιχειρήσεις HUB " + hub.nameEl },
-    ...(query.q || query.after || query.category ? { robots: { index: false, follow: true } } : {})
+    openGraph: { url: canonical, title: "Επιχειρήσεις HUB " + hub.nameEl }
   };
 }
 
@@ -75,6 +86,13 @@ export default async function HubBusinessesDirectoryPage({ params, searchParams 
           </Link>
         </div>
       </div>
+      {hub.isSpartaLegacy && <section className={styles.panel}>
+        <h2>Η αγορά της Σπάρτης λειτουργεί ήδη.</h2>
+        <p className={styles.details}>Η υπάρχουσα αγορά με ενεργούς συνεργάτες και προσκεκλημένες επιχειρήσεις
+          είναι διαθέσιμη στον κεντρικό κατάλογο Σπάρτης. Οι καταχωρίσεις CLAIM και ΓΕΜΗ
+          παρουσιάζονται χωριστά, χωρίς να υποδηλώνουν δυνατότητα αγορών.</p>
+        <Link className={styles.button} href="/shops">Καταστήματα Σπάρτης →</Link>
+      </section>}
       <form method="get" action={"/hubs/" + hub.slug + "/business"} className={styles.panel}>
         <label className={styles.field}>Αναζήτηση επιχείρησης
           <input name="q" maxLength={70} defaultValue={q} placeholder="Επωνυμία επιχείρησης" />
