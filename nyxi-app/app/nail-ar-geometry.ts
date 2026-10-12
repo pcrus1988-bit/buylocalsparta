@@ -1,5 +1,5 @@
 import type { NailMaterial } from "./nail-material-renderer.ts";
-import { creativeMaterial } from "./nail-material-renderer";
+import { creativeMaterial } from "./nail-material-renderer.ts";
 /**
  * NYXI approximate AR nail geometry. Hand landmarks locate fingertips/joints,
  * not the exact nail cuticles: masks are estimates, not nail segmentation.
