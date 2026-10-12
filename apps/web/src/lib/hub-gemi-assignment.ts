@@ -10,6 +10,7 @@ export type CensusGeoPoint = Readonly<{
   latitude: number;
   longitude: number;
   islandHubId?: string;
+  landmass?: "mainland" | "island";
 }>;
 export type CensusHubAssignment = Readonly<{
   hub: ExpansionHub;
@@ -28,8 +29,10 @@ export function resolveCensusHubFromPoint(point: CensusGeoPoint): CensusHubAssig
   const candidates = point.islandHubId
     ? EXPANSION_HUBS.filter((hub) => hub.id === point.islandHubId &&
         (hub.coverageMode === "WHOLE_ISLAND" || hub.coverageMode === "ISLAND_LOCKED_RADIUS_25KM"))
-    : EXPANSION_HUBS.filter((hub) =>
-        hub.coverageMode === "GEODESIC_RADIUS_25KM" || hub.coverageMode === "LEGACY_SPARTA");
+    : point.landmass === "mainland"
+      ? EXPANSION_HUBS.filter((hub) =>
+          hub.coverageMode === "GEODESIC_RADIUS_25KM" || hub.coverageMode === "LEGACY_SPARTA")
+      : [];
   if (!candidates.length) return undefined;
 
   const ranked = candidates
