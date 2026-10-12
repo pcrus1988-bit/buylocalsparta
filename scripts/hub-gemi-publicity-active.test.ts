@@ -45,13 +45,16 @@ test("only actively verified, independently reviewed, classified records may pub
   assert.ok(directGemiUpdateSql.includes("official-gemi-live-active-v2"));
   const valid = {
     gemi_number:"143321901000", legal_name:"ΔΟΚΙΜΗ ΑΕ",
-    postcode:"38221",registry_municipality_id:"123",directory_hub_slug:"volos"
+    postcode:"38221",registry_municipality_id:"123",directory_hub_slug:"volos",
+    matched_activity_codes:["47.71"]
   };
   const base = {
     arGemi:143321901000,coNameEl:"ΔΟΚΙΜΗ Α.Ε.",zipCode:"38221",
-    municipality:{id:123},status:{descr:"Ενεργή"},autoRegistered:true
+    municipality:{id:123},status:{descr:"Ενεργή"},autoRegistered:true,
+    activities:[{activity:{id:"47.71"}}]
   };
   assert.equal(exactGemiIdentityMatch(valid,base),true);
   assert.equal(exactGemiIdentityMatch(valid,{...base,status:{descr:"Διαγραμμένη"}}),false);
-  assert.equal(exactGemiIdentityMatch(valid,{...base,autoRegistered:false}),false);
+  assert.equal(exactGemiIdentityMatch(valid,{...base,autoRegistered:false}),true);
+  assert.equal(exactGemiIdentityMatch(valid,{...base,activities:[]}),false);
 });
