@@ -121,7 +121,7 @@ function formatDistance(distance: number): string {
   return distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} μ.` : `${distance.toLocaleString("el-GR", { maximumFractionDigits: 1 })} χλμ.`;
 }
 
-export function VendorMapDirectory({ vendors, facets, initialVendorId }: { vendors: readonly VendorMapEntry[]; facets: readonly VendorMapFacet[]; initialVendorId?: string }) {
+export function VendorMapDirectory({ vendors, facets, initialVendorId, centerLatitude = SPARTA_CENTER[0], centerLongitude = SPARTA_CENTER[1] }: { vendors: readonly VendorMapEntry[]; facets: readonly VendorMapFacet[]; initialVendorId?: string; centerLatitude?: number; centerLongitude?: number }) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const layerRef = useRef<LeafletLayerGroup | null>(null);
@@ -193,7 +193,7 @@ export function VendorMapDirectory({ vendors, facets, initialVendorId }: { vendo
       .then((leaflet) => {
         if (cancelled || !mapElementRef.current || mapRef.current) return;
         leafletRef.current = leaflet;
-        const map = leaflet.map(mapElementRef.current, { scrollWheelZoom: true, zoomControl: true }).setView(SPARTA_CENTER, 13);
+        const map = leaflet.map(mapElementRef.current, { scrollWheelZoom: true, zoomControl: true }).setView([centerLatitude, centerLongitude], 13);
         leaflet.tileLayer(OSM_TILE_URL, { attribution: OSM_ATTRIBUTION, maxZoom: 19 }).addTo(map);
         mapRef.current = map;
         layerRef.current = leaflet.layerGroup().addTo(map);
@@ -212,7 +212,7 @@ export function VendorMapDirectory({ vendors, facets, initialVendorId }: { vendo
       layerRef.current = null;
       leafletRef.current = null;
     };
-  }, []);
+  }, [centerLatitude, centerLongitude]);
 
   useEffect(() => {
     if (!mapReady || !mapRef.current || !layerRef.current || !leafletRef.current) return;
@@ -257,8 +257,8 @@ export function VendorMapDirectory({ vendors, facets, initialVendorId }: { vendo
 
     if (points.length === 1) map.setView(points[0], 16);
     else if (points.length > 1) map.fitBounds(leaflet.latLngBounds(points).pad(0.14), { maxZoom: 16, padding: [26, 26] });
-    else map.setView(SPARTA_CENTER, 13);
-  }, [filteredVendors, mapReady, selectedVendor?.id, userLocation]);
+    else map.setView([centerLatitude, centerLongitude], 13);
+  }, [centerLatitude, centerLongitude, filteredVendors, mapReady, selectedVendor?.id, userLocation]);
 
   useEffect(() => {
     if (!mapReady || !selectedVendor?.coordinates || !mapRef.current) return;
