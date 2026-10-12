@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../../../components/AdminWorkspaceHeader";
 import { getAdminSession } from "../../../../../lib/admin-session";
 import { hasAdminPermission } from "../../../../../lib/admin-runtime";
-import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
+import { getAdminPostgresRuntime } from "../../../../../lib/postgres-runtime";
 import { classifyGemiSourceEvidence } from "../../../../../lib/hub-gemi-source-evidence";
 
 export const dynamic = "force-dynamic";
@@ -56,7 +56,7 @@ export default async function GemiAddressEvidencePage({ searchParams }: {
   const requested = await searchParams;
   const rawPage = Array.isArray(requested.page) ? requested.page[0] : requested.page;
   const page = Math.max(1, Math.min(100, Number.parseInt(rawPage ?? "1", 10) || 1));
-  const result = await getProductionPostgresRuntime().sqlPool.query<EvidenceRow>(
+  const result = await getAdminPostgresRuntime().sqlPool.query<EvidenceRow>(
     "SELECT e.id::text,e.gemi_number,d.legal_name,e.source_url,e.source_kind," +
     "e.postcode AS source_postcode,d.postcode AS registry_postcode," +
     "d.city,d.prefecture,e.finding,e.address_match_status,e.physical_geo_status," +
