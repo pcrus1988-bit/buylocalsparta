@@ -223,14 +223,19 @@ export function brandGuideQualityScore(input: BrandGuideQualityInput): number {
   return Math.min(100, score);
 }
 
+/**
+ * Commercial brand landing pages and editorial Brand Guides have different
+ * publication requirements. A verified live catalogue is useful to shoppers
+ * even if its optional editorial Guide is still being researched/reviewed.
+ *
+ * This policy is shared by page metadata and the sitemap inventory. Only
+ * active brands are passed in by the public brand runtime/read model, so
+ * empty or non-sellable brands remain noindex and absent from the sitemap.
+ * Keep the editorial quality score for enrichment/review; never use it to
+ * suppress an otherwise live brand landing page from search.
+ */
 export function brandGuideCanIndex(input: BrandGuideQualityInput): boolean {
-  return input.guide.status === "published"
-    && input.guide.seoIndexable
-    && input.liveProductCount > 0
-    && (input.description?.trim().length ?? 0) >= 70
-    && (input.guide.whyItStandsOut?.length ?? 0) >= 100
-    && input.guide.sourceUrls.length >= 1
-    && brandGuideQualityScore(input) >= BRAND_GUIDE_MIN_INDEX_SCORE;
+  return Number.isSafeInteger(input.liveProductCount) && input.liveProductCount > 0;
 }
 
 export function brandGuideStatusLabel(status: BrandGuideStatus): string {
