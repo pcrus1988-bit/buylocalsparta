@@ -41,7 +41,8 @@ test("only actively verified, independently reviewed, classified records may pub
   ));
   assert.ok(reviewedPublicationWriteSql.includes("d.sector_code IN"));
   assert.ok(reviewedPublicationWriteSql.includes("d.privacy_review_status='approved'"));
-  assert.ok(reviewedPublicationWriteSql.includes("d.seo_approved=true"));
+  assert.ok(reviewedPublicationWriteSql.includes("d.seo_approved=false"));
+  assert.ok(reviewedPublicationWriteSql.includes("display_status='published',seo_approved=true"));
   assert.ok(directGemiUpdateSql.includes("official-gemi-live-active-v2"));
   const valid = {
     gemi_number:"143321901000", legal_name:"ΔΟΚΙΜΗ ΑΕ",
