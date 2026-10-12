@@ -175,9 +175,21 @@ export async function supersedingPartnerUrlForGemiCensus(
     "LEFT JOIN public.hub_expansion_prospects h ON h.vendor_id=v.id " +
     "AND h.hub_slug=$1 AND h.status='converted' " +
     "AND h.plan_code IN ('presence','shop','growth','pro') AND h.owner_user_id IS NOT NULL " +
+    "AND EXISTS (SELECT 1 FROM public.users u WHERE u.id=h.owner_user_id " +
+    "AND u.status='active' AND u.email_verified_at IS NOT NULL) " +
     "WHERE d.assigned_hub_slug=$1 AND d.public_slug=$2 AND d.display_status='published' " +
     "AND v.status='active' AND v.public_directory_visible=true " +
-    "AND v.public_slug ~ '^[a-z0-9]+(-[a-z0-9]+)* to enter organic search only when at
+    "AND COALESCE(v.demo_mode,false)=false " +
+    "AND v.public_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' " +
+    "ORDER BY (m.code='sparta') DESC LIMIT 1",
+    [hubSlug, slug]
+  );
+  return result.rows[0]?.target ?? undefined;
+}
+
+
+/**
+ * Allow the hub-level census directory to enter organic search only when at
  * least ten independently SEO-reviewed business pages exist in that HUB.
  * Individual pages remain governed by the separate seo_approved flag.
  */
