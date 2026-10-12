@@ -96,7 +96,7 @@ try {
       candidate_hub_slug: closest.hub.hub_slug,
       candidate_hub_distance_km: Number(closest.distance.toFixed(4)),
       matching_business_count: Number(m.n),
-      match_method: "unique_exact_transliteration"
+      match_method: match.rule === "exact" ? "unique_exact_transliteration" : "normalized_genitive_variant"
     });
   }
 
@@ -115,7 +115,7 @@ try {
       "gazetteer_source_id=excluded.gazetteer_source_id," +
       "candidate_hub_id=excluded.candidate_hub_id,candidate_hub_slug=excluded.candidate_hub_slug," +
       "candidate_hub_distance_km=excluded.candidate_hub_distance_km," +
-      "matching_business_count=excluded.matching_business_count,checked_at=now() " +
+      "matching_business_count=excluded.matching_business_count,match_method=excluded.match_method,checked_at=now() " +
       "WHERE research_private.hub_gemi_municipality_matches.review_status='proposed'",
       [JSON.stringify(proposed)]
     );
