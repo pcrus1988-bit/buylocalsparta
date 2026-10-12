@@ -45,10 +45,11 @@ export default async function HubBusinessesDirectoryPage({ params, searchParams 
   const category = typeof query.category === "string" ? query.category : "";
   const [census, claimedAll, categories] = await Promise.all([
     listPublicHubCensus(hub.slug, { q, after, category, limit: 24 }),
-    listPublicHubClaimsByHub(hub.slug, 24),
+    listPublicHubClaimsByHub(hub.slug, 24, q),
     publicHubCensusCategoryCounts(hub.slug)
   ]);
-  const claimed = claimedAll.filter(business => !q || business.businessName.toLocaleLowerCase("el").includes(q.toLocaleLowerCase("el")));
+  // Registry sectors and seller-defined CLAIM categories are not equivalent.
+  const claimed = category ? [] : claimedAll;
   const next = new URLSearchParams();
   if (q) next.set("q", q);
   if (category) next.set("category", category);
