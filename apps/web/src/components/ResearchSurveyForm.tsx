@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ResearchExperimentAssignment, ResearchSurveyContext } from "../lib/research-survey-runtime";
-import { matrixItems, matrixScale, questionOptions, researchQuestionVisible, validateResearchAnswers, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
+import { matrixItems, matrixScale, questionOptions, researchFinalSubmissionPayload, researchQuestionVisible, validateResearchAnswers, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
 import styles from "./ResearchSurveyForm.module.css";
 
 type ConsentState = Readonly<{ results_notification: boolean; thank_you_code: boolean; marketing: boolean }>;
@@ -360,7 +360,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
       }
       // Explicit final submission uses *stored* answers. Never resend/rewrite
       // all previous answers or risk changing an earlier timestamp/value.
-      const result = await save({ experimentChoices, complete: true });
+      const result = await save(researchFinalSubmissionPayload(experimentChoices));
       if (!previewMode && result.status !== "completed") {
         throw new Error("Δεν επιβεβαιώθηκε η ολοκλήρωση. Οι αποθηκευμένες απαντήσεις σας διατηρούνται.");
       }
