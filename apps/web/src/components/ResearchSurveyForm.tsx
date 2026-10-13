@@ -262,11 +262,15 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
     }));
   }, [initial.questions]);
   const hasExperiment = initial.questions.some((question) => question.type === "experiment") || experiments.length > 0;
+  // The final visible step is the explicit submission step. Do not require
+  // a second, easily missed empty "DONE" screen after saved answers.
   const allSections = [
     ...questionSections,
-    ...(hasExperiment ? [{ code: "X", title: SECTION_LABELS.X, questions: [] as ResearchQuestion[] }] : []),
-    { code: "DONE", title: "Ολοκλήρωση", questions: [] as ResearchQuestion[] }
+    ...(hasExperiment ? [{ code: "X", title: SECTION_LABELS.X, questions: [] as ResearchQuestion[] }] : [])
   ];
+  const isFinalStep = sectionIndex === allSections.length - 1;
+  const canResumeAtSubmission = initial.response?.status === "in_progress"
+    && validateResearchAnswers(initial.questions, answers).ok;
   const current = allSections[sectionIndex];
   const currentVisibleQuestions = current.questions.filter((question) => researchQuestionVisible(question, answers));
   const currentAnswered = currentVisibleQuestions.filter((question) => answerPresent(answers[question.code])).length;
@@ -305,6 +309,10 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
   }
 
   async function next() {
+    if (isFinalStep) {
+      await completeSurvey();
+      return;
+    }
     try {
       if (previewMode && currentVisibleQuestions.length) {
         const validation = validateResearchAnswers(currentVisibleQuestions, answers);
@@ -315,11 +323,11 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
         }
       }
       setMessage("");
-      if (current.code !== "X" && current.code !== "DONE") {
+      if (current.code !== "X") {
         const codes = new Set(currentVisibleQuestions.map((question) => question.code));
         const sectionAnswers = Object.fromEntries(Object.entries(answers).filter(([code]) => codes.has(code)));
         await save({ answers: sectionAnswers, experimentChoices });
-      } else if (current.code === "X") {
+      } else {
         await save({ experimentChoices });
       }
       setSectionIndex((index) => Math.min(index + 1, allSections.length - 1));
@@ -330,21 +338,37 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
   }
 
   async function completeSurvey() {
+    // Both real and preview participants receive immediate, actionable validation.
+    // Never call the completion endpoint with missing required answers.
+    const validation = validateResearchAnswers(initial.questions, answers);
+    if (!validation.ok) {
+      const codes = [...validation.missing, ...validation.invalid];
+      const firstIncompleteSection = questionSections.findIndex((section) =>
+        section.questions.some((question) => codes.includes(question.code)));
+      if (firstIncompleteSection >= 0) setSectionIndex(firstIncompleteSection);
+      setMessage("Λείπουν ή είναι μη έγκυρες οι απαντήσεις: " + codes.join(", ") +
+        ". Διορθώστε τις επισημασμένες ερωτήσεις και προχωρήστε ξανά στην υποβολή.");
+      return;
+    }
     try {
-      if (previewMode) {
-        const validation = validateResearchAnswers(initial.questions, answers);
-        if (!validation.ok) {
-          setMessage("Λείπουν ή είναι μη έγκυρες οι απαντήσεις: " + [...validation.missing, ...validation.invalid].join(", ") +
-            ". Επιστρέψτε στις προηγούμενες ενότητες.");
-          return;
-        }
+      // If there is no experiment module, the last question section is the
+      // submit screen; save its answers before finalising.
+      if (current.code !== "X") {
+        const codes = new Set(currentVisibleQuestions.map((question) => question.code));
+        const sectionAnswers = Object.fromEntries(Object.entries(answers).filter(([code]) => codes.has(code)));
+        await save({ answers: sectionAnswers, experimentChoices });
       }
-      await save({ answers, experimentChoices, complete: true });
+      // Explicit final submission uses *stored* answers. Never resend/rewrite
+      // all previous answers or risk changing an earlier timestamp/value.
+      const result = await save({ experimentChoices, complete: true });
+      if (!previewMode && result.status !== "completed") {
+        throw new Error("Δεν επιβεβαιώθηκε η ολοκλήρωση. Οι αποθηκευμένες απαντήσεις σας διατηρούνται.");
+      }
       setCompleted(true);
     } catch (error) {
       const errorText = error instanceof Error ? error.message : "Δεν ήταν δυνατή η ολοκλήρωση.";
       setMessage(errorText.includes("SURVEY_INCOMPLETE")
-        ? "Λείπουν μία ή περισσότερες υποχρεωτικές απαντήσεις. Επιστρέψτε στις προηγούμενες ενότητες και συμπληρώστε τες."
+        ? "Η τελική επικύρωση βρήκε ελλείψεις. Οι απαντήσεις σας παραμένουν αποθηκευμένες. Ελέγξτε ξανά τις υποχρεωτικές ερωτήσεις."
         : errorText);
     }
   }
@@ -518,6 +542,10 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
   const progress = Math.round((sectionIndex / (allSections.length - 1)) * 100);
   return <div className={styles.form}>
     {previewMode && <div role="status" style={{ padding: 15, marginBottom: 18, borderRadius: 14, background: "#fff3cd", color: "#5b4300", fontWeight: 700 }}>ΠΡΟΕΠΙΣΚΟΠΗΣΗ · Δεν αποθηκεύονται απαντήσεις · Δεν αποστέλλονται μηνύματα</div>}
+    {canResumeAtSubmission && !isFinalStep && <div className={styles.consent}>
+      <p className={styles.success}>Οι υποχρεωτικές απαντήσεις σας είναι αποθηκευμένες. Μπορείτε να ελέγξετε τις ενότητες ή να προχωρήσετε στην τελική υποβολή.</p>
+      <button type="button" className={styles.primary} disabled={saving} onClick={() => setSectionIndex(allSections.length - 1)}>Μετάβαση στην τελική υποβολή</button>
+    </div>}
     <div className={styles.progress}>
       <div className={styles.progressTop}>
         <div>
@@ -537,12 +565,12 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
 
     <header className={styles.sectionHeader}>
       <div className={styles.sectionMeta}>
-        <span className={styles.kicker}>{current.code === "X" ? "Προαιρετικό" : current.code === "DONE" ? "Τελικό βήμα" : "Ενότητα " + current.code}</span>
+        <span className={styles.kicker}>{isFinalStep ? "Τελικό βήμα" : "Ενότητα " + current.code}</span>
         {currentQuestionCount > 0 && <span>{currentAnswered} / {currentQuestionCount} απαντημένες</span>}
       </div>
       <h2>{current.title}</h2>
       {current.code === "X" && <p>Οι επιλογές αυτές είναι ερευνητικά σενάρια και όχι πραγματικές εμπορικές προσφορές. Μπορείτε να παραλείψετε ολόκληρη την ενότητα.</p>}
-      {current.code === "DONE" && <p>Με την ολοκλήρωση η ερευνητική απάντηση κλειδώνει. Οι προαιρετικές επιλογές ενημέρωσης αποτελεσμάτων και κωδικού ευχαριστίας εμφανίζονται μόνο αφού ολοκληρωθεί η έρευνα.</p>}
+      {isFinalStep && <p>Πατώντας «Ολοκλήρωση έρευνας» υποβάλλετε οριστικά τις αποθηκευμένες απαντήσεις σας. Οι προαιρετικές επιλογές ενημέρωσης εμφανίζονται μόνο μετά την επιβεβαίωση της υποβολής.</p>}
     </header>
 
     {currentVisibleQuestions.map((question) => <ResearchQuestionCard
@@ -562,9 +590,11 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
     {message && <p className={styles.error}>{message}</p>}
     <div className={styles.actions}>
       {sectionIndex > 0 && <button type="button" className={styles.secondary} disabled={saving} onClick={() => setSectionIndex((index) => Math.max(0, index - 1))}>Πίσω</button>}
-      {current.code !== "DONE"
-        ? <button type="button" className={styles.primary} disabled={saving} onClick={next}>{saving ? "Αποθήκευση…" : current.code === "X" ? "Συνέχεια" : previewMode ? "Επόμενο βήμα" : "Αποθήκευση & συνέχεια"}</button>
-        : <button type="button" className={styles.primary} disabled={saving} onClick={completeSurvey}>{saving ? "Ολοκλήρωση…" : previewMode ? "Ολοκλήρωση προεπισκόπησης" : "Ολοκλήρωση έρευνας"}</button>}
+      <button type="button" className={styles.primary} disabled={saving} onClick={() => void next()}>
+        {saving ? "Αποθήκευση…" : isFinalStep
+          ? previewMode ? "Ολοκλήρωση προεπισκόπησης" : "Ολοκλήρωση έρευνας"
+          : current.code === "X" ? "Συνέχεια" : previewMode ? "Επόμενο βήμα" : "Αποθήκευση & συνέχεια"}
+      </button>
     </div>
   </div>;
 }
