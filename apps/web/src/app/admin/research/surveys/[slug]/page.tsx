@@ -180,7 +180,8 @@ export default async function ResearchSurveyOverviewPage({ params }: {
       <p className="lead">Open a dedicated area below for questions, sampling, contacts, invitations, evaluation, and publication.</p>
       <div className="hero-actions">
         <Link prefetch={false} className="button button-secondary" href="/admin/research/surveys">All surveys</Link>
-        <Link prefetch={false} className="button" href={root + "/workflow?phase=pilot"}>Guided Pilot</Link>
+        <Link prefetch={false} className="button" href={root + "/barometer"}>Live Barometer</Link>
+        <Link prefetch={false} className="button button-secondary" href={root + "/workflow?phase=pilot"}>Guided Pilot</Link>
         <Link prefetch={false} className="button button-secondary" href={root + "/workflow?phase=main"}>Main study steps</Link>
         <Link prefetch={false} className="button button-secondary" href="/admin/research/handbook">Admin handbook</Link>
         <Link prefetch={false} className="button button-secondary" href={root + "/contacts"}>Contact details</Link>
