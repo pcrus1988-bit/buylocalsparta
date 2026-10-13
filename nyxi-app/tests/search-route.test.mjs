@@ -1,14 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 const called=[];let status=200;let payload={status:"no_approved_evidence",results:[]};
-globalThis.fetch=async url=>{called.push(String(url));return Response.json(payload,{status})};
+globalThis.fetch=async (url, options)=>{called.push({url:String(url),auth:options?.headers?.authorization});return Response.json(payload,{status})};
+process.env.NYXI_SUPABASE_ANON_KEY="test-public-jwt-not-a-real-key";
 const request=q=>({nextUrl:new URL("https://nyxi.gr/api/search?q="+encodeURIComponent(q))});
 process.env.NYXI_PUBLIC_SEARCH_URL="";
 const {GET:disabled}=await import("../app/api/search/route.ts");
 process.env.NYXI_PUBLIC_SEARCH_URL="https://eemihhfreggbigxejjhj.supabase.co/functions/v1/nyxi-public-search";
 const {GET:enabled}=await import("../app/api/search/route.ts?enabled=1");
 test("missing upstream fails closed",async()=>{called.length=0;const r=await disabled(request("HEMA"));assert.equal(r.status,503);assert.equal(called.length,0)});
-test("no approvals is a genuine empty state",async()=>{payload={status:"no_approved_evidence",results:[]};status=200;const r=await enabled(request("HEMA"));assert.equal(r.status,200);assert.deepEqual((await r.json()).results,[])});
+test("no approvals is a genuine empty state",async()=>{payload={status:"no_approved_evidence",results:[]};status=200;const r=await enabled(request("HEMA"));assert.equal(r.status,200);assert.deepEqual((await r.json()).results,[]);assert.equal(called.at(-1).auth,"Bearer test-public-jwt-not-a-real-key")});
 test("unsafe citations are removed",async()=>{payload={status:"ok",results:[{id:"a",excerpt:"valid",citation_url:"https://www.fda.gov/"},{id:"b",excerpt:"private",citation_url:"http://localhost/"},{id:"c",excerpt:"private",citation_url:"https://[fd00::1]/"},{id:"d",excerpt:"private",citation_url:"javascript:alert(1)"}]};const r=await enabled(request("HEMA"));assert.equal((await r.json()).results.length,1)});
 test("429 propagates",async()=>{status=429;const r=await enabled(request("HEMA"));assert.equal(r.status,429);status=200});
 test("unknown schema fails closed",async()=>{payload={status:"unexpected",results:[]};assert.equal((await enabled(request("HEMA"))).status,503)});
