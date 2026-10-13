@@ -58,6 +58,18 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         headers: { "Cache-Control": "private, no-store", "Retry-After": "3" }
       });
     }
+    // SQLSTATE errors represent an internal server failure, not a participant
+    // validation error. Never expose raw SQL operators, schema, or statements.
+    const sqlState = error && typeof error === "object" && "code" in error
+      ? String(error.code ?? "")
+      : "";
+    if (/^[0-9A-Z]{5}$/.test(sqlState)) {
+      console.error(JSON.stringify({ event: "research.public_survey_sql_error", sqlState }));
+      return Response.json({ error: "SURVEY_SERVER_ERROR" }, {
+        status: 500,
+        headers: { "Cache-Control": "private, no-store" }
+      });
+    }
     return Response.json({ error: message }, {
       status: statusFor(message),
       headers: { "Cache-Control": "no-store" }
