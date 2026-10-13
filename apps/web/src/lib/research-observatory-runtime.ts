@@ -255,6 +255,7 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
           WHERE rr.status='in_progress'
             AND ri.status='started'
             AND cp.suppression_status='active'
+            AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
             AND ri.fieldwork_phase='main'
         `),
         pool.query<SqlRow>(`
