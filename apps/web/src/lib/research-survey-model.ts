@@ -16,6 +16,21 @@ export type ResearchQuestion = Readonly<{
 export type ResearchAnswer = string | number | readonly string[] | Record<string, string | number> | null;
 export type ResearchAnswerMap = Readonly<Record<string, ResearchAnswer>>;
 
+/** Persist edits only; finalisation must never replay or mutate saved answers. */
+export function researchAnswersForPersistence(input: Readonly<{
+  answers?: ResearchAnswerMap;
+  complete?: boolean;
+}>): ResearchAnswerMap {
+  return input.complete ? {} : input.answers ?? {};
+}
+
+/** The final POST deliberately carries no answer payload. */
+export function researchFinalSubmissionPayload(
+  experimentChoices: Readonly<Record<string, "a" | "b" | "none">>
+): Readonly<{ complete: true; experimentChoices: Readonly<Record<string, "a" | "b" | "none">> }> {
+  return { complete: true, experimentChoices };
+}
+
 export type ResearchScore = Readonly<{
   scoringVersion: "greek-retail-2026-v1";
   digitalReadinessScore?: number;
