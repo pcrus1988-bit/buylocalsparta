@@ -5,6 +5,8 @@ import {
   researchQualitySignals,
   scoreGreekRetail2026,
   validateResearchAnswers,
+  researchAnswersForPersistence,
+  researchFinalSubmissionPayload,
   type ResearchQuestion
 } from "./research-survey-model.ts";
 
@@ -138,4 +140,30 @@ test("quality signals flag repetitive open text but preserve plausible short ans
   const plausible = researchQualitySignals({ Q18: "Γραφειοκρατία" }, 240);
   assert.equal(plausible.review, false);
   assert.equal(plausible.score, 100);
+});
+
+test("final survey submission never replays saved answer values", () => {
+  const storedAnswers = { Q01: "yes", Q27: ["energy"] };
+  assert.deepEqual(researchAnswersForPersistence({ answers: storedAnswers, complete: true }), {});
+  assert.deepEqual(researchAnswersForPersistence({ answers: storedAnswers }), storedAnswers);
+  const payload = researchFinalSubmissionPayload({ "1": "a" });
+  assert.deepEqual(payload, { complete: true, experimentChoices: { "1": "a" } });
+  assert.equal(Object.prototype.hasOwnProperty.call(payload, "answers"), false);
+});
+
+test("final validation ignores conditionally hidden required questions", () => {
+  const conditional: ResearchQuestion[] = [
+    {
+      id: "q-parent", code: "Q01", sectionCode: "A", position: 1, type: "single",
+      prompt: "Marketplace?", required: true, analysisKey: "parent",
+      config: { options: [["never", "Never"], ["current", "Current"]] }
+    },
+    {
+      id: "q-child", code: "Q02", sectionCode: "A", position: 2, type: "single",
+      prompt: "Marketplace impact", required: true, analysisKey: "child",
+      config: { options: [["positive", "Positive"]], showWhen: { code: "Q01", operator: "in", values: ["current"] } }
+    }
+  ];
+  assert.equal(validateResearchAnswers(conditional, { Q01: "never" }).ok, true);
+  assert.deepEqual(validateResearchAnswers(conditional, { Q01: "current" }).missing, ["Q02"]);
 });
