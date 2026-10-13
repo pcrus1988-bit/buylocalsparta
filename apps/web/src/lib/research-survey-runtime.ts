@@ -6,6 +6,7 @@ import { researchReleaseArtifactIntegrity } from "./research-survey-release";
 import { evaluateResearchDeliverySafety, researchDeliveryReviewMilestones, RESEARCH_BOUNCE_POLICY_VERSION } from "./research-survey-delivery-safety";
 import {
   researchQualitySignals,
+  researchAnswersForPersistence,
   scoreGreekRetail2026,
   validateResearchAnswers,
   researchQuestionVisible,
@@ -622,7 +623,7 @@ export async function savePublicResearchSurvey(input: Readonly<{
     // The completion transaction must only read and validate answers already
     // saved during section navigation. Ignore replayed full answer maps from
     // previously loaded clients to protect the original values/timestamps.
-    const suppliedAnswers = input.complete ? {} : input.answers ?? {};
+    const suppliedAnswers = researchAnswersForPersistence(input);
     const storedAnswersResult = await client.query<SqlRow>(`
       SELECT q.code, a.answer
       FROM research_answers a
