@@ -16,6 +16,8 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 const integer = (n: number) => new Intl.NumberFormat("el-GR").format(n);
+/** Render only anonymized n>=10 cells in server HTML and in client props. */
+const privateCount = (n: number) => n >= 10 ? integer(n) : "n<10";
 const share = (n: number, d: number) => (n / d * 100).toLocaleString("el-GR", { maximumFractionDigits: 1 }) + "%";
 
 export default async function ResearchGeographicMapPage({ params, searchParams }: {
@@ -47,6 +49,14 @@ export default async function ResearchGeographicMapPage({ params, searchParams }
   const focus = data?.regions.find(r => r.key === filters?.region);
   const sample = focus || undefined;
   const displayedRegions = [...(data?.regions ?? [])].sort((a, b) => b.respondents - a.respondents);
+  // React Flight serializes Client Component props: explicitly redact low-n cells on the server.
+  // A visual-only mask is NOT a privacy boundary. Never pass raw data.regions.
+  const safeMapCells = (data?.regions ?? []).map(r => ({
+    key: r.key, label: r.label,
+    respondents: r.respondents >= 10 ? r.respondents : null,
+    answered: r.respondents >= 10 && r.answered >= 10 ? r.answered : null,
+    selected: r.respondents >= 10 && r.answered >= 10 ? r.selected : null
+  }));
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research · Geographic Intelligence" />
@@ -136,17 +146,17 @@ export default async function ResearchGeographicMapPage({ params, searchParams }
           <strong>{filters.mode === "draft" ? "ΠΡΟΣΩΡΙΝΗ ανάλυση αποθηκευμένων απαντήσεων" : "Οριστικοποιημένες συμμετοχές"} · {filters.phase === "pilot" ? "Pilot" : "Main"}</strong>
           <p style={{ margin: "6px 0 0" }}>
             Η απεικόνιση είναι μη σταθμισμένη και περιγραφική. Κανένα σημείο δεν αντιστοιχεί σε συγκεκριμένο συμμετέχοντα.
-            Μικρά κελιά αποκρύπτονται (n&lt;5 πλήθος, n&lt;10 ποσοστά).
+            Μικρά κελιά αποκρύπτονται στο διακομιστή (n&lt;10), πριν μεταφερθούν δεδομένα στο πρόγραμμα περιήγησης.
             Οι μη οριστικές απαντήσεις δεν προσμετρώνται στα επίσημα αποτελέσματα.
           </p>
         </div>
         <div className="analytics-workflow-grid" style={{ marginTop: 15 }}>
           <article className="analytics-workflow-card"><span>Επιλεγμένες συμμετοχές</span>
-            <strong style={{ fontSize: "1.5rem" }}>{integer(data.total)}</strong>
+            <strong style={{ fontSize: "1.5rem" }}>{privateCount(data.total)}</strong>
             <small>Ανά κατάσταση, φάση, κλάδο και τοποθεσία.</small>
           </article>
           <article className="analytics-workflow-card"><span>Απάντησαν στην {filters.question}</span>
-            <strong style={{ fontSize: "1.5rem" }}>{integer(data.answered)}</strong>
+            <strong style={{ fontSize: "1.5rem" }}>{privateCount(data.answered)}</strong>
             <small>Βάση υπολογισμού της κατανομής.</small>
           </article>
           <article className="analytics-workflow-card"><span>Επέλεξαν «{option?.label ?? filters.answer}»</span>
@@ -154,7 +164,7 @@ export default async function ResearchGeographicMapPage({ params, searchParams }
             <small>Από τις έγκυρες απαντήσεις (όχι από τις προσκλήσεις).</small>
           </article>
           <article className="analytics-workflow-card"><span>Αταξινόμητη γεωγραφία</span>
-            <strong style={{ fontSize: "1.5rem" }}>{integer(data.unresolved)}</strong>
+            <strong style={{ fontSize: "1.5rem" }}>{privateCount(data.unresolved)}</strong>
             <small>Δεν αποδίδεται αυθαίρετα σε κάποια Περιφέρεια.</small>
           </article>
         </div>
@@ -163,7 +173,7 @@ export default async function ResearchGeographicMapPage({ params, searchParams }
             note={filters.metric === "density"
               ? "Ένταση ανά αριθμό διαθέσιμων ερωτηματολογίων (λογαριθμική κλίμακα για συγκρίσιμη απόδοση). Δεν μετρά την πυκνότητα επιχειρήσεων."
               : "Χρώμα = ποσοστό που επέλεξε τη συγκεκριμένη απάντηση μεταξύ όσων απάντησαν στην ερώτηση ανά Περιφέρεια. Τα n<10 είναι άγνωστα, όχι 0%."} />
-          <GreeceResearchHeatmap cells={data.regions} filters={filters} root={root} />
+          <GreeceResearchHeatmap cells={safeMapCells} filters={filters} root={root} />
         </section>
         {focus && sample && <section className="vendor-section" style={{ marginTop: 16 }}>
           <div className="workspace-action-bar">
@@ -172,16 +182,16 @@ export default async function ResearchGeographicMapPage({ params, searchParams }
               Object.entries(filters).filter(([k, v]) => k !== "region" && !!v)
             ).toString()}>Επιστροφή σε όλη την Ελλάδα</Link>
           </div>
-          <p>{integer(sample.respondents)} ερωτηματολόγια · {integer(sample.answered)} έγκυρες απαντήσεις στην {filters.question} ·
+          <p>{privateCount(sample.respondents)} ερωτηματολόγια · {privateCount(sample.answered)} έγκυρες απαντήσεις στην {filters.question} ·
             {" "}{sample.answered >= 10 && sample.respondents >= 10
               ? share(sample.selected, sample.answered) + " επέλεξαν «" + (option?.label ?? filters.answer) + "»"
               : "ανεπαρκής βάση για δημοσίευση ποσοστού"}.</p>
           <div className="workspace-queue-card">
             <strong>Νομοί / Περιφερειακές ενότητες</strong>
-            {data.prefectures.filter(p => p.region === focus.key).sort((a, b) => b.respondents - a.respondents)
+            {data.prefectures.filter(p => p.region === focus.key && p.respondents >= 10).sort((a, b) => b.respondents - a.respondents)
               .map(p => <div key={p.name} className="workspace-action-bar">
                 <span>{p.name}</span>
-                <small>{p.respondents < 5 ? "n<5" : integer(p.respondents) + " συμμετοχές"}
+                <small>{privateCount(p.respondents) + " συμμετοχές"}
                   {" · "}{p.answered < 10 || p.respondents < 10 ? "Ανεπαρκής βάση" : share(p.selected, p.answered)}</small>
               </div>)}
           </div>
@@ -193,8 +203,8 @@ export default async function ResearchGeographicMapPage({ params, searchParams }
             <thead><tr><th style={{ textAlign: "left", padding: 10 }}>Περιφέρεια</th><th>Συμμετοχές</th><th>Βάση ερώτησης</th><th>Επιλεγμένη απάντηση</th></tr></thead>
             <tbody>{displayedRegions.map(r => <tr key={r.key} style={{ borderTop: "1px solid var(--border, #ddd)" }}>
               <td style={{ padding: 10 }}>{r.label}</td>
-              <td style={{ textAlign: "center" }}>{r.respondents < 5 ? (r.respondents ? "n<5" : "—") : integer(r.respondents)}</td>
-              <td style={{ textAlign: "center" }}>{r.answered < 10 ? (r.answered ? "n<10" : "—") : integer(r.answered)}</td>
+              <td style={{ textAlign: "center" }}>{privateCount(r.respondents)}</td>
+              <td style={{ textAlign: "center" }}>{privateCount(r.answered)}</td>
               <td style={{ textAlign: "center" }}>{r.answered < 10 || r.respondents < 10 ? "Ανεπαρκής βάση" : share(r.selected, r.answered)}</td>
             </tr>)}</tbody>
           </table></div>
