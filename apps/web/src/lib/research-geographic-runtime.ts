@@ -117,14 +117,14 @@ export async function researchGeographicMap(
       "ORDER BY 2,1 LIMIT 250"
     ].join("\n"), [st.study_id]),
     pool.query<SqlRow>([
-      "SELECT code, count(*) n FROM research_responses r",
+      "SELECT matched_kad.code, count(*) n FROM research_responses r",
       "JOIN research_invites i ON i.id=r.invite_id",
       "JOIN research_sample_units su ON su.id=i.sample_unit_id",
       "JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
       "CROSS JOIN LATERAL jsonb_array_elements_text(",
       "CASE WHEN jsonb_typeof(fu.sampling_attributes->'matchedActivityCodes')='array'",
-      "THEN fu.sampling_attributes->'matchedActivityCodes' ELSE '[]'::jsonb END) AS code",
-      "WHERE r.study_id=$1 GROUP BY code ORDER BY n DESC, code LIMIT 80"
+      "THEN fu.sampling_attributes->'matchedActivityCodes' ELSE '[]'::jsonb END) AS matched_kad(code)",
+      "WHERE r.study_id=$1 GROUP BY matched_kad.code ORDER BY n DESC, matched_kad.code LIMIT 80"
     ].join("\n"), [st.study_id])
   ]);
 
