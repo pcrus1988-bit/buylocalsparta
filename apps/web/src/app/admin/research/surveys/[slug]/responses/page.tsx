@@ -45,6 +45,7 @@ export default async function SurveyResponsesAdminPage({ params, searchParams }:
   const root = "/admin/research/surveys/" + encodeURIComponent(slug) + "/responses";
   const exportParams = new URLSearchParams();
   if (data?.status) exportParams.set("status", data.status);
+  if (data?.q) exportParams.set("q", data.q);
   const nextParams = new URLSearchParams();
   if (data?.status) nextParams.set("status", data.status);
   if (data?.q) nextParams.set("q", data.q);
@@ -108,7 +109,7 @@ export default async function SurveyResponsesAdminPage({ params, searchParams }:
           </a>}
         </div>
         <div className="workspace-inline-note">
-          Detail and export require Research analysis/management permission. Export includes up to {RESEARCH_RESPONSE_EXPORT_MAX_ROWS.toLocaleString("el-GR")} answers for the selected status, excludes withdrawn answers, and never modifies stored data.
+          Detail and export require Research analysis/management permission. Export includes up to {RESEARCH_RESPONSE_EXPORT_MAX_ROWS.toLocaleString("el-GR")} answers matching the status and exact ID filters, excludes withdrawn answers, and never modifies stored data.
         </div>
         {data.rows.length === 0
           ? <div className="workspace-inline-note">No questionnaires match these filters.</div>
