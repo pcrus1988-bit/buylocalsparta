@@ -1,0 +1,40 @@
+.research-relation-shell{max-width:1260px;margin-inline:auto}
+.research-relation-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(270px,.85fr);gap:18px;align-items:start}
+.research-relation-controls{border-radius:17px;background:var(--surface, #fff);border:1px solid var(--border,#dbe4e5);padding:clamp(14px,2.3vw,24px);display:grid;gap:14px}
+.research-relation-control-header{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.research-relation-control-header p,.research-relation-custom p{margin:4px 0 0;color:var(--text-muted,#586773);font-size:.89rem}
+.research-relation-presets{display:flex;gap:8px;flex-wrap:wrap}
+.research-relation-chip{display:inline-flex;min-height:44px;align-items:center;gap:6px;padding:10px 14px;text-decoration:none;border:1px solid var(--border,#cfdadc);border-radius:999px;color:var(--text,#213640);font-size:.9rem;background:var(--surface,#fff);transition:background .15s,border .15s}
+.research-relation-chip:hover{border-color:#14818c;background:#ecf8f8}
+.research-relation-chip.is-active{border-color:#128090;background:#dff5f4;color:#074b53;font-weight:700}
+.research-relation-more summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--accent,#116e76);font-weight:700}
+.research-relation-custom{margin-top:14px;padding:16px;border-radius:13px;background:var(--surface-muted,#f6faf9)}
+.research-relation-custom h3{margin:0}
+.research-relation-custom form{display:grid;gap:12px;margin-top:12px}
+.research-relation-filter-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.research-relation-custom .research-relation-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.research-relation-filter-grid label{display:grid;align-content:start;gap:7px;font-size:.88rem;font-weight:650;min-width:0}
+.research-relation-filter-grid select{min-width:0;width:100%;min-height:46px;border:1px solid var(--border,#bfcbd0);border-radius:10px;padding:9px;color:var(--text,#172d35);background:var(--surface,#fff);font-size:16px}
+.research-relation-mode{border:0;margin:0;padding:0;min-width:0}
+.research-relation-mode legend{font-weight:650;font-size:.88rem;margin-bottom:8px}
+.research-relation-choice-row{display:flex;gap:5px;background:var(--surface-muted,#edf3f2);border-radius:11px;padding:3px}
+.research-relation-choice-row a{text-decoration:none;min-width:0;flex:1;text-align:center;display:flex;justify-content:center;align-items:center;padding:8px 6px;border-radius:8px;min-height:40px;color:var(--text,#273d42);font-size:.86rem}
+.research-relation-choice-row a.is-active{background:#dff5f4;color:#074b53;font-weight:750}
+.research-relation-divider{border-top:1px solid var(--border,#dae4e6)}
+.research-relation-disclaimer{font-size:.83rem;margin:0;color:var(--text-muted,#5f6d74)}
+.research-relation-statgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.research-relation-stat{border-radius:14px;padding:17px;background:var(--surface-muted,#f6faf9);border:1px solid var(--border,#dee7e8);display:grid;gap:10px;min-width:0}
+.research-relation-stat strong{font-size:clamp(1.5rem,2.7vw,2.2rem);line-height:1.1;letter-spacing:-.03em}
+.research-relation-stat small{line-height:1.45}
+.research-relation-stat .research-relation-bar{height:10px;overflow:hidden;border-radius:9px;background:#d9e4e5}
+.research-relation-stat .research-relation-bar span{display:block;height:100%;background:#13808a;border-radius:9px}
+.research-relation-insight{padding:15px;border-radius:14px;background:#e8f4f5;color:#173c45;font-size:.95rem;line-height:1.5}
+.research-relation-insight strong{display:block;margin-bottom:5px}
+.research-relation-small-note{font-size:.85rem;color:var(--text-muted,#5f6d74)}
+.research-relation-list{display:grid;gap:8px}
+.research-relation-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:10px 0;border-bottom:1px solid var(--border,#dfe7e7)}
+.research-relation-row:last-child{border:0}
+.research-relation-row small{display:block}
+.research-relation-row a{color:inherit}
+@media(max-width:880px){.research-relation-layout{grid-template-columns:minmax(0,1fr)}.research-relation-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.research-relation-filter-grid,.research-relation-custom .research-relation-filter-grid{grid-template-columns:minmax(0,1fr)}.research-relation-statgrid{grid-template-columns:minmax(0,1fr)}.research-relation-chip{font-size:.84rem}.research-relation-controls{padding:13px}.research-relation-control-header{align-items:flex-start;flex-direction:column}}

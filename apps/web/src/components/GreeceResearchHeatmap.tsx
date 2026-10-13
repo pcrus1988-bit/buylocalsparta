@@ -8,6 +8,8 @@ type SafeGeographicMapCell = Omit<GeographicMapCell, "respondents" | "answered" 
   respondents: number | null;
   answered: number | null;
   selected: number | null;
+  /** Independently redacted percentage for conditional relationship heatmaps. */
+  ratioPercent?: number | null;
 }>;
 import type { ResearchMapFilters } from "../lib/research-geographic-runtime";
 
@@ -34,6 +36,7 @@ function pathForGeometry(geometry: Geometry): string {
 
 function valueFor(cell: SafeGeographicMapCell, metric: ResearchMapFilters["metric"], max: number) {
   if (metric === "share") {
+    if (cell.ratioPercent !== undefined) return cell.ratioPercent == null ? undefined : cell.ratioPercent / 100;
     if (cell.answered == null || cell.selected == null || cell.respondents == null) return undefined;
     return cell.selected / cell.answered;
   }
@@ -96,12 +99,14 @@ export function GreeceResearchHeatmap({ cells, filters, root }: {
           if (!cell) return null;
           const normalized = valueFor(cell, filters.metric, max);
           const valueLabel = filters.metric === "share"
-            ? cell.answered == null || cell.selected == null ? "ανεπαρκής βάση (n<10)" : (cell.selected / cell.answered * 100).toFixed(1) + "% (" + cell.selected + "/" + cell.answered + ")"
+            ? cell.ratioPercent !== undefined
+              ? cell.ratioPercent == null ? "ανεπαρκής βάση για ασφαλή απεικόνιση" : cell.ratioPercent + "% (συγκεντρωτικό ποσοστό)"
+              : cell.answered == null || cell.selected == null ? "ανεπαρκής βάση (n<10)" : (cell.selected / cell.answered * 100).toFixed(1) + "% (" + cell.selected + "/" + cell.answered + ")"
             : cell.respondents == null ? "ανεπαρκής βάση (n<10)" : cell.respondents + " ερωτηματολόγια";
           const params = new URLSearchParams();
           for (const [k, v] of Object.entries(filters)) { if (v && k !== "region") params.set(k, v); }
           params.set("region", key);
-          const href = root + "/map?" + params.toString();
+          const href = (root.endsWith("/map/relations") ? root : root + "/map") + "?" + params.toString();
           return <a href={href} key={key} aria-label={cell.label + ": " + valueLabel}>
             <path d={pathForGeometry(feature.geometry)} fill={heatColor(normalized)} fillRule="evenodd"
               stroke={filters.region === key ? "#ec7f23" : "#538693"}
