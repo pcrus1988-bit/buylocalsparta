@@ -129,6 +129,20 @@ function assertResearchEmailBatchApproval(
 }
 
 function assertQueuedResearchEmailApproval(job: ResearchJobRow): void {
+  if (job.job_type === "invite_reminder") {
+    const input = objectValue(job.input);
+    if (input.reminderMode !== ABANDONED_FOLLOWUP_MODE) return;
+    const approval = objectValue(input.emailApproval) as ResearchEmailBatchApproval;
+    const limit = numberValue(input.limit);
+    if (approval.reviewConfirmed !== true || approval.finalConfirmed !== true
+      || approval.studySlug !== STUDY_SLUG || !text(approval.studyTitle).trim()
+      || approval.purpose !== "research_reminder"
+      || !Number.isSafeInteger(limit) || limit < 1 || limit > 500
+      || numberValue(approval.maxEmails) !== limit) {
+      throw new Error("RESEARCH_EMAIL_DOUBLE_CONFIRMATION_REQUIRED");
+    }
+    return;
+  }
   const expectedPurpose: Partial<Record<ResearchJobType, ResearchEmailApprovalPurpose>> = {
     invite_batch: "research_invitation",
     reward_delivery: "thank_you_code",
@@ -3396,6 +3410,15 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
           ri.status='started' AND rr.status='in_progress'
           AND EXISTS (SELECT 1 FROM research_answers a JOIN research_questions q ON q.id=a.question_id
              WHERE a.response_id=rr.id AND q.code='Q27' AND a.answered_at <= now() - interval '1 day')
+          -- A failed/unknown SES attempt must not be resent automatically.
+          AND NOT EXISTS (SELECT 1 FROM research_invite_messages prior
+             WHERE prior.invite_id=ri.id AND prior.attempt_kind='reminder')
+          AND EXISTS (SELECT 1 FROM research_consents consent
+             WHERE consent.response_id=rr.id AND consent.consent_kind='research_participation'
+               AND consent.granted=true)
+          AND NOT EXISTS (SELECT 1 FROM research_consents revoked
+             WHERE revoked.response_id=rr.id AND revoked.consent_kind='research_participation'
+               AND revoked.granted=false)
         ))
         AND COALESCE(stats.sent_reminders,0) < $3
         AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
@@ -3530,6 +3553,15 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
           ri.status='started' AND rr.status='in_progress'
           AND EXISTS (SELECT 1 FROM research_answers a JOIN research_questions q ON q.id=a.question_id
              WHERE a.response_id=rr.id AND q.code='Q27' AND a.answered_at <= now() - interval '1 day')
+          -- A failed/unknown SES attempt must not be resent automatically.
+          AND NOT EXISTS (SELECT 1 FROM research_invite_messages prior
+             WHERE prior.invite_id=ri.id AND prior.attempt_kind='reminder')
+          AND EXISTS (SELECT 1 FROM research_consents consent
+             WHERE consent.response_id=rr.id AND consent.consent_kind='research_participation'
+               AND consent.granted=true)
+          AND NOT EXISTS (SELECT 1 FROM research_consents revoked
+             WHERE revoked.response_id=rr.id AND revoked.consent_kind='research_participation'
+               AND revoked.granted=false)
         ))
         AND stats.sent_reminders < $4
         AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
