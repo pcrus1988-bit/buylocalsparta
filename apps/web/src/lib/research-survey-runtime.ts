@@ -619,7 +619,10 @@ export async function savePublicResearchSurvey(input: Readonly<{
     if (text(response.status) !== "in_progress") throw new Error("SURVEY_RESPONSE_CLOSED");
 
     const questions = await questionsForInstrument(client, text(invite.instrument_id));
-    const suppliedAnswers = input.answers ?? {};
+    // The completion transaction must only read and validate answers already
+    // saved during section navigation. Ignore replayed full answer maps from
+    // previously loaded clients to protect the original values/timestamps.
+    const suppliedAnswers = input.complete ? {} : input.answers ?? {};
     const storedAnswersResult = await client.query<SqlRow>(`
       SELECT q.code, a.answer
       FROM research_answers a
@@ -657,7 +660,9 @@ export async function savePublicResearchSurvey(input: Readonly<{
       `, [response.id, question.id, JSON.stringify(answer)]);
     }
     const hiddenIds = questions.filter((question) => !applicable.has(question.code)).map((question) => question.id);
-    if (hiddenIds.length) {
+    // An explicit final submission must never delete any saved answer rows.
+    // Routing cleanup is allowed only during an ordinary answer edit.
+    if (!input.complete && hiddenIds.length) {
       await client.query(
         "DELETE FROM research_answers WHERE response_id=$1 AND question_id=ANY($2::uuid[])",
         [response.id, hiddenIds]
