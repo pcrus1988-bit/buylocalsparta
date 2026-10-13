@@ -58,8 +58,8 @@ jobs:
         run: npm run db:verify
       - name: Object storage typecheck
         run: npm run typecheck:object-storage
-      - name: Admin Mail MIME tests
-        run: node --experimental-strip-types --test apps/web/src/lib/admin-mail-mime.test.ts
+      - name: Admin Mail MIME and HTML composer tests
+        run: node --experimental-strip-types --test apps/web/src/lib/admin-mail-mime.test.ts apps/web/src/lib/admin-mail-template.test.ts
       - name: Web TypeScript
         run: npx tsc --noEmit -p apps/web/tsconfig.json
       - name: Build Admin web

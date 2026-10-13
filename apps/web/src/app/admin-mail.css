@@ -434,3 +434,34 @@
   .admin-mail-folders nav.admin-mail-mailboxes{display:flex;flex-wrap:wrap;gap:.3rem}
   .admin-mail-folders nav.admin-mail-mailboxes>a{flex:1 1 180px;min-width:0}
 }
+
+
+/* Branded email / HTML composer: preview is isolated in a sandboxed iframe. */
+.admin-mail-editor{min-width:0;display:grid;gap:14px;padding:16px;border:1px solid #d8e2db;background:#f8fbf9;border-radius:16px}
+.admin-mail-editor-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.admin-mail-editor-toolbar strong{display:block;font-size:1rem;color:#173e2a}
+.admin-mail-editor-toolbar small{display:block;line-height:1.5;color:#63756b;margin-top:3px}
+.admin-mail-editor-modes{display:flex;flex-wrap:wrap;gap:4px;padding:4px;background:#e9f0eb;border-radius:12px}
+.admin-mail-editor-modes button,.admin-mail-editor-preview-actions button,.admin-mail-editor-example{border:1px solid transparent;border-radius:9px;background:transparent;padding:9px 12px;font:inherit;font-size:.8rem;font-weight:700;color:#294938;cursor:pointer}
+.admin-mail-editor-modes button.is-active{background:#173e2a;color:#fff;box-shadow:0 1px 3px #0002}
+.admin-mail-editor-modes button:focus-visible,.admin-mail-editor-preview-actions button:focus-visible,.admin-mail-editor-example:focus-visible{outline:3px solid #61ae87;outline-offset:2px}
+.admin-mail-editor-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;min-width:0}
+.admin-mail-editor-source,.admin-mail-editor-preview-column{min-width:0;display:flex;flex-direction:column;gap:8px}
+.admin-mail-editor-source>label{color:#173e2a;font-size:.87rem;font-weight:800}
+.admin-mail-editor-source p{font-size:.77rem;color:#60746a;line-height:1.5;margin:0;min-height:38px}
+.admin-mail-editor-source textarea{width:100%;min-height:400px;resize:vertical;font-family:inherit;line-height:1.6;background:#fff}
+.admin-mail-editor-source textarea[id="admin-mail-html-body"]{font-family:ui-monospace,Menlo,Monaco,Consolas,monospace;font-size:.83rem}
+.admin-mail-editor-example{align-self:flex-start;background:#e7f0e9;border-color:#bdd2c4}
+.admin-mail-editor-preview-header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;min-height:42px}
+.admin-mail-editor-preview-header strong{display:block;color:#173e2a}
+.admin-mail-editor-preview-header small{color:#60746a}
+.admin-mail-editor-preview-actions{display:flex;gap:4px}
+.admin-mail-editor-preview-actions button{border-color:#cddbd1;background:#fff;padding:7px 10px}
+.admin-mail-editor-preview-surface{background:#e8edeb;border:1px solid #d6dfd9;border-radius:13px;min-height:420px;display:flex;justify-content:center;align-items:stretch;padding:10px;overflow:auto}
+.admin-mail-editor-preview-frame{border:0;background:white;display:block;width:100%;min-height:400px;height:430px;border-radius:6px}
+.admin-mail-editor-preview-frame.is-mobile{max-width:375px}
+.admin-mail-editor-text-preview{white-space:pre-wrap;overflow-wrap:anywhere;flex:1;margin:0;background:#fff;padding:18px;border-radius:6px;line-height:1.6;color:#223a2d;min-height:380px}
+.admin-mail-editor-preview-error{align-self:center;color:#9c2929;font-weight:650;padding:18px;line-height:1.6}
+.admin-mail-editor-preview-caption{line-height:1.5;color:#60746a}
+@media(max-width:1000px){.admin-mail-editor-columns{grid-template-columns:1fr}.admin-mail-editor-source textarea{min-height:260px}.admin-mail-editor-preview-surface{min-height:360px}.admin-mail-editor-preview-frame{height:380px;min-height:360px}}
+@media(max-width:580px){.admin-mail-editor{padding:10px}.admin-mail-editor-modes{width:100%}.admin-mail-editor-modes button{flex:1 1 25%;padding:9px 7px;font-size:.72rem}.admin-mail-editor-preview-surface{padding:6px}}

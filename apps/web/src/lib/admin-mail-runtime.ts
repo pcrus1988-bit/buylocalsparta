@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { S3ObjectStorage, type StoredObjectListItem } from "@buy-local-sparta/object-storage";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { adminMailThreadKey, buildAdminMailRawMime, parseAdminMailMime, type AdminMailAddress, type ParsedAdminMail } from "./admin-mail-mime";
+import { adminMailThreadKey, buildAdminMailRawMime, htmlToText, parseAdminMailMime, type AdminMailAddress, type ParsedAdminMail } from "./admin-mail-mime";
+import { renderAdminMailHtml, type AdminMailFormat } from "./admin-mail-template";
 import { sendRawSesEmail, sesMailConfigFromEnv, type SesMailConfig } from "./admin-mail-ses";
 
 const REQUIRED_REGION = "eu-north-1";
@@ -483,6 +484,8 @@ export async function sendAdminMail(
     bcc?: string;
     subject: string;
     text: string;
+    html?: string;
+    format?: AdminMailFormat;
     inReplyToId?: string;
     attachments?: readonly File[];
   }
@@ -496,9 +499,14 @@ export async function sendAdminMail(
   if (!to.length) throw new Error("At least one recipient is required");
   const subject = input.subject.trim().slice(0, 240);
   if (!subject) throw new Error("Subject is required");
-  const text = input.text.trim();
+  const format: AdminMailFormat = input.format ?? "plain";
+  if (format !== "plain" && format !== "branded" && format !== "html") throw new Error("Choose a valid mail format");
+  const text = (format === "html" ? htmlToText(input.html || "") : input.text).trim();
   if (!text) throw new Error("Message body is required");
   if (text.length > 500_000) throw new Error("Message body is too large");
+  // The same pure renderer powers the browser preview and outgoing MIME.
+  // For custom HTML, it validates the fragment before persisting or sending.
+  const html = renderAdminMailHtml({ format, text, html: input.html });
 
   const attachments = await normalizeOutgoingAttachments(input.attachments || []);
   const pool = getProductionPostgresRuntime().sqlPool;
@@ -526,6 +534,7 @@ export async function sendAdminMail(
     replyTo: [{ address: fromAddress }],
     subject,
     text,
+    html,
     inReplyTo,
     references,
     internetMessageIdDomain: config.messageIdDomain,

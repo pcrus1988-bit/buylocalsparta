@@ -11,7 +11,9 @@ const files = {
   nextConfig: await readFile("apps/web/next.config.ts", "utf8"),
   selection: await readFile("apps/web/src/app/admin/mail/AdminMailPageSelection.tsx", "utf8"),
   pageSize: await readFile("apps/web/src/app/admin/mail/AdminMailPageSizeSelect.tsx", "utf8"),
-  css: await readFile("apps/web/src/app/admin-mail.css", "utf8")
+  css: await readFile("apps/web/src/app/admin-mail.css", "utf8"),
+  editor: await readFile("apps/web/src/app/admin/mail/AdminMailComposerFields.tsx", "utf8"),
+  template: await readFile("apps/web/src/lib/admin-mail-template.ts", "utf8")
 };
 
 const checks: Array<[string, boolean]> = [
@@ -22,6 +24,9 @@ const checks: Array<[string, boolean]> = [
   ["Mailbox selection scopes incoming recipients and outgoing sender in SQL", files.runtime.includes("adminMailMailboxPredicate(2)") && files.runtime.includes("adminMailMailboxPredicate(3)") && ["m.from_address", "m.to_addresses", "m.cc_addresses", "m.bcc_addresses"].every((field) => files.runtime.includes(field))],
   ["Mail filtering, navigation and replies retain selected identity", files.page.includes("appendViewParams") && files.page.includes('params.set("mailbox", view.mailbox)') && files.page.includes("composeFromAddress") && files.actions.includes('encodeURIComponent(text(formData.get("from")))')],
   ["Admin route exposes compose, reply and forward", ["Compose", "Reply", "Forward"].every((value) => files.page.includes(value))],
+  ["Admin Mail includes branded HTML and text composer modes", files.page.includes("AdminMailComposerFields") && ["KONTA MOY template", "HTML", "Plain text", "Live preview"].every((value) => files.editor.includes(value))],
+  ["HTML email preview is sandboxed and mobile-responsive", files.editor.includes('sandbox=""') && files.editor.includes("srcDoc") && files.editor.includes("Mobile") && files.css.includes(".admin-mail-editor-preview-frame")],
+  ["SES MIME sends the same branded template as the preview", files.actions.includes('formData.get("format")') && files.runtime.includes("renderAdminMailHtml") && files.runtime.includes("html,") && files.template.includes("wrapKontaMouMailHtml")],
   ["Admin route exposes filter and sort controls", ["name=\"read\"", "name=\"direction\"", "name=\"status\"", "name=\"attachments\"", "name=\"sort\""].every((value) => files.page.includes(value))],
   ["Dynamic Admin Mail SQL uses positional bind placeholders", files.runtime.includes("m.status=$${params.length}") && files.runtime.includes("LIMIT $${limitParam}")],
   ["Admin Mail pagination uses count plus bound LIMIT/OFFSET", files.runtime.includes("SELECT count(*)::int AS total") && files.runtime.includes("LIMIT $${limitParam}") && files.runtime.includes("OFFSET $${offsetParam}")],

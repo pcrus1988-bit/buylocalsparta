@@ -22,6 +22,7 @@ import {
 } from "./actions";
 import { AdminMailPageSelection } from "./AdminMailPageSelection";
 import { AdminMailPageSizeSelect } from "./AdminMailPageSizeSelect";
+import { AdminMailComposerFields } from "./AdminMailComposerFields";
 
 export const metadata: Metadata = { title: "Admin · Mail", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -535,7 +536,7 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
             <label><span>Cc</span><input name="cc" type="text" placeholder="Optional" /></label>
             <label><span>Bcc</span><input name="bcc" type="text" placeholder="Optional" /></label>
             <label className="admin-mail-compose-full"><span>Subject</span><input name="subject" type="text" defaultValue={composeSubject} maxLength={240} required /></label>
-            <label className="admin-mail-compose-full"><span>Message</span><textarea name="body" rows={14} defaultValue={composeBody} required /></label>
+            <AdminMailComposerFields initialText={composeBody} />
             <label className="admin-mail-compose-full admin-mail-file"><span>Attachments</span><input name="attachments" type="file" multiple /><small>Up to 8 files, maximum 3 MB total.</small></label>
           </div>
           <div className="admin-mail-compose-actions">
