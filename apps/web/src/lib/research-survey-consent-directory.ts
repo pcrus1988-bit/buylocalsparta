@@ -74,7 +74,7 @@ function parseCursor(value?: string): { occurredAt: string; id: string } | undef
     if (!/^\d{1,19}$/.test(id) || BigInt(id) > MAX_BIGINT) return undefined;
     // Preserve PostgreSQL microseconds in the pagination key: Date/ISO
     // conversion would truncate to milliseconds and silently skip rows.
-    const validTimestamp = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$/.test(timestamp) &&
+    const validTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/.test(timestamp) &&
       Number.isFinite(Date.parse(timestamp));
     return validTimestamp ? { occurredAt: timestamp, id } : undefined;
   } catch {
