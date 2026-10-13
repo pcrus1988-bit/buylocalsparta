@@ -62,7 +62,11 @@ export function ResearchRelationshipExplorer({ root, filters, questions, sectors
           <input type="hidden" name="sector" value={filters.sector} />
           <div className="research-relation-filter-grid">
             <label>Ομάδα επιχειρήσεων · Α
-              <select name="a" value={sourceQ} onChange={e=>{setSourceQ(e.target.value);setSourceValue("");}}>
+              <select name="a" value={sourceQ} onChange={e=>{
+                const next=e.target.value;
+                setSourceQ(next);setSourceValue("");
+                if(next===targetQ){setTargetQ(questions.find(q=>q.code!==next)?.code??"");setTargetValue("");}
+              }}>
                 {questions.map(q=><option key={q.code} value={q.code}>{q.code} · {q.label}</option>)}
               </select>
             </label>
