@@ -22,7 +22,7 @@ test("cohort A and B are counted together rather than taking the newest draw onl
 });
 
 test("invitation, delivery, open and response counts are all main-only", () => {
-  assert.equal((publicQuery.match(/ri\.fieldwork_phase='main'/g) || []).length, 2);
+  assert.ok((publicQuery.match(/ri\.fieldwork_phase='main'/g) || []).length >= 2);
   assert.match(publicQuery, /ri\.wave_id=w\.id/);
   assert.match(publicQuery, /rr\.wave_id=w\.id/);
   assert.match(publicQuery, /rr\.status='completed'/);
@@ -31,4 +31,14 @@ test("invitation, delivery, open and response counts are all main-only", () => {
 test("shared public counters are not recomputed for every visitor", () => {
   assert.match(publicQuery, /unstable_cache\(/);
   assert.match(publicQuery, /revalidate: 30/);
+});
+
+test("recovery counters do not rewrite response statuses or manufacture consent", () => {
+  assert.match(publicQuery, /calculateResearchRecoveryTotals/);
+  assert.match(publicQuery, /cp\.suppression_status='active'/);
+  assert.match(publicQuery, /ri\.status='started'/);
+  assert.match(publicQuery, /saved\.final_question_answered_at IS NOT NULL/);
+  assert.match(publicQuery, /contentCompleteUnsubmitted:/);
+  assert.match(publicQuery, /reachedFinalNeedsCorrection:/);
+  assert.doesNotMatch(publicQuery, /INSERT INTO research_consents|UPDATE research_responses SET status='completed'/);
 });

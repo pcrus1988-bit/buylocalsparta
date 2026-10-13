@@ -2,6 +2,8 @@ import type { SqlRow } from "@buy-local-sparta/core";
 import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { canonicalResearchResultsUrl } from "./research-results-url";
+import { calculateResearchRecoveryTotals, type ResearchRecoveryCandidate } from "./research-survey-recovery";
+import type { ResearchQuestion, ResearchAnswerMap } from "./research-survey-model";
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
@@ -51,6 +53,10 @@ export type PublicResearchStudySummary = Readonly<{
   opened: number;
   started: number;
   completed: number;
+  /** Saved answer-complete but without a recorded final Submit action. Not official completions. */
+  contentCompleteUnsubmitted?: number;
+  /** Reached Q27 but validation still finds missing or invalid required answers. */
+  reachedFinalNeedsCorrection?: number;
   completionRate: number;
   responseRate: number;
   releaseVersion?: string;
@@ -225,10 +231,82 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
       ORDER BY w.is_current DESC,w.ordinal DESC,s.created_at DESC
     `);
 
+    // Read-only recovery inventory. Saved answers are not participant submissions.
+    // Do not backdate completed_at or manufacture optional marketing/results consents.
+    // Return aggregate counts only; never expose answer payloads or contact identifiers.
+    let recoveryCounts: ReturnType<typeof calculateResearchRecoveryTotals> | undefined;
+    try {
+      const pool = getProductionPostgresRuntime().sqlPool;
+      const [candidateRows, questionRows] = await Promise.all([
+        pool.query<SqlRow>(`
+          SELECT rr.study_id,rr.wave_id,rr.instrument_id,rr.status AS response_status,
+                 ri.status AS invite_status,cp.suppression_status,ri.fieldwork_phase,
+                 saved.answers,saved.final_question_answered_at
+          FROM research_responses rr
+          JOIN research_invites ri ON ri.id=rr.invite_id
+          JOIN research_contact_points cp ON cp.id=ri.contact_point_id
+          JOIN LATERAL (
+            SELECT jsonb_object_agg(q.code,a.answer) AS answers,
+                   max(a.answered_at) FILTER (WHERE q.code='Q27') AS final_question_answered_at
+            FROM research_answers a
+            JOIN research_questions q ON q.id=a.question_id
+            WHERE a.response_id=rr.id
+          ) saved ON saved.final_question_answered_at IS NOT NULL
+          WHERE rr.status='in_progress'
+            AND ri.status='started'
+            AND cp.suppression_status='active'
+            AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+            AND ri.fieldwork_phase='main'
+        `),
+        pool.query<SqlRow>(`
+          SELECT id,instrument_id,code,section_code,position,question_type,
+                 prompt_el,required,analysis_key,config
+          FROM research_questions
+          WHERE instrument_id IN (
+            SELECT DISTINCT rr.instrument_id FROM research_responses rr
+            WHERE rr.status='in_progress'
+          )
+          ORDER BY instrument_id,position
+        `)
+      ]);
+      const questionsByInstrument = new Map<string, ResearchQuestion[]>();
+      for (const question of questionRows.rows) {
+        const instrument = text(question.instrument_id);
+        const previous = questionsByInstrument.get(instrument) ?? [];
+        previous.push({
+          id: text(question.id), code: text(question.code),
+          sectionCode: text(question.section_code), position: numberValue(question.position),
+          type: text(question.question_type) as ResearchQuestion["type"],
+          prompt: text(question.prompt_el), required: Boolean(question.required),
+          analysisKey: text(question.analysis_key),
+          config: question.config && typeof question.config === "object" && !Array.isArray(question.config)
+            ? question.config as Record<string, unknown> : {}
+        });
+        questionsByInstrument.set(instrument, previous);
+      }
+      const candidates: ResearchRecoveryCandidate[] = candidateRows.rows.map((row) => ({
+        studyId: text(row.study_id),
+        waveId: text(row.wave_id),
+        instrumentId: text(row.instrument_id),
+        responseStatus: text(row.response_status),
+        inviteStatus: text(row.invite_status),
+        suppressionStatus: text(row.suppression_status),
+        fieldworkPhase: text(row.fieldwork_phase),
+        finalQuestionAnsweredAt: isoDate(row.final_question_answered_at),
+        answers: row.answers && typeof row.answers === "object" && !Array.isArray(row.answers)
+          ? row.answers as ResearchAnswerMap : {}
+      }));
+      recoveryCounts = calculateResearchRecoveryTotals(candidates, questionsByInstrument);
+    } catch {
+      // Never label unavailable recovery counts as zero or affect core observatory data.
+      recoveryCounts = undefined;
+    }
+
     const studies = rows.rows.map((row): PublicResearchStudySummary => {
       const completed = numberValue(row.completed);
       const targetCompletes = numberValue(row.target_completes);
       const sent = numberValue(row.sent);
+      const recovery = recoveryCounts?.get(text(row.id) + ":" + text(row.wave_id));
       return {
         id: text(row.id),
         programmeSlug: text(row.programme_slug),
@@ -257,6 +335,8 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
         opened: numberValue(row.opened),
         started: numberValue(row.started),
         completed,
+        contentCompleteUnsubmitted: recoveryCounts ? (recovery?.contentCompleteUnsubmitted ?? 0) : undefined,
+        reachedFinalNeedsCorrection: recoveryCounts ? (recovery?.reachedFinalNeedsCorrection ?? 0) : undefined,
         completionRate: targetCompletes > 0 ? Math.min(completed / targetCompletes, 1) : 0,
         responseRate: sent > 0 ? completed / sent : 0,
         releaseVersion: optionalText(row.release_version),
