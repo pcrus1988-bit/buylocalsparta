@@ -6,6 +6,7 @@ export type ResearchSurveyAdminSection =
   | "questions"
   | "evaluation"
   | "barometer"
+  | "map"
   | "sampling"
   | "fieldwork"
   | "balance"
@@ -35,6 +36,7 @@ export const RESEARCH_SURVEY_ADMIN_SECTIONS: ReadonlyArray<Readonly<{
   { key: "questions", label: "Questions", description: "Questionnaire structure, wording, answer options, order and analysis keys.", group: "design" },
   { key: "evaluation", label: "Evaluation & analysis", description: "Preregistered evaluation plus versioned later exploratory analyses.", group: "design" },
   { key: "barometer", label: "Live Barometer", description: "Live, unweighted provisional indices, response trends and question distributions; drafts and completed submissions stay separate.", group: "design" },
+  { key: "map", label: "Geographic map", description: "Admin-only Greece heatmap of aggregate answer rates and participation by region, ΚΑΔ and municipality.", group: "design" },
   { key: "sampling", label: "Cohort recruitment", description: "Full-cohort main fieldwork, Pilot-only sample draws.", group: "fieldwork" },
   { key: "fieldwork", label: "Email & fieldwork", description: "Templates, invitation batches, reminders and fieldwork actions.", group: "fieldwork" },
   { key: "balance", label: "Fieldwork balance", description: "Response balance across the frozen sampling strata.", group: "fieldwork" },
