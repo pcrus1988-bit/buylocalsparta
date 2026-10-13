@@ -276,20 +276,52 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
   const currentAnswered = currentVisibleQuestions.filter((question) => answerPresent(answers[question.code])).length;
   const currentQuestionCount = currentVisibleQuestions.length;
 
-  async function save(payload: Record<string, unknown>) {
-    if (previewMode) return {} as Record<string, unknown>;
+  async function save(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    if (previewMode) return {};
     setSaving(true);
     setMessage("");
+    const isFinalSubmission = payload.complete === true;
+    const temporaryFailure = "Προσωρινή δυσκολία σύνδεσης με την έρευνα. Οι ήδη αποθηκευμένες απαντήσεις σας διατηρούνται. Δοκιμάστε ξανά σε λίγο.";
     try {
-      const response = await fetch("/api/research/" + encodeURIComponent(slug) + "/t/" + encodeURIComponent(token), {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Δεν ήταν δυνατή η αποθήκευση.");
-      if (Array.isArray(body.experiments)) setExperiments(body.experiments);
-      return body;
+      // A final submission is idempotent in effect: server validation uses
+      // saved answers, and a committed prior attempt returns ALREADY_COMPLETED.
+      // Retry only that operation, never silently repeat a consent preference.
+      for (let attempt = 0; attempt < (isFinalSubmission ? 2 : 1); attempt++) {
+        let response: Response;
+        try {
+          response = await fetch("/api/research/" + encodeURIComponent(slug) + "/t/" + encodeURIComponent(token), {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+        } catch (error) {
+          if (isFinalSubmission && attempt === 0) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 1200));
+            continue;
+          }
+          throw new Error(temporaryFailure, { cause: error });
+        }
+
+        const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+        const code = typeof body.error === "string" ? body.error : "";
+        if (isFinalSubmission && response.status === 409 && code === "SURVEY_ALREADY_COMPLETED") {
+          return { status: "completed" };
+        }
+        if (!response.ok) {
+          const transient = response.status >= 500 || /timeout|connection terminated|ECONNRESET|ETIMEDOUT/i.test(code);
+          if (transient && isFinalSubmission && attempt === 0) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 1200));
+            continue;
+          }
+          throw new Error(transient ? temporaryFailure : code || "Δεν ήταν δυνατή η αποθήκευση.");
+        }
+        if (Array.isArray(body.experiments)) setExperiments(body.experiments as readonly ResearchExperimentAssignment[]);
+        if (body.consents && typeof body.consents === "object" && !Array.isArray(body.consents)) {
+          setOptionalConsents((previous) => ({ ...previous, ...body.consents as Partial<ConsentState> }));
+        }
+        return body;
+      }
+      throw new Error(temporaryFailure);
     } finally {
       setSaving(false);
     }
@@ -360,7 +392,12 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
       }
       // Explicit final submission uses *stored* answers. Never resend/rewrite
       // all previous answers or risk changing an earlier timestamp/value.
-      const result = await save(researchFinalSubmissionPayload(experimentChoices));
+      const result = await save({
+        ...researchFinalSubmissionPayload(experimentChoices),
+        // Each checkbox is opt-in and defaults to false; record exactly
+        // what the participant chose at the time of final submission.
+        optionalConsents: { ...optionalConsents }
+      });
       if (!previewMode && result.status !== "completed") {
         throw new Error("Δεν επιβεβαιώθηκε η ολοκλήρωση. Οι αποθηκευμένες απαντήσεις σας διατηρούνται.");
       }
@@ -570,7 +607,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
       </div>
       <h2>{current.title}</h2>
       {current.code === "X" && <p>Οι επιλογές αυτές είναι ερευνητικά σενάρια και όχι πραγματικές εμπορικές προσφορές. Μπορείτε να παραλείψετε ολόκληρη την ενότητα.</p>}
-      {isFinalStep && <p>Πατώντας «Ολοκλήρωση έρευνας» υποβάλλετε οριστικά τις αποθηκευμένες απαντήσεις σας. Οι προαιρετικές επιλογές ενημέρωσης εμφανίζονται μόνο μετά την επιβεβαίωση της υποβολής.</p>}
+      {isFinalStep && <p>Πατώντας «Ολοκλήρωση έρευνας» υποβάλλετε οριστικά τις αποθηκευμένες απαντήσεις σας. Οι προαιρετικές επιλογές επικοινωνίας είναι ανεξάρτητες από τη συμμετοχή σας και δεν είναι προεπιλεγμένες.</p>}
     </header>
 
     {currentVisibleQuestions.map((question) => <ResearchQuestionCard
@@ -587,6 +624,16 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
       onSelect={(value) => setExperimentChoices((currentChoices) => ({ ...currentChoices, [String(assignment.taskNumber)]: value }))}
     />)}
 
+    {isFinalStep && <section className={styles.consent} aria-label="Προαιρετικές επιλογές επικοινωνίας">
+      <h3>Προαιρετικές επιλογές επικοινωνίας</h3>
+      <p>Μπορείτε να ολοκληρώσετε την έρευνα χωρίς να επιλέξετε τίποτα. Οι επιλογές σας μπορούν να αλλάξουν αργότερα από τον ίδιο προσωπικό σύνδεσμο.</p>
+      <div className={styles.optionalConsents}>
+        <label><input type="checkbox" checked={optionalConsents.results_notification} disabled={saving} onChange={(event) => setOptionalConsents((state) => ({ ...state, results_notification: event.target.checked }))} /><span>Θέλω να ενημερωθώ όταν δημοσιευθούν τα αποτελέσματα της έρευνας.</span></label>
+        <label><input type="checkbox" checked={optionalConsents.thank_you_code} disabled={saving} onChange={(event) => setOptionalConsents((state) => ({ ...state, thank_you_code: event.target.checked }))} /><span>Θέλω να λάβω τον κωδικό ευχαριστίας.</span></label>
+        <label><input type="checkbox" checked={optionalConsents.marketing} disabled={saving} onChange={(event) => setOptionalConsents((state) => ({ ...state, marketing: event.target.checked }))} /><span>Ναι, θέλω να λαμβάνω μέσω email εμπορικές ενημερώσεις, συνεργασίες και προσφορές του KONTA MOY.</span></label>
+      </div>
+      <p>Η εμπορική συγκατάθεση είναι ξεχωριστή, προαιρετική και ανακλητή οποτεδήποτε. <a href="/research/privacy">Προστασία δεδομένων</a></p>
+    </section>}
     {message && <p className={styles.error}>{message}</p>}
     <div className={styles.actions}>
       {sectionIndex > 0 && <button type="button" className={styles.secondary} disabled={saving} onClick={() => setSectionIndex((index) => Math.max(0, index - 1))}>Πίσω</button>}
