@@ -106,7 +106,7 @@ export function GreeceResearchHeatmap({ cells, filters, root }: {
           const params = new URLSearchParams();
           for (const [k, v] of Object.entries(filters)) { if (v && k !== "region") params.set(k, v); }
           params.set("region", key);
-          const href = root + "/map?" + params.toString();
+          const href = (root.endsWith("/map/relations") ? root : root + "/map") + "?" + params.toString();
           return <a href={href} key={key} aria-label={cell.label + ": " + valueLabel}>
             <path d={pathForGeometry(feature.geometry)} fill={heatColor(normalized)} fillRule="evenodd"
               stroke={filters.region === key ? "#ec7f23" : "#538693"}
