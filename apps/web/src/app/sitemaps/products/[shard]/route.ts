@@ -58,16 +58,16 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
     overrideSnapshot = await getSeoEntityOverridesSnapshot();
     products = await getPublicProductSitemapInventoryShard(shard);
   } catch (error) {
-    // A public sitemap endpoint must remain fetchable even during temporary database
-    // connection pressure. Return an empty, explicitly degraded sitemap rather than
-    // a 5xx so crawlers can retry later without recording a server-error URL.
+    // A transient database failure is not evidence that all catalogue URLs disappeared.
+    // Return a retryable error instead of an empty 200 sitemap: otherwise crawlers
+    // could interpret a database outage as a genuine mass product removal.
     console.error(JSON.stringify({ level: "error", event: "seo.product_sitemap_shard_degraded", shard, message: String(error) }));
-    return new Response(emptySitemap(), {
-      status: 200,
+    return new Response("Product sitemap temporarily unavailable.\n", {
+      status: 503,
       headers: {
-        "Content-Type": "application/xml; charset=utf-8",
+        "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-store",
-        "Retry-After": "60",
+        "Retry-After": "300",
         "X-Konta-Sitemap-Degraded": "1"
       }
     });
@@ -133,7 +133,7 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
     status: 200,
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400"
+      "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60"
     }
   });
 }
