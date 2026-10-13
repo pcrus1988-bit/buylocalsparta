@@ -2,6 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { GeographicMapCell, GreekRegionKey } from "../lib/research-geographic-core";
+
+/** Browser receives only already-suppressed aggregates. Never send raw low-n cells. */
+type SafeGeographicMapCell = Omit<GeographicMapCell, "respondents" | "answered" | "selected"> & Readonly<{
+  respondents: number | null;
+  answered: number | null;
+  selected: number | null;
+}>;
 import type { ResearchMapFilters } from "../lib/research-geographic-runtime";
 
 type Geometry = { type: string; coordinates: unknown };
@@ -25,12 +32,12 @@ function pathForGeometry(geometry: Geometry): string {
   return "";
 }
 
-function valueFor(cell: GeographicMapCell, metric: ResearchMapFilters["metric"], max: number) {
+function valueFor(cell: SafeGeographicMapCell, metric: ResearchMapFilters["metric"], max: number) {
   if (metric === "share") {
-    if (cell.answered < 10 || cell.respondents < 10) return undefined;
+    if (cell.answered == null || cell.selected == null || cell.respondents == null) return undefined;
     return cell.selected / cell.answered;
   }
-  if (cell.respondents < 5) return undefined;
+  if (cell.respondents == null) return undefined;
   return Math.log1p(cell.respondents) / Math.log1p(Math.max(1, max));
 }
 
@@ -42,7 +49,7 @@ function heatColor(value?: number) {
 }
 
 export function GreeceResearchHeatmap({ cells, filters, root }: {
-  cells: readonly GeographicMapCell[];
+  cells: readonly SafeGeographicMapCell[];
   filters: ResearchMapFilters;
   root: string;
 }) {
@@ -60,7 +67,7 @@ export function GreeceResearchHeatmap({ cells, filters, root }: {
       .catch(err => { if (err.name !== "AbortError") setLoadError(true); });
     return () => controller.abort();
   }, []);
-  const max = Math.max(1, ...cells.map(x => x.respondents));
+  const max = Math.max(1, ...cells.map(x => x.respondents ?? 0));
   const cellByRegion = useMemo(() => new Map(cells.map(c => [c.key, c])), [cells]);
   const viewWidth = 810 / zoom, viewHeight = 650 / zoom;
   const viewBox = `${(810 - viewWidth) / 2} ${(650 - viewHeight) / 2} ${viewWidth} ${viewHeight}`;
@@ -89,8 +96,8 @@ export function GreeceResearchHeatmap({ cells, filters, root }: {
           if (!cell) return null;
           const normalized = valueFor(cell, filters.metric, max);
           const valueLabel = filters.metric === "share"
-            ? cell.answered < 10 ? "ανεπαρκής βάση (n<10)" : (cell.selected / cell.answered * 100).toFixed(1) + "% (" + cell.selected + "/" + cell.answered + ")"
-            : cell.respondents < 5 ? "λιγότερες από 5 απαντήσεις" : cell.respondents + " ερωτηματολόγια";
+            ? cell.answered == null || cell.selected == null ? "ανεπαρκής βάση (n<10)" : (cell.selected / cell.answered * 100).toFixed(1) + "% (" + cell.selected + "/" + cell.answered + ")"
+            : cell.respondents == null ? "ανεπαρκής βάση (n<10)" : cell.respondents + " ερωτηματολόγια";
           const params = new URLSearchParams();
           for (const [k, v] of Object.entries(filters)) { if (v && k !== "region") params.set(k, v); }
           params.set("region", key);
