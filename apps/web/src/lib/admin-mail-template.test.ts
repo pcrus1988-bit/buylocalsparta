@@ -51,3 +51,23 @@ test("branded HTML and text fallback round-trip in SES MIME with attachments", (
   assert.match(parsed.html || "", /KONTA MOY/);
   assert.equal(parsed.attachments.length, 1);
 });
+
+
+test("long Greek email is not truncated in the branded MIME preview or text fallback", () => {
+  const paragraph = "Αγαπητέ συνεργάτη, η συνεργασία και η υποστήριξη συνεχίζονται. ";
+  const text = (paragraph.repeat(400) + "\n\nΤΕΛΟΣ ΜΗΝΥΜΑΤΟΣ").trim();
+  assert.ok(text.length > 20_000);
+  const html = renderAdminMailHtml({ format: "branded", text }) || "";
+  assert.ok(html.includes("ΤΕΛΟΣ ΜΗΝΥΜΑΤΟΣ"), "Long-message preview must show the ending");
+  const built = buildAdminMailRawMime({
+    from: { name: "KONTA MOY", address: "partners@kontamou.site" },
+    to: [{ address: "person@example.com" }],
+    subject: "Long email test",
+    text,
+    html,
+    internetMessageIdDomain: "kontamou.site"
+  });
+  const parsed = parseAdminMailMime(built.raw);
+  assert.equal(parsed.text, text, "Plain text fallback must contain entire source");
+  assert.ok(parsed.html?.includes("ΤΕΛΟΣ ΜΗΝΥΜΑΤΟΣ"), "HTML MIME must contain entire source");
+});
