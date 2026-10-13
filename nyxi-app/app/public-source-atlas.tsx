@@ -9,9 +9,11 @@ export default function PublicSourceAtlas({ active }: { active: boolean }) {
   const [sources, setSources] = useState<Source[]>([]);
   const [state, setState] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
   const [filter, setFilter] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (!active || state !== "idle") return;
+    if (!active) { setState(prev => prev === "loading" ? "idle" : prev); return; }
+    if (state === "ready") return;
     const controller = new AbortController();
     setState("loading");
     (async () => {
@@ -27,7 +29,8 @@ export default function PublicSourceAtlas({ active }: { active: boolean }) {
       }
     })();
     return () => controller.abort();
-  }, [active, state]);
+  // State-only changes must not cancel in-flight source requests.
+  }, [active, attempt]);
 
   const filtered = useMemo(() => sources.filter(source =>
     (source.title + " " + source.authority).toLocaleLowerCase("el").includes(filter.trim().toLocaleLowerCase("el"))
@@ -42,7 +45,7 @@ export default function PublicSourceAtlas({ active }: { active: boolean }) {
       {state === "ready" && <span className="atlas-number" aria-label={sources.length + " ενεργές πηγές"}>{sources.length}<small>ΕΝΕΡΓΕΣ ΠΗΓΕΣ</small></span>}
     </div>
     {state === "loading" && <p className="notice" role="status">Φόρτωση ενεργών πηγών…</p>}
-    {state === "unavailable" && <div className="notice warning" role="alert">Η λίστα πηγών δεν είναι διαθέσιμη αυτή τη στιγμή. <button type="button" className="atlas-retry" onClick={() => setState("idle")}>Δοκίμασε ξανά</button></div>}
+    {state === "unavailable" && <div className="notice warning" role="alert">Η λίστα πηγών δεν είναι διαθέσιμη αυτή τη στιγμή. <button type="button" className="atlas-retry" onClick={() => setAttempt(n => n + 1)}>Δοκίμασε ξανά</button></div>}
     {state === "ready" && <>
       <label htmlFor="nyxi-atlas-filter" className="sr-only">Φίλτρο πηγών</label>
       <input id="nyxi-atlas-filter" value={filter} onChange={e => setFilter(e.target.value)} placeholder="Αναζήτησε φορέα ή πηγή…" className="atlas-filter" />
