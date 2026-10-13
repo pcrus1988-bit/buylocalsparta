@@ -169,6 +169,16 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
         <strong>{study.sent > 0 ? percent(study.responseRate) : "—"}</strong>
         <small>ολοκληρωμένες απαντήσεις σε σχέση με τις προσκλήσεις</small>
       </article>
+      {study.contentCompleteUnsubmitted !== undefined && <article className={styles.metric}>
+        <span>Αποθηκευμένες πλήρεις απαντήσεις χωρίς υποβολή</span>
+        <strong>{study.contentCompleteUnsubmitted.toLocaleString("el-GR")}</strong>
+        <small>Όλες οι απαιτούμενες απαντήσεις υπάρχουν, αλλά δεν έχει καταγραφεί οριστική υποβολή. Δεν περιλαμβάνονται στον επίσημο αριθμό ολοκληρώσεων.</small>
+      </article>}
+      {study.reachedFinalNeedsCorrection !== undefined && <article className={styles.metric}>
+        <span>Έφτασαν στην τελευταία ερώτηση · εκκρεμούν διορθώσεις</span>
+        <strong>{study.reachedFinalNeedsCorrection.toLocaleString("el-GR")}</strong>
+        <small>Συμμετέχοντες με απάντηση στην Q27 αλλά ελλιπείς ή μη έγκυρες υποχρεωτικές απαντήσεις. Δεν θεωρούνται ολοκληρωμένοι.</small>
+      </article>}
     </div>
 
     <div className={styles.timeline} aria-label="Στάδια μελέτης">
