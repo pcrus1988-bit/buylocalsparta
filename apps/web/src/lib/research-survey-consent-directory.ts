@@ -72,8 +72,11 @@ function parseCursor(value?: string): { occurredAt: string; id: string } | undef
     const timestamp = decoded.slice(0, delimiter);
     const id = decoded.slice(delimiter + 1);
     if (!/^\d{1,19}$/.test(id) || BigInt(id) > MAX_BIGINT) return undefined;
-    const occurredAt = isoDate(timestamp);
-    return occurredAt ? { occurredAt, id } : undefined;
+    // Preserve PostgreSQL microseconds in the pagination key: Date/ISO
+    // conversion would truncate to milliseconds and silently skip rows.
+    const validTimestamp = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$/.test(timestamp) &&
+      Number.isFinite(Date.parse(timestamp));
+    return validTimestamp ? { occurredAt: timestamp, id } : undefined;
   } catch {
     return undefined;
   }
@@ -144,6 +147,7 @@ export async function researchSurveyConsentDirectory(
     " ORDER BY occurred_at DESC,id DESC LIMIT 26",
     ")",
     "SELECT page.*,cp.suppression_status AS contact_status,",
+    'to_char(page.occurred_at AT TIME ZONE \'UTC\', \'YYYY-MM-DD"T"HH24:MI:SS.US"Z"\') AS cursor_at,',
     privateSelect + ",",
     " (SELECT prior.occurred_at FROM research_consents prior",
     "  WHERE prior.response_id=page.response_id",
@@ -195,6 +199,6 @@ export async function researchSurveyConsentDirectory(
     })),
     rows: mapped,
     nextCursor: result.rows.length > PAGE_SIZE && last?.occurredAt
-      ? consentEvidenceCursor(last.occurredAt, last.id) : undefined
+      ? consentEvidenceCursor(asString(page[page.length - 1]?.cursor_at), last.id) : undefined
   };
 }
