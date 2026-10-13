@@ -281,12 +281,13 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
     setSaving(true);
     setMessage("");
     const isFinalSubmission = payload.complete === true;
+    const canRetry = isFinalSubmission || (Boolean(payload.answers) && typeof payload.answers === "object");
     const temporaryFailure = "Προσωρινή δυσκολία σύνδεσης με την έρευνα. Οι ήδη αποθηκευμένες απαντήσεις σας διατηρούνται. Δοκιμάστε ξανά σε λίγο.";
     try {
       // A final submission is idempotent in effect: server validation uses
       // saved answers, and a committed prior attempt returns ALREADY_COMPLETED.
       // Retry only that operation, never silently repeat a consent preference.
-      for (let attempt = 0; attempt < (isFinalSubmission ? 2 : 1); attempt++) {
+      for (let attempt = 0; attempt < (canRetry ? 2 : 1); attempt++) {
         let response: Response;
         try {
           response = await fetch("/api/research/" + encodeURIComponent(slug) + "/t/" + encodeURIComponent(token), {
@@ -295,7 +296,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
             body: JSON.stringify(payload)
           });
         } catch (error) {
-          if (isFinalSubmission && attempt === 0) {
+          if (canRetry && attempt === 0) {
             await new Promise<void>((resolve) => setTimeout(resolve, 1200));
             continue;
           }
@@ -309,7 +310,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
         }
         if (!response.ok) {
           const transient = response.status >= 500 || /timeout|connection terminated|ECONNRESET|ETIMEDOUT/i.test(code);
-          if (transient && isFinalSubmission && attempt === 0) {
+          if (transient && canRetry && attempt === 0) {
             await new Promise<void>((resolve) => setTimeout(resolve, 1200));
             continue;
           }
