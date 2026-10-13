@@ -5,6 +5,7 @@ import {
   queueGreekRetailFrameBuild,
   queueGreekRetailInviteBatch,
   queueGreekRetailInviteReminderBatch,
+  queueGreekRetailAbandonedFollowupBatch,
   queueGreekRetailResultsNotifications,
   queueGreekRetailRewardDelivery,
   queueGreekRetailSampleDraw,
@@ -202,6 +203,22 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
           minGapDays: Number(body.minGapDays || 5),
           maxReminders: Number(body.maxReminders || 2)
         }
+      );
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (body.action === "send_abandoned_followups") {
+      const result = await queueGreekRetailAbandonedFollowupBatch(principal, {
+        limit: Number(body.limit),
+        emailApproval: body.emailApproval ?? {}
+      });
+      await recordAdminAudit(
+        principal,
+        "research.abandoned_followup.queued",
+        "research_study",
+        slug,
+        "Double-approved non-marketing follow-up, restricted to active Q27 respondents without formal submission",
+        { jobId: result.jobId, maximumEmails: Number(body.limit), excludesSuppressed: true, reminderMode: "abandoned_q27" }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
