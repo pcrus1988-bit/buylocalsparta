@@ -44,9 +44,6 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         : undefined,
       experimentChoices: body.experimentChoices && typeof body.experimentChoices === "object" && !Array.isArray(body.experimentChoices)
         ? body.experimentChoices as never
-        : undefined,
-      optionalConsents: body.complete === true && body.optionalConsents && typeof body.optionalConsents === "object" && !Array.isArray(body.optionalConsents)
-        ? body.optionalConsents as never
         : undefined
     });
     return Response.json(result, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
