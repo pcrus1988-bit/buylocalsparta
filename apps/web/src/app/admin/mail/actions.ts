@@ -83,6 +83,8 @@ export async function sendMailAction(formData: FormData) {
       bcc: text(formData.get("bcc")),
       subject: text(formData.get("subject")),
       text: text(formData.get("body")),
+      html: text(formData.get("html")),
+      format: text(formData.get("format")) === "html" ? "html" : text(formData.get("format")) === "branded" ? "branded" : "plain",
       inReplyToId: text(formData.get("inReplyToId")) || undefined,
       attachments
     });
