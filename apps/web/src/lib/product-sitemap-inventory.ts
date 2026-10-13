@@ -129,19 +129,22 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
         AND pm.content_type IN ('image/jpeg','image/png','image/webp')
       ORDER BY pm.canonical_variant_id,pm.reviewed_at DESC NULLS LAST,pm.created_at DESC,pm.public_id
     ), approved_source_media AS MATERIALIZED (
+      -- Source-media fields exist in production but were introduced outside the
+      -- baseline CI schema. JSON access safely returns NULL on older schemas,
+      -- while retaining source images where the columns are available.
       SELECT DISTINCT ON (pm.canonical_variant_id)
              pm.canonical_variant_id,
-             pm.source_url AS source_image_url,
+             NULLIF(to_jsonb(pm)->>'source_url', '') AS source_image_url,
              cs.website AS source_website,
              cs.code AS source_code
       FROM public_base base
       JOIN product_media pm ON pm.canonical_variant_id=base.id
-      JOIN catalog_sources cs ON cs.id=pm.source_id AND cs.active=true
+      JOIN catalog_sources cs ON cs.id=NULLIF(to_jsonb(pm)->>'source_id', '')::uuid AND cs.active=true
       WHERE pm.kind='image'
         AND pm.scan_status='clean'
         AND pm.rights_status='approved'
         AND pm.moderation_status='approved'
-        AND pm.source_url IS NOT NULL
+        AND NULLIF(to_jsonb(pm)->>'source_url', '') IS NOT NULL
       ORDER BY pm.canonical_variant_id,pm.sort_order ASC,pm.reviewed_at DESC NULLS LAST,pm.created_at ASC,pm.id
     )
     SELECT
