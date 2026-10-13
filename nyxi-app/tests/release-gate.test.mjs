@@ -11,13 +11,13 @@ test("reviewer UI only exposes login; authorization is enforced on every API cal
   const reviewEdge=readFileSync(new URL("../supabase/functions/nyxi-reviewer-queue/index.ts", import.meta.url),"utf8");
   const login=readFileSync(new URL("../app/api/reviewer/session/route.ts", import.meta.url),"utf8");
   const queue=readFileSync(new URL("../app/api/reviewer/queue/route.ts", import.meta.url),"utf8");
-  assert.match(reviewEdge, /auth\\/v1\\/user/);
+  assert.ok(reviewEdge.includes('"/auth/v1/user"'));
   assert.match(reviewEdge, /nyxi_reviewers/);
   assert.match(reviewEdge, /email_confirmed_at/);
-  assert.match(reviewEdge, /disabled_at=is\\.null/);
+  assert.ok(reviewEdge.includes("disabled_at=is.null"));
   assert.match(reviewEdge, /forbidden/);
   assert.match(login, /grant_type=password/);
-  assert.match(login, /allowed\\.ok/);
+  assert.ok(login.includes("allowed.ok"));
   assert.doesNotMatch(login, /signup|signUp|service_role/);
   assert.match(queue, /authorization:auth/);
   assert.match(queue, /no-store/);
