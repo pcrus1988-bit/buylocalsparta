@@ -393,12 +393,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
       }
       // Explicit final submission uses *stored* answers. Never resend/rewrite
       // all previous answers or risk changing an earlier timestamp/value.
-      const result = await save({
-        ...researchFinalSubmissionPayload(experimentChoices),
-        // Each checkbox is opt-in and defaults to false; record exactly
-        // what the participant chose at the time of final submission.
-        optionalConsents: { ...optionalConsents }
-      });
+      const result = await save(researchFinalSubmissionPayload(experimentChoices));
       if (!previewMode && result.status !== "completed") {
         throw new Error("Δεν επιβεβαιώθηκε η ολοκλήρωση. Οι αποθηκευμένες απαντήσεις σας διατηρούνται.");
       }
@@ -608,7 +603,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
       </div>
       <h2>{current.title}</h2>
       {current.code === "X" && <p>Οι επιλογές αυτές είναι ερευνητικά σενάρια και όχι πραγματικές εμπορικές προσφορές. Μπορείτε να παραλείψετε ολόκληρη την ενότητα.</p>}
-      {isFinalStep && <p>Πατώντας «Ολοκλήρωση έρευνας» υποβάλλετε οριστικά τις αποθηκευμένες απαντήσεις σας. Οι προαιρετικές επιλογές επικοινωνίας είναι ανεξάρτητες από τη συμμετοχή σας και δεν είναι προεπιλεγμένες.</p>}
+      {isFinalStep && <p>Πατώντας «Ολοκλήρωση έρευνας» υποβάλλετε οριστικά τις αποθηκευμένες απαντήσεις σας. Οι προαιρετικές επιλογές ενημέρωσης εμφανίζονται μόνο μετά την επιβεβαίωση της υποβολής.</p>}
     </header>
 
     {currentVisibleQuestions.map((question) => <ResearchQuestionCard
@@ -625,16 +620,6 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
       onSelect={(value) => setExperimentChoices((currentChoices) => ({ ...currentChoices, [String(assignment.taskNumber)]: value }))}
     />)}
 
-    {isFinalStep && <section className={styles.consent} aria-label="Προαιρετικές επιλογές επικοινωνίας">
-      <h3>Προαιρετικές επιλογές επικοινωνίας</h3>
-      <p>Μπορείτε να ολοκληρώσετε την έρευνα χωρίς να επιλέξετε τίποτα. Οι επιλογές σας μπορούν να αλλάξουν αργότερα από τον ίδιο προσωπικό σύνδεσμο.</p>
-      <div className={styles.optionalConsents}>
-        <label><input type="checkbox" checked={optionalConsents.results_notification} disabled={saving} onChange={(event) => setOptionalConsents((state) => ({ ...state, results_notification: event.target.checked }))} /><span>Θέλω να ενημερωθώ όταν δημοσιευθούν τα αποτελέσματα της έρευνας.</span></label>
-        <label><input type="checkbox" checked={optionalConsents.thank_you_code} disabled={saving} onChange={(event) => setOptionalConsents((state) => ({ ...state, thank_you_code: event.target.checked }))} /><span>Θέλω να λάβω τον κωδικό ευχαριστίας.</span></label>
-        <label><input type="checkbox" checked={optionalConsents.marketing} disabled={saving} onChange={(event) => setOptionalConsents((state) => ({ ...state, marketing: event.target.checked }))} /><span>Ναι, θέλω να λαμβάνω μέσω email εμπορικές ενημερώσεις, συνεργασίες και προσφορές του KONTA MOY.</span></label>
-      </div>
-      <p>Η εμπορική συγκατάθεση είναι ξεχωριστή, προαιρετική και ανακλητή οποτεδήποτε. <a href="/research/privacy">Προστασία δεδομένων</a></p>
-    </section>}
     {message && <p className={styles.error}>{message}</p>}
     <div className={styles.actions}>
       {sectionIndex > 0 && <button type="button" className={styles.secondary} disabled={saving} onClick={() => setSectionIndex((index) => Math.max(0, index - 1))}>Πίσω</button>}
