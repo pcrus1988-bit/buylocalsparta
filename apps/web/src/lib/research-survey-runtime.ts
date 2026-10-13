@@ -494,6 +494,44 @@ export async function updatePublicResearchConsents(input: Readonly<{
           normalizedGranted]);
       }
 
+      if (consentKind === "thank_you_code" && normalizedGranted) {
+        // The gift-code preference is deliberately offered only AFTER survey
+        // completion. Queue the per-response delivery at the moment of this
+        // explicit opt-in, otherwise the completion-time scheduler has no
+        // consent to act on. Only active, non-suppressed contacts are eligible.
+        await client.query(`
+          INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
+          SELECT $1,$2,'reward_delivery','queued',
+            jsonb_build_object(
+              'responseId',$3::text,
+              'source','survey_completion',
+              'trigger','post_completion_explicit_opt_in'
+            )
+          WHERE EXISTS (
+            SELECT 1
+            FROM research_reward_entitlements e
+            JOIN research_responses rr ON rr.id=e.response_id
+            JOIN research_invites ri ON ri.id=rr.invite_id
+            JOIN research_contact_points cp ON cp.id=ri.contact_point_id
+            WHERE e.response_id=$3 AND e.reward_kind='thank_you_code'
+              AND e.status IN ('eligible','issued')
+              AND rr.status='completed'
+              AND ri.status <> 'suppressed'
+              AND cp.contact_type='email'
+              AND cp.suppression_status='active'
+              AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+          )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM research_study_jobs j
+              WHERE j.study_id=$1 AND j.wave_id=$2
+                AND j.job_type='reward_delivery'
+                AND j.input->>'responseId'=$3::text
+                AND j.status IN ('queued','running','succeeded')
+            )
+        `, [invite.study_id, invite.wave_id, response.id]);
+      }
+
       if (!normalizedGranted) {
         await client.query(`
           WITH cancelled AS (
