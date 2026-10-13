@@ -465,3 +465,23 @@
 .admin-mail-editor-preview-caption{line-height:1.5;color:#60746a}
 @media(max-width:1000px){.admin-mail-editor-columns{grid-template-columns:1fr}.admin-mail-editor-source textarea{min-height:260px}.admin-mail-editor-preview-surface{min-height:360px}.admin-mail-editor-preview-frame{height:380px;min-height:360px}}
 @media(max-width:580px){.admin-mail-editor{padding:10px}.admin-mail-editor-modes{width:100%}.admin-mail-editor-modes button{flex:1 1 25%;padding:9px 7px;font-size:.72rem}.admin-mail-editor-preview-surface{padding:6px}}
+
+
+/* Admin Mail long-message clarity and mobile-friendly full preview. */
+.admin-mail-editor-source-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.admin-mail-editor-source-top>span{font-size:.77rem;color:#536c5c;line-height:1.45}
+.admin-mail-editor-source-top button{border:1px solid #bdd1c2;border-radius:9px;background:#fff;padding:7px 12px;color:#173e2a;font-size:.8rem;font-weight:700;cursor:pointer}
+.admin-mail-editor-source.is-expanded textarea{height:min(72dvh,940px);min-height:380px}
+.admin-mail-editor-character-count{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.8rem;font-weight:700;color:#325442}
+.admin-mail-editor-character-count .is-near-limit{color:#a05225}
+.admin-mail-editor-source p.admin-mail-editor-scroll-note{min-height:0;margin:0;font-size:.76rem}
+.admin-mail-editor-full-preview-backdrop{position:fixed;inset:0;z-index:100000;background:rgba(12,30,19,.82);display:flex;align-items:stretch;justify-content:center;padding:16px;box-sizing:border-box}
+.admin-mail-editor-full-preview{background:#f7faf8;border-radius:16px;width:min(100%,1000px);min-height:0;display:flex;flex-direction:column;box-shadow:0 20px 60px #0005;overflow:hidden}
+.admin-mail-editor-full-preview>header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px 18px;background:#173e2a;color:#fff}
+.admin-mail-editor-full-preview>header strong{display:block;font-size:1.1rem}
+.admin-mail-editor-full-preview>header small{display:block;font-size:.75rem;line-height:1.45;color:#cfe5d5}
+.admin-mail-editor-full-preview>header button{border:1px solid #accbb4;background:#fff;color:#173e2a;border-radius:9px;font:inherit;font-weight:750;font-size:.84rem;padding:9px 13px;cursor:pointer}
+.admin-mail-editor-full-preview iframe{display:block;flex:1 1 0;min-height:0;width:100%;background:#f4f6f3;border:0}
+.admin-mail-editor-full-preview .admin-mail-editor-text-preview{overflow:auto;min-height:0;flex:1 1 0;margin:10px}
+.admin-mail-editor-full-preview .admin-mail-editor-preview-error{margin:auto}
+@media(max-width:600px){.admin-mail-editor-full-preview-backdrop{padding:0}.admin-mail-editor-full-preview{width:100%;height:100dvh;border-radius:0}.admin-mail-editor-source.is-expanded textarea{height:68dvh}.admin-mail-editor-full-preview>header{padding:12px}}
