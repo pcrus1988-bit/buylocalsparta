@@ -16,6 +16,9 @@ test("product sitemap re-reads the live sellable catalogue within five minutes",
   assert.match(inventory, /rm\.local_available_until>now\(\)/);
   assert.match(inventory, /live\.available_until>now\(\)/);
   assert.match(inventory, /live\.sellable=true/);
+  assert.match(inventory, /to_jsonb\(pm\)->>\x27source_id\x27/);
+  assert.match(inventory, /to_jsonb\(pm\)->>\x27source_url\x27/);
+  assert.doesNotMatch(inventory, /pm\.source_id|pm\.source_url/);
   assert.match(inventory, /rm\.dropship_available_until>now\(\)/);
   assert.match(productXml, /s-maxage=300, stale-while-revalidate=60/);
   assert.match(sitemapIndex, /s-maxage=300, stale-while-revalidate=60/);
