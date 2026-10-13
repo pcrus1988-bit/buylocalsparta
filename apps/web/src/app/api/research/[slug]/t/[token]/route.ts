@@ -49,6 +49,15 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     return Response.json(result, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "SURVEY_SAVE_FAILED";
+    // Connection failures are temporary server faults, not invalid participant
+    // answers. Do not expose internal PostgreSQL/connection details publicly.
+    if (/timeout|connection terminated|connection refused|too many clients|ECONNRESET|ECONNREFUSED|ETIMEDOUT|57P03|53300/i.test(message)) {
+      console.error(JSON.stringify({ event: "research.public_survey_database_unavailable", errorType: error instanceof Error ? error.name : "UnknownError" }));
+      return Response.json({ error: "SURVEY_TEMPORARILY_UNAVAILABLE" }, {
+        status: 503,
+        headers: { "Cache-Control": "private, no-store", "Retry-After": "3" }
+      });
+    }
     return Response.json({ error: message }, {
       status: statusFor(message),
       headers: { "Cache-Control": "no-store" }
