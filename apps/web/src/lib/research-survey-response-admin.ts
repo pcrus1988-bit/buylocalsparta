@@ -92,7 +92,7 @@ function options(config: unknown, key: string): Map<string, string> {
   const value = (config as Record<string, unknown>)[key];
   return new Map(Array.isArray(value)
     ? value.filter((x): x is [string, string] => Array.isArray(x) && x.length >= 2)
-      .map((x) => [String(x[0]), String(x[1])])
+      .map((x): [string, string] => [String(x[0]), String(x[1])])
     : []);
 }
 
@@ -193,7 +193,7 @@ export async function getResearchResponseDetail(
   const pool = getAdminPostgresRuntime().sqlPool;
   const found = await pool.query<SqlRow>([
     "SELECT s.title, r.id, r.status, r.started_at, r.last_saved_at, r.completed_at,",
-    "i.version AS instrument_version",
+    "i.version AS instrument_version, r.instrument_id",
     "FROM research_responses r JOIN research_studies s ON s.id=r.study_id",
     "LEFT JOIN research_instruments i ON i.id=r.instrument_id",
     "WHERE s.slug=$1 AND r.id=$2::uuid LIMIT 1"
