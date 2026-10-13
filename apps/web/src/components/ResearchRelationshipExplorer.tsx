@@ -28,9 +28,10 @@ export function ResearchRelationshipExplorer({ root, filters, questions, sectors
   const [sourceValue,setSourceValue]=useState(filters.preset==="custom"?filters.av:"");
   const [targetValue,setTargetValue]=useState(filters.preset==="custom"?filters.bv:"");
 
-  const first=RESEARCH_RELATIONSHIP_PRESETS.slice(0,5);
-  const rest=RESEARCH_RELATIONSHIP_PRESETS.slice(5);
   const active=filters.preset;
+  const featuredIds=["micro_local","micro_offline","local_eshop","tax_outlook","invest_confidence"];
+  const first=RESEARCH_RELATIONSHIP_PRESETS.filter(p=>featuredIds.includes(p.id)||p.id===active);
+  const rest=RESEARCH_RELATIONSHIP_PRESETS.filter(p=>!first.some(x=>x.id===p.id));
   const launch=(updates:Record<string,string>)=>startTransition(()=>router.push(urlFor(root,filters,updates)));
   const presetButton=(p:typeof RESEARCH_RELATIONSHIP_PRESETS[number])=><Link
     prefetch={false} href={urlFor(root,filters,{preset:p.id,region:"",a:"",av:"",b:"",bv:""})}
