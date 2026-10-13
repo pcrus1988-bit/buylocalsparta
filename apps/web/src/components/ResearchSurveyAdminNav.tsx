@@ -10,6 +10,7 @@ export type ResearchSurveyAdminSection =
   | "balance"
   | "contacts"
   | "invitations"
+  | "responses"
   | "simulation"
   | "kad"
   | "consent"
@@ -37,6 +38,7 @@ export const RESEARCH_SURVEY_ADMIN_SECTIONS: ReadonlyArray<Readonly<{
   { key: "balance", label: "Fieldwork balance", description: "Response balance across the frozen sampling strata.", group: "fieldwork" },
   { key: "contacts", label: "Email contacts", description: "Current contactable research frame and suppression state.", group: "fieldwork" },
   { key: "invitations", label: "Invitations", description: "Invitation lifecycle, expiry and response state.", group: "fieldwork" },
+  { key: "responses", label: "Questionnaire responses", description: "Saved answers, individual questionnaires, submission status and audited CSV export.", group: "fieldwork" },
   { key: "simulation", label: "Workflow simulation", description: "Test inbox, invitation link, submission, and Admin notification without actual Research records.", group: "fieldwork" },
   { key: "kad", label: "ΚΑΔ", description: "Research-frame composition by canonical activity group.", group: "fieldwork" },
   { key: "consent", label: "Consent", description: "Current participant consent choices.", group: "fieldwork" },
