@@ -513,7 +513,7 @@ export async function updatePublicResearchConsents(input: Readonly<{
             JOIN research_responses rr ON rr.id=e.response_id
             JOIN research_invites ri ON ri.id=rr.invite_id
             JOIN research_contact_points cp ON cp.id=ri.contact_point_id
-            WHERE e.response_id=$3 AND e.reward_kind='thank_you_code'
+            WHERE e.response_id=$3::uuid AND e.reward_kind='thank_you_code'
               AND e.status IN ('eligible','issued')
               AND rr.status='completed'
               AND ri.status <> 'suppressed'
@@ -843,37 +843,10 @@ export async function savePublicResearchSurvey(input: Readonly<{
         )
         ON CONFLICT (response_id, reward_kind, reward_version) DO NOTHING
       `, [response.id]);
-      await client.query(`
-        INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
-        SELECT
-          $1,$2,'reward_delivery','queued',
-          jsonb_build_object('responseId',$3::text,'source','survey_completion')
-        WHERE EXISTS (
-          SELECT 1
-          FROM research_consents rc
-          WHERE rc.response_id=$3
-            AND rc.consent_kind='thank_you_code'
-          ORDER BY rc.occurred_at DESC,rc.id DESC
-          LIMIT 1
-        )
-        AND (
-          SELECT rc.granted
-          FROM research_consents rc
-          WHERE rc.response_id=$3
-            AND rc.consent_kind='thank_you_code'
-          ORDER BY rc.occurred_at DESC,rc.id DESC
-          LIMIT 1
-        ) = true
-        AND NOT EXISTS (
-          SELECT 1
-          FROM research_study_jobs j
-          WHERE j.study_id=$1
-            AND j.wave_id=$2
-            AND j.job_type='reward_delivery'
-            AND j.input->>'responseId'=$3::text
-            AND j.status IN ('queued','running','succeeded')
-        )
-      `, [invite.study_id, invite.wave_id, response.id]);
+      // No delivery job is scheduled at completion: optional gift-code consent
+      // is requested only on the subsequent confirmation/preferences screen.
+      // updatePublicResearchConsents queues a delivery after an explicit opt-in.
+
     }
 
     const experimentResult = await client.query<SqlRow>(`
