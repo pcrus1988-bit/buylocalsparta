@@ -28,7 +28,9 @@ export async function GET(request: NextRequest) {
   if (!q) return Response.json({ status: "idle", query: "", results: [] }, { headers: noStore });
   if (!endpoint) return Response.json({ error: "not_configured" }, { status: 503, headers: noStore });
   try {
-    const upstream = await fetch(endpoint + "?q=" + encodeURIComponent(q), { cache: "no-store", signal: AbortSignal.timeout(7000) });
+    const anon = process.env.NYXI_SUPABASE_ANON_KEY;
+    if (!anon) return Response.json({ error: "not_configured" }, { status: 503, headers: noStore });
+    const upstream = await fetch(endpoint + "?q=" + encodeURIComponent(q), { headers: { apikey: anon, authorization: "Bearer " + anon }, cache: "no-store", signal: AbortSignal.timeout(7000) });
     if (!upstream.ok) return Response.json({ error: upstream.status === 429 ? "rate_limited" : "unavailable" }, { status: upstream.status === 429 ? 429 : 503, headers: noStore });
     const payload: unknown = await upstream.json();
     if (!payload || typeof payload !== "object") throw new Error("invalid_payload");
