@@ -184,7 +184,7 @@ export async function researchRelationshipMap(
     nationalSegment:safeRelationshipCounts(agg.nationalSegment),
     nationalOther:safeRelationshipCounts(agg.nationalOther),
     unknownGeography:agg.unknown>0,
-    totalMatchedBase:agg.nationalSegment.answered+agg.nationalOther.answered>=15
+    totalMatchedBase:agg.nationalSegment.answered>=15 && agg.nationalOther.answered>=15
       ? agg.nationalSegment.answered+agg.nationalOther.answered:null
   };
 }
