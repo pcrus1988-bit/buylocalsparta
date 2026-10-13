@@ -11,6 +11,7 @@ import { runGreekRetailAnalysis } from "./research-survey-analysis";
 import { proportionalStratumAllocation } from "./research-survey-statistics";
 import { allowIsolatedResearchSubmissionFailure, evaluateResearchDeliverySafety, invalidResearchRecipientAddressReason, RESEARCH_BOUNCE_POLICY_VERSION } from "./research-survey-delivery-safety";
 import { buildGreekRetailRelease } from "./research-survey-release";
+import { ABANDONED_FOLLOWUP_MODE, ABANDONED_RESEARCH_FOLLOWUP_SUBJECT, ABANDONED_RESEARCH_FOLLOWUP_BODY } from "./research-survey-abandoned-followup";
 import { greekRetailSector, greekRetailSectorV1, isRetailKad, RETAIL_ACTIVITY_GROUP_IDS, RETAIL_CLASSIFICATION_VERSION, RETAIL_SOURCE_REFERENCE } from "./research-kad-coverage";
 import {
   assertResearchSurveyEmailReady,
@@ -807,6 +808,7 @@ export async function queueGreekRetailInviteReminderBatch(
     minAgeDays?: number;
     minGapDays?: number;
     maxReminders?: number;
+    reminderMode?: typeof ABANDONED_FOLLOWUP_MODE;
     emailApproval?: ResearchEmailBatchApproval;
   }> = {}
 ): Promise<{ jobId: string; templateId: string }> {
@@ -817,7 +819,8 @@ export async function queueGreekRetailInviteReminderBatch(
   const limit = Math.max(1, Math.min(500, Math.floor(input.limit ?? 100)));
   const minAgeDays = Math.max(1, Math.min(90, Math.floor(input.minAgeDays ?? 5)));
   const minGapDays = Math.max(1, Math.min(90, Math.floor(input.minGapDays ?? 5)));
-  const maxReminders = Math.max(1, Math.min(5, Math.floor(input.maxReminders ?? 2)));
+  const abandonedFollowup = input.reminderMode === ABANDONED_FOLLOWUP_MODE;
+  const maxReminders = abandonedFollowup ? 1 : Math.max(1, Math.min(5, Math.floor(input.maxReminders ?? 2)));
   const pool = getProductionPostgresRuntime().sqlPool;
 
   const study = await pool.query<SqlRow>(`
@@ -848,6 +851,12 @@ export async function queueGreekRetailInviteReminderBatch(
   if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
   const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
+  if (abandonedFollowup) {
+    if (fieldworkPhase !== "main") throw new Error("RESEARCH_ABANDONED_FOLLOWUP_MAIN_ONLY");
+    assertResearchEmailBatchApproval(input.emailApproval, {
+      studyTitle: text(row.title), purpose: "research_reminder", maxEmails: limit
+    });
+  }
 
   const existing = await pool.query<SqlRow>(`
     SELECT id
@@ -881,7 +890,8 @@ export async function queueGreekRetailInviteReminderBatch(
         'maxReminders',$7::int,
         'label',$8::text,
         'fieldworkPhase',$9::text,
-        'emailApproval',$10::jsonb
+        'emailApproval',$10::jsonb,
+        'reminderMode',$11::text
       )
     )
     RETURNING id
@@ -895,7 +905,8 @@ export async function queueGreekRetailInviteReminderBatch(
     maxReminders,
     input.label?.trim() || `${fieldworkPhase}-research-reminder-${new Date().toISOString()}`,
     fieldworkPhase,
-    JSON.stringify(input.emailApproval)
+    JSON.stringify(input.emailApproval),
+    abandonedFollowup ? ABANDONED_FOLLOWUP_MODE : "standard"
   ]);
 
   return {
@@ -3290,10 +3301,12 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
   const input = objectValue(job.input);
   const templateId = text(input.templateId);
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
+  const abandonedFollowup = input.reminderMode === ABANDONED_FOLLOWUP_MODE;
+  if (abandonedFollowup && fieldworkPhase !== "main") throw new Error("RESEARCH_ABANDONED_FOLLOWUP_MAIN_ONLY");
   const limit = Math.max(1, Math.min(500, Math.floor(numberValue(input.limit) || 100)));
   const minAgeDays = Math.max(1, Math.min(90, Math.floor(numberValue(input.minAgeDays) || 5)));
   const minGapDays = Math.max(1, Math.min(90, Math.floor(numberValue(input.minGapDays) || 5)));
-  const maxReminders = Math.max(1, Math.min(5, Math.floor(numberValue(input.maxReminders) || 2)));
+  const maxReminders = abandonedFollowup ? 1 : Math.max(1, Math.min(5, Math.floor(numberValue(input.maxReminders) || 2)));
   if (!templateId) throw new Error("RESEARCH_REMINDER_TEMPLATE_NOT_READY");
 
   const templateResult = await pool.query<SqlRow>(`
@@ -3355,6 +3368,11 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
         AND (ri.expires_at IS NULL OR ri.expires_at > now())
         AND ri.sent_at <= now() - ($2::int * interval '1 day')
         AND COALESCE(rr.status,'') NOT IN ('completed','withdrawn','excluded')
+        AND ($7::boolean = false OR (
+          ri.status='started' AND rr.status='in_progress'
+          AND EXISTS (SELECT 1 FROM research_answers a JOIN research_questions q ON q.id=a.question_id
+             WHERE a.response_id=rr.id AND q.code='Q27' AND a.answered_at <= now() - interval '1 day')
+        ))
         AND COALESCE(stats.sent_reminders,0) < $3
         AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
               <= now() - ($4::int * interval '1 day')
@@ -3378,7 +3396,7 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
         ri.created_at,
         ri.id
       LIMIT $5
-    `, [job.study_id, minAgeDays, maxReminders, minGapDays, limit, fieldworkPhase]);
+    `, [job.study_id, minAgeDays, maxReminders, minGapDays, limit, fieldworkPhase, abandonedFollowup]);
     inviteIds = candidates.rows.map((row) => text(row.invite_id));
 
     await pool.query(`
@@ -3469,7 +3487,8 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
       JOIN LATERAL (
         SELECT id,contact_value
         FROM research_private.contact_points_with_value
-        WHERE frame_unit_id=su.frame_unit_id
+        WHERE id=ri.contact_point_id
+          AND frame_unit_id=su.frame_unit_id
           AND contact_type='email'
           AND suppression_status='active'
           AND NOT public.research_contact_is_suppressed(contact_type,contact_value_hash)
@@ -3483,6 +3502,11 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
         AND (ri.expires_at IS NULL OR ri.expires_at > now())
         AND ri.sent_at <= now() - ($3::int * interval '1 day')
         AND COALESCE(rr.status,'') NOT IN ('completed','withdrawn','excluded')
+        AND ($6::boolean = false OR (
+          ri.status='started' AND rr.status='in_progress'
+          AND EXISTS (SELECT 1 FROM research_answers a JOIN research_questions q ON q.id=a.question_id
+             WHERE a.response_id=rr.id AND q.code='Q27' AND a.answered_at <= now() - interval '1 day')
+        ))
         AND stats.sent_reminders < $4
         AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
               <= now() - ($5::int * interval '1 day')
@@ -3494,7 +3518,7 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
             AND pending_delay.last_error LIKE 'SES delivery delay:%'
         )
       LIMIT 1
-    `, [inviteId, job.study_id, minAgeDays, maxReminders, minGapDays]);
+    `, [inviteId, job.study_id, minAgeDays, maxReminders, minGapDays, abandonedFollowup]);
     const row = candidate.rows[0];
     if (!row) {
       skippedCount += 1;
@@ -3543,8 +3567,8 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
         attemptKind: "reminder",
         surveyUrl,
         methodologyUrl,
-        subjectTemplate: text(template.subject),
-        bodyTemplate: text(template.body_text),
+        subjectTemplate: abandonedFollowup ? ABANDONED_RESEARCH_FOLLOWUP_SUBJECT : text(template.subject),
+        bodyTemplate: abandonedFollowup ? ABANDONED_RESEARCH_FOLLOWUP_BODY : text(template.body_text),
         companyName: text(row.legal_name).trim() || undefined
       });
 
@@ -3576,7 +3600,8 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
             'attemptId',$4::text,
             'attemptKind','reminder',
             'reminderNumber',$5::int,
-            'templateVersion',$6::text
+            'templateVersion',$6::text,
+            'followupMode',$7::text
           )
         )
       `, [
@@ -3585,7 +3610,8 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
         process.env.BLS_RESEARCH_SES_CONFIGURATION_SET?.trim() || "",
         attemptId,
         reminderNumber,
-        template.template_version
+        template.template_version,
+        abandonedFollowup ? ABANDONED_FOLLOWUP_MODE : "standard"
       ]);
       sentCount += 1;
     } catch (error) {
