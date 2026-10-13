@@ -28,9 +28,7 @@ export async function GET(request: Request, context: { params: Promise<{ slug: s
             AND rs.status='fielding'
             AND NOT EXISTS (
               SELECT 1 FROM research_invite_messages m
-              WHERE m.invite_id=ri.id
-                AND m.attempt_kind='reminder'
-                AND m.status IN ('sending','sent','delivered','opened')
+              WHERE m.invite_id=ri.id AND m.attempt_kind='reminder'
             )
             AND NOT EXISTS (
               SELECT 1 FROM research_invite_messages pending_delay
@@ -52,6 +50,12 @@ export async function GET(request: Request, context: { params: Promise<{ slug: s
         AND cp.contact_type='email'
         AND cp.suppression_status='active'
         AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+        AND EXISTS (SELECT 1 FROM research_consents consent
+          WHERE consent.response_id=rr.id AND consent.consent_kind='research_participation'
+          AND consent.granted=true)
+        AND NOT EXISTS (SELECT 1 FROM research_consents revoked
+          WHERE revoked.response_id=rr.id AND revoked.consent_kind='research_participation'
+          AND revoked.granted=false)
     `, [slug]);
 
     return Response.json({
