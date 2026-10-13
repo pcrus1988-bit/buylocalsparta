@@ -8,7 +8,6 @@ import { WorkspaceSectionHeading } from "../../../../../../components/WorkspaceP
 import { hasAdminPermission } from "../../../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../../../lib/admin-session";
 import { researchGeographicMap } from "../../../../../../lib/research-geographic-runtime";
-import { GREECE_REGIONS } from "../../../../../../lib/research-geographic-core";
 
 export const metadata: Metadata = {
   title: "Admin · Χάρτης Ελληνικού Λιανεμπορίου",
