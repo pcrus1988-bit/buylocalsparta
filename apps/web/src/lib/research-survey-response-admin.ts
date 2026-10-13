@@ -206,7 +206,7 @@ export async function getResearchResponseDetail(
 }
 
 export async function exportResearchResponseCsv(
-  principal: SessionPrincipal, slug: string, inputStatus?: string
+  principal: SessionPrincipal, slug: string, inputStatus?: string, inputId?: string
 ): Promise<string | undefined> {
   assertAdminPermission(principal, "research.read");
   if (!rawResearchAnswerAccess(principal)) throw new Error("RESEARCH_ANSWERS_FORBIDDEN");
@@ -215,6 +215,8 @@ export async function exportResearchResponseCsv(
   const study = await pool.query<SqlRow>("SELECT id FROM research_studies WHERE slug=$1", [slug]);
   if (!study.rows[0]) return undefined;
   const status = normalizedResearchStatus(inputStatus);
+  const id = (inputId ?? "").trim();
+  if (id && !UUID.test(id)) throw new Error("RESEARCH_EXPORT_INVALID_ID");
   const result = await pool.query<SqlRow>([
     "SELECT r.id AS response_id, r.status, r.started_at, r.completed_at,",
     "i.version AS instrument_version, q.code, q.prompt_el,q.question_type,q.config,",
@@ -225,8 +227,9 @@ export async function exportResearchResponseCsv(
     "LEFT JOIN research_instruments i ON i.id=r.instrument_id",
     "WHERE r.study_id=$1 AND r.status <> 'withdrawn'",
     "AND ($2::text IS NULL OR r.status=$2)",
+    "AND ($3::uuid IS NULL OR r.id=$3::uuid)",
     "ORDER BY r.started_at DESC,r.id DESC,q.position,a.id LIMIT 50001"
-  ].join("\n"), [study.rows[0].id, status || null]);
+  ].join("\n"), [study.rows[0].id, status || null, id || null]);
   if (result.rows.length > RESEARCH_RESPONSE_EXPORT_MAX_ROWS) {
     throw new Error("RESEARCH_EXPORT_TOO_LARGE");
   }
