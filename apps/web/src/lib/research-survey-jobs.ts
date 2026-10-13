@@ -869,6 +869,7 @@ export async function queueGreekRetailInviteReminderBatch(
     LIMIT 1
   `, [row.id, row.current_wave_id]);
   if (existing.rows[0]) {
+    if (abandonedFollowup) throw new Error("RESEARCH_REMINDER_JOB_ALREADY_ACTIVE");
     return {
       jobId: text(existing.rows[0].id),
       templateId: text(row.reminder_template_id)
@@ -913,6 +914,29 @@ export async function queueGreekRetailInviteReminderBatch(
     jobId: text(job.rows[0]!.id),
     templateId: text(row.reminder_template_id)
   };
+}
+
+/**
+ * A deliberate administrator-approved follow-up for recipients who saved Q27
+ * without formal submission. The worker rechecks every recipient immediately
+ * before sending; 0 email is sent when SES is not enabled.
+ */
+export async function queueGreekRetailAbandonedFollowupBatch(
+  principal: SessionPrincipal,
+  input: Readonly<{ limit: number; emailApproval: ResearchEmailBatchApproval }>
+): Promise<{ jobId: string; templateId: string }> {
+  if (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 500) {
+    throw new Error("RESEARCH_ABANDONED_BATCH_LIMIT_INVALID");
+  }
+  return queueGreekRetailInviteReminderBatch(principal, {
+    limit: input.limit,
+    reminderMode: ABANDONED_FOLLOWUP_MODE,
+    minAgeDays: 1,
+    minGapDays: 1,
+    maxReminders: 1,
+    label: "abandoned-q27-explicit-followup-" + new Date().toISOString(),
+    emailApproval: input.emailApproval
+  });
 }
 
 export async function suppressGreekRetailResearchEmail(
