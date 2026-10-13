@@ -549,12 +549,7 @@ export async function savePublicResearchSurvey(input: Readonly<{
   researchConsent?: boolean;
   complete?: boolean;
   experimentChoices?: Readonly<Record<string, "a" | "b" | "none">>;
-  optionalConsents?: Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>;
-}>): Promise<Readonly<{
-  status: string;
-  experiments: readonly ResearchExperimentAssignment[];
-  consents?: Readonly<Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>>;
-}>> {
+}>): Promise<Readonly<{ status: string; experiments: readonly ResearchExperimentAssignment[] }>> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const runtime = getPublicSurveyPostgresRuntime();
   const client = await runtime.sqlPool.connect();
@@ -693,7 +688,6 @@ export async function savePublicResearchSurvey(input: Readonly<{
       VALUES ($1, 'saved', '{"source":"survey_ui"}'::jsonb)
     `, [invite.invite_id]);
 
-    const completionConsents: Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>> = {};
     if (input.complete) {
       const allAnswersResult = await client.query<SqlRow>(`
         SELECT q.code, a.answer
@@ -800,41 +794,6 @@ export async function savePublicResearchSurvey(input: Readonly<{
         `, [invite.sample_unit_id]);
       }
 
-      // Capture only choices explicitly submitted on this final screen. They
-      // remain independent of participation and do not rewrite any answer.
-      // Ineligible commercial contacts must never acquire marketing consent.
-      for (const consentKind of ["results_notification", "thank_you_code", "marketing"] as const) {
-        const granted = input.optionalConsents?.[consentKind];
-        if (typeof granted !== "boolean") continue;
-        if (consentKind === "marketing" && granted) {
-          if (!invite.contact_point_id) {
-            completionConsents.marketing = false;
-            continue;
-          }
-          const contact = await client.query<SqlRow>(`
-            SELECT cp.id FROM research_contact_points cp
-            WHERE cp.id=$1 AND cp.contact_type='email'
-              AND cp.suppression_status='active'
-              AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
-            LIMIT 1
-          `, [invite.contact_point_id]);
-          if (!contact.rows[0]) {
-            completionConsents.marketing = false;
-            continue;
-          }
-        }
-        await client.query(`
-          INSERT INTO research_consents
-            (response_id, consent_kind, statement_version, granted, source)
-          VALUES ($1, $2, $3, $4, 'survey_ui_completion')
-        `, [
-          response.id, consentKind,
-          consentKind === "marketing" ? "kontamou-commercial-email-v1" : invite.consent_statement_version,
-          granted
-        ]);
-        completionConsents[consentKind] = granted;
-      }
-
       // Reward eligibility follows completion only. Optional research-contact
       // choices are recorded separately and never determine research compensation.
       await client.query(`
@@ -888,7 +847,6 @@ export async function savePublicResearchSurvey(input: Readonly<{
     await client.query("COMMIT");
     return {
       status: input.complete ? "completed" : "in_progress",
-      ...(input.complete ? { consents: completionConsents } : {}),
       experiments: experimentResult.rows.map((row) => ({
         taskNumber: numberValue(row.task_number),
         alternativeA: objectValue(row.alternative_a) as Record<string, string | number>,
