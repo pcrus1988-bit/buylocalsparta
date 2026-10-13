@@ -1,5 +1,6 @@
 import { requireAdminSession } from "../../../../../../../lib/admin-session";
 import { previewResearchRecruitmentEmail } from "../../../../../../../lib/research-survey-mail";
+import { ABANDONED_RESEARCH_FOLLOWUP_SUBJECT, ABANDONED_RESEARCH_FOLLOWUP_BODY } from "../../../../../../../lib/research-survey-abandoned-followup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,18 +18,18 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     const pick = (key: string, max: number) =>
       typeof input[key] === "string" ? (input[key] as string).slice(0, max) : "";
     const purpose = pick("purpose", 40);
-    if (purpose !== "research_invitation" && purpose !== "research_reminder") {
+    if (purpose !== "research_invitation" && purpose !== "research_reminder" && purpose !== "abandoned_followup") {
       return Response.json({ error: "Invalid preview type" }, { status: 400 });
     }
     const surveyUrl = "https://kontamou.site/research/" + encodeURIComponent(slug) + "/t/DEMO-PREVIEW-ONLY";
     const preview = previewResearchRecruitmentEmail({
       studyTitle: pick("studyTitle", 300),
-      subjectTemplate: pick("subject", 180),
-      bodyTemplate: pick("bodyText", 12000),
+      subjectTemplate: purpose === "abandoned_followup" ? ABANDONED_RESEARCH_FOLLOWUP_SUBJECT : pick("subject", 180),
+      bodyTemplate: purpose === "abandoned_followup" ? ABANDONED_RESEARCH_FOLLOWUP_BODY : pick("bodyText", 12000),
       companyName: pick("companyName", 300),
       surveyUrl,
       methodologyUrl: "https://kontamou.site/research/" + encodeURIComponent(slug) + "/methodology",
-      attemptKind: purpose === "research_reminder" ? "reminder" : "initial"
+      attemptKind: purpose === "research_invitation" ? "initial" : "reminder"
     });
     return Response.json(preview, {
       headers: { "Cache-Control": "private, no-store, max-age=0", "X-Content-Type-Options": "nosniff" }

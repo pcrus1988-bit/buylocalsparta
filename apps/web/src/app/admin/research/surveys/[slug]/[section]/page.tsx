@@ -6,6 +6,7 @@ import { ResearchStudyFieldworkBalance } from "../../../../../../components/Rese
 import { ResearchSurveySettingsPanel } from "../../../../../../components/ResearchSurveySettingsPanel";
 import { ResearchEvaluationPlanEditor, ResearchSurveyQuestionsEditor } from "../../../../../../components/ResearchSurveyQuestionsEditor";
 import { ResearchStudyFieldworkControls } from "../../../../../../components/ResearchStudyFieldworkControls";
+import { ResearchAbandonedFollowupControls } from "../../../../../../components/ResearchAbandonedFollowupControls";
 import { ResearchStudyLifecycleControls } from "../../../../../../components/ResearchStudyLifecycleControls";
 import { ResearchStudyOperationsPanel } from "../../../../../../components/ResearchStudyOperationsPanel";
 import { ResearchSurveyDirectoryPanel } from "../../../../../../components/ResearchSurveyDirectoryPanel";
@@ -144,6 +145,11 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
           runningJobs={study.runningJobs}
         /> : <div className="workspace-inline-note">Read-only access. Fieldwork mutations require Research management permission.</div>}
       </section>
+      {canManage && <ResearchAbandonedFollowupControls
+        slug={study.slug}
+        studyTitle={study.title}
+        csrfToken={principal.csrfToken}
+      />}
       <ResearchStudyOperationsPanel slug={study.slug} data={operations} section="templates" />
     </main>;
   }
