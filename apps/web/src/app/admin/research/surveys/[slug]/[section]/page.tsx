@@ -10,6 +10,8 @@ import { ResearchAbandonedFollowupControls } from "../../../../../../components/
 import { ResearchStudyLifecycleControls } from "../../../../../../components/ResearchStudyLifecycleControls";
 import { ResearchStudyOperationsPanel } from "../../../../../../components/ResearchStudyOperationsPanel";
 import { ResearchSurveyDirectoryPanel } from "../../../../../../components/ResearchSurveyDirectoryPanel";
+import { ResearchStudyConsentDirectory } from "../../../../../../components/ResearchStudyConsentDirectory";
+import { researchSurveyConsentDirectory } from "../../../../../../lib/research-survey-consent-directory";
 import { ResearchStudyProtocolControls } from "../../../../../../components/ResearchStudyProtocolControls";
 import { ResearchStudyQualityControls } from "../../../../../../components/ResearchStudyQualityControls";
 import { ResearchStudySamplingControls } from "../../../../../../components/ResearchStudySamplingControls";
@@ -44,7 +46,7 @@ const VALID_SECTIONS = new Set(
 
 export default async function ResearchSurveySectionPage({ params, searchParams }: {
   params: Promise<{ slug: string; section: string }>;
-  searchParams: Promise<{ search?: string; q?: string; status?: string; cursor?: string }>;
+  searchParams: Promise<{ search?: string; q?: string; status?: string; cursor?: string; kind?: string; decision?: string }>;
 }) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
@@ -84,6 +86,30 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
     </main>;
   }
 
+
+  // Consent evidence is a fast, study-wide page. It must remain accessible
+  // after fieldwork closes or results are published, without the heavyweight
+  // multi-study overview and without preloading more than 25 private emails.
+  if (section === "consent") {
+    const query = await searchParams;
+    const [summary, evidence] = await Promise.all([
+      researchSurveyAdminFastOverview(principal, slug),
+      researchSurveyConsentDirectory(principal, slug, {
+        kind: query.kind, decision: query.decision, cursor: query.cursor
+      })
+    ]);
+    if (!summary.databaseConfigured || !summary.study || !evidence) notFound();
+    return <main className="vendor-app admin-app">
+      <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel={"Research · " + summary.study.title} />
+      <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
+        <div className="eyebrow">Research · Consent</div>
+        <h1>{summary.study.title}</h1>
+        <p className="lead">Consent decisions and the recorded opt-in time of each participant, including past survey waves.</p>
+      </div></section>
+      <ResearchSurveyAdminNav slug={slug} current={section} />
+      <ResearchStudyConsentDirectory slug={slug} data={evidence} />
+    </main>;
+  }
 
   // Fieldwork is an independent fast-path: never run the global, multi-study
   // invitation/quality/evidence aggregates before showing the send controls.
@@ -244,9 +270,6 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
   } else if (section === "kad") {
     const operations = await researchSurveyOperationsOverview(principal, study.slug, "kad");
     content = <ResearchStudyOperationsPanel slug={study.slug} data={operations} section="kad" />;
-  } else if (section === "consent") {
-    const operations = await researchSurveyOperationsOverview(principal, study.slug, "consents");
-    content = <ResearchStudyOperationsPanel slug={study.slug} data={operations} section="consents" />;
   } else if (section === "delivery") {
     const delays = await researchDeliveryDelayQueue(principal, study.slug);
     content = <section className="shell vendor-section">
