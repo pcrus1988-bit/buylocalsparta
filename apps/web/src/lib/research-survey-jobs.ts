@@ -3668,29 +3668,15 @@ async function processRewardDeliveryJob(job: ResearchJobRow): Promise<Record<str
     JOIN research_invites ri ON ri.id=rr.invite_id
     JOIN research_private.contact_points_with_value cp ON cp.id=ri.contact_point_id
     JOIN latest_consent consent ON consent.response_id=rr.id AND consent.granted=true
-    LEFT JOIN LATERAL (
-      SELECT e.action,e.reason
-      FROM research_contact_suppression_events e
-      WHERE e.contact_type=cp.contact_type
-        AND e.contact_value_hash=cp.contact_value_hash
-      ORDER BY e.occurred_at DESC,e.id DESC
-      LIMIT 1
-    ) suppression ON true
     WHERE rr.study_id=$1
       AND rr.status='completed'
       AND re.reward_kind='thank_you_code'
       AND re.status IN ('eligible','issued')
       AND cp.contact_type='email'
       AND cp.contact_value <> ''
-      AND cp.suppression_status NOT IN ('invalid','bounced')
-      AND (
-        cp.suppression_status='active'
-        OR suppression.action='restore'
-        OR (
-          suppression.action='suppress'
-          AND suppression.reason='participant_research_opt_out'
-        )
-      )
+      AND cp.suppression_status='active'
+      AND ri.status <> 'suppressed'
+      AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
       AND ($2::text='' OR rr.id::text=$2::text)
       AND NOT EXISTS (
         SELECT 1
@@ -3892,27 +3878,13 @@ async function processResultsNotificationJob(job: ResearchJobRow): Promise<Recor
     JOIN research_invites ri ON ri.id=rr.invite_id
     JOIN research_private.contact_points_with_value cp ON cp.id=ri.contact_point_id
     JOIN latest_consent consent ON consent.response_id=rr.id AND consent.granted=true
-    LEFT JOIN LATERAL (
-      SELECT e.action,e.reason
-      FROM research_contact_suppression_events e
-      WHERE e.contact_type=cp.contact_type
-        AND e.contact_value_hash=cp.contact_value_hash
-      ORDER BY e.occurred_at DESC,e.id DESC
-      LIMIT 1
-    ) suppression ON true
     WHERE rr.study_id=$1
       AND rr.status='completed'
       AND cp.contact_type='email'
       AND cp.contact_value <> ''
-      AND cp.suppression_status NOT IN ('invalid','bounced')
-      AND (
-        cp.suppression_status='active'
-        OR suppression.action='restore'
-        OR (
-          suppression.action='suppress'
-          AND suppression.reason='participant_research_opt_out'
-        )
-      )
+      AND cp.suppression_status='active'
+      AND ri.status <> 'suppressed'
+      AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
       AND NOT EXISTS (
         SELECT 1
         FROM research_participant_deliveries d
@@ -4071,27 +4043,13 @@ async function processResultsNotificationJob(job: ResearchJobRow): Promise<Recor
     JOIN research_invites ri ON ri.id=rr.invite_id
     JOIN research_private.contact_points_with_value cp ON cp.id=ri.contact_point_id
     JOIN latest_consent consent ON consent.response_id=rr.id AND consent.granted=true
-    LEFT JOIN LATERAL (
-      SELECT e.action,e.reason
-      FROM research_contact_suppression_events e
-      WHERE e.contact_type=cp.contact_type
-        AND e.contact_value_hash=cp.contact_value_hash
-      ORDER BY e.occurred_at DESC,e.id DESC
-      LIMIT 1
-    ) suppression ON true
     WHERE rr.study_id=$1
       AND rr.status='completed'
       AND cp.contact_type='email'
       AND cp.contact_value <> ''
-      AND cp.suppression_status NOT IN ('invalid','bounced')
-      AND (
-        cp.suppression_status='active'
-        OR suppression.action='restore'
-        OR (
-          suppression.action='suppress'
-          AND suppression.reason='participant_research_opt_out'
-        )
-      )
+      AND cp.suppression_status='active'
+      AND ri.status <> 'suppressed'
+      AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
       AND NOT EXISTS (
         SELECT 1
         FROM research_participant_deliveries d
