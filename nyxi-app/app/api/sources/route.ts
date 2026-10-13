@@ -21,7 +21,9 @@ function validate(row: unknown): Ref | null {
 }
 export async function GET(_request: NextRequest) {
   try {
-    const response = await fetch(atlasEndpoint, { signal: AbortSignal.timeout(7000), next: { revalidate: 300 } });
+    const anon = process.env.NYXI_SUPABASE_ANON_KEY;
+    if (!anon) return Response.json({ error: "atlas_not_configured" }, { status: 503, headers: { ...noStore, "cache-control": "no-store" } });
+    const response = await fetch(atlasEndpoint, { headers: { apikey: anon, authorization: "Bearer " + anon }, signal: AbortSignal.timeout(7000), next: { revalidate: 300 } });
     if (!response.ok) return Response.json({ error: "atlas_unavailable" }, { status: 503, headers: noStore });
     const data: unknown = await response.json();
     if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("invalid_payload");
