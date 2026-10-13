@@ -47,7 +47,7 @@ export async function GET(): Promise<Response> {
     status: 200,
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, s-maxage=900, stale-while-revalidate=3600"
+      "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60"
     }
   });
 }
