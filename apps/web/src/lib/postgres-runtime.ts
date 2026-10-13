@@ -86,6 +86,33 @@ export function getProductionPostgresRuntime(): ProductionPostgresRuntime {
 }
 
 /**
+ * Keep public survey reading/saving and consent writes separate from the
+ * general storefront pool. Slow catalogue revalidation must not consume a
+ * participant's only local connection lane. One short-lived pooled client per
+ * warm instance keeps the Supabase transaction-pooler footprint bounded.
+ */
+const publicSurveyGlobalKey = "__buyLocalSpartaPublicSurveyPostgresRuntime" as const;
+const publicSurveyGlobals = globalThis as typeof globalThis & {
+  [publicSurveyGlobalKey]?: ProductionPostgresRuntime;
+};
+
+export function getPublicSurveyPostgresRuntime(): ProductionPostgresRuntime {
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  if (publicSurveyGlobals[publicSurveyGlobalKey]) return publicSurveyGlobals[publicSurveyGlobalKey];
+  const env = {
+    ...buildWebPostgresRuntimeEnv(),
+    BLS_DB_APPLICATION_NAME: "buy-local-sparta-web-public-survey",
+    BLS_DB_POOL_MAX: "1",
+    BLS_DB_CONNECT_TIMEOUT_MS: "8000",
+    BLS_DB_IDLE_TIMEOUT_MS: "5000"
+  };
+  return (publicSurveyGlobals[publicSurveyGlobalKey] = createPostgresRuntimeFromEnv({
+    env,
+    applicationName: "buy-local-sparta-web-public-survey"
+  }));
+}
+
+/**
  * Admin traffic gets its own tiny local pool so a long storefront/crawler query cannot
  * occupy the only per-instance connection and starve a governed Admin mutation.
  * Supabase transaction pooling still multiplexes both pools onto the same database;

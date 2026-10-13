@@ -365,6 +365,12 @@ const genericSurveyRuntime = genericSurveyRuntimeStart >= 0
   : "";
 if (genericSurveyRoute.includes("optionalConsents:")) errors.push("generic survey-save API still accepts optional participant preferences");
 if (genericSurveyRuntime.includes("optionalConsents")) errors.push("generic survey runtime still mutates optional participant preferences");
+if (genericSurveyRuntime.includes("rc.response_id=$3") && genericSurveyRuntime.includes("jsonb_build_object('responseId',$3::text")) {
+  errors.push("survey completion must not schedule gift delivery before separate optional consent");
+}
+if (!surveyRuntime.includes("WHERE e.response_id=$3::uuid AND e.reward_kind='thank_you_code'")) {
+  errors.push("gift-code opt-in job mixes UUID response id and text JSON value");
+}
 if (!surveyRuntime.includes('throw new Error("RESEARCH_PREFERENCES_REQUIRE_COMPLETION")')) errors.push("participant preference endpoint does not require questionnaire completion");
 if (!surveyRuntime.includes("s.current_wave_id AS wave_id")) errors.push("research lifecycle does not bind to the study current wave");
 if (!surveyRuntime.includes("AND rs.wave_id=$2")) errors.push("release publication is not current-wave scoped");

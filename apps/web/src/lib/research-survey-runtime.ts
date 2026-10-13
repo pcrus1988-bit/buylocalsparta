@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, hasAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
-import { getAdminPostgresRuntime, getAdminResearchOverviewPostgresRuntime, getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { getAdminPostgresRuntime, getAdminResearchOverviewPostgresRuntime, getProductionPostgresRuntime, getPublicSurveyPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { researchReleaseArtifactIntegrity } from "./research-survey-release";
 import { evaluateResearchDeliverySafety, researchDeliveryReviewMilestones, RESEARCH_BOUNCE_POLICY_VERSION } from "./research-survey-delivery-safety";
 import {
@@ -202,7 +202,7 @@ async function questionsForInstrument(
 
 export async function publicResearchSurvey(slug: string, token: string): Promise<ResearchSurveyContext> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
-  const pool = getProductionPostgresRuntime().sqlPool;
+  const pool = getPublicSurveyPostgresRuntime().sqlPool;
   const invite = await invitationRow(pool, slug, token);
   const opened = await pool.query<SqlRow>(`
     UPDATE research_invites
@@ -306,7 +306,7 @@ export async function refusePublicResearchInvite(input: Readonly<{
   suppressFutureResearch?: boolean;
 }>): Promise<Readonly<{ status: "declined"; futureResearchSuppressed: boolean; responseWithdrawn: boolean }>> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
-  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  const client = await getPublicSurveyPostgresRuntime().sqlPool.connect();
 
   try {
     await client.query("BEGIN");
@@ -444,7 +444,7 @@ export async function updatePublicResearchConsents(input: Readonly<{
   consents: Readonly<Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>>;
 }>> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
-  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  const client = await getPublicSurveyPostgresRuntime().sqlPool.connect();
 
   try {
     await client.query("BEGIN");
@@ -492,6 +492,44 @@ export async function updatePublicResearchConsents(input: Readonly<{
         `, [response.id, consentKind,
           consentKind === "marketing" ? "kontamou-commercial-email-v1" : invite.consent_statement_version,
           normalizedGranted]);
+      }
+
+      if (consentKind === "thank_you_code" && normalizedGranted) {
+        // The gift-code preference is deliberately offered only AFTER survey
+        // completion. Queue the per-response delivery at the moment of this
+        // explicit opt-in, otherwise the completion-time scheduler has no
+        // consent to act on. Only active, non-suppressed contacts are eligible.
+        await client.query(`
+          INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
+          SELECT $1,$2,'reward_delivery','queued',
+            jsonb_build_object(
+              'responseId',$3::text,
+              'source','survey_completion',
+              'trigger','post_completion_explicit_opt_in'
+            )
+          WHERE EXISTS (
+            SELECT 1
+            FROM research_reward_entitlements e
+            JOIN research_responses rr ON rr.id=e.response_id
+            JOIN research_invites ri ON ri.id=rr.invite_id
+            JOIN research_contact_points cp ON cp.id=ri.contact_point_id
+            WHERE e.response_id=$3::uuid AND e.reward_kind='thank_you_code'
+              AND e.status IN ('eligible','issued')
+              AND rr.status='completed'
+              AND ri.status <> 'suppressed'
+              AND cp.contact_type='email'
+              AND cp.suppression_status='active'
+              AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+          )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM research_study_jobs j
+              WHERE j.study_id=$1 AND j.wave_id=$2
+                AND j.job_type='reward_delivery'
+                AND j.input->>'responseId'=$3::text
+                AND j.status IN ('queued','running','succeeded')
+            )
+        `, [invite.study_id, invite.wave_id, response.id]);
       }
 
       if (!normalizedGranted) {
@@ -551,7 +589,7 @@ export async function savePublicResearchSurvey(input: Readonly<{
   experimentChoices?: Readonly<Record<string, "a" | "b" | "none">>;
 }>): Promise<Readonly<{ status: string; experiments: readonly ResearchExperimentAssignment[] }>> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
-  const runtime = getProductionPostgresRuntime();
+  const runtime = getPublicSurveyPostgresRuntime();
   const client = await runtime.sqlPool.connect();
 
   try {
@@ -805,37 +843,10 @@ export async function savePublicResearchSurvey(input: Readonly<{
         )
         ON CONFLICT (response_id, reward_kind, reward_version) DO NOTHING
       `, [response.id]);
-      await client.query(`
-        INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
-        SELECT
-          $1,$2,'reward_delivery','queued',
-          jsonb_build_object('responseId',$3::text,'source','survey_completion')
-        WHERE EXISTS (
-          SELECT 1
-          FROM research_consents rc
-          WHERE rc.response_id=$3
-            AND rc.consent_kind='thank_you_code'
-          ORDER BY rc.occurred_at DESC,rc.id DESC
-          LIMIT 1
-        )
-        AND (
-          SELECT rc.granted
-          FROM research_consents rc
-          WHERE rc.response_id=$3
-            AND rc.consent_kind='thank_you_code'
-          ORDER BY rc.occurred_at DESC,rc.id DESC
-          LIMIT 1
-        ) = true
-        AND NOT EXISTS (
-          SELECT 1
-          FROM research_study_jobs j
-          WHERE j.study_id=$1
-            AND j.wave_id=$2
-            AND j.job_type='reward_delivery'
-            AND j.input->>'responseId'=$3::text
-            AND j.status IN ('queued','running','succeeded')
-        )
-      `, [invite.study_id, invite.wave_id, response.id]);
+      // No delivery job is scheduled at completion: optional gift-code consent
+      // is requested only on the subsequent confirmation/preferences screen.
+      // updatePublicResearchConsents queues a delivery after an explicit opt-in.
+
     }
 
     const experimentResult = await client.query<SqlRow>(`

@@ -276,20 +276,53 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
   const currentAnswered = currentVisibleQuestions.filter((question) => answerPresent(answers[question.code])).length;
   const currentQuestionCount = currentVisibleQuestions.length;
 
-  async function save(payload: Record<string, unknown>) {
-    if (previewMode) return {} as Record<string, unknown>;
+  async function save(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    if (previewMode) return {};
     setSaving(true);
     setMessage("");
+    const isFinalSubmission = payload.complete === true;
+    const canRetry = isFinalSubmission || (Boolean(payload.answers) && typeof payload.answers === "object");
+    const temporaryFailure = "Προσωρινή δυσκολία σύνδεσης με την έρευνα. Οι ήδη αποθηκευμένες απαντήσεις σας διατηρούνται. Δοκιμάστε ξανά σε λίγο.";
     try {
-      const response = await fetch("/api/research/" + encodeURIComponent(slug) + "/t/" + encodeURIComponent(token), {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Δεν ήταν δυνατή η αποθήκευση.");
-      if (Array.isArray(body.experiments)) setExperiments(body.experiments);
-      return body;
+      // A final submission is idempotent in effect: server validation uses
+      // saved answers, and a committed prior attempt returns ALREADY_COMPLETED.
+      // Retry only that operation, never silently repeat a consent preference.
+      for (let attempt = 0; attempt < (canRetry ? 2 : 1); attempt++) {
+        let response: Response;
+        try {
+          response = await fetch("/api/research/" + encodeURIComponent(slug) + "/t/" + encodeURIComponent(token), {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+        } catch (error) {
+          if (canRetry && attempt === 0) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 1200));
+            continue;
+          }
+          throw new Error(temporaryFailure, { cause: error });
+        }
+
+        const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+        const code = typeof body.error === "string" ? body.error : "";
+        if (isFinalSubmission && response.status === 409 && code === "SURVEY_ALREADY_COMPLETED") {
+          return { status: "completed" };
+        }
+        if (!response.ok) {
+          const transient = response.status >= 500 || /timeout|connection terminated|ECONNRESET|ETIMEDOUT/i.test(code);
+          if (transient && canRetry && attempt === 0) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 1200));
+            continue;
+          }
+          throw new Error(transient ? temporaryFailure : code || "Δεν ήταν δυνατή η αποθήκευση.");
+        }
+        if (Array.isArray(body.experiments)) setExperiments(body.experiments as readonly ResearchExperimentAssignment[]);
+        if (body.consents && typeof body.consents === "object" && !Array.isArray(body.consents)) {
+          setOptionalConsents((previous) => ({ ...previous, ...body.consents as Partial<ConsentState> }));
+        }
+        return body;
+      }
+      throw new Error(temporaryFailure);
     } finally {
       setSaving(false);
     }
