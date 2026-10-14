@@ -10,10 +10,20 @@ CREATE TEMP TABLE _sf_449_target(
   manufacturer_source_key text NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO _sf_449_target VALUES
+-- Clean-database CI has no catalogue records, so no family-specific repair is
+-- applicable. On an initialized catalogue, every target still fails closed
+-- unless its exact identity, approved offer and evidence are present.
+INSERT INTO _sf_449_target(style_code,family_id,manufacturer_source_key)
+SELECT style_code,family_id::uuid,manufacturer_source_key
+FROM (VALUES
 ('JV6067','5104fcde-d543-4b52-9d48-27d6d35f638f','adidas_squadra25_training_jacket_jv6067_official'),
 ('JP3389','84233778-46a2-43a7-8d5a-ec0b8419381b','adidas_squadra25_training_jacket_jp3389_official'),
-('JE2774','64d56fd3-cab7-4036-af37-4f63d7f43aae','adidas_squadra25_training_jacket_je2774_official');
+('JE2774','64d56fd3-cab7-4036-af37-4f63d7f43aae','adidas_squadra25_training_jacket_je2774_official')
+) target(style_code,family_id,manufacturer_source_key)
+WHERE EXISTS (
+  SELECT 1 FROM public.canonical_variants
+  WHERE active=true AND suppressed=false AND recalled=false
+);
 
 DO $$
 DECLARE r record; n integer;
@@ -54,8 +64,9 @@ JOIN public.sport_product_fact_evidence e ON e.family_id=t.family_id
   AND e.active AND e.evidence_value=to_jsonb('general_training'::text)
   AND e.evidence_strength='catalog_classification';
 
-DO $$
+DO $
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM _sf_449_target) THEN RETURN; END IF;
   IF (SELECT count(*) FROM _sf_449_manufacturer)<>3 OR
      (SELECT count(*) FROM _sf_449_taxonomy)<>3 THEN
     RAISE EXCEPTION 'Sport Fit 0449 evidence cardinality changed; abort rather than guess';
@@ -95,9 +106,10 @@ SET status=CASE WHEN q.status='blocked' THEN q.status ELSE 'partial' END,
   updated_at=now()
 WHERE q.family_id IN (SELECT family_id FROM _sf_449_target) AND q.status<>'blocked';
 
-DO $$
+DO $
 DECLARE n integer;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM _sf_449_target) THEN RETURN; END IF;
   SELECT count(*) INTO n FROM _sf_449_taxonomy t
     JOIN _sf_449_manufacturer m USING(family_id)
     JOIN public.sport_product_fact_evidence e ON e.id=t.evidence_id
