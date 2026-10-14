@@ -3746,6 +3746,9 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
     maxReminders,
     templateId,
     ...(automatic ? {
+      // The job runner replaces output on requeue; carry the frozen selection
+      // forward instead of losing it after the first checkpoint.
+      inviteIds,
       nextIndex: checkpointEnd,
       __requeue: checkpointEnd < inviteIds.length,
       __delaySeconds: 0
