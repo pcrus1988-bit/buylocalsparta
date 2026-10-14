@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, type SportFitProduct } from "./sport-fit-engine.ts";
+import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, sportProductRole, type SportFitProduct } from "./sport-fit-engine.ts";
 import { canonicalSportBrand, sportSizeGuideBrandKey } from "./sport-fit-brand.ts";
 
 function product(overrides: Partial<SportFitProduct> & Pick<SportFitProduct, "id" | "title" | "categoryCode">): SportFitProduct {
@@ -2241,4 +2241,91 @@ test("missing weather evidence stays unknown instead of becoming a hard exclusio
   assert.ok(scored.technicalRequirements.some((item) =>
     item.id === "requirement.hiking_weather_protection" && item.status === "unknown"
   ));
+});
+
+test("secondary equipment with footwear words remains Tier-2 by governed category", () => {
+  const sock = product({
+    id: "football-sock",
+    title: "Football boot compatible sock",
+    categoryCode: "socks-hosiery",
+    description: "Designed for wearing with football boots",
+    sizes: ["40-42"]
+  });
+  const bag = product({
+    id: "running-shoe-bag",
+    title: "Running Shoe Carry Bag",
+    categoryCode: "fitness-accessories",
+    description: "Holds running shoes and spare socks",
+    sizes: []
+  });
+  const shorts = product({
+    id: "running-shorts",
+    title: "Running Shorts",
+    categoryCode: "fashion-mens-shorts",
+    description: "Pair these shorts with your running shoes",
+    sizes: ["M"]
+  });
+  const shoe = product({
+    id: "running-shoe",
+    title: "Road Running Shoe",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42"]
+  });
+
+  assert.equal(sportProductRole(sock), "socks");
+  assert.equal(sportProductRole(bag), "accessory");
+  assert.equal(sportProductRole(shorts), "bottom");
+  assert.equal(sportProductRole(shoe), "footwear");
+
+  const onlyAccessories = buildSportFitRecommendation([sock, bag, shorts], {
+    activity: "running",
+    audience: "men",
+    size: "42",
+    surface: "road"
+  });
+  assert.equal(onlyAccessories.primary, undefined);
+  assert.equal(onlyAccessories.alternatives.length, 0);
+  assert.equal(onlyAccessories.ranked.length, 0);
+});
+
+test("known sport and surface conflict is never rescued by budget or description", () => {
+  const crossSport = product({
+    id: "football-in-running-category",
+    title: "Running Shoe Lookalike",
+    categoryCode: "mens-running-shoes",
+    priceMinor: 100,
+    sizes: ["42"],
+    description: "Great road shoe for everyone",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["football"],
+      surfaces: ["natural_grass_firm"]
+    }
+  });
+  const legitimate = product({
+    id: "verified-road",
+    title: "Verified Road Trainer",
+    categoryCode: "mens-running-shoes",
+    priceMinor: 9500,
+    sizes: ["42"],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"]
+    }
+  });
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    size: "42",
+    surface: "road" as const,
+    budgetMinor: 200
+  };
+
+  assert.equal(scoreSportFitProduct(crossSport, answers).technicalEligible, false);
+  const recommendation = buildSportFitRecommendation([crossSport, legitimate], answers);
+  assert.equal(recommendation.primary?.id, "verified-road");
+  assert.ok(!recommendation.ranked.some((item) => item.id === "football-in-running-category"));
 });
