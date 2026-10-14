@@ -2465,9 +2465,15 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
   const cohort = text(input.cohort);
   const frameSnapshotId = text(input.frameSnapshotId);
-  if (census && cohort === "B") return processCohortBCensusJob(job);
   if (!["A","B"].includes(cohort) || (fieldworkPhase === "pilot" && cohort !== "A") || !/^[a-f0-9-]{36}$/i.test(frameSnapshotId)) {
     throw new Error("RESEARCH_SAMPLE_JOB_COHORT_INVALID");
+  }
+  if (census && cohort === "B") {
+    if (fieldworkPhase !== "main" || randomSeed !== "contactable-census-no-random-draw-v1" ||
+        !(expectedResponseRate > 0 && expectedResponseRate <= 1)) {
+      throw new Error("RESEARCH_COHORT_B_CENSUS_JOB_INVALID");
+    }
+    return processCohortBCensusJob(job);
   }
   const minTargetN = fieldworkPhase === "pilot" ? 10 : 100;
   const maxTargetN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
