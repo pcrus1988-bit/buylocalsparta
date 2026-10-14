@@ -2266,6 +2266,13 @@ test("secondary equipment with footwear words remains Tier-2 by governed categor
     description: "Pair these shorts with your running shoes",
     sizes: ["M"]
   });
+  const umbrellaShorts = product({
+    id: "basketball-short",
+    title: "Basketball Training Shorts",
+    categoryCode: "sports-clothing",
+    description: "Use with basketball shoes",
+    sizes: ["L"]
+  });
   const shoe = product({
     id: "running-shoe",
     title: "Road Running Shoe",
@@ -2276,6 +2283,7 @@ test("secondary equipment with footwear words remains Tier-2 by governed categor
   assert.equal(sportProductRole(sock), "socks");
   assert.equal(sportProductRole(bag), "accessory");
   assert.equal(sportProductRole(shorts), "bottom");
+  assert.equal(sportProductRole(umbrellaShorts), "bottom");
   assert.equal(sportProductRole(shoe), "footwear");
 
   const onlyAccessories = buildSportFitRecommendation([sock, bag, shorts], {
