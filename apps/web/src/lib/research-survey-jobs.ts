@@ -25,7 +25,9 @@ const FRAME_CLASSIFICATION_VERSION = RETAIL_CLASSIFICATION_VERSION;
 const FRAME_SOURCE_REFERENCE = RETAIL_SOURCE_REFERENCE;
 const FRAME_FLUSH_SIZE = 500;
 const MAX_JOB_ATTEMPTS = 3;
-const AUTO_REMINDER_BATCH_SIZE = 100;
+// Logical automatic reminder batch; processed in resumable, bounded checkpoints.
+const AUTO_REMINDER_BATCH_SIZE = 10_000;
+const AUTO_REMINDER_CHECKPOINT_SIZE = 100;
 const AUTO_REMINDER_MIN_AGE_DAYS = 5;
 const AUTO_REMINDER_MIN_GAP_DAYS = 5;
 const AUTO_REMINDER_MAX_COUNT = 2;
@@ -1547,6 +1549,18 @@ async function claimResearchJob(
           error_message='RESEARCH_STALE_CONTINUOUS_STEP_RECOVERED'
       WHERE status='running' AND job_type='invite_batch'
         AND input->>'mode'='continuous'
+        AND started_at < now() - interval '15 minutes'
+        AND job_type = ANY($1::text[])
+    `, [allowedJobTypes]);
+
+    // Auto-reminders use persisted invite IDs and per-recipient send ledgers:
+    // reclaim a timed-out checkpoint without retrying an accepted SES handoff.
+    await client.query(`
+      UPDATE research_study_jobs
+      SET status='queued',available_at=now(),started_at=NULL,finished_at=NULL,
+          error_message='RESEARCH_STALE_AUTOMATIC_REMINDER_RECOVERED'
+      WHERE status='running' AND job_type='invite_reminder'
+        AND COALESCE((input->>'automatic')::boolean,false)=true
         AND started_at < now() - interval '15 minutes'
         AND job_type = ANY($1::text[])
     `, [allowedJobTypes]);
@@ -3341,7 +3355,12 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
   const abandonedFollowup = input.reminderMode === ABANDONED_FOLLOWUP_MODE;
   if (abandonedFollowup && fieldworkPhase !== "main") throw new Error("RESEARCH_ABANDONED_FOLLOWUP_MAIN_ONLY");
-  const limit = Math.max(1, Math.min(500, Math.floor(numberValue(input.limit) || 100)));
+  const automatic = input.automatic === true && !abandonedFollowup;
+  // A 10,000-recipient logical batch never becomes one 10,000-send invocation.
+  // Keep manual/abandoned reminder campaigns at their existing 500 cap.
+  const limit = automatic
+    ? Math.max(1, Math.min(AUTO_REMINDER_BATCH_SIZE, Math.floor(numberValue(input.limit) || AUTO_REMINDER_BATCH_SIZE)))
+    : Math.max(1, Math.min(500, Math.floor(numberValue(input.limit) || 100)));
   const minAgeDays = Math.max(1, Math.min(90, Math.floor(numberValue(input.minAgeDays) || 5)));
   const minGapDays = Math.max(1, Math.min(90, Math.floor(numberValue(input.minGapDays) || 5)));
   const maxReminders = abandonedFollowup ? 1 : Math.max(1, Math.min(5, Math.floor(numberValue(input.maxReminders) || 2)));
@@ -3478,13 +3497,23 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
     };
   }
 
+  // Freeze eligibility once, and checkpoint progress on the durable job row.
+  // Each recipient is rechecked for completion, withdrawals and suppression
+  // immediately before sending. After a crash, the per-job message ledger
+  // prevents a previously attempted reminder from being resent.
+  const checkpointStart = automatic
+    ? Math.max(0, Math.min(inviteIds.length, Math.floor(numberValue(currentOutput.nextIndex))))
+    : 0;
+  const checkpointEnd = automatic
+    ? Math.min(inviteIds.length, checkpointStart + AUTO_REMINDER_CHECKPOINT_SIZE)
+    : inviteIds.length;
   const base = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://kontamou.site").replace(/\/$/, "");
   let sentCount = 0;
   let skippedCount = 0;
   let failedCount = 0;
   const failures: Array<{ inviteId: string; error: string }> = [];
 
-  for (const inviteId of inviteIds) {
+  for (const inviteId of inviteIds.slice(checkpointStart, checkpointEnd)) {
     const priorAttempt = await pool.query<SqlRow>(`
       SELECT id,status
       FROM research_invite_messages
@@ -3708,14 +3737,22 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
 
   return {
     candidateCount: inviteIds.length,
-    sentCount,
-    skippedCount,
-    failedCount,
+    sentCount: automatic ? numberValue(currentOutput.sentCount) + sentCount : sentCount,
+    skippedCount: automatic ? numberValue(currentOutput.skippedCount) + skippedCount : skippedCount,
+    failedCount: automatic ? numberValue(currentOutput.failedCount) + failedCount : failedCount,
     failures: failures.slice(0,25),
     minAgeDays,
     minGapDays,
     maxReminders,
-    templateId
+    templateId,
+    ...(automatic ? {
+      // The job runner replaces output on requeue; carry the frozen selection
+      // forward instead of losing it after the first checkpoint.
+      inviteIds,
+      nextIndex: checkpointEnd,
+      __requeue: checkpointEnd < inviteIds.length,
+      __delaySeconds: 0
+    } : {})
   };
 }
 
