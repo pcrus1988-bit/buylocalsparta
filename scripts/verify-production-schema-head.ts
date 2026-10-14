@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { loadManifest, loadMigrations, migrationDirectoryFrom, verifyMigrationManifest, type MigrationFile } from "./migration-lib.ts";
 
+// Keep enough retry headroom for short Supavisor pressure incidents before using the direct-DB fallback.
+const TRANSIENT_SCHEMA_RETRY_DELAYS_MS = [500, 1_500, 3_000] as const;
+
 const productionOnly = process.argv.includes("--vercel-production-only");
 if (productionOnly && process.env.VERCEL_ENV !== "production") {
   console.log(`Production schema gate skipped for VERCEL_ENV=${process.env.VERCEL_ENV ?? "unset"}.`);
@@ -56,9 +59,6 @@ async function verifyProductionSchemaHead(): Promise<void> {
 
   throw new Error("DATABASE_URL or POSTGRES_URL is required for the production schema gate outside Vercel production builds");
 }
-
-// Keep enough retry headroom for short Supavisor pressure incidents before using the direct-DB fallback.
-const TRANSIENT_SCHEMA_RETRY_DELAYS_MS = [500, 1_500, 3_000] as const;
 
 async function retryTransientSchemaVerification(
   verify: () => Promise<void>,
