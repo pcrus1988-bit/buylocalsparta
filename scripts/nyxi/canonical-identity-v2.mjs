@@ -7,9 +7,11 @@
 import { createHash } from 'node:crypto';
 
 const KINDS = new Set(['manufacturer', 'brand', 'family', 'product', 'shade', 'inci']);
+const INPUT_FIELDS = new Set(['kind','source_id','parent_key','label','external_namespace','external_id','code']);
 const PARENT = { brand:'manufacturer', family:'brand', product:'family', shade:'product' };
 const UUID = /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i;
 const KEY = /^nyxi:v[12]:(manufacturer|brand|family|product|shade|inci):[a-f\d]{64}$/;
+const V2_PARENT_KEY = /^nyxi:v2:(manufacturer|brand|family|product|shade|inci):[a-f\d]{64}$/;
 const normalize = (value, field) => {
   if (typeof value !== 'string' || !value.trim() || value.length > 512 || /[\x00-\x1f\x7f]/u.test(value)) {
     throw new TypeError(`INVALID_${field.toUpperCase()}`);
@@ -20,12 +22,13 @@ const digest = value => createHash('sha256').update(JSON.stringify(value)).diges
 
 /** Source-scoped, deterministic candidate; independent reconciliation required. */
 export function sourceScopedCandidate(input = {}) {
-  if (!input || !KINDS.has(input.kind)) throw new TypeError('INVALID_KIND');
+  if (!input || typeof input !== 'object' || Array.isArray(input) || !KINDS.has(input.kind)) throw new TypeError('INVALID_KIND');
+  if (Object.keys(input).some(field => !INPUT_FIELDS.has(field))) throw new TypeError('UNEXPECTED_CANDIDATE_INPUT_FIELD');
   if (typeof input.source_id !== 'string' || !UUID.test(input.source_id)) throw new TypeError('SOURCE_REQUIRED');
   const kind = input.kind;
   const parent = input.parent_key;
   if (PARENT[kind]) {
-    if (typeof parent !== 'string' || !KEY.test(parent) || parent.split(':')[2] !== PARENT[kind]) {
+    if (typeof parent !== 'string' || !V2_PARENT_KEY.test(parent) || parent.split(':')[2] !== PARENT[kind]) {
       throw new TypeError('INVALID_PARENT');
     }
   } else if (parent !== undefined) throw new TypeError('UNEXPECTED_PARENT');
