@@ -141,6 +141,7 @@ async function invitationRow(
       ri.id AS invite_id,
       ri.wave_id AS wave_id,
       ri.status AS invite_status,
+      (SELECT response.status FROM research_responses response WHERE response.invite_id=ri.id LIMIT 1) AS current_response_status,
       ri.sample_unit_id,
       ri.contact_point_id,
       COALESCE(rat.expires_at,ri.expires_at) AS expires_at,
@@ -178,10 +179,14 @@ async function invitationRow(
       [row.access_token_id]
     );
   }
-  if (!options.allowExpired && row.study_deadline && new Date(String(row.study_deadline)).getTime() <= Date.now()) {
+  // A completed response remains viewable for its participant to manage
+  // independent, optional results/thank-you/marketing preferences even after
+  // fieldwork closes. An unfinished or withdrawn response never gets this bypass.
+  const completedPreferencesOnly = text(row.current_response_status) === "completed";
+  if (!options.allowExpired && !completedPreferencesOnly && row.study_deadline && new Date(String(row.study_deadline)).getTime() <= Date.now()) {
     throw new Error("SURVEY_INVITE_EXPIRED");
   }
-  if (!options.allowExpired && row.expires_at && new Date(String(row.expires_at)).getTime() < Date.now()) {
+  if (!options.allowExpired && !completedPreferencesOnly && row.expires_at && new Date(String(row.expires_at)).getTime() < Date.now()) {
     throw new Error("SURVEY_INVITE_EXPIRED");
   }
   return row;
