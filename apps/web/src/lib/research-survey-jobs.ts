@@ -1553,6 +1553,19 @@ async function claimResearchJob(
         AND job_type = ANY($1::text[])
     `, [allowedJobTypes]);
 
+    // Cohort B census jobs checkpoint every bounded step. Reclaim only
+    // an abandoned checkpoint, never interrupt an actively running worker.
+    await client.query(`
+      UPDATE research_study_jobs
+      SET status='queued',attempts=GREATEST(attempts-1,0),
+          available_at=now(),started_at=NULL,finished_at=NULL,
+          error_message='RESEARCH_COHORT_B_CHECKPOINT_RECOVERED'
+      WHERE status='running' AND job_type='sample_draw'
+        AND input->>'cohort'='B' AND input->>'selectionMode'='census'
+        AND started_at < now() - interval '15 minutes'
+        AND job_type=ANY($1::text[])
+    `, [allowedJobTypes]);
+
     // Auto-reminders use persisted invite IDs and per-recipient send ledgers:
     // reclaim a timed-out checkpoint without retrying an accepted SES handoff.
     await client.query(`
@@ -2016,6 +2029,432 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
   };
 }
 
+
+/**
+ * Cohort B is an incremental census of newly eligible businesses, NOT another
+ * 313k-row sample. Persist a draft draw and checkpoints in the job ledger.
+ * Each tick touches a bounded keyset or one bounded finalization stage.
+ * No invitations, contact sends, or response mutations happen here.
+ */
+async function processCohortBCensusJob(job: ResearchJobRow): Promise<Record<string, unknown>> {
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const input = objectValue(job.input);
+  const saved = objectValue(job.output);
+  const frameId = text(input.frameSnapshotId);
+  const stage = text(saved.cohortBStage) || "initialize";
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL statement_timeout = '25000ms'");
+    const study = await client.query<SqlRow>(`
+      SELECT status,current_wave_id FROM research_studies WHERE id=$1
+    `, [job.study_id]);
+    if (text(study.rows[0]?.status) !== "fielding" ||
+        text(study.rows[0]?.current_wave_id) !== job.wave_id) {
+      throw new Error("RESEARCH_COHORT_B_PHASE_CHANGED");
+    }
+    const frames = await client.query<SqlRow>(`
+      SELECT b.id, b.content_sha256, b.status, a.id AS a_id
+      FROM research_frame_snapshots b
+      JOIN LATERAL (
+        SELECT id FROM research_frame_snapshots
+        WHERE study_id=b.study_id AND wave_id=b.wave_id
+          AND status IN ('frozen','superseded')
+          AND selection_criteria->'activityGroupIds' @> '["retail-non-food"]'::jsonb
+        ORDER BY frozen_at ASC NULLS LAST LIMIT 1
+      ) a ON true
+      WHERE b.id=$1::uuid AND b.study_id=$2 AND b.wave_id=$3
+        AND b.status='frozen' AND b.content_sha256 IS NOT NULL
+        AND b.selection_criteria->'activityGroupIds' @> '["retail-all"]'::jsonb
+    `, [frameId, job.study_id, job.wave_id]);
+    const frame = frames.rows[0];
+    if (!frame) throw new Error("RESEARCH_COHORT_B_FROZEN_FRAMES_REQUIRED");
+    const originalId = text(frame.a_id);
+    const existingContact = await client.query<SqlRow>(`
+      SELECT EXISTS(
+        SELECT 1 FROM research_invites ri
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        JOIN research_sample_designs ds ON ds.sample_draw_id=su.sample_draw_id
+        WHERE ri.study_id=$1 AND ri.wave_id=$2 AND ri.fieldwork_phase='main'
+          AND ri.sent_at IS NOT NULL AND ds.design_json->>'cohort'='B'
+      ) AS sent
+    `, [job.study_id, job.wave_id]);
+    if (Boolean(existingContact.rows[0]?.sent)) throw new Error("RESEARCH_COHORT_B_ALREADY_CONTACTED");
+
+    // Job output and draft rows commit together. A retry always resumes from
+    // the last committed key, never creates a second recipient selection.
+    async function checkpoint(data: Record<string, unknown>) {
+      await client.query(`
+        UPDATE research_study_jobs
+        SET output=output || $2::jsonb
+        WHERE id=$1 AND status='running'
+      `, [job.id, JSON.stringify(data)]);
+      await client.query("COMMIT");
+      return { ...data, __requeue: true, __delaySeconds: 0 };
+    }
+
+    if (stage === "initialize") {
+      const drawn = await client.query<SqlRow>(`
+        INSERT INTO research_sample_draws (
+          study_id,wave_id,frame_snapshot_id,label,algorithm_version,
+          random_seed,target_n,status,fieldwork_phase
+        ) VALUES ($1,$2,$3,$4,'contactable-census-v1',
+                  'contactable-census-no-random-draw-v1',1,'draft','main')
+        RETURNING id
+      `, [job.study_id, job.wave_id, frameId,
+        text(input.label) || "main-contactable-census-B"]);
+      return checkpoint({
+        cohortBStage: "select", cohortBDrawId: text(drawn.rows[0]?.id),
+        cohortBLastKey: "", cohortBSelected: 0, cohortBFrameId: frameId,
+        cohortBOriginalFrameId: originalId
+      });
+    }
+
+    const drawId = text(saved.cohortBDrawId);
+    if (!/^[a-f0-9-]{36}$/i.test(drawId) ||
+        text(saved.cohortBFrameId) !== frameId ||
+        text(saved.cohortBOriginalFrameId) !== originalId) {
+      throw new Error("RESEARCH_COHORT_B_CHECKPOINT_INVALID");
+    }
+    const draft = await client.query<SqlRow>(`
+      SELECT status,target_n FROM research_sample_draws
+      WHERE id=$1 AND study_id=$2 AND wave_id=$3
+        AND frame_snapshot_id=$4 AND fieldwork_phase='main'
+    `, [drawId, job.study_id, job.wave_id, frameId]);
+    if (!draft.rows[0] || (stage !== "activate" && text(draft.rows[0].status) !== "draft")) {
+      throw new Error("RESEARCH_COHORT_B_DRAFT_MISSING");
+    }
+
+    if (stage === "select") {
+      const previous = Math.floor(numberValue(saved.cohortBSelected));
+      const lastKey = text(saved.cohortBLastKey);
+      if (!Number.isSafeInteger(previous) || previous < 0 || previous > 100000) {
+        throw new Error("RESEARCH_COHORT_B_CURSOR_INVALID");
+      }
+      const integrity = await client.query<SqlRow>(`
+        SELECT selection_order FROM research_sample_units
+        WHERE sample_draw_id=$1 ORDER BY selection_order DESC LIMIT 1
+      `, [drawId]);
+      if (numberValue(integrity.rows[0]?.selection_order) !== previous) {
+        throw new Error("RESEARCH_COHORT_B_CURSOR_COUNT_MISMATCH");
+      }
+      const chunk = await client.query<SqlRow>(`
+        WITH candidates AS MATERIALIZED (
+          SELECT fu.id,fu.stratum_id,fu.external_key_hash
+          FROM research_frame_units fu
+          WHERE fu.frame_snapshot_id=$1::uuid
+            AND fu.external_key_hash > $3::text
+            AND fu.eligibility_status='eligible' AND fu.stratum_id IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM research_frame_units fa
+              WHERE fa.frame_snapshot_id=$2::uuid
+                AND fa.external_key_hash=fu.external_key_hash
+            )
+            AND EXISTS (
+              SELECT 1 FROM research_contact_points cp
+              WHERE cp.frame_unit_id=fu.id AND cp.contact_type='email'
+                AND cp.suppression_status='active'
+                AND NOT public.research_contact_is_suppressed(
+                  cp.contact_type,cp.contact_value_hash)
+            )
+          ORDER BY fu.external_key_hash
+          LIMIT 1000
+        ), picked AS (
+          INSERT INTO research_sample_units (
+            sample_draw_id,frame_unit_id,stratum_id,selection_order,
+            inclusion_probability,base_weight
+          )
+          SELECT $4::uuid,c.id,c.stratum_id,
+            $5::int + row_number() OVER (ORDER BY c.external_key_hash)::int,
+            1::numeric,1::numeric
+          FROM candidates c
+          RETURNING id
+        )
+        SELECT (SELECT count(*)::int FROM picked) AS inserted,
+          (SELECT max(external_key_hash) FROM candidates) AS last_key
+      `, [frameId, originalId, lastKey, drawId, previous]);
+      const count = numberValue(chunk.rows[0]?.inserted);
+      const nextKey = text(chunk.rows[0]?.last_key);
+      if (count === 0) {
+        if (previous === 0) throw new Error("RESEARCH_COHORT_B_NO_CONTACTABLE_BUSINESSES");
+        return checkpoint({ cohortBStage: "margins" });
+      }
+      if (count < 1 || count > 1000 || nextKey <= lastKey) {
+        throw new Error("RESEARCH_COHORT_B_INVALID_BATCH");
+      }
+      return checkpoint({
+        cohortBStage: "select", cohortBLastKey: nextKey,
+        cohortBSelected: previous + count
+      });
+    }
+
+    if (stage === "margins") {
+      // One pass over frozen business identities, using an anti-join to A.
+      // This is population evidence, not a scan of contact records.
+      const grouped = await client.query<SqlRow>(`
+        WITH eligible AS MATERIALIZED (
+          SELECT COALESCE(fu.region_code,'unknown') AS region_code,
+                 COALESCE(fu.sector_code,'unknown') AS sector_code
+          FROM research_frame_units fu
+          WHERE fu.frame_snapshot_id=$1 AND fu.eligibility_status='eligible'
+            AND NOT EXISTS (
+              SELECT 1 FROM research_frame_units fa
+              WHERE fa.frame_snapshot_id=$2
+                AND fa.external_key_hash=fu.external_key_hash
+            )
+        )
+        SELECT CASE WHEN GROUPING(region_code)=0
+                     THEN 'region_code' ELSE 'sector_code' END AS dimension,
+               CASE WHEN GROUPING(region_code)=0
+                     THEN region_code ELSE sector_code END AS category,
+               count(*)::int AS target_total
+        FROM eligible
+        GROUP BY GROUPING SETS ((region_code),(sector_code))
+        ORDER BY dimension,category
+      `, [frameId, originalId]);
+      const margins = grouped.rows.map((row) => ({
+        dimension: text(row.dimension),
+        category: text(row.category),
+        targetTotal: numberValue(row.target_total)
+      }));
+      const totals = margins.reduce((acc,row) => {
+        acc[row.dimension] = (acc[row.dimension] || 0) + row.targetTotal;
+        return acc;
+      }, {} as Record<string, number>);
+      if (!margins.length || totals.region_code !== totals.sector_code ||
+          totals.region_code < 1) {
+        throw new Error("RESEARCH_COHORT_B_MARGINS_INVALID");
+      }
+      const digest = sha256(canonicalResearchJson({
+        schema: "kontamou.research.population-margins.v1",
+        frameSnapshotId: frameId,
+        frameContentSha256: text(frame.content_sha256),
+        margins
+      }));
+      await client.query(`
+        INSERT INTO research_population_margin_sets (
+          study_id,wave_id,frame_snapshot_id,label,source_kind,source_ref,
+          source_sha256,methodology_version
+        ) VALUES ($1,$2,$3,'Frozen Cohort B region + sector margins',
+                  'frozen_frame','research_frame_snapshot:' || $3::text,
+                  $4,'frozen-frame-region-sector-margins-v1')
+        ON CONFLICT (wave_id,frame_snapshot_id,source_kind) DO NOTHING
+      `, [job.study_id,job.wave_id,frameId,digest]);
+      const marginSet = await client.query<SqlRow>(`
+        SELECT id,source_sha256 FROM research_population_margin_sets
+        WHERE study_id=$1 AND wave_id=$2 AND frame_snapshot_id=$3
+          AND source_kind='frozen_frame'
+      `, [job.study_id,job.wave_id,frameId]);
+      if (text(marginSet.rows[0]?.source_sha256) !== digest) {
+        throw new Error("RESEARCH_COHORT_B_MARGIN_PROVENANCE_MISMATCH");
+      }
+      await client.query(`
+        INSERT INTO research_population_margins (
+          margin_set_id,dimension,category,target_total,evidence_json
+        ) SELECT $1::uuid,x.dimension,x.category,x.target_total,
+          jsonb_build_object('frameSnapshotId',$2::text,
+                             'frameContentSha256',$3::text,'source','frozen_frame')
+        FROM jsonb_to_recordset($4::jsonb)
+          AS x(dimension text,category text,target_total numeric)
+        ON CONFLICT (margin_set_id,dimension,category) DO NOTHING
+      `, [marginSet.rows[0]!.id,frameId,text(frame.content_sha256),
+        JSON.stringify(margins.map(m => ({
+          dimension:m.dimension,category:m.category,target_total:m.targetTotal
+        })))]);
+      return checkpoint({
+        cohortBStage: "design",cohortBMarginSetId:text(marginSet.rows[0]!.id),
+        cohortBPopulation: totals.region_code
+      });
+    }
+
+    if (stage === "design") {
+      const totals = await client.query<SqlRow>(`
+        WITH population AS (
+          SELECT fu.stratum_id,count(*)::int AS population_n
+          FROM research_frame_units fu
+          WHERE fu.frame_snapshot_id=$1 AND fu.eligibility_status='eligible'
+            AND NOT EXISTS (SELECT 1 FROM research_frame_units fa
+              WHERE fa.frame_snapshot_id=$2
+                AND fa.external_key_hash=fu.external_key_hash)
+          GROUP BY fu.stratum_id
+        ), selected AS (
+          SELECT su.stratum_id,count(*)::int AS selected_n
+          FROM research_sample_units su
+          WHERE su.sample_draw_id=$3 GROUP BY su.stratum_id
+        )
+        SELECT st.id,st.code,p.population_n,
+               COALESCE(se.selected_n,0)::int AS selected_n
+        FROM population p
+        JOIN research_strata st ON st.id=p.stratum_id
+        LEFT JOIN selected se ON se.stratum_id=p.stratum_id
+        WHERE p.population_n > 0 ORDER BY st.code
+      `, [frameId,originalId,drawId]);
+      const strata = totals.rows.map(row => ({
+        stratumId:text(row.id),code:text(row.code),
+        populationN:numberValue(row.population_n),
+        selectedN:numberValue(row.selected_n)
+      }));
+      const populationN = strata.reduce((sum,row)=>sum+row.populationN,0);
+      const selectedN = strata.reduce((sum,row)=>sum+row.selectedN,0);
+      if (!strata.length || populationN !== numberValue(saved.cohortBPopulation) ||
+          selectedN !== numberValue(saved.cohortBSelected) || selectedN < 1 ||
+          selectedN > populationN) {
+        throw new Error("RESEARCH_COHORT_B_DESIGN_COUNT_MISMATCH");
+      }
+      const expectedResponseRate = numberValue(input.expectedResponseRate);
+      if (!(expectedResponseRate > 0 && expectedResponseRate <= 1)) {
+        throw new Error("RESEARCH_COHORT_B_EXPECTED_RESPONSE_INVALID");
+      }
+      const desiredCompletes = Math.max(1,Math.round(selectedN*expectedResponseRate));
+      const completion = new Map(proportionalStratumAllocation(
+        strata.map(row=>({id:row.stratumId,populationCount:row.selectedN}))
+          .filter(row=>row.populationCount>0),
+        desiredCompletes,0
+      ).map(row=>[row.id,row.sampleCount] as const));
+      const designStrata = strata.map(row=>({
+        stratumId:row.stratumId,code:row.code,
+        populationN:row.populationN,activeContactN:row.selectedN,
+        selectedN:row.selectedN,targetCompleteN:completion.get(row.stratumId) || 0,
+        expectedContactableN:row.selectedN,
+        expectedCompleteN:Math.min(row.selectedN,Math.round(row.selectedN*expectedResponseRate))
+      }));
+      const expectedCompleteN = designStrata.reduce((sum,row)=>sum+row.expectedCompleteN,0);
+      const designDoc = {
+        schema:"kontamou.research.sample-design.v1",cohort:"B",
+        recruitmentMode:"full_cohort_census",
+        cohortAFrameSnapshotId:originalId,sampleDrawId:drawId,
+        frameSnapshotId:frameId,frameContentSha256:text(frame.content_sha256),
+        fieldworkPhase:"main",desiredCompleteN:desiredCompletes,
+        expectedResponseRate,eligiblePopulationN:populationN,
+        activeContactN:selectedN,contactabilityRate:selectedN/populationN,
+        plannedSelectedN:selectedN,expectedContactableN:selectedN,
+        expectedCompleteN,allocationMethod:"full_contactable_census_v1",
+        strata:designStrata
+      };
+      const encoded=canonicalResearchJson(designDoc);
+      await client.query(`
+        UPDATE research_sample_draws SET target_n=$2
+        WHERE id=$1 AND status='draft'
+      `, [drawId,selectedN]);
+      const design = await client.query<SqlRow>(`
+        INSERT INTO research_sample_designs (
+          sample_draw_id,study_id,wave_id,fieldwork_phase,desired_complete_n,
+          expected_response_rate,eligible_population_n,active_contact_n,
+          contactability_rate,planned_selected_n,expected_contactable_n,
+          expected_complete_n,allocation_method,design_json,content_sha256
+        ) VALUES (
+          $1,$2,$3,'main',$4,$5,$6,$7,$8,$9,$10,$11,
+          'full_contactable_census_v1',$12::jsonb,$13
+        ) RETURNING id
+      `, [drawId,job.study_id,job.wave_id,desiredCompletes,
+        expectedResponseRate.toFixed(6),populationN,selectedN,
+        (selectedN/populationN).toFixed(6),selectedN,selectedN,
+        expectedCompleteN,encoded,sha256(encoded)]);
+      const designId=text(design.rows[0]?.id);
+      await client.query(`
+        INSERT INTO research_sample_design_strata (
+          design_id,stratum_id,population_n,active_contact_n,selected_n,
+          target_complete_n,expected_contactable_n,expected_complete_n
+        ) SELECT $1::uuid,x.stratum_id,x.population_n,x.active_contact_n,
+                 x.selected_n,x.target_complete_n,x.expected_contactable_n,
+                 x.expected_complete_n
+        FROM jsonb_to_recordset($2::jsonb) AS x(
+          stratum_id uuid,population_n int,active_contact_n int,selected_n int,
+          target_complete_n int,expected_contactable_n int,expected_complete_n int
+        )
+      `, [designId,JSON.stringify(designStrata.map(row=>({
+        stratum_id:row.stratumId,population_n:row.populationN,
+        active_contact_n:row.activeContactN,selected_n:row.selectedN,
+        target_complete_n:row.targetCompleteN,
+        expected_contactable_n:row.expectedContactableN,
+        expected_complete_n:row.expectedCompleteN
+      })))]);
+      return checkpoint({
+        cohortBStage:"dispositions",cohortBDesignId:designId,
+        cohortBPopulation:populationN,cohortBSelected:selectedN,
+        cohortBDesiredCompletes:desiredCompletes,
+        cohortBExpectedCompletes:expectedCompleteN,cohortBEventCursor:0
+      });
+    }
+
+    if (stage === "dispositions") {
+      const cursor=Math.floor(numberValue(saved.cohortBEventCursor));
+      const page=await client.query<SqlRow>(`
+        WITH selected AS MATERIALIZED (
+          SELECT id,selection_order FROM research_sample_units
+          WHERE sample_draw_id=$1 AND selection_order>$2
+          ORDER BY selection_order LIMIT 5000
+        ), recorded AS (
+          INSERT INTO research_sample_disposition_events (
+            sample_unit_id,disposition_code,eligibility,source,metadata
+          ) SELECT id,'selected','eligible','sample_draw',
+            jsonb_build_object('drawId',$1::text,'algorithmVersion','contactable-census-v1',
+                               'recruitmentMode','full_cohort_census')
+          FROM selected RETURNING id
+        )
+        SELECT (SELECT count(*)::int FROM recorded) AS inserted,
+               (SELECT max(selection_order) FROM selected) AS last_order
+      `, [drawId,cursor]);
+      const inserted=numberValue(page.rows[0]?.inserted);
+      if (inserted===0) return checkpoint({cohortBStage:"activate"});
+      const newCursor=numberValue(page.rows[0]?.last_order);
+      if (newCursor<=cursor || inserted>5000) {
+        throw new Error("RESEARCH_COHORT_B_DISPOSITION_CURSOR_INVALID");
+      }
+      return checkpoint({cohortBStage:"dispositions",cohortBEventCursor:newCursor});
+    }
+
+    if (stage === "activate") {
+      const check=await client.query<SqlRow>(`
+        SELECT (SELECT count(*)::int FROM research_sample_units
+                WHERE sample_draw_id=$1) AS selected,
+               (SELECT count(*)::int FROM research_sample_disposition_events ev
+                JOIN research_sample_units su ON su.id=ev.sample_unit_id
+                WHERE su.sample_draw_id=$1 AND ev.source='sample_draw'
+                  AND ev.disposition_code='selected') AS events,
+               (SELECT count(*)::int FROM research_sample_designs
+                WHERE sample_draw_id=$1 AND design_json->>'cohort'='B') AS designs
+      `, [drawId]);
+      const selectedN=numberValue(check.rows[0]?.selected);
+      if (!selectedN || selectedN!==numberValue(saved.cohortBSelected) ||
+          numberValue(check.rows[0]?.events)!==selectedN ||
+          numberValue(check.rows[0]?.designs)!==1) {
+        throw new Error("RESEARCH_COHORT_B_INCOMPLETE_EVIDENCE");
+      }
+      const lockedState=await client.query<SqlRow>(`
+        SELECT status,current_wave_id FROM research_studies
+        WHERE id=$1 FOR UPDATE
+      `, [job.study_id]);
+      if (text(lockedState.rows[0]?.status)!=="fielding" ||
+          text(lockedState.rows[0]?.current_wave_id)!==job.wave_id) {
+        throw new Error("RESEARCH_COHORT_B_PHASE_CHANGED");
+      }
+      await client.query(`
+        UPDATE research_sample_draws SET status='locked',drawn_at=now()
+        WHERE id=$1 AND status='draft'
+      `, [drawId]);
+      await client.query("COMMIT");
+      return {
+        cohort:"B",sampleDrawId:drawId,
+        sampleDesignId:text(saved.cohortBDesignId),targetN:selectedN,
+        populationN:numberValue(saved.cohortBPopulation),
+        desiredCompleteN:numberValue(saved.cohortBDesiredCompletes),
+        expectedCompleteN:numberValue(saved.cohortBExpectedCompletes),
+        frameSnapshotId:frameId,fieldworkPhase:"main",
+        recruitmentMode:"full_cohort_census",
+        algorithmVersion:"contactable-census-v1",
+        cohortBStage:"complete"
+      };
+    }
+    throw new Error("RESEARCH_COHORT_B_STAGE_INVALID");
+  } catch(error) {
+    await client.query("ROLLBACK").catch(()=>undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string, unknown>> {
   const input = objectValue(job.input);
   const census = text(input.selectionMode) === "census";
@@ -2026,6 +2465,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
   const cohort = text(input.cohort);
   const frameSnapshotId = text(input.frameSnapshotId);
+  if (census && cohort === "B") return processCohortBCensusJob(job);
   if (!["A","B"].includes(cohort) || (fieldworkPhase === "pilot" && cohort !== "A") || !/^[a-f0-9-]{36}$/i.test(frameSnapshotId)) {
     throw new Error("RESEARCH_SAMPLE_JOB_COHORT_INVALID");
   }
