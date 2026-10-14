@@ -352,34 +352,34 @@ export function sportFitCandidateSupportsRequestedActivity(product: SportFitProd
 
 export function sportProductRole(product: SportFitProduct): SportProductRole {
   const category = normalize(product.categoryCode);
-  const text = productText(product);
 
-  if (
-    category.includes("running shoes")
-    || category.includes("sneakers")
-    || hasAny(text, ["παπουτσι", "shoe", "sneaker", "trainer", "football boot", "ποδοσφαιρικο"])
-  ) return "footwear";
-  if (category.includes("socks hosiery") || hasAny(text, ["καλτσ", "sock"])) return "socks";
-  if (
-    category.includes("shorts")
-    || category.includes("trousers")
-    || hasAny(text, ["short", "σορτ", "κολαν", "legging", "παντελον", "track pant"])
-  ) return "bottom";
-  if (
-    category.includes("tshirts")
-    || category.includes("tops")
-    || hasAny(text, ["t shirt", "tshirt", "μπλουζ", "φανελ", "jersey"])
-  ) return "top";
-  if (
-    category.includes("activewear")
-    || category.includes("sports clothing")
-    || hasAny(text, ["ζακετ", "fleece", "hood", "jacket", "φουτερ"])
-  ) return "layer";
+  // A governed category outranks incidental wording in a title, description or
+  // supplier attributes. A "running-shoe sock" and a "shoe carry bag" are still
+  // Tier 2; otherwise a single keyword can incorrectly enter the Top 5.
+  if (category.includes("socks hosiery") || category.endsWith(" socks")) return "socks";
   if (
     category.includes("fitness accessories")
     || category.includes("team sports equipment")
-    || hasAny(text, ["μπαλα", "ball", "bag", "τσαντ", "bottle", "παγουρ", "glove"])
+    || category.includes("outdoor equipment")
+    || category.includes("racket sports equipment")
+    || category.includes("basketball equipment")
+    || category.includes("volleyball equipment")
   ) return "accessory";
+  if (category.includes("shorts") || category.includes("trousers")) return "bottom";
+  if (category.includes("tshirts") || category.includes("tops")) return "top";
+  if (category.includes("activewear") || category.includes("sports clothing")) return "layer";
+  if (category.includes("shoes") || category.includes("sneakers") || category.includes("footwear") || category.includes("boots")) return "footwear";
+
+  // Unknown/misclassified categories get a conservative title/category-only
+  // fallback. Do not let mentions in freeform descriptions or accessory
+  // compatibility claims promote non-footwear to primary equipment.
+  const text = strictIdentityText(product);
+  if (hasAny(text, ["παπουτσι", "shoe", "sneaker", "trainer", "football boot", "ποδοσφαιρικο"])) return "footwear";
+  if (hasAny(text, ["καλτσ", "sock"])) return "socks";
+  if (hasAny(text, ["short", "σορτ", "κολαν", "legging", "παντελον", "track pant"])) return "bottom";
+  if (hasAny(text, ["t shirt", "tshirt", "μπλουζ", "φανελ", "jersey"])) return "top";
+  if (hasAny(text, ["ζακετ", "fleece", "hood", "jacket", "φουτερ"])) return "layer";
+  if (hasAny(text, ["μπαλα", "ball", "bag", "τσαντ", "bottle", "παγουρ", "glove"])) return "accessory";
   return "other";
 }
 
