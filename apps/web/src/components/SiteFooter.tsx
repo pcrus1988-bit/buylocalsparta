@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { OfficialBrandLogo } from "./OfficialBrandLogo";
 import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications";
 import { FOOTER_NAVIGATION } from "../lib/site-navigation";
 import { CookieSettingsButton } from "./CookieSettingsButton";
@@ -16,7 +17,7 @@ export function SiteFooter() {
         <div className="site-footer-intro">
           <section className="site-footer-brand-block" aria-label="KONTA MOY">
             <Link className="brand footer-brand" href="/" aria-label="KONTA MOY · αρχική">
-              <span style={{ display: "block", fontWeight: 800, fontSize: "24px", letterSpacing: ".04em" }}>KONTA MOY</span>
+              <OfficialBrandLogo placement="footer" />
             </Link>
           </section>
 
