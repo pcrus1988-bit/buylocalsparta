@@ -160,6 +160,7 @@ export function ResearchStudyFieldworkControls({
   const [pendingEmail, setPendingEmail] = useState<PendingEmailSend | null>(null);
   const [confirmationStep, setConfirmationStep] = useState<1 | 2>(1);
   const [confirmationText, setConfirmationText] = useState("");
+  const [confirmationError, setConfirmationError] = useState("");
   const workerBusy = queuedSampleJobs > 0 || runningSampleJobs > 0;
   const selectedCohortSample = cohort === "A" ? cohortASampleStatus : cohortBSampleStatus;
   const selectedRecruitmentMode = cohort === "A" ? cohortARecruitmentMode : cohortBRecruitmentMode;
@@ -265,6 +266,7 @@ export function ResearchStudyFieldworkControls({
     setPendingEmail(input);
     setConfirmationStep(1);
     setConfirmationText("");
+    setConfirmationError("");
   }
 
   function closeEmailConfirmation() {
@@ -272,6 +274,7 @@ export function ResearchStudyFieldworkControls({
     setPendingEmail(null);
     setConfirmationStep(1);
     setConfirmationText("");
+    setConfirmationError("");
   }
 
   async function sendReminders() {
@@ -410,6 +413,7 @@ export function ResearchStudyFieldworkControls({
     if (confirmationText.trim() !== String(pendingEmail.maxEmails)) return;
     setBusy(pendingEmail.busy);
     setMessage("");
+    setConfirmationError("");
     try {
       const result = await post({
         ...pendingEmail.payload,
@@ -437,11 +441,16 @@ export function ResearchStudyFieldworkControls({
       router.refresh();
     } catch (error) {
       const raw = error instanceof Error ? error.message : "Η αποστολή email δεν μπήκε στην ουρά.";
-      setMessage(raw === "RESEARCH_EMAIL_DELIVERY_DISABLED"
+      const displayedError = raw === "RESEARCH_EMAIL_DELIVERY_DISABLED"
         ? "Η ερευνητική αποστολή SES είναι απενεργοποιημένη. Ενεργοποιήστε ρητά το BLS_RESEARCH_EMAIL_DELIVERY_ENABLED."
         : raw === "RESEARCH_EMAIL_DOUBLE_CONFIRMATION_REQUIRED"
           ? "Η αποστολή απορρίφθηκε επειδή δεν ολοκληρώθηκε η διπλή επιβεβαίωση."
-          : raw);
+          : raw === "RESEARCH_EMAIL_CONFIRMATION_STUDY_MISMATCH"
+            ? "Η μελέτη δεν ταυτίζεται με την εγκεκριμένη αποστολή. Δεν δημιουργήθηκε νέα παρτίδα."
+            : raw;
+      setMessage(displayedError);
+      // Keep a failed approval visible in the modal, rather than only behind its backdrop.
+      setConfirmationError(displayedError);
     } finally {
       setBusy(null);
     }
@@ -947,6 +956,9 @@ export function ResearchStudyFieldworkControls({
           <div className="workspace-inline-note">
             Με την τελική επιβεβαίωση εγκρίνετε μόνο {pendingEmail.payload.mode === "continuous" ? "την ενιαία εκστρατεία και την αυτόματη συνέχεια των εσωτερικών βημάτων της" : "αυτή την παρτίδα"} και έως το παραπάνω πλήθος email.
           </div>
+          {confirmationError && <div role="alert" className="workspace-inline-note form-error" style={{ lineHeight: 1.6 }}>
+            Η αποστολή δεν επιβεβαιώθηκε: {confirmationError} Ελέγξτε τις εργασίες email πριν επιχειρήσετε ξανά, σε περίπτωση αβέβαιης απόκρισης.
+          </div>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
             <button
               className="button button-secondary"

@@ -1238,7 +1238,7 @@ export async function queueGreekRetailRewardDelivery(
   const limit = Math.max(1, Math.min(250, Math.floor(input.limit ?? 100)));
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(
-    "SELECT id,status,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1",
+    "SELECT id,title,status,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1",
     [STUDY_SLUG]
   );
   const row = study.rows[0];
