@@ -25,7 +25,8 @@ function statusLabel(status: string): string {
 }
 
 function percent(value: number): string {
-  return new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 1 }).format(value);
+  if (value > 0 && value < 0.00005) return "<0,01%";
+  return new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: value > 0 && value < 0.01 ? 2 : 1 }).format(value);
 }
 
 function nextStep(status: string): { title: string; body: string } {
@@ -39,7 +40,7 @@ function nextStep(status: string): { title: string; body: string } {
   };
   if (status === "fielding") return {
     title: "Συλλογή απαντήσεων",
-    body: "Στην κύρια έρευνα εμφανίζεται αποκλειστικά η πρόοδος των πραγματικών προσκλήσεων και απαντήσεων. Τα ευρήματα παραμένουν κλειστά μέχρι να ολοκληρωθεί η ανάλυση."
+    body: "Οι εμπορικές επιχειρήσεις μοιράζονται ήδη τις εμπειρίες τους. Παρακολουθήστε τη συμμετοχή σε πραγματικό χρόνο· τα ευρήματα θα παρουσιαστούν αφού ολοκληρωθεί η ανάλυση."
   };
   if (status === "closed" || status === "analysis") return {
     title: "Έλεγχος και ανάλυση",
@@ -53,6 +54,7 @@ function nextStep(status: string): { title: string; body: string } {
 
 export function ResearchStudyDashboard({ study, compactIntro = false }: { study: PublicResearchStudySummary; compactIntro?: boolean }) {
   const isLive = study.status === "fielding";
+  const participationFocus = isLive && study.slug === "greek-retail-2026";
   const isPublished = study.status === "published" && Boolean(study.releasePublishedAt);
   const completion = study.targetCompletes > 0 ? Math.min(Math.max(study.completionRate, 0), 1) : 0;
   const upcoming = nextStep(study.status);
@@ -93,8 +95,14 @@ export function ResearchStudyDashboard({ study, compactIntro = false }: { study:
           <span>Περίοδος συλλογής</span>
           <strong style={{ fontSize: 22 }}>{dateRange(study)}</strong>
           <hr />
-          <span>Ολοκλήρωση στόχου</span>
-          <strong>{study.targetCompletes > 0 ? percent(completion) : "—"}</strong>
+          {participationFocus ? <>
+            <span>Ερωτηματολόγια που ξεκίνησαν</span>
+            <strong>{study.started.toLocaleString("el-GR")}</strong>
+            <span>{study.completed.toLocaleString("el-GR")} οριστικές υποβολές · {study.targetCompletes > 0 ? percent(completion) + " του στόχου" : "σε εξέλιξη"}</span>
+          </> : <>
+            <span>Ολοκλήρωση στόχου</span>
+            <strong>{study.targetCompletes > 0 ? percent(completion) : "—"}</strong>
+          </>}
         </aside>}
       </header>
 

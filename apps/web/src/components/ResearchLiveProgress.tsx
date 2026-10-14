@@ -5,7 +5,8 @@ import type { PublicResearchObservatorySnapshot, PublicResearchStudySummary } fr
 import styles from "./ResearchObservatory.module.css";
 
 function percent(value: number): string {
-  return new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 1 }).format(value);
+  if (value > 0 && value < 0.00005) return "<0,01%";
+  return new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: value > 0 && value < 0.01 ? 2 : 1 }).format(value);
 }
 
 function stageIndex(status: string): number {
@@ -76,6 +77,10 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
   const activeStage = stageIndex(study.status);
   const completion = Math.min(Math.max(study.completionRate, 0), 1);
   const isLive = study.status === "fielding";
+  const participationFocus = isLive && study.slug === "greek-retail-2026";
+  const atFinalQuestion = study.contentCompleteUnsubmitted !== undefined && study.reachedFinalNeedsCorrection !== undefined
+    ? study.contentCompleteUnsubmitted + study.reachedFinalNeedsCorrection
+    : undefined;
   const remaining = study.targetCompletes > 0 ? Math.max(study.targetCompletes - study.completed, 0) : 0;
   const deliveryRate = safeRatio(study.delivered, study.sent);
   const startRate = safeRatio(study.started, study.opened || study.sent);
@@ -100,7 +105,7 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
     <div className={styles.liveHead}>
       <div>
         <div className={styles.eyebrow}>Πρόοδος μελέτης</div>
-        <h2>{statusLabel(study.status)}</h2>
+        <h2>{participationFocus ? "Η φωνή του ελληνικού λιανεμπορίου δυναμώνει" : statusLabel(study.status)}</h2>
         <div className={styles.heroBadges}>
           <span className={[styles.badge, isLive ? styles.badgeLive : ""].filter(Boolean).join(" ")}>
             {isLive && <span className={styles.dot} aria-hidden="true" />}
@@ -118,13 +123,19 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
 
     <div className={styles.liveSummary}>
       <div className={styles.completionCard}>
-        <span>Ολοκλήρωση στόχου</span>
-        <strong>{study.targetCompletes > 0 ? percent(completion) : "—"}</strong>
-        <small>
-          {study.targetCompletes > 0
-            ? study.completed.toLocaleString("el-GR") + " από " + study.targetCompletes.toLocaleString("el-GR") + " ολοκληρωμένες απαντήσεις · απομένουν " + remaining.toLocaleString("el-GR")
-            : "Ο τελικός στόχος δεν έχει οριστεί ακόμη."}
-        </small>
+        {participationFocus ? <>
+          <span>Ερωτηματολόγια που ξεκίνησαν</span>
+          <strong>{study.started.toLocaleString("el-GR")}</strong>
+          <small>Κάθε συμμετοχή δίνει χώρο στην εμπειρία των ελληνικών εμπορικών επιχειρήσεων. Η συλλογή συνεχίζεται!</small>
+        </> : <>
+          <span>Ολοκλήρωση στόχου</span>
+          <strong>{study.targetCompletes > 0 ? percent(completion) : "—"}</strong>
+          <small>
+            {study.targetCompletes > 0
+              ? study.completed.toLocaleString("el-GR") + " από " + study.targetCompletes.toLocaleString("el-GR") + " ολοκληρωμένες απαντήσεις · απομένουν " + remaining.toLocaleString("el-GR")
+              : "Ο τελικός στόχος δεν έχει οριστεί ακόμη."}
+          </small>
+        </>}
       </div>
 
       <div>
@@ -132,10 +143,30 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
           <div className={styles.progressFill} style={{ width: (completion * 100).toFixed(1) + "%" }} />
         </div>
         <div className={styles.progressCaption}>
-          <span><strong>{study.completed.toLocaleString("el-GR")}</strong> ολοκληρωμένες απαντήσεις</span>
-          <span>στόχος <strong>{study.targetCompletes > 0 ? study.targetCompletes.toLocaleString("el-GR") : "—"}</strong></span>
+          <span><strong>{study.completed.toLocaleString("el-GR")}</strong> οριστικές υποβολές</span>
+          <span>{participationFocus ? "Πρόοδος στόχου " + percent(completion) + " · " : "στόχος "}<strong>{study.targetCompletes > 0 ? study.targetCompletes.toLocaleString("el-GR") : "—"}</strong></span>
         </div>
 
+        {participationFocus && atFinalQuestion !== undefined ? <>
+          <p className={styles.publicProgressNote}>Η συμμετοχή δεν μετριέται μόνο στις οριστικές υποβολές. Δείτε πόσοι έχουν ήδη προχωρήσει στο ερωτηματολόγιο:</p>
+          <div className={styles.participationMilestones} aria-label="Στάδια συμμετοχής">
+            <div className={styles.participationMilestone}>
+              <strong>{atFinalQuestion.toLocaleString("el-GR")}</strong>
+              <span>Έφτασαν στην τελευταία ερώτηση</span>
+              <small>Χωρίς ακόμη οριστική υποβολή</small>
+            </div>
+            <div className={styles.participationMilestone}>
+              <strong>{(study.contentCompleteUnsubmitted ?? 0).toLocaleString("el-GR")}</strong>
+              <span>Απάντησαν σε όλα τα απαιτούμενα πεδία</span>
+              <small>Εκκρεμεί η τελική υποβολή</small>
+            </div>
+            <div className={styles.participationMilestone}>
+              <strong>{study.completed.toLocaleString("el-GR")}</strong>
+              <span>Υποβλήθηκαν οριστικά</span>
+              <small>Καταμετρώνται στον επίσημο στόχο</small>
+            </div>
+          </div>
+        </> : (
         <div className={styles.funnel} aria-label="Πορεία συμμετοχής">
           {participation.map((item) => <div className={styles.funnelStep} key={item.label}>
             <span>{item.label}</span>
@@ -145,6 +176,7 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
             <strong>{item.value.toLocaleString("el-GR")}</strong>
           </div>)}
         </div>
+        )}
       </div>
     </div>
 
@@ -165,16 +197,16 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
         <small>{study.started.toLocaleString("el-GR")} συμμετέχοντες ξεκίνησαν</small>
       </article>
       <article className={styles.metric}>
-        <span>Ποσοστό ανταπόκρισης</span>
+        <span>{participationFocus ? "Επίσημη ανταπόκριση" : "Ποσοστό ανταπόκρισης"}</span>
         <strong>{study.sent > 0 ? percent(study.responseRate) : "—"}</strong>
-        <small>ολοκληρωμένες απαντήσεις σε σχέση με τις προσκλήσεις</small>
+        <small>Οριστικές υποβολές / αποσταλείσες προσκλήσεις. Οι συμμετοχές σε εξέλιξη εμφανίζονται χωριστά.</small>
       </article>
-      {study.contentCompleteUnsubmitted !== undefined && <article className={styles.metric}>
+      {!participationFocus && study.contentCompleteUnsubmitted !== undefined && <article className={styles.metric}>
         <span>Αποθηκευμένες πλήρεις απαντήσεις χωρίς υποβολή</span>
         <strong>{study.contentCompleteUnsubmitted.toLocaleString("el-GR")}</strong>
         <small>Όλες οι απαιτούμενες απαντήσεις υπάρχουν, αλλά δεν έχει καταγραφεί οριστική υποβολή. Δεν περιλαμβάνονται στον επίσημο αριθμό ολοκληρώσεων.</small>
       </article>}
-      {study.reachedFinalNeedsCorrection !== undefined && <article className={styles.metric}>
+      {!participationFocus && study.reachedFinalNeedsCorrection !== undefined && <article className={styles.metric}>
         <span>Έφτασαν στην τελευταία ερώτηση · εκκρεμούν διορθώσεις</span>
         <strong>{study.reachedFinalNeedsCorrection.toLocaleString("el-GR")}</strong>
         <small>Συμμετέχοντες με απάντηση στην Q27 αλλά ελλιπείς ή μη έγκυρες υποχρεωτικές απαντήσεις. Δεν θεωρούνται ολοκληρωμένοι.</small>
