@@ -64,7 +64,7 @@ JOIN public.sport_product_fact_evidence e ON e.family_id=t.family_id
   AND e.active AND e.evidence_value=to_jsonb('general_training'::text)
   AND e.evidence_strength='catalog_classification';
 
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM _sf_449_target) THEN RETURN; END IF;
   IF (SELECT count(*) FROM _sf_449_manufacturer)<>3 OR
@@ -106,7 +106,7 @@ SET status=CASE WHEN q.status='blocked' THEN q.status ELSE 'partial' END,
   updated_at=now()
 WHERE q.family_id IN (SELECT family_id FROM _sf_449_target) AND q.status<>'blocked';
 
-DO $
+DO $$
 DECLARE n integer;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM _sf_449_target) THEN RETURN; END IF;
