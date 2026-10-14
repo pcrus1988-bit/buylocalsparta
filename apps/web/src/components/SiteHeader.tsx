@@ -1,4 +1,5 @@
 "use client";
+import { OfficialBrandLogo } from "./OfficialBrandLogo";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -59,7 +60,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
   return (
     <header className={`site-header shell${compact ? " is-compact" : ""}${menuOpen ? " is-menu-open" : ""}`}>
       <Link className="brand" href="/" aria-label="KONTA MOY · αρχική" onClick={() => setMenuOpen(false)}>
-        <strong style={{ display: "block", fontSize: "16px", fontWeight: 800, lineHeight: "64px", letterSpacing: "-.02em", whiteSpace: "nowrap" }}>KONTA MOY</strong>
+        <OfficialBrandLogo placement="header" />
       </Link>
 
       <Link

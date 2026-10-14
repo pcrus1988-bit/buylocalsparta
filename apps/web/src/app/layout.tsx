@@ -137,7 +137,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         },
         logo: {
           "@type": "ImageObject",
-          url: `${origin}/brand/kontamou-sparta-logo.webp`
+          url: `${origin}/brand/kontamou-logo.svg`
         },
         address: KONTA_MOY_EMAIL_COMPANY.address,
         areaServed: [

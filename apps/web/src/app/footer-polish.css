@@ -469,3 +469,33 @@
     height: 30px;
   }
 }
+
+/* Shared official logo lockup: visible on both ivory header and dark footer. */
+.site-header .official-brand-logo {
+  display: block;
+  flex: 0 0 auto;
+  width: 116px;
+  height: 78px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 6px;
+}
+
+.site-footer-brand-block .footer-brand {
+  display: inline-flex;
+  padding: 5px 7px;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.site-footer-brand-block .official-brand-logo {
+  display: block;
+  width: 136px;
+  height: 92px;
+  object-fit: contain;
+}
+
+@media (max-width: 680px) {
+  .site-header .official-brand-logo { object-fit: contain; }
+  .site-footer-brand-block .footer-brand { padding: 4px 5px; }
+}
