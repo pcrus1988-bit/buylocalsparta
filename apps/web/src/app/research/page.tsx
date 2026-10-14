@@ -33,11 +33,13 @@ function date(value?: string): string {
 }
 
 function percent(value: number): string {
-  return new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 1 }).format(value);
+  if (value > 0 && value < 0.00005) return "<0,01%";
+  return new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: value > 0 && value < 0.01 ? 2 : 1 }).format(value);
 }
 
 function StudyCard({ study, featured = false }: { study: PublicResearchStudySummary; featured?: boolean }) {
   const isLive = study.status === "fielding" || study.status === "pilot";
+  const participationFocus = study.slug === "greek-retail-2026" && study.status === "fielding";
   const progress = study.targetCompletes > 0 ? Math.min(Math.max(study.completionRate, 0), 1) : 0;
 
   return <article className={[
@@ -56,7 +58,10 @@ function StudyCard({ study, featured = false }: { study: PublicResearchStudySumm
     <h3>{study.title}</h3>
     <p>{study.subtitle || study.methodologySummary}</p>
 
-    {study.targetCompletes > 0 && <>
+    {participationFocus ? <div className={styles.publicCardParticipation}>
+      <strong>{study.started.toLocaleString("el-GR")} συμμετοχές που ξεκίνησαν</strong>
+      <span>Η συλλογή συνεχίζεται · {study.completed.toLocaleString("el-GR")} οριστικές υποβολές έως τώρα.</span>
+    </div> : study.targetCompletes > 0 && <>
       <div className={styles.cardProgress} aria-label={"Πρόοδος " + percent(progress)}>
         <div className={styles.cardProgressFill} style={{ width: (progress * 100).toFixed(1) + "%" }} />
       </div>
