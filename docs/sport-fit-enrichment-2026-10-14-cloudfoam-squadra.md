@@ -33,7 +33,7 @@ Independent first-party spot-check on 14 Oct 2026:
 
 Ran each exact SQL migration **inside a live-catalogue transaction ending with ROLLBACK**, then ran both exact files concatenated inside a single rolled-back transaction. All migration guards passed, including identity, sellable offer, expected 10 technology + 7 fit + 17 manufacturer evidence cardinalities, 3 source supersessions, 3 non-conflicting Squadra states, and no change in graded cushioning/support/width/length fact counts. Production tables were not modified by these rehearsals.
 
-Checksums for both checked-in migrations are recorded in `checksums.0448.json` and `checksums.0449.json`. These are deployment-ready migration **proposals**, not proof of production application. Apply through the existing repo migration pipeline only after code review and CI pass.
+Checksums for both checked-in migrations are recorded in `checksums.0448.json` and `checksums.0449.json`. The existing PostgreSQL runtime schema gate is advanced from **447 to 449** in the same branch, matching the migration manifest invariant. The Squadra 25 family-specific reconciliation fails closed in a populated production catalogue but is intentionally a no-op in the empty-catalogue CI bootstrap. The final checked-in chain was re-executed on the live populated catalogue with a terminating `ROLLBACK` after these CI-compatibility changes. These are deployment-ready migration **proposals**, not proof of production application. Apply through the existing repo migration pipeline only after code review and CI pass.
 
 ## Explicitly unknown / next work
 
