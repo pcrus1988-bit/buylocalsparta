@@ -367,7 +367,14 @@ export function sportProductRole(product: SportFitProduct): SportProductRole {
   ) return "accessory";
   if (category.includes("shorts") || category.includes("trousers")) return "bottom";
   if (category.includes("tshirts") || category.includes("tops")) return "top";
-  if (category.includes("activewear") || category.includes("sports clothing")) return "layer";
+  if (category.includes("activewear") || category.includes("sports clothing")) {
+    // These two categories are garment umbrellas, not a single equipment
+    // role. A specific garment title may still distinguish shorts or jerseys.
+    const title = normalize(product.title);
+    if (hasAny(title, ["short", "σορτ", "κολαν", "legging", "παντελον", "track pant"])) return "bottom";
+    if (hasAny(title, ["t shirt", "tshirt", "μπλουζ", "φανελ", "jersey", "tank top"])) return "top";
+    return "layer";
+  }
   if (category.includes("shoes") || category.includes("sneakers") || category.includes("footwear") || category.includes("boots")) return "footwear";
 
   // Unknown/misclassified categories get a conservative title/category-only
