@@ -98,7 +98,7 @@ export function ResearchStudyDashboard({ study, compactIntro = false }: { study:
           {participationFocus ? <>
             <span>Ερωτηματολόγια που ξεκίνησαν</span>
             <strong>{study.started.toLocaleString("el-GR")}</strong>
-            <span>{study.completed.toLocaleString("el-GR")} οριστικές υποβολές · {study.targetCompletes > 0 ? percent(completion) + " του στόχου" : "σε εξέλιξη"}</span>
+            <span>{study.completed.toLocaleString("el-GR")} πλήρη ερωτηματολόγια · {study.targetCompletes > 0 ? percent(completion) + " του στόχου" : "σε εξέλιξη"}{(study.administrativelyFinalized ?? 0) > 0 ? " · " + (study.administrativelyFinalized ?? 0).toLocaleString("el-GR") + " τεκμηριωμένες διαχειριστικές οριστικοποιήσεις" : ""}</span>
           </> : <>
             <span>Ολοκλήρωση στόχου</span>
             <strong>{study.targetCompletes > 0 ? percent(completion) : "—"}</strong>

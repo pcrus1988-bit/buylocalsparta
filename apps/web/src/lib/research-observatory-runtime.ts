@@ -53,6 +53,10 @@ export type PublicResearchStudySummary = Readonly<{
   opened: number;
   started: number;
   completed: number;
+  /** Completed following an explicit participant Submit action. */
+  participantConfirmed?: number;
+  /** Content-complete responses finalized by a documented administrator recovery. */
+  administrativelyFinalized?: number;
   /** Saved answer-complete but without a recorded final Submit action. Not official completions. */
   contentCompleteUnsubmitted?: number;
   /** Reached Q27 but validation still finds missing or invalid required answers. */
@@ -145,6 +149,7 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
         COALESCE(invite_counts.opened,0)::int AS opened,
         COALESCE(response_counts.started,0)::int AS started,
         COALESCE(response_counts.completed,0)::int AS completed,
+        COALESCE(response_counts.admin_finalized,0)::int AS admin_finalized,
         latest_release.release_version,
         latest_release.published_at AS release_published_at,
         COALESCE(latest_release.public_url,s.public_results_url) AS public_results_url,
@@ -209,6 +214,11 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
         SELECT
           count(*)::int AS started,
           count(*) FILTER (WHERE rr.status='completed')::int AS completed,
+          count(*) FILTER (WHERE rr.status='completed' AND EXISTS (
+            SELECT 1 FROM research_invite_events event
+            WHERE event.invite_id=rr.invite_id AND event.event_type='completed'
+              AND event.metadata->>'source'='admin_content_recovery'
+          ))::int AS admin_finalized,
           max(COALESCE(rr.completed_at,rr.started_at)) AS last_activity_at
         FROM research_responses rr
         JOIN research_invites ri ON ri.id=rr.invite_id
@@ -304,6 +314,7 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
 
     const studies = rows.rows.map((row): PublicResearchStudySummary => {
       const completed = numberValue(row.completed);
+      const adminFinalized = numberValue(row.admin_finalized);
       const targetCompletes = numberValue(row.target_completes);
       const sent = numberValue(row.sent);
       const recovery = recoveryCounts?.get(text(row.id) + ":" + text(row.wave_id));
@@ -335,6 +346,8 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
         opened: numberValue(row.opened),
         started: numberValue(row.started),
         completed,
+        participantConfirmed: completed - adminFinalized,
+        administrativelyFinalized: adminFinalized,
         contentCompleteUnsubmitted: recoveryCounts ? (recovery?.contentCompleteUnsubmitted ?? 0) : undefined,
         reachedFinalNeedsCorrection: recoveryCounts ? (recovery?.reachedFinalNeedsCorrection ?? 0) : undefined,
         completionRate: targetCompletes > 0 ? Math.min(completed / targetCompletes, 1) : 0,
