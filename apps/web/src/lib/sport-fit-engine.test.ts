@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, sportProductRole, type SportFitProduct } from "./sport-fit-engine.ts";
 import { canonicalSportBrand, sportSizeGuideBrandKey } from "./sport-fit-brand.ts";
@@ -2328,4 +2329,13 @@ test("known sport and surface conflict is never rescued by budget or description
   const recommendation = buildSportFitRecommendation([crossSport, legitimate], answers);
   assert.equal(recommendation.primary?.id, "verified-road");
   assert.ok(!recommendation.ranked.some((item) => item.id === "football-in-running-category"));
+});
+
+test("bounded Sport & Fit catalogue rotates categories before global candidate limit", () => {
+  const source = readFileSync(new URL("./sport-fit-catalog.ts", import.meta.url), "utf8");
+  const categoryRotation = source.indexOf("ROW_NUMBER() OVER (");
+  const limit = source.indexOf("LIMIT 320", categoryRotation);
+  assert.ok(categoryRotation > -1, "category-balanced ordering must be present");
+  assert.ok(limit > categoryRotation, "round-robin category selection must precede the global limit");
+  assert.match(source.slice(categoryRotation, limit), /PARTITION BY c\.code/);
 });
