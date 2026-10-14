@@ -373,6 +373,14 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
       AND ib.stock_confirmed_at IS NOT NULL
       AND ib.stock_confirmed_at + make_interval(secs=>COALESCE(ib.freshness_ttl_seconds,0))>now()
     ORDER BY
+      -- Round-robin across eligible sport categories BEFORE the bounded pool
+      -- limit. Previously 100+ shoe variants and 190+ socks could consume the
+      -- entire 320-row budget, starving apparel, hiking and court equipment.
+      -- Each category contributes one candidate before its second candidate.
+      ROW_NUMBER() OVER (
+        PARTITION BY c.code
+        ORDER BY vo.updated_at DESC, cv.public_id
+      ) ASC,
       CASE
         WHEN c.code LIKE '%running-shoes' THEN 0
         WHEN c.code LIKE '%sneakers' THEN 1
