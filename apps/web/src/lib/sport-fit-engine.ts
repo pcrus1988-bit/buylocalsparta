@@ -170,6 +170,33 @@ export type SportFitScoredProduct = SportFitProduct & Readonly<{
   appliedRules: readonly string[];
 }>;
 
+export type SportFitCompatibilityRelation =
+  | "requires" | "recommended_with" | "compatible_with" | "optional_with"
+  | "incompatible_with" | "substitutes" | "complements"
+  | "primary_equipment" | "secondary_equipment";
+
+export type SportFitCompatibilityEdge = Readonly<{
+  sportCode: SportActivity;
+  useCase: string; // "all" or an exact governed sport use-case
+  primaryRole: SportProductRole;
+  secondaryRole: SportProductRole;
+  secondaryKind: string; // "all" or an exact documented equipment kind
+  relationshipType: SportFitCompatibilityRelation;
+  sourceUrl: string;
+  sourceTitle: string;
+  evidenceExcerpt: string;
+  confidence: number;
+}>;
+
+export type SportFitKitCompatibility = Readonly<{
+  productId: string;
+  relationshipType: SportFitCompatibilityRelation;
+  sourceUrl: string;
+  sourceTitle: string;
+  evidenceExcerpt: string;
+  confidence: number;
+}>;
+
 export type SportFitFinalistEvidenceMode = "governed" | "heuristic_fallback";
 
 export type SportFitRecommendation = Readonly<{
@@ -178,6 +205,7 @@ export type SportFitRecommendation = Readonly<{
   primary?: SportFitScoredProduct;
   alternatives: readonly SportFitScoredProduct[];
   kit: readonly SportFitScoredProduct[];
+  kitCompatibility: readonly SportFitKitCompatibility[];
   ranked: readonly SportFitScoredProduct[];
 }>;
 
@@ -1311,7 +1339,8 @@ function kitSelectionEligible(
 
 export function buildSportFitRecommendation(
   products: readonly SportFitProduct[],
-  answers: SportFitAnswers
+  answers: SportFitAnswers,
+  compatibilityEdges: readonly SportFitCompatibilityEdge[] = []
 ): SportFitRecommendation {
   const scored = products
     .filter((product) =>
@@ -1354,9 +1383,22 @@ export function buildSportFitRecommendation(
   const alternatives = finalistRanked.filter((product) => product.id !== primary?.id).slice(0, 4);
 
   const kit: SportFitScoredProduct[] = [];
+  const kitCompatibility: SportFitKitCompatibility[] = [];
   if (primary) {
     const usedIds = new Set([primary.id]);
     for (const role of ["socks", "top", "bottom", "layer", "accessory"] as const) {
+      const matchingEdges = compatibilityEdges.filter((edge) =>
+        edge.sportCode === answers.activity
+        && (edge.useCase === "all" || edge.useCase === answers.useCase)
+        && edge.primaryRole === "footwear"
+        && edge.secondaryRole === role
+        && edge.secondaryKind === "all"
+        && edge.relationshipType !== "incompatible_with"
+      ).sort((left, right) =>
+        Number(right.useCase !== "all") - Number(left.useCase !== "all")
+        || right.confidence - left.confidence
+      );
+      const edge = matchingEdges[0];
       const item = eligible.find((product) =>
         product.role === role
         && !usedIds.has(product.id)
@@ -1365,7 +1407,22 @@ export function buildSportFitRecommendation(
       );
       if (!item) continue;
       usedIds.add(item.id);
-      kit.push(item);
+      // Compatibility is a second, separately sourced explanation:
+      // matching a class-level edge never fabricates model-level evidence.
+      kit.push(edge ? {
+        ...item,
+        appliedRules: [...item.appliedRules, `kit.compatibility.${edge.relationshipType}`]
+      } : item);
+      if (edge) {
+        kitCompatibility.push({
+          productId: item.id,
+          relationshipType: edge.relationshipType,
+          sourceUrl: edge.sourceUrl,
+          sourceTitle: edge.sourceTitle,
+          evidenceExcerpt: edge.evidenceExcerpt,
+          confidence: edge.confidence
+        });
+      }
     }
   }
 
@@ -1375,6 +1432,7 @@ export function buildSportFitRecommendation(
     primary,
     alternatives,
     kit,
+    kitCompatibility,
     ranked: finalistRanked.slice(0, 24)
   };
 }
