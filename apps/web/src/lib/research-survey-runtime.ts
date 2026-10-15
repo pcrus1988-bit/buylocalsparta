@@ -1561,12 +1561,17 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
     ) q ON true
     LEFT JOIN LATERAL (
       SELECT
-        count(*) FILTER (WHERE re.status = 'eligible') AS eligible_count,
+        count(*) FILTER (WHERE re.status = 'eligible' AND rr.status='completed' AND optin.granted IS TRUE) AS eligible_count,
         count(*) FILTER (WHERE re.status = 'issued') AS issued_count,
         count(*) FILTER (WHERE re.status = 'redeemed') AS redeemed_count
       FROM research_reward_entitlements re
       JOIN research_responses rr ON rr.id = re.response_id
-      WHERE rr.study_id = s.id
+      LEFT JOIN LATERAL (
+        SELECT rc.granted FROM research_consents rc
+        WHERE rc.response_id=rr.id AND rc.consent_kind='thank_you_code'
+        ORDER BY rc.occurred_at DESC,rc.id DESC LIMIT 1
+      ) optin ON true
+      WHERE rr.study_id = s.id AND re.reward_kind='thank_you_code'
     ) rw ON true
     LEFT JOIN LATERAL (
       SELECT
@@ -2596,6 +2601,7 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       COALESCE(reminders.sent,0)::int AS reminder_sent,
       COALESCE(reminders.failed,0)::int AS reminder_failed,
       COALESCE(rewards.eligible,0)::int AS reward_eligible,
+      COALESCE(rewards.awaiting_opt_in,0)::int AS reward_awaiting_opt_in,
       COALESCE(rewards.issued,0)::int AS reward_issued,
       COALESCE(deliveries.reward_failed,0)::int AS reward_delivery_failed,
       COALESCE(deliveries.results_sent,0)::int AS results_notification_sent,
@@ -2664,11 +2670,17 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
         AND m.attempt_kind='reminder'
     ) reminders ON true
     LEFT JOIN LATERAL (
-      SELECT count(*) FILTER (WHERE re.status='eligible') AS eligible,
+      SELECT count(*) FILTER (WHERE re.status='eligible' AND rr.status='completed' AND optin.granted IS TRUE) AS eligible,
+             count(*) FILTER (WHERE re.status='eligible' AND optin.granted IS DISTINCT FROM TRUE) AS awaiting_opt_in,
              count(*) FILTER (WHERE re.status='issued') AS issued
       FROM research_reward_entitlements re
       JOIN research_responses rr ON rr.id=re.response_id
-      WHERE rr.study_id=s.id AND rr.wave_id=s.current_wave_id
+      LEFT JOIN LATERAL (
+        SELECT rc.granted FROM research_consents rc
+        WHERE rc.response_id=rr.id AND rc.consent_kind='thank_you_code'
+        ORDER BY rc.occurred_at DESC,rc.id DESC LIMIT 1
+      ) optin ON true
+      WHERE rr.study_id=s.id AND rr.wave_id=s.current_wave_id AND re.reward_kind='thank_you_code'
     ) rewards ON true
     LEFT JOIN LATERAL (
       SELECT count(*) FILTER (WHERE message_kind='thank_you_code' AND status='failed') AS reward_failed,
@@ -2753,6 +2765,7 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
     reminderSent: numberValue(row.reminder_sent),
     reminderFailed: numberValue(row.reminder_failed),
     rewardEligible: numberValue(row.reward_eligible),
+    rewardAwaitingOptIn: numberValue(row.reward_awaiting_opt_in),
     rewardIssued: numberValue(row.reward_issued),
     rewardDeliveryFailed: numberValue(row.reward_delivery_failed),
     qualityReview: numberValue(row.quality_review),
