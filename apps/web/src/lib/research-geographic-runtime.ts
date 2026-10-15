@@ -6,7 +6,7 @@ import { summarizeGreekPrefectures, type GreekRegionKey } from "./research-geogr
 type Choice = Readonly<{ key: string; label: string }>;
 type Question = Readonly<{ code: string; label: string; type: string; options: readonly Choice[] }>;
 export type ResearchMapFilters = Readonly<{
-  mode: "completed" | "draft"; phase: "main" | "pilot";
+  mode: "all" | "completed" | "draft"; phase: "main" | "pilot";
   metric: "density" | "share"; question: string; answer: string;
   sector: string; kad: string; prefecture: string; municipality: string;
   region: string;

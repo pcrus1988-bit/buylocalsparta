@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { GreeceResearchHeatmap } from "./GreeceResearchHeatmap";
 import { GREECE_REGIONS, type GreekRegionKey } from "../lib/research-geographic-core";
-import type { SafeRelationshipRegion } from "../lib/research-geographic-relations-core";
+import type { SafeRelationshipRegion, relationshipAnswerCoverageByRegion } from "../lib/research-geographic-relations-core";
 import type { RelationshipFilters } from "../lib/research-geographic-relations-runtime";
 import {
   relationshipRegionValue, relationshipMapCellValue, sortedRelationshipRegions, safeRelationshipRegionsCsv,
@@ -31,12 +31,17 @@ function GroupCard({ title, detail, base, percent }: {
     <div className="research-relation-bar" aria-hidden="true">
       <span style={{ width: (percent ?? 0) + "%" }} />
     </div>
-    <small>{base === null ? "Ανεπαρκές δείγμα (n<15)" : "Απαντήσεις και στα δύο: n=" + base.toLocaleString("el-GR")}</small>
+    <small>{base === null ? "Η ακριβής βάση είναι περιορισμένη σε αναλυτές" :
+      "Πραγματικό n (και οι δύο ερωτήσεις) = " + base.toLocaleString("el-GR")}</small>
+    {base !== null && base > 0 && base < 15 &&
+      <small style={{fontWeight:700}}>Μικρό δείγμα · όχι στατιστικά αντιπροσωπευτικό</small>}
   </div>;
 }
 
-function RegionCard({ region, aLabel, bLabel, compact = false }: {
-  region: SafeRelationshipRegion; aLabel: string; bLabel: string; compact?: boolean;
+function RegionCard({ region, aLabel, bLabel, coverage, compact = false }: {
+  region: SafeRelationshipRegion; aLabel: string; bLabel: string;
+  coverage?: ReturnType<typeof relationshipAnswerCoverageByRegion>[number];
+  compact?: boolean;
 }) {
   const a = region.segment;
   const b = region.other;
@@ -44,6 +49,14 @@ function RegionCard({ region, aLabel, bLabel, compact = false }: {
   return <div className="relation-explorer-region-card" aria-label={region.label}>
     <h3>{region.label}</h3>
     <p>{bLabel}</p>
+    {coverage && <div className="workspace-inline-note" style={{fontSize:".85rem"}}>
+      <strong>Πραγματικές αποθηκευμένες απαντήσεις στην {region.label}:</strong>
+      {" "}Α: n={coverage.answeredA.toLocaleString("el-GR")},
+      {" "}Β: n={coverage.answeredB.toLocaleString("el-GR")},
+      {" "}και στις δύο: n={coverage.paired.toLocaleString("el-GR")}.
+      {" "}Μόνο Α: n={coverage.onlyA.toLocaleString("el-GR")},
+      {" "}μόνο Β: n={coverage.onlyB.toLocaleString("el-GR")}.
+    </div>}
     <div className={"relation-explorer-pair" + (compact ? " is-compact" : "")}>
       <GroupCard title="Ομάδα Α" detail={aLabel} base={a.base} percent={a.percent} />
       <GroupCard title="Λοιπές επιχειρήσεις" detail="Εκτός ομάδας Α" base={b.base} percent={b.percent} />
@@ -59,11 +72,12 @@ function selectRegion(value: string, regions: readonly SafeRelationshipRegion[])
   return regions.some(r => r.key === value) ? value as GreekRegionKey : "";
 }
 
-export function GreeceRelationshipWorkbench({ root, filters, regions, aLabel, bLabel,
+export function GreeceRelationshipWorkbench({ root, filters, regions, regionalCoverage, aLabel, bLabel,
   initialView = "segment", initialCompare = "" }: {
   root: string;
   filters: RelationshipFilters;
   regions: readonly SafeRelationshipRegion[];
+  regionalCoverage?: ReturnType<typeof relationshipAnswerCoverageByRegion> | null;
   aLabel: string;
   bLabel: string;
   initialView?: RelationshipMapView;
@@ -191,7 +205,8 @@ export function GreeceRelationshipWorkbench({ root, filters, regions, aLabel, bL
             {GREECE_REGIONS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
           </select>
         </label>
-        {selected ? <RegionCard region={selected} aLabel={aLabel} bLabel={bLabel} />
+        {selected ? <RegionCard region={selected} aLabel={aLabel} bLabel={bLabel}
+            coverage={regionalCoverage?.find(x=>x.key===selected.key)} />
           : <p className="research-relation-small-note">Η σύγκριση εμφανίζεται εδώ αμέσως μόλις επιλέξετε Περιφέρεια.</p>}
         <div className="relation-explorer-divider" />
         <label className="relation-explorer-select">Συγκρίνετε με άλλη Περιφέρεια
@@ -201,7 +216,8 @@ export function GreeceRelationshipWorkbench({ root, filters, regions, aLabel, bL
               <option key={r.key} value={r.key}>{r.label}</option>)}
           </select>
         </label>
-        {compared && <RegionCard region={compared} aLabel={aLabel} bLabel={bLabel} compact />}
+        {compared && <RegionCard region={compared} aLabel={aLabel} bLabel={bLabel}
+          coverage={regionalCoverage?.find(x=>x.key===compared.key)} compact />}
         {selected && compared && <div className="relation-explorer-cross-compare" role="status">
           <strong>Διαφορά Περιφερειών · Ομάδα Α</strong>
           <span>{selected.segment.percent !== null && compared.segment.percent !== null
@@ -255,7 +271,9 @@ export function GreeceRelationshipWorkbench({ root, filters, regions, aLabel, bL
     </section>
     <p className="research-relation-small-note">
       <strong>Μεθοδολογία:</strong> Οι συγκρίσεις δείχνουν περιγραφικές, μη σταθμισμένες συσχετίσεις.
-      Όλες οι τιμές έχουν ελεγχθεί για επαρκές δείγμα στο διακομιστή πριν φτάσουν στον χάρτη.
+      Το n ισούται με τις πραγματικές καταγεγραμμένες απαντήσεις και στις δύο επιλεγμένες ερωτήσεις.
+      Οι απαντήσεις μόνο σε μία από αυτές προσμετρώνται ξεχωριστά στην κάλυψη.
+      Μικρά n προβάλλονται μόνο σε εξουσιοδοτημένους αναλυτές· δεν συνεπάγονται αντιπροσωπευτικότητα.
       Η διαφορά εκφράζεται σε ποσοστιαίες μονάδες, όχι σε σχετική ποσοστιαία μεταβολή.
     </p>
   </div>;

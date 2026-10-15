@@ -32,8 +32,10 @@ function Stats({ label, data, caption }: {
       (data.percent === null ? "ανεπαρκής βάση" : share(data.percent))}>
       <span style={{ width: (data.percent ?? 0) + "%" }} />
     </div>
-    <small>Κοινή βάση: {data.base === null ? "λιγότερες από 15" :
-      formatter.format(data.base)} απαντήσεις.</small>
+    <small>{data.base === null ? "Μικρή βάση: εμφανίζεται μόνο στους εξουσιοδοτημένους αναλυτές" :
+      "Πραγματικό n = " + formatter.format(data.base) + " απαντήσεις και στις δύο ερωτήσεις."}</small>
+    {data.base !== null && data.base > 0 && data.base < 15 &&
+      <small><strong>Μικρό δείγμα:</strong> η τιμή είναι ενδεικτική, όχι γενικεύσιμη.</small>}
     <small>{caption}</small>
   </article>;
 }
@@ -106,6 +108,32 @@ export default async function ResearchRelationshipMapPage({ params, searchParams
             questions={data.questions} sectors={data.sectors} kads={data.kads} />
         </section>
         <section className="shell vendor-section">
+          <WorkspaceSectionHeading eyebrow="Κάλυψη πραγματικών απαντήσεων"
+            title="Πόσοι απάντησαν σε κάθε ερώτηση;"
+            note="Το n προκύπτει από αποθηκευμένες απαντήσεις, όχι από προσκλήσεις, υποθετικό μέγεθος δείγματος ή κατώφλι 15." />
+          {data.coverage ? <div className="analytics-workflow-grid">
+            {([
+              ["Απάντησαν στην Α", data.coverage.answeredA],
+              ["Απάντησαν στη Β", data.coverage.answeredB],
+              ["Απάντησαν και στις δύο", data.coverage.paired],
+              ["Μόνο στην Α", data.coverage.onlyA],
+              ["Μόνο στη Β", data.coverage.onlyB]
+            ] as const).map(([label,count])=><article key={label} className="analytics-workflow-card">
+              <span>{label}</span><strong style={{fontSize:"1.45rem"}}>n={formatter.format(count)}</strong>
+            </article>)}
+          </div> : <div className="workspace-inline-note">
+            Τα πραγματικά n κάτω από το όριο προστασίας εμφανίζονται μόνο σε διαχειριστές με
+            άδεια ανάλυσης ή διαχείρισης έρευνας. Οι απαντήσεις τους εξακολουθούν να προσμετρώνται.
+          </div>}
+          <p className="research-relation-small-note" style={{marginTop:12}}>
+            Η σύγκριση Α → Β μπορεί να υπολογιστεί μόνο όταν ο ίδιος συμμετέχων έχει απαντήσει
+            και στις δύο ερωτήσεις. Οι απαντήσεις μόνο στην Α ή μόνο στη Β δεν χάνονται:
+            εμφανίζονται ξεχωριστά στην κάλυψη. Άγνωστο / Δεν γνωρίζω καταμετράται ως
+            καταγεγραμμένη απάντηση, όχι ως επιλεγμένη απάντηση Β.
+            Δεν προσμετρώνται αποσυρμένα ερωτηματολόγια.
+          </p>
+        </section>
+        <section className="shell vendor-section">
           <WorkspaceSectionHeading eyebrow="Πανελλαδική εικόνα" title={data.pair.insight}
             note="Απαντήσεις από την ομάδα Α σε σύγκριση με τις υπόλοιπες επιχειρήσεις." />
           <div className="workspace-inline-note" style={{ marginBottom: 16 }}>
@@ -122,9 +150,10 @@ export default async function ResearchRelationshipMapPage({ params, searchParams
             <Difference a={data.nationalSegment} b={data.nationalOther} />
           </div>
           <p className="research-relation-small-note" style={{ marginTop: 12 }}>
-            Κοινή βάση ερωτήσεων: {data.totalMatchedBase === null ?
-              "Μη δημοσιοποιήσιμη" : formatter.format(data.totalMatchedBase)}.
-            Άγνωστες ή ελλιπείς απαντήσεις δεν υπολογίζονται.
+            Πραγματικό n για τη σχέση (και οι δύο απαντήσεις): {data.totalMatchedBase === null ?
+              "Προστατευμένο για περιορισμένη πρόσβαση" : formatter.format(data.totalMatchedBase)}.
+            Οι απαντήσεις «Δεν γνωρίζω» καταμετρώνται στις διαθέσιμες απαντήσεις·
+            ελλείπουσες απαντήσεις στη Β δεν υποθέτουμε πως είναι «Όχι».
           </p>
         </section>
         <section className="shell vendor-section">
@@ -135,6 +164,7 @@ export default async function ResearchRelationshipMapPage({ params, searchParams
             data.filters.mode, data.filters.phase, data.filters.sector, data.filters.kad,
             data.filters.preset, data.filters.a, data.filters.av, data.filters.b, data.filters.bv
           ].join("|")} root={link} filters={data.filters} regions={data.regions}
+            regionalCoverage={data.regionalCoverage}
             aLabel={data.pair.aLabel} bLabel={data.pair.bLabel}
             initialView={data.filters.view} initialCompare={data.filters.compare} />
           {data.unknownGeography && <p className="research-relation-small-note">
@@ -144,9 +174,11 @@ export default async function ResearchRelationshipMapPage({ params, searchParams
             <strong>Δεοντολογία.</strong> Εσωτερική, μη σταθμισμένη, περιγραφική ανάλυση·
             οι αποθηκευμένες και οριστικές απαντήσεις παραμένουν χωριστές.
             Χρησιμοποιείται η καταγεγραμμένη έδρα της επιχείρησης στο ΓΕΜΗ,
-            όχι GPS του συμμετέχοντος. Ποσοστά μόνο με n≥15 και τουλάχιστον
-            5 περιπτώσεις σε κάθε έκβαση. Δεν μεταφέρονται προσωπικές απαντήσεις
-            ούτε μη ασφαλείς μικροομάδες στον φυλλομετρητή.
+            όχι GPS του συμμετέχοντος. Κάθε καταγεγραμμένη απάντηση συμβάλλει
+            στην αντίστοιχη βάση n. Οι εξουσιοδοτημένοι αναλυτές βλέπουν το ακριβές n
+            ακόμη και για μικρές ομάδες, με προειδοποίηση αβεβαιότητας.
+            Με άδεια μόνο ανάγνωσης παραμένει απόκρυψη μικρών ομάδων,
+            πριν σταλούν δεδομένα στον φυλλομετρητή.
             Δεν τεκμηριώνεται αιτιότητα ή στατιστική σημαντικότητα.
           </div>
         </section>
