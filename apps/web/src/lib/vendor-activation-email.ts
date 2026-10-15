@@ -1,15 +1,9 @@
 import { sendTransactionalEmail } from "./transactional-email";
+import { KONTA_MOY_EMAIL_BASE_URL } from "./official-email-url";
 import type { VendorActivationAccess } from "./vendor-activation-access";
 
-function publicBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
-  const explicit = env.BLS_PUBLIC_BASE_URL?.trim() || env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (explicit) return explicit.replace(/\/$/, "");
-  const production = env.VERCEL_PROJECT_PRODUCTION_URL?.trim() || env.VERCEL_URL?.trim();
-  return production ? `https://${production.replace(/^https?:\/\//, "").replace(/\/$/, "")}` : "https://kontamou.site";
-}
-
 export async function sendVendorActivationEmail(access: VendorActivationAccess) {
-  const loginUrl = `${publicBaseUrl()}/vendor/login`;
+  const loginUrl = `${KONTA_MOY_EMAIL_BASE_URL}/vendor/login`;
   const setupLines = access.passwordSetupRequired && access.passwordSetupUrl ? [
     "Για να ολοκληρώσετε την πρόσβαση στο Vendor Workspace, δημιουργήστε τώρα τον προσωπικό σας κωδικό πρόσβασης:",
     access.passwordSetupUrl,
