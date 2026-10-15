@@ -201,7 +201,7 @@ JOIN public.sport_knowledge_sources s
  ON s.source_key='adidas_sock_exact_'||lower(f.code)||'_20261015'
 WHERE (SELECT enforce_data FROM _s453_scope);
 
-DO $
+DO $$
 DECLARE model_row record;n int;
 BEGIN
  IF NOT (SELECT enforce_data FROM _s453_scope) THEN RETURN; END IF;
