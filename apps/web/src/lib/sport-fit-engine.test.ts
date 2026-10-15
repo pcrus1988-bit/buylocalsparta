@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, sportProductRole, sportFitUniverseSelection, stockedSportFootwearVariantSizes, type SportFitProduct } from "./sport-fit-engine.ts";
+import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, sportProductRole, sportFitUniverseSelection, stockedSportFootwearVariantSizes, stockedSportSockVariantSizes, type SportFitProduct } from "./sport-fit-engine.ts";
 import { canonicalSportBrand, sportSizeGuideBrandKey } from "./sport-fit-brand.ts";
 
 function product(overrides: Partial<SportFitProduct> & Pick<SportFitProduct, "id" | "title" | "categoryCode">): SportFitProduct {
@@ -2581,4 +2581,37 @@ test("uncertified manufacturer blend and sock pack size do not invent moisture-w
   assert.equal(scored.knowledge?.sockArchSupport,undefined);
   assert.ok(scored.technicalRequirements.some(r=>r.id==="requirement.kit_activity" && r.status==="unknown"));
   assert.ok(!scored.appliedRules.includes("kit.moisture_management_verified"));
+});
+
+test("stocked socks accept one actual EU range and reject family-level sizing lists", () => {
+  assert.deepEqual(stockedSportSockVariantSizes("37-39"), ["37-39"]);
+  assert.deepEqual(stockedSportSockVariantSizes("43–46"), ["43–46"]);
+  assert.deepEqual(stockedSportSockVariantSizes("EU 40-42"), ["EU 40-42"]);
+  assert.deepEqual(stockedSportSockVariantSizes("40-42,43-46"), []);
+  assert.deepEqual(stockedSportSockVariantSizes("M"), []);
+  assert.deepEqual(stockedSportSockVariantSizes("43-80"), []);
+  assert.deepEqual(stockedSportSockVariantSizes("46-43"), []);
+  assert.deepEqual(stockedSportSockVariantSizes(null), []);
+});
+
+test("kit picks correctly sized sock variant of same canonical family and rejects unknown ranges", () => {
+  const shoe = product({
+    id:"walk-shoe-42",title:"Walking Road Shoe",categoryCode:"mens-sneakers",sizes:["42"],
+    knowledge:{status:"partial",identityQuality:"strong",activities:["walking"],surfaces:["road"]}
+  });
+  const shared = {
+    familyId:"ic1305-sock-model",title:"Walking Sock",categoryCode:"socks-hosiery",
+    knowledge:{status:"partial" as const,identityQuality:"strong" as const,activities:["walking"],sockHeight:"ankle"}
+  };
+  const wrong = product({id:"sock-43-46",...shared,sizes:["43-46"]});
+  const correct = product({id:"sock-40-42",...shared,sizes:["40-42"]});
+  const unknown = product({id:"sock-unknown",title:"Another Documented Sock",categoryCode:"socks-hosiery",sizes:[],
+    knowledge:{status:"partial",identityQuality:"strong",activities:["walking"],sockHeight:"ankle"}});
+  const answers={activity:"walking" as const,audience:"men" as const,size:"42"};
+  const out=buildSportFitRecommendation([shoe,wrong,correct,unknown],answers);
+  assert.equal(out.primary?.id,shoe.id);
+  assert.equal(out.kit.find(p=>p.role==="socks")?.id,correct.id);
+  assert.equal(out.kit.find(p=>p.role==="socks")?.matchedSize,"40-42");
+  const miss=buildSportFitRecommendation([shoe,wrong,unknown],answers);
+  assert.equal(miss.kit.find(p=>p.role==="socks"),undefined);
 });
