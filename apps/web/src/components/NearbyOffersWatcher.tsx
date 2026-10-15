@@ -62,25 +62,27 @@ export function NearbyOffersWatcher() {
     async function hydrate(){
       if(!active || localStorage.getItem(KEY)!=="true")return;
       try {
-        const response=await fetch("/api/account/session",{cache:"no-store"});
-        if(!response.ok)return;
-        const session=await response.json() as {csrfToken?:string};
-        csrf=session.csrfToken??"";
-        if(!csrf)return;
         const pref=await fetch("/api/account/nearby-offers",{cache:"no-store"});
         if(!pref.ok)return;
-        const state=await pref.json() as {enabled?:boolean};
+        const state=await pref.json() as {enabled?:boolean;csrfToken?:string};
+        csrf=state.csrfToken??"";
+        if(!csrf)return;
         enabled=state.enabled===true;
         if(!enabled)localStorage.removeItem(KEY);
       }catch{/* fail closed */}
     }
-    void hydrate();
     async function tick(){
       if(!active||!enabled||!csrf||document.visibilityState!=="visible")return;
+      // Do not trigger a surprise browser permission prompt during background polling.
+      try {
+        const permission=await navigator.permissions?.query({name:"geolocation"});
+        if(permission?.state!=="granted")return;
+      } catch {return;}
       await checkForNearbyOffers(csrf);
     }
+    void hydrate().then(()=>void tick());
     const timer=window.setInterval(()=>void tick(),120000);
-    const updated=()=>{enabled=false;csrf="";void hydrate();};
+    const updated=()=>{enabled=false;csrf="";void hydrate().then(()=>void tick());};
     const visible=()=>{if(document.visibilityState==="visible")void tick();};
     window.addEventListener("km-nearby-offers-settings-changed",updated);
     document.addEventListener("visibilitychange",visible);
