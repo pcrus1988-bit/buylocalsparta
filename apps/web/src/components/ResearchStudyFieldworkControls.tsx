@@ -87,8 +87,10 @@ export function ResearchStudyFieldworkControls({
   activeContacts,
   completed,
   rewardEligible,
+  rewardAwaitingOptIn,
   rewardIssued,
   rewardDeliveryFailed,
+  rewardDeliveryPaused,
   pendingQualityReviews,
   succeededAnalysisRuns,
   latestReleaseVersion,
@@ -124,8 +126,10 @@ export function ResearchStudyFieldworkControls({
   activeContacts: number;
   completed: number;
   rewardEligible: number;
+  rewardAwaitingOptIn: number;
   rewardIssued: number;
   rewardDeliveryFailed: number;
+  rewardDeliveryPaused: boolean;
   pendingQualityReviews: number;
   succeededAnalysisRuns: number;
   latestReleaseVersion?: string;
@@ -789,15 +793,15 @@ export function ResearchStudyFieldworkControls({
     <div className="workspace-action-bar">
       <span>
         <strong>Participant thank-you delivery</strong><br />
-        {rewardEligible.toLocaleString("el-GR")} entitlement(s) παραμένουν eligible · {rewardIssued.toLocaleString("el-GR")} issued · {rewardDeliveryFailed.toLocaleString("el-GR")} failed delivery record(s).
-        Η αποστολή απαιτεί μόνο τη χωριστή επιλογή “thank-you code” και δεν διαβάζει marketing consent.
+        {rewardEligible.toLocaleString("el-GR")} με ρητή επιλογή λήψης, επιλέξιμοι για αποστολή · {rewardAwaitingOptIn.toLocaleString("el-GR")} χωρίς καταγεγραμμένο θετικό opt-in (μη επιλέξιμοι για αποστολή) · {rewardIssued.toLocaleString("el-GR")} ήδη εκδόθηκαν · {rewardDeliveryFailed.toLocaleString("el-GR")} αποτυχημένες παραδόσεις.
+        Δεν χρησιμοποιείται η συγκατάθεση marketing. {rewardDeliveryPaused && "Οι αποστολές κωδικών ευχαριστίας βρίσκονται σε παύση."}
       </span>
       <button
         className="button button-secondary"
-        disabled={Boolean(busy) || workerBusy || rewardEligible < 1}
+        disabled={rewardDeliveryPaused || Boolean(busy) || workerBusy || rewardEligible < 1}
         onClick={() => void deliverRewards()}
         type="button"
-      >{busy === "rewards" ? "Queueing…" : "Deliver pending thank-you codes"}</button>
+      >{rewardDeliveryPaused ? "Thank-you delivery paused" : busy === "rewards" ? "Queueing…" : "Deliver opted-in thank-you codes"}</button>
     </div>
 
     <div className="workspace-action-bar">
