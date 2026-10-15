@@ -1,7 +1,7 @@
 "use client";
 import {useState} from "react";
 import type {NearbyOffer} from "../lib/nearby-offers";
-import {checkForNearbyOffers,rememberNearbyOffersEnabled} from "./NearbyOffersWatcher";
+import {rememberNearbyOffersEnabled} from "./NearbyOffersWatcher";
 
 export function NearbyOffersClient({initial,csrfToken}:{initial:{enabled:boolean;phoneNotifications:boolean};csrfToken:string}){
   const [enabled,setEnabled]=useState(initial.enabled);
