@@ -540,3 +540,30 @@ test("compatibility edges never admit a stock-only secondary product or wrong sp
   assert.equal(out.kit.some((item) => item.id === generic.id), false);
   assert.deepEqual(out.kitCompatibility, []);
 });
+
+test("evidence-backed incompatible-with relation blocks a whole kit role despite a positive score", () => {
+  const shoe = product({
+    id: "safe-shoe", title: "Safe Hiking Shoe", categoryCode: "mens-hiking-shoes",
+    knowledge: { status: "partial", identityQuality: "strong", activities: ["hiking"], surfaces: ["trail"] }
+  });
+  const sock = product({
+    id: "unsafe-sock", title: "Sock With Activity Evidence", categoryCode: "socks-hosiery",
+    knowledge: { status: "partial", identityQuality: "strong", activities: ["hiking"], moistureWicking: true }
+  });
+  const shared = {
+    sportCode: "hiking" as const, useCase: "all",
+    primaryRole: "footwear" as const, secondaryRole: "socks" as const,
+    secondaryKind: "all", confidence: 1,
+    sourceUrl: "https://www.rei.com/learn/expert-advice/socks.html",
+    sourceTitle: "Evidence guidance", evidenceExcerpt: "Curated sport equipment policy rule."
+  };
+  const result = buildSportFitRecommendation([shoe, sock], {
+    activity: "hiking", audience: "men", surface: "trail"
+  }, [
+    { ...shared, relationshipType: "recommended_with" as const },
+    { ...shared, relationshipType: "incompatible_with" as const }
+  ]);
+  assert.equal(result.primary?.id, shoe.id);
+  assert.equal(result.kit.some((item) => item.id === sock.id), false);
+  assert.deepEqual(result.kitCompatibility, []);
+});
