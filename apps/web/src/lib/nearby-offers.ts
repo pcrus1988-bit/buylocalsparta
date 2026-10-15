@@ -46,7 +46,7 @@ export async function setNearbyPreference(principal: SessionPrincipal, enabled: 
   });
 }
 
-export async function scanNearbyOffers(principal: SessionPrincipal, position: Coordinates): Promise<NearbyOffer[]> {
+export async function scanNearbyOffers(principal: SessionPrincipal, position: Coordinates & { canNotify: boolean }): Promise<NearbyOffer[]> {
   if (!validCoordinates(position)) throw new Error("LOCATION_NOT_ACCURATE");
   return unit().withTransaction(context(principal), async tx => {
     const pref = await tx.query<SqlRow>(`
@@ -100,7 +100,7 @@ export async function scanNearbyOffers(principal: SessionPrincipal, position: Co
         || prev.some(d => d.vendorId===vendorId && now-d.time<86400000)
         || prev.some(d => d.campaignId===id && now-d.time<7*86400000)
         || delivered.has(vendorId);
-      const notify = p.phone_notifications === true && !suppressed;
+      const notify = p.phone_notifications === true && position.canNotify === true && !suppressed;
       if (notify) {
         await tx.query(`
           insert into public.nearby_offer_delivery_log(user_id,campaign_id,vendor_id,notified_at,expires_at)
