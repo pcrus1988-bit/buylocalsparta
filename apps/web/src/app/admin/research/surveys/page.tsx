@@ -86,6 +86,7 @@ export default async function ResearchSurveysAdminPage() {
                     <Link prefetch={false} className="button button-secondary" href={"/admin/research/surveys/" + encodeURIComponent(study.slug)}>Open survey</Link>
                     <Link prefetch={false} className="button button-secondary" href={root + "/questions"}>Questions</Link>
                     <Link prefetch={false} className="button button-secondary" href={root + "/evaluation"}>Evaluation</Link>
+                    <Link prefetch={false} className="button" href={root + "/behaviour"}>Participant Behaviour Analytics · New</Link>
                   </div>
                 </article>;
               })}
