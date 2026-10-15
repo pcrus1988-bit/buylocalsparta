@@ -12,6 +12,7 @@ import {
   type SportFitScoredProduct
 } from "../../../../lib/sport-fit-engine";
 import { getSportFitCatalog } from "../../../../lib/sport-fit-catalog";
+import { getActiveSportFitCompatibilities } from "../../../../lib/sport-fit-compatibility-server";
 import { availableStoredSportSizeGuideBrands, resolveStoredSportSize } from "../../../../lib/sport-fit-size-guide-server";
 import { productionDatabaseConfigured } from "../../../../lib/postgres-runtime";
 import { sportSizeGuideBrandKey } from "../../../../lib/sport-fit-brand";
@@ -159,7 +160,7 @@ export async function POST(request: Request) {
         survivingCount: 0,
         secondaryCount: 0,
         universe: [],
-        recommendation: { finalistEvidenceMode: "heuristic_fallback", alternatives: [], kit: [], ranked: [] }
+        recommendation: { finalistEvidenceMode: "heuristic_fallback", alternatives: [], kit: [], kitCompatibility: [], ranked: [] }
       },
       { headers: { "Cache-Control": "no-store" } }
     );
@@ -225,7 +226,8 @@ export async function POST(request: Request) {
     const resolvedAnswers = Object.keys(brandSizeHints).length
       ? { ...answers, brandSizeHints }
       : answers;
-    const recommendation = buildSportFitRecommendation(catalog.products, resolvedAnswers);
+    const compatibilityEdges = await getActiveSportFitCompatibilities();
+    const recommendation = buildSportFitRecommendation(catalog.products, resolvedAnswers, compatibilityEdges);
     const primaryBrandKey = sportSizeGuideBrandKey(recommendation.primary?.brand);
     const primarySizeGuide = resolvedSizeGuides.find(({ brandKey: key }) => key === primaryBrandKey)?.guide;
 
