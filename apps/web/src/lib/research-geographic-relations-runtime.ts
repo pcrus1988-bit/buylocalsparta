@@ -1,9 +1,11 @@
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
+import { rawResearchAnswerAccess } from "./research-survey-response-admin";
 import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { GREECE_REGIONS } from "./research-geographic-core";
 import {
-  RESEARCH_RELATIONSHIP_PRESETS, aggregateRelationship, safeRelationshipCounts, safeRelationshipRegion,
+  RESEARCH_RELATIONSHIP_PRESETS, aggregateRelationship, relationshipAnswerCoverage,
+  safeRelationshipCounts, safeRelationshipRegion,
   type RelationshipPair, type SafeRelationshipRegion, type SafeRelationshipCounts
 } from "./research-geographic-relations-core";
 
@@ -12,7 +14,7 @@ export type RelationshipQuestion = Readonly<{
   code:string; label:string; type:"single"|"multi"|"scale"; options:readonly RelationshipChoice[];
 }>;
 export type RelationshipFilters = Readonly<{
-  mode:"draft"|"completed"; phase:"main"|"pilot"; sector:string; kad:string; region:string;
+  mode:"all"|"draft"|"completed"; phase:"main"|"pilot"; sector:string; kad:string; region:string;
   view:"segment"|"other"|"gap"; compare:string;
   preset:string; a:string; av:string; b:string; bv:string;
 }>;
@@ -25,6 +27,9 @@ export type ResearchRelationshipDashboard = Readonly<{
   regions:readonly SafeRelationshipRegion[];
   nationalSegment:SafeRelationshipCounts; nationalOther:SafeRelationshipCounts;
   unknownGeography:boolean; totalMatchedBase: number | null;
+  /** All saved answer contributions, revealed only to analysis/management admins. */
+  coverage: ReturnType<typeof relationshipAnswerCoverage> | null;
+  canViewExactSmallCells: boolean;
 }>;
 
 const SLUG=/^[a-z0-9][a-z0-9-]{2,79}$/;
@@ -140,48 +145,64 @@ export async function researchRelationshipMap(
   const region=GREECE_REGIONS.some(r=>r.key===input.region)?str(input.region,60):"";
   const compare=GREECE_REGIONS.some(r=>r.key===input.compare)?str(input.compare,60):"";
   const view=input.view==="gap"||input.view==="other"?input.view:"segment";
-  const mode=input.mode==="completed"?"completed":"draft";
+  const mode=input.mode==="completed"?"completed":input.mode==="draft"?"draft":"all";
   const phase=input.phase==="pilot"?"pilot":"main";
   const qa=qr.rows.find(q=>q.code===resolved.a);
   const qb=qr.rows.find(q=>q.code===resolved.b);
   if(!qa||!qb)return undefined;
 
-  // Both A and B must contain a substantive response; single-choice
-  // "unknown" and empty multi-select are excluded from BOTH denominators.
+  // Include ALL saved, non-withdrawn answers, whether formally submitted or
+  // still in progress. n(A), n(B) and n(A∩B) are separate actual response bases.
+  // The conditional rate only uses A∩B: a missing answer cannot be inferred.
+  // Unknown/none responses are recorded answers, not silently discarded.
   const records=await pool.query<SqlRow>([
-    "WITH complete_pairs AS (",
+    "WITH labeled AS (",
     " SELECT COALESCE(fu.sampling_attributes->>'prefecture','') AS prefecture,",
-    "   CASE WHEN jsonb_typeof(a.answer)='array' THEN a.answer ?| $7::text[]",
-    "     ELSE a.answer #>> '{}' = ANY($7::text[]) END AS segment,",
-    "   CASE WHEN jsonb_typeof(b.answer)='array' THEN b.answer ?| $8::text[]",
-    "     ELSE b.answer #>> '{}' = ANY($8::text[]) END AS outcome",
+    "   jsonb_typeof(a.answer) IN ('array','string','number','boolean') AS has_a,",
+    "   jsonb_typeof(b.answer) IN ('array','string','number','boolean') AS has_b,",
+    "   CASE WHEN jsonb_typeof(a.answer) IN ('array','string','number','boolean')",
+    "     THEN CASE WHEN jsonb_typeof(a.answer)='array' THEN a.answer ?| $7::text[]",
+    "       ELSE a.answer #>> '{}' = ANY($7::text[]) END",
+    "     ELSE NULL END AS segment,",
+    "   CASE WHEN jsonb_typeof(b.answer) IN ('array','string','number','boolean')",
+    "     THEN CASE WHEN jsonb_typeof(b.answer)='array' THEN b.answer ?| $8::text[]",
+    "       ELSE b.answer #>> '{}' = ANY($8::text[]) END",
+    "     ELSE NULL END AS outcome",
     " FROM research_responses r",
     " JOIN research_invites i ON i.id=r.invite_id",
     " JOIN research_sample_units su ON su.id=i.sample_unit_id",
     " JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
-    " JOIN research_answers a ON a.response_id=r.id AND a.question_id=$5::uuid",
-    " JOIN research_answers b ON b.response_id=r.id AND b.question_id=$6::uuid",
+    " LEFT JOIN research_answers a ON a.response_id=r.id AND a.question_id=$5::uuid",
+    " LEFT JOIN research_answers b ON b.response_id=r.id AND b.question_id=$6::uuid",
     " WHERE r.study_id=$1 AND r.instrument_id=$2",
-    " AND r.status=$3 AND r.withdrawn_at IS NULL AND i.fieldwork_phase=$4",
+    " AND r.withdrawn_at IS NULL AND r.status IN ('completed','in_progress')",
+    " AND ($3::text='all' OR r.status=$3::text)",
+    " AND i.fieldwork_phase=$4",
     " AND ($9::text='' OR fu.sector_code=$9)",
     " AND ($10::text='' OR COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb) ? $10::text)",
-    " AND jsonb_typeof(a.answer) IN ('array','string','number')",
-    " AND jsonb_typeof(b.answer) IN ('array','string','number')",
-    " AND a.answer <> '[]'::jsonb AND b.answer <> '[]'::jsonb",
-    " AND (jsonb_typeof(a.answer)='array' OR a.answer #>> '{}' <> 'unknown')",
-    " AND (jsonb_typeof(b.answer)='array' OR b.answer #>> '{}' <> 'unknown')",
     ")",
-    "SELECT prefecture,segment,count(*)::integer answered,",
-    " count(*) FILTER (WHERE outcome)::integer selected",
-    "FROM complete_pairs GROUP BY prefecture,segment ORDER BY prefecture,segment"
+    "SELECT prefecture,segment,",
+    " count(*) FILTER (WHERE has_a AND has_b)::integer AS answered,",
+    " count(*) FILTER (WHERE has_a AND has_b AND outcome)::integer AS selected,",
+    " count(*) FILTER (WHERE has_a AND NOT has_b)::integer AS only_a,",
+    " count(*) FILTER (WHERE has_b AND NOT has_a)::integer AS only_b",
+    " FROM labeled WHERE has_a OR has_b",
+    " GROUP BY prefecture,segment ORDER BY prefecture,segment"
   ].join("\n"),[
-    study.study_id,study.instrument_id,mode==="completed"?"completed":"in_progress",phase,
+    study.study_id,study.instrument_id,
+    mode==="draft"?"in_progress":mode,phase,
     qa.id,qb.id,[...resolved.pair.av],[...resolved.pair.bv],sector,kad
   ]);
-  const agg=aggregateRelationship(records.rows.map(row=>({
-    prefecture:text(row.prefecture),segment:Boolean(row.segment),
-    answered:Number(row.answered??0),selected:Number(row.selected??0)
-  })));
+  const recordRows=records.rows.map(row=>({
+    prefecture:text(row.prefecture),
+    segment:row.segment===null||row.segment===undefined?null:
+      row.segment===true||row.segment==="true",
+    answered:Number(row.answered??0), selected:Number(row.selected??0),
+    aOnly:Number(row.only_a??0), bOnly:Number(row.only_b??0)
+  }));
+  const coverage=relationshipAnswerCoverage(recordRows);
+  const exact=rawResearchAnswerAccess(principal);
+  const agg=aggregateRelationship(recordRows);
   const filters:RelationshipFilters={
     mode,phase,sector,kad,region,view,compare,preset:resolved.preset,
     a:resolved.a,av:resolved.av,b:resolved.b,bv:resolved.bv
@@ -197,11 +218,12 @@ export async function researchRelationshipMap(
   return {
     title:text(study.title),capturedAt:new Date().toISOString(),filters,
     pair:resolved.pair,questions,sectors:sectorOptions,kads:kadOptions,
-    regions:agg.regions.map(safeRelationshipRegion),
-    nationalSegment:safeRelationshipCounts(agg.nationalSegment),
-    nationalOther:safeRelationshipCounts(agg.nationalOther),
+    regions:agg.regions.map(row=>safeRelationshipRegion(row,exact)),
+    nationalSegment:safeRelationshipCounts(agg.nationalSegment,exact),
+    nationalOther:safeRelationshipCounts(agg.nationalOther,exact),
     unknownGeography:agg.unknown>0,
-    totalMatchedBase:agg.nationalSegment.answered>=15 && agg.nationalOther.answered>=15
-      ? agg.nationalSegment.answered+agg.nationalOther.answered:null
+    coverage:exact?coverage:null,canViewExactSmallCells:exact,
+    totalMatchedBase:exact || (agg.nationalSegment.answered>=15 && agg.nationalOther.answered>=15)
+      ? coverage.paired:null
   };
 }
