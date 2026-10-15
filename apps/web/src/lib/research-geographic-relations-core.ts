@@ -57,7 +57,13 @@ export type RelationshipPair = Readonly<{
   b: string; bv: readonly string[]; bLabel: string;
   insight: string;
 }>;
-export type RawRelationshipCell = Readonly<{ prefecture: string; segment: boolean; answered: number; selected: number }>;
+export type RawRelationshipCell = Readonly<{
+  prefecture: string; segment: boolean | null;
+  /** Responses containing BOTH recorded question answers in this segment. */
+  answered: number; selected: number;
+  /** Response counts retained in coverage when only one question was answered. */
+  aOnly?: number; bOnly?: number;
+}>;
 export type RelationshipCounts = Readonly<{ answered: number; selected: number }>;
 export type RelationshipRegion = Readonly<{ key: GreekRegionKey; label: string; segment: RelationshipCounts; other: RelationshipCounts }>;
 export type SafeRelationshipCounts = Readonly<{ base: number | null; percent: number | null }>;
@@ -65,6 +71,16 @@ export type SafeRelationshipRegion = Readonly<{ key: GreekRegionKey; label: stri
 
 export const RELATIONSHIP_MIN_BASE = 15;
 export const RELATIONSHIP_MIN_OUTCOME = 5;
+export type RelationshipAnswerCoverage = Readonly<{
+  answeredA: number; answeredB: number; paired: number;
+  onlyA: number; onlyB: number;
+}>;
+export function relationshipAnswerCoverage(rows: readonly RawRelationshipCell[]): RelationshipAnswerCoverage {
+  const paired = rows.reduce((n, row) => n + row.answered, 0);
+  const onlyA = rows.reduce((n, row) => n + (row.aOnly ?? 0), 0);
+  const onlyB = rows.reduce((n, row) => n + (row.bOnly ?? 0), 0);
+  return { answeredA: paired + onlyA, answeredB: paired + onlyB, paired, onlyA, onlyB };
+}
 
 function empty(): RelationshipCounts { return { answered:0, selected:0 }; }
 function plus(a: RelationshipCounts, b: RelationshipCounts): RelationshipCounts {
@@ -80,14 +96,16 @@ export function aggregateRelationship(cells: readonly RawRelationshipCell[]) {
   let nationalOther = empty();
   for (const cell of cells) {
     const counts = { answered:cell.answered, selected:cell.selected };
-    if (cell.segment) nationalSegment = plus(nationalSegment, counts);
-    else nationalOther = plus(nationalOther, counts);
+    if (cell.segment === true) nationalSegment = plus(nationalSegment, counts);
+    // Missing answer A must NOT be mislabeled as "other businesses".
+    else if (cell.segment === false) nationalOther = plus(nationalOther, counts);
     const region = greekRegionForPrefecture(cell.prefecture);
     if (!region) { unknown += cell.answered; unknownEntries++; continue; }
+    if (cell.segment === null) continue;
     const prior = regions.get(region)!;
     regions.set(region, { ...prior,
-      segment: cell.segment ? plus(prior.segment, counts) : prior.segment,
-      other: cell.segment ? prior.other : plus(prior.other, counts)
+      segment: cell.segment === true ? plus(prior.segment, counts) : prior.segment,
+      other: cell.segment === false ? plus(prior.other, counts) : prior.other
     });
   }
   return { regions:[...regions.values()], nationalSegment, nationalOther, unknown, unknownEntries };
@@ -98,7 +116,15 @@ export function aggregateRelationship(cells: readonly RawRelationshipCell[]) {
  * Withhold percentages whenever either outcome partition is under k=5.
  * Never send exact sub-threshold numerator/denominator to client components.
  */
-export function safeRelationshipCounts(counts: RelationshipCounts): SafeRelationshipCounts {
+export function safeRelationshipCounts(
+  counts: RelationshipCounts, canViewExactSmallCells = false
+): SafeRelationshipCounts {
+  // Admins with explicit analysis/management permission can review actual n,
+  // including n=1. Zero answered produces no percentage, never artificial 0%.
+  if (canViewExactSmallCells) return {
+    base: counts.answered,
+    percent: counts.answered > 0 ? Math.round(counts.selected / counts.answered * 100) : null
+  };
   if (counts.answered < RELATIONSHIP_MIN_BASE) return { base:null, percent:null };
   if (counts.selected < RELATIONSHIP_MIN_OUTCOME || counts.answered-counts.selected < RELATIONSHIP_MIN_OUTCOME) {
     return { base:counts.answered, percent:null };
@@ -106,6 +132,10 @@ export function safeRelationshipCounts(counts: RelationshipCounts): SafeRelation
   return { base:counts.answered, percent:Math.round(counts.selected/counts.answered*100) };
 }
 
-export function safeRelationshipRegion(row: RelationshipRegion): SafeRelationshipRegion {
-  return { key:row.key,label:row.label,segment:safeRelationshipCounts(row.segment),other:safeRelationshipCounts(row.other) };
+export function safeRelationshipRegion(
+  row: RelationshipRegion, canViewExactSmallCells = false
+): SafeRelationshipRegion {
+  return { key:row.key,label:row.label,
+    segment:safeRelationshipCounts(row.segment, canViewExactSmallCells),
+    other:safeRelationshipCounts(row.other, canViewExactSmallCells) };
 }
