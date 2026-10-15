@@ -119,3 +119,31 @@
  .relation-explorer-segments button{font-size:.79rem;padding:8px 5px}
  .relation-explorer-rank-list button{grid-template-columns:minmax(0,1fr) minmax(45px,.55fr) 88px;gap:6px;padding:8px 5px}
  .relation-explorer-rank-label,.relation-explorer-rank-list strong{font-size:.78rem}}
+
+
+/* Single-question geographic distribution shares the existing Research visual system. */
+.research-distribution-wide{grid-column:span 2}
+.research-distribution-answer-pills{display:flex;flex-wrap:wrap;gap:8px}
+.research-distribution-answer-pills button{
+  display:inline-flex;align-items:center;min-height:44px;padding:9px 13px;
+  background:var(--surface,#fff);border:1px solid var(--border,#cddad8);
+  border-radius:999px;font-size:.89rem;color:var(--text,#20413b);cursor:pointer}
+.research-distribution-answer-pills button:hover{border-color:#2d8f72;background:#f0faf4}
+.research-distribution-answer-pills button.is-active{
+  background:#dfefdb;border-color:#226e50;color:#14553b;font-weight:750}
+.research-distribution-answer-pills button:focus-visible{
+  outline:3px solid #d5ae3a;outline-offset:3px}
+.research-distribution-summary{padding:clamp(15px,2vw,22px);border-radius:15px;
+  border:1px solid var(--border,#d4e4dc);display:grid;gap:14px}
+.research-distribution-statgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.research-distribution-regional-cards{display:grid;gap:10px}
+.research-distribution-regional-cards>div{
+  padding:12px;border-radius:12px;border:1px solid var(--border,#d4e4dc);
+  background:var(--surface-muted,#f8faf8);display:grid;gap:7px;min-width:0}
+.research-distribution-regional-cards>div span{font-size:.85rem;color:var(--text-muted,#4a6763)}
+.research-distribution-regional-cards>div strong{
+  font-size:clamp(1.35rem,2.5vw,2rem);color:var(--text,#1c6250)}
+.research-distribution-regional-cards>p{margin:0}
+@media(max-width:720px){
+ .research-distribution-statgrid{grid-template-columns:minmax(0,1fr)}
+ .research-distribution-wide{grid-column:span 1}}

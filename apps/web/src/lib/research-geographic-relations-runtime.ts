@@ -40,14 +40,14 @@ const obj=(v:unknown):Record<string,unknown>=>v&&typeof v==="object"&&!Array.isA
 const str=(v?:string,limit=100)=>String(v??"").trim().slice(0,limit);
 const pairs=(value:unknown):RelationshipChoice[]=>Array.isArray(value)
  ? value.flatMap(item=>Array.isArray(item)&&item.length>=2?[{key:String(item[0]),label:String(item[1])}]:[]):[];
-const SECTOR_LABELS: Record<string,string>={
+export const SECTOR_LABELS: Record<string,string>={
   fashion_footwear:"Ένδυση / υπόδηση",home_living:"Σπίτι / διακόσμηση",
   beauty_personal_care:"Ομορφιά / φροντίδα",diy_building:"Εργαλεία / οικοδομικά",
   other_non_food_retail:"Λοιπό λιανεμπόριο",sports_books_hobby:"Αθλητικά / βιβλία / χόμπι",
   automotive_trade:"Αυτοκίνητο",electronics:"Ηλεκτρονικά",flowers_pets:"Άνθη / κατοικίδια",
   jewellery_watches:"Κοσμήματα / ρολόγια",second_hand:"Μεταχειρισμένα"
 };
-function questionChoices(row:SqlRow):RelationshipChoice[]{
+export function questionChoices(row:SqlRow):RelationshipChoice[]{
   const cfg=obj(row.config);
   if(row.question_type!=="scale")return pairs(cfg.options);
   const min=Number(cfg.min??1),max=Number(cfg.max??5),step=Number(cfg.step??1);

@@ -86,6 +86,7 @@ export default async function ResearchRelationshipMapPage({ params, searchParams
         <p className="lead">Συνδυάστε απαντήσεις, συγκρίνετε ομάδες επιχειρήσεων και εξερευνήστε
           τις διαφορές ανά Περιφέρεια σε πραγματικό χρόνο μέσα στον χάρτη.</p>
         <div className="hero-actions">
+          <Link prefetch={false} className="button" href={root + "/map/distribution"}>Μία ερώτηση · Κατανομή</Link>
           <Link prefetch={false} className="button button-secondary" href={root + "/map"}>
             Αναλυτικός χάρτης / φίλτρα</Link>
           <Link prefetch={false} className="button button-secondary" href={root + "/barometer"}>
