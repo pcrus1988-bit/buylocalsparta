@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Admin · Research rewards", robots: 
 export const dynamic = "force-dynamic";
 
 type Search = Promise<{ search?: string; q?: string; status?: string }>;
-const statuses = ["all", "eligible", "issued", "redeemed", "expired", "cancelled"] as const;
+const statuses = ["all", "eligible", "awaiting_opt_in", "issued", "redeemed", "expired", "cancelled"] as const;
 
 const fmtDate = (value: unknown) => value
   ? new Date(String(value)).toLocaleString("el-GR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Athens" })
@@ -50,28 +50,41 @@ export default async function SurveyRewardsAdminPage({ params, searchParams }: {
           if (!st.rows[0]) return undefined;
           const summary = await tx.query<SqlRow>(`
             SELECT count(*)::integer AS total,
-              count(*) FILTER (WHERE re.status='eligible')::integer AS eligible,
+              count(*) FILTER (WHERE re.status='eligible' AND rr.status='completed' AND optin.granted IS TRUE)::integer AS eligible,
+              count(*) FILTER (WHERE re.status='eligible' AND optin.granted IS DISTINCT FROM TRUE)::integer AS awaiting_opt_in,
               count(*) FILTER (WHERE re.status='issued')::integer AS issued,
               count(*) FILTER (WHERE re.status='redeemed')::integer AS redeemed,
               count(*) FILTER (WHERE re.status='expired')::integer AS expired,
               count(*) FILTER (WHERE re.status='cancelled')::integer AS cancelled
             FROM research_reward_entitlements re
             JOIN research_responses rr ON rr.id=re.response_id
+            LEFT JOIN LATERAL (
+              SELECT rc.granted FROM research_consents rc
+              WHERE rc.response_id=rr.id AND rc.consent_kind='thank_you_code'
+              ORDER BY rc.occurred_at DESC,rc.id DESC LIMIT 1
+            ) optin ON true
             WHERE rr.study_id=$1 AND re.reward_kind='thank_you_code'
           `, [st.rows[0].id]);
           if (!searching) return { title: st.rows[0].title, counts: summary.rows[0], rows: [] };
           const entries = await tx.query<SqlRow>(`
-            SELECT re.id::text AS id, re.status, re.created_at,
+            SELECT re.id::text AS id, re.status,
+                   CASE WHEN re.status='eligible' AND optin.granted IS DISTINCT FROM TRUE THEN 'awaiting_opt_in'
+                        ELSE re.status END AS display_status, re.created_at,
                    re.issued_at, re.redeemed_at, re.expires_at,
                    hp.public_id AS application_reference, hp.business_name,
                    rd.setup_fee_original_cents, rd.setup_discount_cents,
                    rd.setup_fee_payable_cents, rd.redeemed_at AS redemption_recorded_at
             FROM research_reward_entitlements re
             JOIN research_responses rr ON rr.id=re.response_id
+            LEFT JOIN LATERAL (
+              SELECT rc.granted FROM research_consents rc
+              WHERE rc.response_id=rr.id AND rc.consent_kind='thank_you_code'
+              ORDER BY rc.occurred_at DESC,rc.id DESC LIMIT 1
+            ) optin ON true
             LEFT JOIN research_reward_redemptions rd ON rd.entitlement_id=re.id
             LEFT JOIN hub_expansion_prospects hp ON hp.id=rd.prospect_id
             WHERE rr.study_id=$1 AND re.reward_kind='thank_you_code'
-              AND ($2::text='all' OR re.status=$2)
+              AND ($2::text='all' OR (CASE WHEN re.status='eligible' AND optin.granted IS DISTINCT FROM TRUE THEN 'awaiting_opt_in' ELSE re.status END)=$2)
               AND ($3::text='' OR re.id::text=$3
                    OR hp.public_id=$3)
             ORDER BY re.created_at DESC,re.id DESC
@@ -111,14 +124,15 @@ export default async function SurveyRewardsAdminPage({ params, searchParams }: {
         <div className="workspace-queue-card" style={{ marginTop: 16 }}>
           <div className="workspace-action-bar" style={{ flexWrap: "wrap", gap: 14 }}>
             {([
-              ["Eligible",counts.eligible],
+              ["Eligible · opted in",counts.eligible],
+              ["Awaiting opt-in",counts.awaiting_opt_in],
               ["Issued",counts.issued],
               ["Redeemed",counts.redeemed],
               ["Expired",counts.expired],
               ["Cancelled",counts.cancelled]
             ] as const).map(([label,value]) => <span key={label}><strong>{Number(value || 0).toLocaleString("el-GR")}</strong> <small>{label}</small></span>)}
           </div>
-          <small>Total entitlements: {Number(counts.total || 0).toLocaleString("el-GR")}. Search results are not loaded automatically.</small>
+          <small>Total entitlements: {Number(counts.total || 0).toLocaleString("el-GR")}. Delivery eligibility requires the latest explicit thank-you-code opt-in. Other entitlements are retained so participants can opt in later. Search results are not loaded automatically.</small>
         </div>
         <form method="get" className="workspace-queue-card" style={{ marginTop: 16, display: "flex", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
           <input type="hidden" name="search" value="1" />
@@ -138,7 +152,7 @@ export default async function SurveyRewardsAdminPage({ params, searchParams }: {
             <thead><tr><th>Reward ID</th><th>Status</th><th>Issued</th><th>Redeemed</th><th>Application / business</th><th>One-time fee</th>{canManage && <th>Manage</th>}</tr></thead>
             <tbody>{rows.map(row => <tr key={String(row.id)}>
               <td><code>{String(row.id).slice(0, 8)}…</code></td>
-              <td><strong>{String(row.status)}</strong></td>
+              <td><strong>{String(row.display_status)}</strong></td>
               <td>{fmtDate(row.issued_at)}</td>
               <td>{fmtDate(row.redeemed_at)}</td>
               <td>{row.application_reference ? <>{String(row.business_name ?? "")}<br /><small>{String(row.application_reference)}</small></> : "—"}</td>
