@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  relationshipMapCellValue, relationshipRegionValue, sortedRelationshipRegions
+  relationshipMapCellValue, relationshipRegionValue, sortedRelationshipRegions, safeRelationshipRegionsCsv
 } from "./research-geographic-relations-view.ts";
 import type { SafeRelationshipRegion } from "./research-geographic-relations-core.ts";
 
@@ -38,4 +38,17 @@ test("ranking keeps suppressed regional cells after all available results",()=>{
     ["PELOPONNESE","ATTICA","CRETE"]);
   assert.deepEqual(sortedRelationshipRegions(regions,"other","highest").map(x=>x.key),
     ["PELOPONNESE","CRETE","ATTICA"]);
+});
+
+test("export contains only safe aggregates, with withheld cells marked rather than zero",()=>{
+  const csv=safeRelationshipRegionsCsv([
+    region("ATTICA","Αττική",60,25,20,31),
+    region("CRETE","Κρήτη",null,null,null,null)
+  ]);
+  assert.match(csv,/Αττική/);
+  assert.match(csv,/Κρήτη/);
+  assert.match(csv,/"60"/);
+  assert.match(csv,/"—"/);
+  assert.ok(!csv.includes("null"));
+  assert.ok(!csv.includes("undefined"));
 });
