@@ -158,8 +158,8 @@ export async function researchRelationshipMap(
   const records=await pool.query<SqlRow>([
     "WITH labeled AS (",
     " SELECT COALESCE(fu.sampling_attributes->>'prefecture','') AS prefecture,",
-    "   jsonb_typeof(a.answer) IN ('array','string','number','boolean') AS has_a,",
-    "   jsonb_typeof(b.answer) IN ('array','string','number','boolean') AS has_b,",
+    "   COALESCE(jsonb_typeof(a.answer) IN ('array','string','number','boolean'),false) AS has_a,",
+    "   COALESCE(jsonb_typeof(b.answer) IN ('array','string','number','boolean'),false) AS has_b,",
     "   CASE WHEN jsonb_typeof(a.answer) IN ('array','string','number','boolean')",
     "     THEN CASE WHEN jsonb_typeof(a.answer)='array' THEN a.answer ?| $7::text[]",
     "       ELSE a.answer #>> '{}' = ANY($7::text[]) END",
