@@ -123,7 +123,7 @@ export async function vendorNearbyDashboard(principal: SessionPrincipal) {
   if (!principal.vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
   return unit().withTransaction(context(principal), async tx => {
     const locations = await tx.query<SqlRow>(`
-      select l.id::text, l.name, l.locality, (l.active and l.verified_at is not null and l.coordinates is not null) as eligible
+      select l.id::text, l.name, l.locality, (l.active and l.verified_at is not null and l.coordinates is not null and v.status='active' and v.public_directory_visible=true) as eligible
       from public.vendor_locations l join public.vendor_businesses v on v.id=l.vendor_id
       where v.public_id=$1 order by l.is_primary desc, l.name
     `, [principal.vendorId]);
