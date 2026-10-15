@@ -49,7 +49,7 @@ export function GreeceSingleQuestionDistributionExplorer({
   const selected = data.regions.find(r => r.key === region);
 
   function changeFilters(changes: Record<string, string>) {
-    const url = hrefFor(root, data.filters, { ...changes, metric, region });
+    const url = hrefFor(root, data.filters, { metric, region, ...changes });
     startTransition(() => router.push(url));
   }
   const cells = useMemo(() => data.regions.map(r => ({
