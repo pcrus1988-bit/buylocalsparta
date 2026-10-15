@@ -31,7 +31,10 @@ function GroupCard({ title, detail, base, percent }: {
     <div className="research-relation-bar" aria-hidden="true">
       <span style={{ width: (percent ?? 0) + "%" }} />
     </div>
-    <small>{base === null ? "Ανεπαρκές δείγμα (n<15)" : "Απαντήσεις και στα δύο: n=" + base.toLocaleString("el-GR")}</small>
+    <small>{base === null ? "Η ακριβής βάση είναι περιορισμένη σε αναλυτές" :
+      "Πραγματικό n (και οι δύο ερωτήσεις) = " + base.toLocaleString("el-GR")}</small>
+    {base !== null && base > 0 && base < 15 &&
+      <small style={{fontWeight:700}}>Μικρό δείγμα · όχι στατιστικά αντιπροσωπευτικό</small>}
   </div>;
 }
 
@@ -255,7 +258,9 @@ export function GreeceRelationshipWorkbench({ root, filters, regions, aLabel, bL
     </section>
     <p className="research-relation-small-note">
       <strong>Μεθοδολογία:</strong> Οι συγκρίσεις δείχνουν περιγραφικές, μη σταθμισμένες συσχετίσεις.
-      Όλες οι τιμές έχουν ελεγχθεί για επαρκές δείγμα στο διακομιστή πριν φτάσουν στον χάρτη.
+      Το n ισούται με τις πραγματικές καταγεγραμμένες απαντήσεις και στις δύο επιλεγμένες ερωτήσεις.
+      Οι απαντήσεις μόνο σε μία από αυτές προσμετρώνται ξεχωριστά στην κάλυψη.
+      Μικρά n προβάλλονται μόνο σε εξουσιοδοτημένους αναλυτές· δεν συνεπάγονται αντιπροσωπευτικότητα.
       Η διαφορά εκφράζεται σε ποσοστιαίες μονάδες, όχι σε σχετική ποσοστιαία μεταβολή.
     </p>
   </div>;
