@@ -74,12 +74,12 @@ export function VendorNearbyOffersClient(){
     <p>Οι πελάτες που επιλέγουν τοπικές προσφορές ενημερώνονται μόνο όταν βρίσκονται κοντά στο επιβεβαιωμένο φυσικό κατάστημα. Δεν βλέπεις ποτέ τη θέση τους.</p>
     <section className="customer-account-panel" style={{marginTop:24}}>
       <h2>Νέα κοντινή προσφορά</h2>
-      <p>Η ενεργοποίηση απαιτεί ενεργό και επιβεβαιωμένο σημείο πώλησης. Οι προσφορές έχουν διάρκεια έως 30 ημέρες και ακτίνα 100–500 μέτρα.</p>
+      <p>Η ενεργοποίηση απαιτεί ενεργό και επιβεβαιωμένο σημείο πώλησης με ακριβείς συντεταγμένες. Αν δεν εμφανίζεται διαθέσιμο κατάστημα, ζήτησε επαλήθευση από την ομάδα KONTA MOY. Οι προσφορές έχουν διάρκεια έως 30 ημέρες και ακτίνα 100–500 μέτρα.</p>
       <form onSubmit={e=>void create(e)} style={{display:"grid",gap:12,maxWidth:560}}>
         <label>Κατάστημα
           <select required value={locationId} onChange={e=>setLocationId(e.target.value)}>
             <option value="">Επιλογή τοποθεσίας</option>
-            {data.locations.map(l=><option key={l.id} value={l.id} disabled={!l.eligible}>{l.name} · {l.locality}{l.eligible?"":" (χρειάζεται επαλήθευση)"}</option>)}
+            {data.locations.map(l=><option key={l.id} value={l.id} disabled={!l.eligible}>{l.name} · {l.locality}{l.eligible?"":" (χρειάζεται επιβεβαίωση φυσικού σημείου και θέσης GPS)"}</option>)}
           </select>
         </label>
         <label>Τίτλος προσφοράς<input required minLength={6} maxLength={110} value={title} onChange={e=>setTitle(e.target.value)}/></label>
