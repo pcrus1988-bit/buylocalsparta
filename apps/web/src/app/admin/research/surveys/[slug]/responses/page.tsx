@@ -61,6 +61,10 @@ export default async function SurveyResponsesAdminPage({ params, searchParams }:
       </div>
     </section>
     <ResearchSurveyAdminNav slug={slug} current="responses" />
+    <section className="shell vendor-section"><div className="workspace-action-bar" style={{ flexWrap: "wrap", gap: 12 }}>
+      <span><strong>Free-text insights</strong> · Explore open answers, themes and search results without editing original submissions.</span>
+      <Link prefetch={false} className="button" href={root + "/free-text"}>View categorized free-text answers</Link>
+    </div></section>
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Stored submissions" title="Response explorer"
         note="Read-only records from the live study. An in-progress questionnaire may contain saved answers but is not a formally completed submission." />
