@@ -22,6 +22,21 @@ const digest = value => createHash('sha256').update(JSON.stringify(value)).diges
 
 /** Source-scoped, deterministic candidate; independent reconciliation required. */
 export function sourceScopedCandidate(input = {}) {
+  // Inspect own descriptors before evaluating fields: reject hidden, inherited,
+  // symbol-keyed and accessor metadata, including injected review assertions.
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('INVALID_KIND');
+  const prototype = Object.getPrototypeOf(input);
+  if (prototype !== Object.prototype && prototype !== null) throw new TypeError('INVALID_CANDIDATE_INPUT_OBJECT');
+  const ownKeys = Reflect.ownKeys(input);
+  if (ownKeys.some(key => ['review_status','publication_allowed','verified','approved'].includes(key))) {
+    throw new TypeError('REVIEW_OR_APPROVAL_INPUT_FORBIDDEN');
+  }
+  if (ownKeys.some(key => typeof key !== 'string' || !INPUT_FIELDS.has(key))) {
+    throw new TypeError('UNEXPECTED_CANDIDATE_INPUT_FIELD');
+  }
+  if (ownKeys.some(key => !Object.hasOwn(Object.getOwnPropertyDescriptor(input, key), 'value'))) {
+    throw new TypeError('ACCESSOR_CANDIDATE_INPUT_FORBIDDEN');
+  }
   if (!input || typeof input !== 'object' || Array.isArray(input) || !KINDS.has(input.kind)) throw new TypeError('INVALID_KIND');
   if (Object.keys(input).some(field => !INPUT_FIELDS.has(field))) throw new TypeError('UNEXPECTED_CANDIDATE_INPUT_FIELD');
   if (typeof input.source_id !== 'string' || !UUID.test(input.source_id)) throw new TypeError('SOURCE_REQUIRED');
