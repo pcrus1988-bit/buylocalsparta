@@ -131,6 +131,7 @@ function stringValue(value: unknown): string | undefined {
 }
 
 function numberValue(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
@@ -187,6 +188,12 @@ function sportKnowledge(
     weatherProtection: stringList(facts.weather_protection),
     sockHeight: stringValue(facts.sock_height),
     sockCushioning: stringValue(facts.sock_cushioning),
+    sockCushionZones: stringList(facts.sock_cushion_zone),
+    sockCottonPct: numberValue(facts.sock_cotton_pct),
+    sockPolyesterPct: numberValue(facts.sock_polyester_pct),
+    sockElastanePct: numberValue(facts.sock_elastane_pct),
+    sockNylonPct: numberValue(facts.sock_nylon_pct),
+    packQuantity: numberValue(facts.pack_quantity),
     moistureWicking: booleanValue(facts.moisture_wicking),
     sockArchSupport: booleanValue(facts.sock_arch_support),
     breathabilityLevel: stringValue(facts.breathability_level),
@@ -330,7 +337,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
         JOIN attribute_definitions ad ON ad.id=pfav.attribute_id
         LEFT JOIN attribute_values av ON av.id=pfav.attribute_value_id
         WHERE pfav.family_id=pf.id
-          AND ad.group_code LIKE 'sport%'
+          AND (ad.group_code LIKE 'sport%' OR ad.code='pack_quantity')
           AND coalesce(pfav.confidence,0)>=0.70
         GROUP BY ad.code,ad.data_type
       ) fact
