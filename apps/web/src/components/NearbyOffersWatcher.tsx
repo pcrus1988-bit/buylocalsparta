@@ -37,7 +37,7 @@ export async function checkForNearbyOffers(csrfToken: string, onOffers?: (offers
     const response=await fetch("/api/account/nearby-offers", {
       method:"POST",headers:{"content-type":"application/json","x-csrf-token":csrfToken},
       body:JSON.stringify({
-        latitude:point.coords.latitude,longitude:point.coords.longitude,accuracy:point.coords.accuracy
+        latitude:point.coords.latitude,longitude:point.coords.longitude,accuracy:point.coords.accuracy,canNotify:typeof Notification!=="undefined" && Notification.permission==="granted"
       }),cache:"no-store"
     });
     if(!response.ok) return;
