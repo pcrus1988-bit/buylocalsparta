@@ -49,7 +49,7 @@ export function NearbyOffersClient({initial,csrfToken}:{initial:{enabled:boolean
       if(point.coords.accuracy>200){setMessage("Η θέση δεν είναι αρκετά ακριβής. Δοκίμασε ξανά.");return;}
       const response=await fetch("/api/account/nearby-offers",{
         method:"POST",headers:{"content-type":"application/json","x-csrf-token":csrfToken},
-        body:JSON.stringify({latitude:point.coords.latitude,longitude:point.coords.longitude,accuracy:point.coords.accuracy})
+        body:JSON.stringify({latitude:point.coords.latitude,longitude:point.coords.longitude,accuracy:point.coords.accuracy,canNotify:false})
       });
       const data=await response.json() as {offers?:NearbyOffer[];error?:string};
       if(!response.ok)throw new Error(data.error??"Δεν ολοκληρώθηκε ο έλεγχος.");
