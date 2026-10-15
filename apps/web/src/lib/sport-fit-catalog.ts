@@ -3,11 +3,13 @@ import { loadCatalogMetadata } from "./catalog-metadata";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 import { canonicalSportBrand } from "./sport-fit-brand";
+import { stockedSportFootwearVariantSizes } from "./sport-fit-engine";
 import type { SportAudience, SportFitKnowledge, SportFitKnowledgeEvidence, SportFitProduct, SportKnowledgeQueueStatus, SportKnowledgeStatus } from "./sport-fit-engine";
 
 type SportCatalogRow = Readonly<{
   id: string;
   family_id: string | null;
+  variant_size: string | null;
   slug: string;
   title: string;
   category_code: string;
@@ -266,6 +268,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
     SELECT
       cv.public_id AS id,
       pf.id AS family_id,
+      NULLIF(btrim(cv.variant_attributes->>'size'),'') AS variant_size,
       cv.slug,
       COALESCE(NULLIF(el.title,''),NULLIF(en.title,''),NULLIF(cv.model,''),NULLIF(pf.model,''),cv.slug) AS title,
       c.code AS category_code,
@@ -418,7 +421,11 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
       categoryLabel: details?.categoryLabel,
       brand: canonicalSportBrand(details?.brand ?? row.brand_name ?? row.feed_brand ?? undefined),
       color: details?.color,
-      sizes: details?.sizes ?? [],
+      // Never inherit family-level/translation size lists for a stocked
+      // footwear variant: availability is guaranteed only for cv.size.
+      sizes: /(?:shoes|sneakers|boots|footwear)$/.test(row.category_code)
+        ? stockedSportFootwearVariantSizes(row.variant_size)
+        : details?.sizes ?? [],
       fit: details?.fit,
       description: details?.description,
       attributes: details?.attributes ?? {},
