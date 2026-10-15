@@ -109,7 +109,7 @@ export function GreeceRelationshipWorkbench({ root, filters, regions, aLabel, bL
 
   function downloadCsv() {
     // Export the same redacted, rounded aggregates that this privileged UI displays.
-    const csv = "\\uFEFF" + safeRelationshipRegionsCsv(regions);
+    const csv = String.fromCharCode(0xFEFF) + safeRelationshipRegionsCsv(regions);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
