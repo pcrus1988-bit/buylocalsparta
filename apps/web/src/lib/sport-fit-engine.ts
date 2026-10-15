@@ -320,6 +320,9 @@ export function stockedSportFootwearVariantSizes(variantSize: unknown): readonly
   const canonical = canonicalizeCatalogSize(size, "footwear");
   // Suppress text/no-size/ambiguous tokens rather than treating them as EU.
   if (!/^(?:EU\s*)?\d{2}(?:[.,]\d+|\s*(?:½|⅓|⅔|¼|¾|1\/2|1\/3|2\/3|1\/4|3\/4))?$|^\d{4}$/.test(size)) return [];
+  const euToken = size.replace(/^EU\s*/i, "").match(/^(\d{2})/);
+  const integerPart = Number(euToken?.[1]);
+  if (!Number.isInteger(integerPart) || integerPart < 18 || integerPart > 55) return [];
   return canonical.key ? [size] : [];
 }
 
