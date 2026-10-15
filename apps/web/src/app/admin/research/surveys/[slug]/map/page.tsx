@@ -65,7 +65,8 @@ export default async function ResearchGeographicMapPage({ params, searchParams }
       <h1>Γεωγραφικό Βαρόμετρο Λιανεμπορίου</h1>
       <p className="lead">Διαδραστικός χάρτης Ελλάδας · ΚΑΔ · απαντήσεις · περιφερειακή σύγκριση.</p>
       <div className="hero-actions">
-        <Link prefetch={false} className="button" href={root + "/map/relations"}>Διαδραστικές συσχετίσεις · Νέο</Link>
+        <Link prefetch={false} className="button" href={root + "/map/distribution"}>Γεωγραφική κατανομή μίας απάντησης</Link>
+        <Link prefetch={false} className="button button-secondary" href={root + "/map/relations"}>Διαδραστικές συσχετίσεις</Link>
         <Link prefetch={false} className="button button-secondary" href={root + "/barometer"}>Ζωντανό Βαρόμετρο</Link>
         <Link prefetch={false} className="button button-secondary" href={root + "/responses"}>Απαντήσεις</Link>
       </div>
