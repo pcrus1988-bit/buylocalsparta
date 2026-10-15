@@ -4,6 +4,7 @@ import {
   scoreSportFitProduct,
   sportFitCandidateSupportsRequestedActivity,
   sportFitFamilyKey,
+  sportFitUniverseSelection,
   sportProductRole,
   sportProductTier,
   type SportAudience,
@@ -118,20 +119,16 @@ export async function GET(request: Request) {
 
     const allProducts = [...byId.values()].filter(usableForRecommendation);
     const families = uniqueFamilies(allProducts);
-    const withImagesFirst = [...families].sort((left, right) =>
-      Number(Boolean(right.previewImageSrc)) - Number(Boolean(left.previewImageSrc))
-      || right.availableToSell - left.availableToSell
-      || left.title.localeCompare(right.title, "el")
-    );
+    const { primaryCount, secondaryCount, universe } = sportFitUniverseSelection(families, UNIVERSE_LIMIT);
 
     return Response.json(
       {
         vendorId,
         vendorName: snapshots.find((snapshot) => snapshot.vendorName)?.vendorName ?? "",
         candidateCount: families.length,
-        survivingCount: families.length,
-        secondaryCount: 0,
-        universe: withImagesFirst.slice(0, UNIVERSE_LIMIT).map(universePreview)
+        survivingCount: primaryCount,
+        secondaryCount,
+        universe: universe.map(universePreview)
       },
       { headers: { "Cache-Control": "private, no-store" } }
     );
