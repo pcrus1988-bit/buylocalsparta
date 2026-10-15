@@ -104,7 +104,7 @@ export function GreeceResearchHeatmap({ cells, filters, root, onRegionSelect, vi
     <div style={{ background: "#edf7fa", borderRadius: 16, overflow: "hidden", border: "1px solid #cbdde1" }}>
       {loadError && <div className="workspace-inline-note form-error" role="alert">Τα γεωγραφικά όρια δεν φορτώθηκαν. Οι συγκεντρωτικοί πίνακες παραμένουν διαθέσιμοι.</div>}
       {!geo && !loadError && <div className="workspace-inline-note" role="status">Φόρτωση χάρτη Ελλάδας…</div>}
-      {geo && <svg viewBox={viewBox} role="img" aria-label="Διαδραστικός χάρτης συγκεντρωτικών απαντήσεων ανά ελληνική Περιφέρεια"
+      {geo && <svg viewBox={viewBox} role={onRegionSelect ? "group" : "img"} aria-label="Διαδραστικός χάρτης συγκεντρωτικών απαντήσεων ανά ελληνική Περιφέρεια"
         style={{ display: "block", width: "100%", maxHeight: 650 }} preserveAspectRatio="xMidYMid meet">
         {geo.features.map(feature => {
           const key = feature.properties.name as GreekRegionKey;
