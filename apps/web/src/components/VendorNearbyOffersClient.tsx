@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useState} from "react";
+import {useEffect,useState,type FormEvent} from "react";
 type Location={id:string;name:string;locality:string;eligible:boolean};
 type Campaign={id:string;location_id:string;title:string;description:string;redemption_code:string|null;radius_m:number;starts_at:string;ends_at:string;status:string};
 type Snapshot={locations:Location[];offers:Campaign[]};
@@ -37,7 +37,7 @@ export function VendorNearbyOffersClient(){
       .finally(()=>{if(active)setLoading(false);});
     return()=>{active=false;};
   },[]);
-  async function create(event:React.FormEvent){
+  async function create(event:FormEvent){
     event.preventDefault();
     if(busy)return;
     setBusy(true);setMessage("");
