@@ -182,7 +182,7 @@ export function GreeceRelationshipWorkbench({ root, filters, regions, aLabel, bL
         {selected ? <RegionCard region={selected} aLabel={aLabel} bLabel={bLabel} />
           : <p className="research-relation-small-note">Η σύγκριση εμφανίζεται εδώ αμέσως μόλις επιλέξετε Περιφέρεια.</p>}
         <div className="relation-explorer-divider" />
-        <label className="relation-explorer-select">Συγκρίνετε με Περιφέρεια Β
+        <label className="relation-explorer-select">Συγκρίνετε με άλλη Περιφέρεια
           <select value={normalizedCompare} onChange={event => setCompare(selectRegion(event.target.value, regions))}>
             <option value="">Χωρίς δεύτερη Περιφέρεια</option>
             {GREECE_REGIONS.filter(r => r.key !== region).map(r =>
