@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   RESEARCH_RELATIONSHIP_PRESETS, RELATIONSHIP_MIN_BASE,
-  aggregateRelationship, relationshipAnswerCoverage, safeRelationshipCounts, safeRelationshipRegion
+  aggregateRelationship, relationshipAnswerCoverage, relationshipAnswerCoverageByRegion,
+  safeRelationshipCounts, safeRelationshipRegion
 } from "./research-geographic-relations-core.ts";
 
 test("preset relationships reference distinct survey questions and real answer buckets",()=>{
@@ -65,4 +66,20 @@ test("research analysts see exact n=1 while read-only access remains redacted",(
   assert.deepEqual(safeRelationshipCounts(one,true),{base:1,percent:100});
   assert.deepEqual(safeRelationshipCounts({answered:0,selected:0},true),{base:0,percent:null});
   assert.deepEqual(safeRelationshipCounts({answered:14,selected:0},true),{base:14,percent:0});
+});
+
+test("all one-question answers remain counted in their true Greek regions",()=>{
+  const r=relationshipAnswerCoverageByRegion([
+    {prefecture:"ΑΤΤΙΚΗΣ",segment:true,answered:4,selected:2,aOnly:3},
+    {prefecture:"ΑΘΗΝΩΝ",segment:null,answered:0,selected:0,bOnly:6},
+    {prefecture:"ΛΑΚΩΝΙΑΣ",segment:false,answered:2,selected:0,aOnly:5},
+    {prefecture:"",segment:true,answered:1,selected:0,aOnly:1}
+  ]);
+  const attica=r.find(x=>x.key==="ATTICA")!;
+  assert.deepEqual({a:attica.answeredA,b:attica.answeredB,pair:attica.paired,onlyB:attica.onlyB},
+    {a:7,b:10,pair:4,onlyB:6});
+  const peloponnese=r.find(x=>x.key==="PELOPONNESE")!;
+  assert.deepEqual({a:peloponnese.answeredA,b:peloponnese.answeredB},
+    {a:7,b:2});
+  assert.equal(r.reduce((n,x)=>n+x.answeredA,0),14);
 });
