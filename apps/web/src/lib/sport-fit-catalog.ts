@@ -174,6 +174,8 @@ function sportKnowledge(
     supportLevel: stringValue(facts.support_level),
     fitLengthProfile: stringValue(facts.fit_length_profile),
     widthProfile: stringValue(facts.footwear_width_profile),
+    technologies: stringList(facts.footwear_technology),
+    manufacturerFitProfile: stringValue(facts.footwear_fit_profile),
     dropMm: numberValue(facts.heel_to_toe_drop_mm),
     heelStackMm: numberValue(facts.heel_stack_height_mm),
     forefootStackMm: numberValue(facts.forefoot_stack_height_mm),
@@ -311,7 +313,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
         SELECT
           ad.code,
           CASE
-            WHEN ad.data_type='multienum'
+            WHEN ad.data_type='multienum' OR ad.code='footwear_technology'
               THEN to_jsonb(array_agg(av.code ORDER BY pfav.position) FILTER (WHERE av.code IS NOT NULL))
             WHEN ad.data_type='enum'
               THEN to_jsonb(max(av.code))
