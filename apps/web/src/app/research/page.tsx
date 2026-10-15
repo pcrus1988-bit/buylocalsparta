@@ -60,7 +60,7 @@ function StudyCard({ study, featured = false }: { study: PublicResearchStudySumm
 
     {participationFocus ? <div className={styles.publicCardParticipation}>
       <strong>{study.started.toLocaleString("el-GR")} συμμετοχές που ξεκίνησαν</strong>
-      <span>Η συλλογή συνεχίζεται · {study.completed.toLocaleString("el-GR")} οριστικές υποβολές έως τώρα.</span>
+      <span>Η συλλογή συνεχίζεται · {study.completed.toLocaleString("el-GR")} πλήρη ερωτηματολόγια έως τώρα{(study.administrativelyFinalized ?? 0) > 0 ? " (" + (study.participantConfirmed ?? 0).toLocaleString("el-GR") + " με υποβολή συμμετεχόντων, " + (study.administrativelyFinalized ?? 0).toLocaleString("el-GR") + " με τεκμηριωμένη διαχειριστική οριστικοποίηση)." : "."}</span>
     </div> : study.targetCompletes > 0 && <>
       <div className={styles.cardProgress} aria-label={"Πρόοδος " + percent(progress)}>
         <div className={styles.cardProgressFill} style={{ width: (progress * 100).toFixed(1) + "%" }} />

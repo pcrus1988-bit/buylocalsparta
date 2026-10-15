@@ -143,9 +143,16 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
           <div className={styles.progressFill} style={{ width: (completion * 100).toFixed(1) + "%" }} />
         </div>
         <div className={styles.progressCaption}>
-          <span><strong>{study.completed.toLocaleString("el-GR")}</strong> οριστικές υποβολές</span>
+          <span><strong>{study.completed.toLocaleString("el-GR")}</strong> ολοκληρωμένα ερωτηματολόγια</span>
           <span>{participationFocus ? "Πρόοδος στόχου " + percent(completion) + " · " : "στόχος "}<strong>{study.targetCompletes > 0 ? study.targetCompletes.toLocaleString("el-GR") : "—"}</strong></span>
         </div>
+
+        {(study.administrativelyFinalized ?? 0) > 0 && <p className={styles.publicProgressNote}>
+          Από τα {study.completed.toLocaleString("el-GR")} ολοκληρωμένα ερωτηματολόγια,
+          {" "}{(study.participantConfirmed ?? 0).toLocaleString("el-GR")} υποβλήθηκαν από συμμετέχοντες και
+          {" "}{(study.administrativelyFinalized ?? 0).toLocaleString("el-GR")} οριστικοποιήθηκαν διαχειριστικά
+          από ήδη αποθηκευμένες πλήρεις απαντήσεις. Οι προαιρετικές συγκαταθέσεις παραμένουν ανεξάρτητες.
+        </p>}
 
         {participationFocus && atFinalQuestion !== undefined ? <>
           <p className={styles.publicProgressNote}>Η συμμετοχή δεν μετριέται μόνο στις οριστικές υποβολές. Δείτε πόσοι έχουν ήδη προχωρήσει στο ερωτηματολόγιο:</p>
@@ -162,8 +169,8 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
             </div>
             <div className={styles.participationMilestone}>
               <strong>{study.completed.toLocaleString("el-GR")}</strong>
-              <span>Υποβλήθηκαν οριστικά</span>
-              <small>Καταμετρώνται στον επίσημο στόχο</small>
+              <span>Ολοκληρωμένα ερωτηματολόγια</span>
+              <small>Υποβολές συμμετεχόντων και τεκμηριωμένες διαχειριστικές οριστικοποιήσεις</small>
             </div>
           </div>
         </> : (
@@ -197,9 +204,9 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
         <small>{study.started.toLocaleString("el-GR")} συμμετέχοντες ξεκίνησαν</small>
       </article>
       <article className={styles.metric}>
-        <span>{participationFocus ? "Επίσημη ανταπόκριση" : "Ποσοστό ανταπόκρισης"}</span>
+        <span>{participationFocus ? "Ποσοστό πλήρων απαντήσεων" : "Ποσοστό ανταπόκρισης"}</span>
         <strong>{study.sent > 0 ? percent(study.responseRate) : "—"}</strong>
-        <small>Οριστικές υποβολές / αποσταλείσες προσκλήσεις. Οι συμμετοχές σε εξέλιξη εμφανίζονται χωριστά.</small>
+        <small>Πλήρη ερωτηματολόγια / αποσταλείσες προσκλήσεις. Οι υποβολές συμμετεχόντων και οι διαχειριστικές οριστικοποιήσεις διακρίνονται παραπάνω.</small>
       </article>
       {!participationFocus && study.contentCompleteUnsubmitted !== undefined && <article className={styles.metric}>
         <span>Αποθηκευμένες πλήρεις απαντήσεις χωρίς υποβολή</span>
