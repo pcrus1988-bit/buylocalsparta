@@ -53,3 +53,11 @@ alter table public.nearby_offer_delivery_log enable row level security;
 -- Access is restricted to trusted application transactions; no direct Data API exposure.
 revoke all on table public.nearby_offer_campaigns, public.nearby_offer_preferences, public.nearby_offer_consent_events, public.nearby_offer_delivery_log from anon, authenticated, public;
 comment on table public.nearby_offer_delivery_log is 'Minimal anti-spam delivery ledger, retained no more than 30 days; run daily expiry cleanup.';
+
+-- Supabase pg_cron is enabled in the production project.
+-- Physically remove short-lived proximity alerts after 30 days.
+select cron.schedule(
+  'nearby-offer-delivery-retention',
+  '15 3 * * *',
+  $cleanup$delete from public.nearby_offer_delivery_log where expires_at < now()$cleanup$
+);
