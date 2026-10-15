@@ -1387,6 +1387,17 @@ export function buildSportFitRecommendation(
   if (primary) {
     const usedIds = new Set([primary.id]);
     for (const role of ["socks", "top", "bottom", "layer", "accessory"] as const) {
+      // A reviewed class-level incompatibility is a hard negative, never a
+      // soft-score penalty and never outweighed by a competing positive edge.
+      const graphConflict = compatibilityEdges.some((edge) =>
+        edge.sportCode === answers.activity
+        && (edge.useCase === "all" || edge.useCase === answers.useCase)
+        && edge.primaryRole === "footwear"
+        && edge.secondaryRole === role
+        && edge.secondaryKind === "all"
+        && edge.relationshipType === "incompatible_with"
+      );
+      if (graphConflict) continue;
       const matchingEdges = compatibilityEdges.filter((edge) =>
         edge.sportCode === answers.activity
         && (edge.useCase === "all" || edge.useCase === answers.useCase)
