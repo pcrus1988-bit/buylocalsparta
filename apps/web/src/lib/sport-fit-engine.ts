@@ -338,6 +338,19 @@ export function sportFitCandidateSupportsRequestedActivity(product: SportFitProd
     return hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers));
   }
 
+  // The explicit court-footwear taxonomy is itself a reliable equipment
+  // identity signal. An unknown tennis shoe is not a football/running shoe
+  // just because the supplier description mentions other sports. Verified
+  // cross-sport manufacturer activity above can still override the category.
+  if (sportProductRole(product) === "footwear") {
+    const category = normalize(product.categoryCode);
+    for (const courtSport of ["basketball", "tennis", "padel", "volleyball"] as const) {
+      if (category.includes(`${courtSport} shoes`) && answers.activity !== courtSport) {
+        return false;
+      }
+    }
+  }
+
   // Legacy core activities may still use the broad fallback pool when governed
   // activity evidence is absent. Once exact governed activity exists, however,
   // the branch above is authoritative and raw title/category heuristics cannot
@@ -1162,7 +1175,8 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
   const hardSizeMismatch = role === "footwear" && requested.length > 0 && product.sizes.length > 0 && !size.matchedSize;
   const ruleEvaluation = evaluateSportFitRules(product, answers, role);
   const stockEligible = product.available && product.availableToSell > 0;
-  const technicalEligible = stockEligible && !hardSizeMismatch && ruleEvaluation.eligible;
+  const identityEligible = sportFitCandidateSupportsRequestedActivity(product, answers);
+  const technicalEligible = stockEligible && identityEligible && !hardSizeMismatch && ruleEvaluation.eligible;
   let score = 5;
 
   if (technicalEligible) {
@@ -1184,9 +1198,11 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
     score = 0;
   }
 
-  const technicalReasons = hardSizeMismatch
-    ? ["Δεν υπάρχει το ζητούμενο μέγεθος σε διαθέσιμη παραλλαγή"]
-    : ruleEvaluation.reasons;
+  const technicalReasons = !identityEligible
+    ? ["Ο τεκμηριωμένος τύπος αθλητικού υποδήματος δεν αντιστοιχεί στη δραστηριότητα"]
+    : hardSizeMismatch
+      ? ["Δεν υπάρχει το ζητούμενο μέγεθος σε διαθέσιμη παραλλαγή"]
+      : ruleEvaluation.reasons;
   const matchProofs = matchProofsFor(product, answers, role, size.matchedSize, ruleEvaluation.technicalRequirements);
 
   return {
@@ -1203,6 +1219,7 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
     consultationSummary: consultationSummaryFor(product, answers, role, size.matchedSize, matchProofs),
     appliedRules: [
       ...(stockEligible ? ["stock.positive"] : ["stock.unavailable"]),
+      ...(!identityEligible ? ["activity.category_hard_mismatch"] : []),
       ...(hardSizeMismatch ? ["fit.requested_size_mismatch"] : size.matchedSize ? ["fit.requested_size_match"] : []),
       ...ruleEvaluation.ruleIds
     ]
