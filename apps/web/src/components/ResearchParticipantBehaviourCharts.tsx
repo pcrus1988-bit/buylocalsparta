@@ -52,8 +52,9 @@ function TrendChart({ rows, twoSeries, title, description }: {
       </div>
     </div>
     {rows.length === 0 ? <p>No activity in this period.</p> : <>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}
-        style={{ width: "100%", height: "auto", display: "block", marginTop: 14, overflow: "visible" }}>
+      <div style={{ width: "100%", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} role="group" aria-label={title}
+        style={{ width: "100%", minWidth: 600, height: "auto", display: "block", marginTop: 14, overflow: "visible" }}>
         {[0,1,2,3,4].map(index => {
           const v = ceiling * index / 4;
           const yy = y(v);
@@ -83,6 +84,7 @@ function TrendChart({ rows, twoSeries, title, description }: {
             onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setFocus(i); } }} />
         </g>)}
       </svg>
+      </div>
       <div aria-live="polite" style={{ minHeight: 32, borderRadius: 8, background: "var(--surface-muted, rgba(100,100,100,.07))",
         padding: "8px 12px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
         {selected ? <>
