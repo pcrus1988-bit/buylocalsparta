@@ -1337,6 +1337,33 @@ function kitSelectionEligible(
   return true;
 }
 
+/**
+ * A browsing universe is a set of products, not the final evidence-filtered
+ * recommendation. Show all available Tier-1 footwear first, and bound
+ * accessories/apparel to 12 supporting previews regardless of catalogue mix.
+ * The API reports primary and secondary counts separately.
+ */
+export function sportFitUniverseSelection(
+  products: readonly SportFitProduct[],
+  limit = 96
+): Readonly<{ primaryCount: number; secondaryCount: number; universe: readonly SportFitProduct[] }> {
+  const safeLimit = Math.max(0, Math.min(96, Math.floor(Number.isFinite(limit) ? limit : 0)));
+  const byRelevance = (left: SportFitProduct, right: SportFitProduct): number =>
+    Number(Boolean(right.previewImageSrc)) - Number(Boolean(left.previewImageSrc))
+    || right.availableToSell - left.availableToSell
+    || left.title.localeCompare(right.title, "el");
+
+  const primary = products.filter((item) => sportProductTier(sportProductRole(item)) === "primary").sort(byRelevance);
+  const secondary = products.filter((item) => sportProductTier(sportProductRole(item)) === "secondary").sort(byRelevance);
+  const featured = primary.slice(0, safeLimit);
+  const secondarySlots = Math.min(12, safeLimit - featured.length);
+  return {
+    primaryCount: primary.length,
+    secondaryCount: secondary.length,
+    universe: [...featured, ...secondary.slice(0, secondarySlots)]
+  };
+}
+
 export function buildSportFitRecommendation(
   products: readonly SportFitProduct[],
   answers: SportFitAnswers,
