@@ -277,6 +277,24 @@ function hasKnowledgeMatch(values: readonly string[] | undefined, expected: read
   return expected.some((value) => normalizedValues.has(normalize(value)));
 }
 
+/**
+ * A vendor's stock applies to its exact canonical variant, never every size
+ * mentioned in free-form product specifications or a family size catalogue.
+ * The only positive footwear-size claims Sport & Fit may make are bound to
+ * the *stocked* variant's explicit size identity. Unknown is an empty list.
+ * Do not convert UK/US/CM heuristically into EU; manufacturer size guide
+ * reconciliation happens separately, before matching.
+ */
+export function stockedSportFootwearVariantSizes(variantSize: unknown): readonly string[] {
+  if (typeof variantSize !== "string") return [];
+  const size = variantSize.trim();
+  if (!size || size.length > 32) return [];
+  const canonical = canonicalizeCatalogSize(size, "footwear");
+  // Suppress text/no-size/ambiguous tokens rather than treating them as EU.
+  if (!/^(?:EU\s*)?\d{2}(?:[.,]\d+|\s*(?:½|⅓|⅔|¼|¾|1\/2|1\/3|2\/3|1\/4|3\/4))?$|^\d{4}$/.test(size)) return [];
+  return canonical.key ? [size] : [];
+}
+
 function matchingSize(product: SportFitProduct, requestedSize: string | undefined, role: SportProductRole): string | undefined {
   const requested = requestedSize?.trim() ?? "";
   if (!requested || (role !== "footwear" && role !== "socks")) return undefined;
@@ -1177,7 +1195,10 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
   const role = sportProductRole(product);
   const size = sizeScore(product, answers, role);
   const requested = requestedSizes(product, answers, role);
-  const hardSizeMismatch = role === "footwear" && requested.length > 0 && product.sizes.length > 0 && !size.matchedSize;
+  // An unavailable size and an unverified variant size are both ineligible
+  // once the visitor requests an exact shoe size. They remain distinct reasons.
+  const sizeUnverified = role === "footwear" && requested.length > 0 && product.sizes.length === 0;
+  const hardSizeMismatch = role === "footwear" && requested.length > 0 && !size.matchedSize;
   const ruleEvaluation = evaluateSportFitRules(product, answers, role);
   const stockEligible = product.available && product.availableToSell > 0;
   const identityEligible = sportFitCandidateSupportsRequestedActivity(product, answers);
@@ -1205,8 +1226,10 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
 
   const technicalReasons = !identityEligible
     ? ["Ο τεκμηριωμένος τύπος αθλητικού υποδήματος δεν αντιστοιχεί στη δραστηριότητα"]
-    : hardSizeMismatch
-      ? ["Δεν υπάρχει το ζητούμενο μέγεθος σε διαθέσιμη παραλλαγή"]
+    : sizeUnverified
+      ? ["Το ακριβές μέγεθος της διαθέσιμης παραλλαγής δεν έχει επαληθευτεί"]
+      : hardSizeMismatch
+        ? ["Δεν υπάρχει το ζητούμενο μέγεθος σε διαθέσιμη παραλλαγή"]
       : ruleEvaluation.reasons;
   const matchProofs = matchProofsFor(product, answers, role, size.matchedSize, ruleEvaluation.technicalRequirements);
 
@@ -1225,7 +1248,7 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
     appliedRules: [
       ...(stockEligible ? ["stock.positive"] : ["stock.unavailable"]),
       ...(!identityEligible ? ["activity.category_hard_mismatch"] : []),
-      ...(hardSizeMismatch ? ["fit.requested_size_mismatch"] : size.matchedSize ? ["fit.requested_size_match"] : []),
+      ...(sizeUnverified ? ["fit.variant_size_unknown"] : hardSizeMismatch ? ["fit.requested_size_mismatch"] : size.matchedSize ? ["fit.requested_size_match"] : []),
       ...ruleEvaluation.ruleIds
     ]
   };
