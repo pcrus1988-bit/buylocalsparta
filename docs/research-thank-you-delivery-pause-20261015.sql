@@ -1,3 +1,6 @@
+-- Applied directly to production Supabase as approved operational safety incident.
+-- Historical audit-only SQL, not a canonical application migration.
+-- To make permanent future portability, create the next numbered migration and checksum.
 -- Safety pause requested 2026-10-15.
 -- Retains research answers, consent receipts and existing reward entitlements.
 -- Prevents any new reward_delivery job from becoming dispatchable while paused.
