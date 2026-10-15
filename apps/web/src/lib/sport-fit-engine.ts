@@ -335,7 +335,12 @@ export function sportFitCandidateSupportsRequestedActivity(product: SportFitProd
   const knowledge = usableKnowledge(product);
   const knownActivities = knowledgeList(knowledge?.activities);
   if (knownActivities.length > 0) {
-    return hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers));
+    // An evidence-backed mismatch hard-excludes a primary shoe, but apparel
+    // can serve a different training context without constituting unsafe
+    // footwear. Keep secondary equipment visible with a conflict/unknown
+    // status; final kit assembly already requires positive governed kit proof.
+    return sportProductRole(product) !== "footwear"
+      || hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers));
   }
 
   // The explicit court-footwear taxonomy is itself a reliable equipment
