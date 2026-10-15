@@ -81,6 +81,8 @@ export function ResearchRelationshipExplorer({ root, filters, questions, sectors
           <input type="hidden" name="phase" value={filters.phase} />
           <input type="hidden" name="sector" value={filters.sector} />
           <input type="hidden" name="kad" value={filters.kad} />
+          <input type="hidden" name="view" value={filters.view} />
+          <input type="hidden" name="compare" value={filters.compare} />
           <div className="research-relation-filter-grid">
             <label>Ομάδα επιχειρήσεων · Α
               <select name="a" value={sourceQ} onChange={e=>{
