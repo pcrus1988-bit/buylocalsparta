@@ -68,6 +68,10 @@ export type SportFitKnowledge = Readonly<{
   supportLevel?: string;
   fitLengthProfile?: string;
   widthProfile?: string;
+  // Named manufacturer technologies and qualitative fit labels are independent
+  // of graded cushioning, support level, shoe width and size selection.
+  technologies?: readonly string[];
+  manufacturerFitProfile?: string;
   dropMm?: number;
   heelStackMm?: number;
   forefootStackMm?: number;
@@ -924,17 +928,6 @@ function matchProofsFor(
 }
 
 
-function rawProductText(product: SportFitProduct): string {
-  return [
-    product.title,
-    product.description,
-    product.fit,
-    ...Object.entries(product.attributes ?? {}).flatMap(([key, value]) => [key, value])
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
-
 function greekJoin(parts: readonly string[]): string {
   if (parts.length <= 1) return parts[0] ?? "";
   if (parts.length === 2) return `${parts[0]} και ${parts[1]}`;
@@ -975,52 +968,6 @@ function consultativeBenefitSentence(answers: SportFitAnswers): string {
   return "Η επιλογή βασίζεται σε χαρακτηριστικά του ίδιου του προϊόντος και όχι μόνο στην κατηγορία του.";
 }
 
-function directSourceFeaturePhrases(product: SportFitProduct): readonly string[] {
-  const raw = rawProductText(product);
-  const text = normalize(raw);
-  const features: string[] = [];
-
-  function add(value: string) {
-    if (!features.includes(value)) features.push(value);
-  }
-
-  // These signals are explanatory only. They never change eligibility or score:
-  // the recommendation engine still uses governed Sport & Fit facts/rules.
-  if (text.includes("cloudfoam")) add("ενδιάμεση σόλα Cloudfoam");
-  else if (text.includes("fresh foam")) add("τεχνολογία Fresh Foam");
-  else if (text.includes("fuelcell")) add("τεχνολογία FuelCell");
-  else if (text.includes("lightstrike")) add("αφρό Lightstrike");
-  else if (text.includes("boost")) add("τεχνολογία BOOST");
-  else if (text.includes("cloudtec")) add("τεχνολογία CloudTec");
-  else if (text.includes("pwrrun")) add("αφρό PWRRUN");
-  else if (text.includes("air zoom")) add("τεχνολογία Air Zoom");
-  else if (text.includes("nike react") || text.includes("react foam")) add("αφρό React");
-  else if (text.includes("gel ")) add("τεχνολογία GEL");
-
-  if (text.includes("memory foam")) add("πάτο memory foam");
-  if (
-    (text.includes("απορροφησ") && text.includes("κραδασμ"))
-    || text.includes("shock absorption")
-    || text.includes("impact absorption")
-  ) add("τεκμηριωμένη απορρόφηση κραδασμών");
-
-  if (
-    (text.includes("εγκοπ") && (text.includes("ελαστικ") || text.includes("ευκαμπ")))
-    || text.includes("flex grooves")
-  ) add("εύκαμπτη σόλα με εγκοπές");
-
-  if (text.includes("στηριξη στην καμαρα") || text.includes("arch support")) {
-    add("στήριξη καμάρας");
-  }
-
-  if (text.includes("gore tex") || text.includes("gore-tex")) add("μεμβράνη GORE-TEX");
-  if (text.includes("continental") && (text.includes("outsole") || text.includes("σολ"))) {
-    add("εξωτερική σόλα Continental");
-  }
-
-  return features;
-}
-
 function structuredConsultationFeatures(
   product: SportFitProduct,
   answers: SportFitAnswers,
@@ -1032,6 +979,25 @@ function structuredConsultationFeatures(
   const features: string[] = [];
   function add(value: string) {
     if (!features.includes(value)) features.push(value);
+  }
+
+  // Add only source-backed manufacturer technologies, not technology-shaped
+  // words from supplier descriptions. Named technologies never imply a graded
+  // cushioning, foot-support or waterproofing classification.
+  const technologyLabels: Readonly<Record<string,string>> = {
+    cloudfoam: "Cloudfoam", cloudfoam_plus: "Cloudfoam+", cloudfoam_comfort: "Cloudfoam Comfort",
+    lightstrike_pro: "Lightstrike Pro", traxion: "Traxion", rain_rdy: "RAIN.RDY"
+  };
+  for (const code of knowledge.technologies ?? []) {
+    if (matchingEvidence(knowledge, "footwear_technology", code)) {
+      add(`τεχνολογία ${technologyLabels[code] ?? code}`);
+    }
+  }
+  if (
+    knowledge.manufacturerFitProfile === "regular"
+    && matchingEvidence(knowledge, "footwear_fit_profile", "regular")
+  ) {
+    add("Regular fit σύμφωνα με τον κατασκευαστή (όχι κατάταξη πλάτους)");
   }
 
   const width = normalize(knowledge.widthProfile);
@@ -1087,9 +1053,7 @@ function consultationSummaryFor(
 ): string | undefined {
   if (role !== "footwear") return undefined;
 
-  const sourceFeatures = directSourceFeaturePhrases(product);
-  const governedFeatures = structuredConsultationFeatures(product, answers, matchedSize);
-  const combined = [...sourceFeatures, ...governedFeatures].filter((value, index, values) => values.indexOf(value) === index);
+  const combined = structuredConsultationFeatures(product, answers, matchedSize);
 
   if (!combined.length && !matchProofs.length) return undefined;
 
