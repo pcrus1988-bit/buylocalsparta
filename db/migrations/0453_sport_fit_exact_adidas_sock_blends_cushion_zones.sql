@@ -66,6 +66,18 @@ ON CONFLICT(product_type_id,attribute_id) DO UPDATE SET
  value_level='family',customer_visible=true,comparable=true,
  allow_multiple=EXCLUDED.allow_multiple,updated_at=now();
 
+-- The shared packaging attribute is already controlled by the catalog schema,
+-- but was not registered for apparel. Register it before inserting family data.
+INSERT INTO public.product_type_attributes
+(product_type_id,attribute_id,requirement_level,value_level,
+ filterable,searchable,customer_visible,comparable,variant_defining,allow_multiple,sort_order)
+SELECT pt.id,ad.id,'optional','family',false,false,true,true,false,false,550
+FROM public.product_types pt JOIN public.attribute_definitions ad ON ad.code='pack_quantity'
+WHERE pt.code='apparel'
+ON CONFLICT(product_type_id,attribute_id) DO UPDATE SET
+ requirement_level='optional',value_level='family',
+ customer_visible=true,comparable=true,updated_at=now();
+
 CREATE TEMP TABLE _s453_scope(enforce_data boolean NOT NULL) ON COMMIT DROP;
 INSERT INTO _s453_scope
 SELECT EXISTS(SELECT 1 FROM public.canonical_variants WHERE active AND NOT suppressed AND NOT recalled);
