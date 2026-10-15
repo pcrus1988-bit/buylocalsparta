@@ -106,7 +106,7 @@ const QUERY = `
     SELECT * FROM categorized
     WHERE ($2::text IS NULL OR status=$2)
       AND ($3::text IS NULL OR question_code=$3)
-      AND ($4::text IS NULL OR strpos(lower(answer_text), lower($4))>0)
+      AND ($4::text IS NULL OR strpos(normalized_text, translate(lower($4), 'άέήίόύώϊϋΐΰ', 'αεηιουωιυιυ'))>0)
   ),
   matched AS MATERIALIZED (
     SELECT * FROM scoped WHERE ($5::text IS NULL OR $5=ANY(categories))
