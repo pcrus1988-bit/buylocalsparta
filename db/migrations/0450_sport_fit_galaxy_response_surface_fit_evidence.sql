@@ -89,6 +89,11 @@ DO $$
 DECLARE n int;
 BEGIN
  IF (SELECT count(*) FROM _sf450_facts)<>10 THEN RAISE EXCEPTION '0450 expected 10 curated facts'; END IF;
+ -- A fresh CI database has no seeded catalogue and may not have every
+ -- model-specific controlled value until retail seed migrations run.
+ -- Fail closed on the populated production catalogue; skip only here on
+ -- an objectively empty catalogue. Do not alter any product facts in CI.
+ IF NOT (SELECT enforce_data FROM _sf450_scope) THEN RETURN; END IF;
  SELECT count(*) INTO n
  FROM _sf450_facts f JOIN public.attribute_definitions ad
  ON ad.code=f.attribute_code AND ad.active
