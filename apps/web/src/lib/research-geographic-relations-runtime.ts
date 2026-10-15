@@ -5,6 +5,7 @@ import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgre
 import { GREECE_REGIONS } from "./research-geographic-core";
 import {
   RESEARCH_RELATIONSHIP_PRESETS, aggregateRelationship, relationshipAnswerCoverage,
+  relationshipAnswerCoverageByRegion,
   safeRelationshipCounts, safeRelationshipRegion,
   type RelationshipPair, type SafeRelationshipRegion, type SafeRelationshipCounts
 } from "./research-geographic-relations-core";
@@ -29,6 +30,7 @@ export type ResearchRelationshipDashboard = Readonly<{
   unknownGeography:boolean; totalMatchedBase: number | null;
   /** All saved answer contributions, revealed only to analysis/management admins. */
   coverage: ReturnType<typeof relationshipAnswerCoverage> | null;
+  regionalCoverage: ReturnType<typeof relationshipAnswerCoverageByRegion> | null;
   canViewExactSmallCells: boolean;
 }>;
 
@@ -222,7 +224,8 @@ export async function researchRelationshipMap(
     nationalSegment:safeRelationshipCounts(agg.nationalSegment,exact),
     nationalOther:safeRelationshipCounts(agg.nationalOther,exact),
     unknownGeography:agg.unknown>0,
-    coverage:exact?coverage:null,canViewExactSmallCells:exact,
+    coverage:exact?coverage:null,regionalCoverage:exact?relationshipAnswerCoverageByRegion(recordRows):null,
+    canViewExactSmallCells:exact,
     totalMatchedBase:exact || (agg.nationalSegment.answered>=15 && agg.nationalOther.answered>=15)
       ? coverage.paired:null
   };
