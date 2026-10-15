@@ -2415,3 +2415,30 @@ test("named exact technology may appear in explanation but never grades cushioni
   assert.match(b.consultationSummary ?? "", /Regular fit/);
   assert.doesNotMatch(b.consultationSummary ?? "", /αυξημένη απορρόφηση/);
 });
+
+test("exact court-shoe category excludes unrelated sports even when activity evidence is missing", () => {
+  const court = product({
+    id: "unknown-basketball-shoe",
+    title: "Sport Shoe All Activities",
+    description: "Great for running and football as well",
+    categoryCode: "mens-basketball-shoes",
+    sizes: ["42"],
+    knowledge: { status: "partial", identityQuality: "strong" }
+  });
+  const runningAnswers = { activity: "running" as const, audience: "men" as const, size: "42" };
+  assert.equal(sportFitCandidateSupportsRequestedActivity(court, runningAnswers), false);
+  const scored = scoreSportFitProduct(court, runningAnswers);
+  assert.equal(scored.technicalEligible, false);
+  assert.ok(scored.appliedRules.includes("activity.category_hard_mismatch"));
+
+  // Documented exact manufacturer use can prove real cross-sport eligibility.
+  const verified = {
+    ...court,
+    knowledge: { ...court.knowledge, activities: ["basketball", "running"] }
+  };
+  assert.equal(sportFitCandidateSupportsRequestedActivity(verified, runningAnswers), true);
+  assert.equal(scoreSportFitProduct(verified, runningAnswers).technicalEligible, true);
+
+  const eligibleBasketball = { activity: "basketball" as const, audience: "men" as const, size: "42" };
+  assert.equal(scoreSportFitProduct(court, eligibleBasketball).technicalEligible, true);
+});
