@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, sportProductRole, type SportFitProduct } from "./sport-fit-engine.ts";
+import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, sportProductRole, stockedSportFootwearVariantSizes, type SportFitProduct } from "./sport-fit-engine.ts";
 import { canonicalSportBrand, sportSizeGuideBrandKey } from "./sport-fit-brand.ts";
 
 function product(overrides: Partial<SportFitProduct> & Pick<SportFitProduct, "id" | "title" | "categoryCode">): SportFitProduct {
@@ -2441,4 +2441,53 @@ test("exact court-shoe category excludes unrelated sports even when activity evi
 
   const eligibleBasketball = { activity: "basketball" as const, audience: "men" as const, size: "42" };
   assert.equal(scoreSportFitProduct(court, eligibleBasketball).technicalEligible, true);
+});
+
+test("sellable footwear size is bound to the exact canonical variant and rejects ambiguous metadata", () => {
+  assert.deepEqual(stockedSportFootwearVariantSizes("EU 42 2/3"), ["EU 42 2/3"]);
+  assert.deepEqual(stockedSportFootwearVariantSizes("4713"), ["4713"]);
+  assert.deepEqual(stockedSportFootwearVariantSizes("42"), ["42"]);
+  assert.deepEqual(stockedSportFootwearVariantSizes(null), []);
+  assert.deepEqual(stockedSportFootwearVariantSizes(""), []);
+  assert.deepEqual(stockedSportFootwearVariantSizes("One size"), []);
+  assert.deepEqual(stockedSportFootwearVariantSizes("42, 43, 44"), []);
+  assert.deepEqual(stockedSportFootwearVariantSizes("UK 8"), []);
+});
+
+test("stock-positive shoe with unknown variant size cannot claim requested size", () => {
+  const unknown = product({
+    id: "unknown-size-offer",
+    title: "Verified Road Running Shoe",
+    categoryCode: "mens-running-shoes",
+    sizes: [],
+    knowledge: { status: "partial", identityQuality: "strong", activities: ["running"], surfaces: ["road"] }
+  });
+  const answers = { activity: "running" as const, audience: "men" as const, size: "42", surface: "road" as const };
+  const score = scoreSportFitProduct(unknown, answers);
+  assert.equal(score.technicalEligible, false);
+  assert.ok(score.appliedRules.includes("fit.variant_size_unknown"));
+  assert.doesNotMatch(score.reasons.join(" "), /διαθέσιμη παραλλαγή.*42/);
+  assert.equal(buildSportFitRecommendation([unknown], answers).primary, undefined);
+
+  // Browsing with no size requirement remains possible, without claiming an
+  // exact-size match that is absent from the canonical variant.
+  assert.equal(scoreSportFitProduct(unknown, { activity: "running", audience: "men", surface: "road" }).technicalEligible, true);
+});
+
+test("a single in-stock size is selected within a shared canonical family, without cross-variant leakage", () => {
+  const familyId = "family-verified-running-model";
+  const one = product({
+    id: "42-in-stock", familyId, title: "Same Verified Running Model",
+    categoryCode: "mens-running-shoes", sizes: ["42"], availableToSell: 1,
+    knowledge: { status: "partial", identityQuality: "strong", activities: ["running"], surfaces: ["road"] }
+  });
+  const other = product({
+    ...one, id: "43-in-stock", sizes: ["43"], availableToSell: 1
+  });
+  const answers = { activity: "running" as const, audience: "men" as const, size: "43", surface: "road" as const };
+  const recommendation = buildSportFitRecommendation([one, other], answers);
+  assert.equal(recommendation.primary?.id, "43-in-stock");
+  assert.equal(recommendation.primary?.matchedSize, "43");
+  assert.equal(recommendation.ranked.length, 1);
+  assert.ok(!recommendation.ranked.some((item) => item.id === "42-in-stock"));
 });
