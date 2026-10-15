@@ -50,3 +50,28 @@ export function relationshipMapCellValue(value: number | null, view: Relationshi
   }
   return formatted + "%";
 }
+
+/**
+ * Strictly exported from already privacy-suppressed values, never raw SQL
+ * rows. "-" denotes withheld values (not a zero).
+ */
+export function safeRelationshipRegionsCsv(regions: readonly SafeRelationshipRegion[]): string {
+  const rows = [
+    ["Περιφέρεια", "Βάση ομάδας Α", "Ποσοστό ομάδας Α (%)",
+      "Βάση λοιπών", "Ποσοστό λοιπών (%)", "Διαφορά (π.μ.)"],
+    ...regions.map(region => {
+      const gap = relationshipRegionValue(region, "gap").value;
+      return [
+        region.label,
+        region.segment.base === null ? "—" : String(region.segment.base),
+        region.segment.percent === null ? "—" : String(region.segment.percent),
+        region.other.base === null ? "—" : String(region.other.base),
+        region.other.percent === null ? "—" : String(region.other.percent),
+        gap === null ? "—" : String(gap)
+      ];
+    })
+  ];
+  return rows.map(columns => columns.map(value =>
+    '"' + value.replace(/"/g, '""') + '"'
+  ).join(";")).join("\r\n") + "\r\n";
+}
