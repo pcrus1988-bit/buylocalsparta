@@ -15,9 +15,10 @@ function urlFor(root:string,filters:RelationshipFilters,override:Record<string,s
   return root+"?"+params.toString();
 }
 
-export function ResearchRelationshipExplorer({ root, filters, questions, sectors }: {
+export function ResearchRelationshipExplorer({ root, filters, questions, sectors, kads }: {
   root:string; filters:RelationshipFilters;
   questions:readonly RelationshipQuestion[]; sectors:readonly RelationshipChoice[];
+  kads:readonly RelationshipChoice[];
 }){
   const router=useRouter();
   const [pending, startTransition]=useTransition();
@@ -29,9 +30,14 @@ export function ResearchRelationshipExplorer({ root, filters, questions, sectors
   const [targetValue,setTargetValue]=useState(filters.preset==="custom"?filters.bv:"");
 
   const active=filters.preset;
-  const featuredIds=["micro_local","micro_offline","local_eshop","tax_outlook","invest_confidence"];
-  const first=RESEARCH_RELATIONSHIP_PRESETS.filter(p=>featuredIds.includes(p.id)||p.id===active);
-  const rest=RESEARCH_RELATIONSHIP_PRESETS.filter(p=>!first.some(x=>x.id===p.id));
+  const [topic, setTopic]=useState("Όλα");
+  const [topicSearch, setTopicSearch]=useState("");
+  const topics=["Όλα", ...new Set(RESEARCH_RELATIONSHIP_PRESETS.map(p=>p.group))];
+  const normalize=(value:string)=>value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  const visiblePresets=RESEARCH_RELATIONSHIP_PRESETS.filter(p=>
+    (topic==="Όλα"||p.group===topic)&&
+    (!topicSearch.trim()||normalize(p.label+" "+p.insight+" "+p.aLabel+" "+p.bLabel)
+      .includes(normalize(topicSearch.trim()))));
   const launch=(updates:Record<string,string>)=>startTransition(()=>router.push(urlFor(root,filters,updates)));
   const presetButton=(p:typeof RESEARCH_RELATIONSHIP_PRESETS[number])=><Link
     prefetch={false} href={urlFor(root,filters,{preset:p.id,region:"",a:"",av:"",b:"",bv:""})}
@@ -49,10 +55,23 @@ export function ResearchRelationshipExplorer({ root, filters, questions, sectors
       </div>
       {pending&&<small role="status">Ενημέρωση χάρτη…</small>}
     </div>
-    <div className="research-relation-presets">{first.map(presetButton)}</div>
+    <label className="research-relation-topic-search">Αναζήτηση θέματος
+      <input type="search" value={topicSearch} onChange={e=>setTopicSearch(e.target.value)}
+        placeholder="π.χ. μικρές επιχειρήσεις, τοπικοί πελάτες" />
+    </label>
+    <div className="research-relation-topic-tabs" role="group" aria-label="Θεματικές κατηγορίες">
+      {topics.map(group=><button key={group} type="button"
+        aria-pressed={topic===group} className={topic===group?"is-active":""}
+        onClick={()=>setTopic(group)}>{group}</button>)}
+    </div>
+    <div className="research-relation-presets">
+      {visiblePresets.map(presetButton)}
+      {!visiblePresets.length&&<div className="workspace-inline-note" role="status">
+        Δεν βρέθηκε σχετικό θέμα. Αλλάξτε την αναζήτηση ή επιλέξτε «Όλα».
+      </div>}
+    </div>
     <details className="research-relation-more">
-      <summary>Περισσότερα θέματα και δικός μου συσχετισμός</summary>
-      <div className="research-relation-presets" style={{marginTop:12}}>{rest.map(presetButton)}</div>
+      <summary>Δημιουργήστε τον δικό σας συσχετισμό δύο ερωτήσεων</summary>
       <section aria-label="Προσαρμοσμένη σχέση ερωτήσεων" className="research-relation-custom">
         <h3>Συνδυάστε δύο ερωτήσεις</h3>
         <p>Εμφάνιση: από όσους πληρούν την πρώτη συνθήκη, τι ποσοστό δίνει τη δεύτερη απάντηση;</p>
@@ -61,6 +80,9 @@ export function ResearchRelationshipExplorer({ root, filters, questions, sectors
           <input type="hidden" name="mode" value={filters.mode} />
           <input type="hidden" name="phase" value={filters.phase} />
           <input type="hidden" name="sector" value={filters.sector} />
+          <input type="hidden" name="kad" value={filters.kad} />
+          <input type="hidden" name="view" value={filters.view} />
+          <input type="hidden" name="compare" value={filters.compare} />
           <div className="research-relation-filter-grid">
             <label>Ομάδα επιχειρήσεων · Α
               <select name="a" value={sourceQ} onChange={e=>{
@@ -89,9 +111,15 @@ export function ResearchRelationshipExplorer({ root, filters, questions, sectors
               </select>
             </label>
           </div>
-          <button type="submit" className="button" disabled={!sourceValue||!targetValue||sourceQ===targetQ}>
-            Δείτε τη συσχέτιση
-          </button>
+          <div className="workspace-action-bar" style={{gap:10,flexWrap:"wrap"}}>
+            <button type="button" className="button button-secondary" onClick={()=>{
+              setSourceQ(targetQ);setTargetQ(sourceQ);
+              setSourceValue(targetValue);setTargetValue(sourceValue);
+            }}>⇄ Αντιστροφή Α ↔ Β</button>
+            <button type="submit" className="button" disabled={!sourceValue||!targetValue||sourceQ===targetQ}>
+              Δείτε τη συσχέτιση
+            </button>
+          </div>
           {sourceQ===targetQ&&<small role="status">Επιλέξτε δύο διαφορετικές ερωτήσεις.</small>}
         </form>
       </section>
@@ -119,6 +147,12 @@ export function ResearchRelationshipExplorer({ root, filters, questions, sectors
         <select value={filters.sector} onChange={e=>launch({sector:e.target.value,region:""})}>
           <option value="">Όλοι οι κλάδοι</option>
           {sectors.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
+        </select>
+      </label>
+      <label>Ακριβής ΚΑΔ (ΓΕΜΗ)
+        <select value={filters.kad} onChange={e=>launch({kad:e.target.value,region:""})}>
+          <option value="">Όλοι οι ΚΑΔ</option>
+          {kads.map(k=><option key={k.key} value={k.key}>{k.label}</option>)}
         </select>
       </label>
       <label>Φάση
