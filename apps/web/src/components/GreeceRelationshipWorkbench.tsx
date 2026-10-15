@@ -97,7 +97,7 @@ export function GreeceRelationshipWorkbench({ root, filters, regions, aLabel, bL
 
   const mapFilters = {
     ...filters, metric: "share" as const, question: filters.b, answer: filters.bv,
-    kad: "", prefecture: "", municipality: "", region
+    kad: filters.kad, prefecture: "", municipality: "", region
   };
   const shareHref = useMemo(() => {
     const query = new URLSearchParams();
