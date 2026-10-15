@@ -1235,6 +1235,9 @@ export async function queueGreekRetailRewardDelivery(
 ): Promise<{ jobId: string }> {
   assertAdminPermission(principal, "research.fieldwork.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  if (process.env.BLS_RESEARCH_THANK_YOU_DELIVERY_ENABLED !== "true") {
+    throw new Error("RESEARCH_THANK_YOU_DELIVERY_PAUSED");
+  }
   assertResearchSurveyEmailReady();
   researchRewardSecret();
   const limit = Math.max(1, Math.min(250, Math.floor(input.limit ?? 100)));
@@ -4203,6 +4206,10 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
 }
 
 async function processRewardDeliveryJob(job: ResearchJobRow): Promise<Record<string, unknown>> {
+  // Independent fail-closed safety pause. Re-enabling requires explicit operational approval.
+  if (process.env.BLS_RESEARCH_THANK_YOU_DELIVERY_ENABLED !== "true") {
+    throw new Error("RESEARCH_THANK_YOU_DELIVERY_PAUSED");
+  }
   assertResearchSurveyEmailReady();
   researchRewardSecret();
   const pool = getProductionPostgresRuntime().sqlPool;
