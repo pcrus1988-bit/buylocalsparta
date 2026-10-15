@@ -13,6 +13,7 @@ export type RelationshipQuestion = Readonly<{
 }>;
 export type RelationshipFilters = Readonly<{
   mode:"draft"|"completed"; phase:"main"|"pilot"; sector:string; kad:string; region:string;
+  view:"segment"|"other"|"gap"; compare:string;
   preset:string; a:string; av:string; b:string; bv:string;
 }>;
 export type ResearchRelationshipDashboard = Readonly<{
@@ -137,6 +138,8 @@ export async function researchRelationshipMap(
   const kadOptions=kr.rows.map(row=>({key:text(row.code),label:text(row.code)}));
   const kad=kadOptions.some(x=>x.key===input.kad)?str(input.kad):"";
   const region=GREECE_REGIONS.some(r=>r.key===input.region)?str(input.region,60):"";
+  const compare=GREECE_REGIONS.some(r=>r.key===input.compare)?str(input.compare,60):"";
+  const view=input.view==="gap"||input.view==="other"?input.view:"segment";
   const mode=input.mode==="completed"?"completed":"draft";
   const phase=input.phase==="pilot"?"pilot":"main";
   const qa=qr.rows.find(q=>q.code===resolved.a);
@@ -180,7 +183,7 @@ export async function researchRelationshipMap(
     answered:Number(row.answered??0),selected:Number(row.selected??0)
   })));
   const filters:RelationshipFilters={
-    mode,phase,sector,kad,region,preset:resolved.preset,
+    mode,phase,sector,kad,region,view,compare,preset:resolved.preset,
     a:resolved.a,av:resolved.av,b:resolved.b,bv:resolved.bv
   };
   await recordAdminPersonalDataAccess(principal,{
