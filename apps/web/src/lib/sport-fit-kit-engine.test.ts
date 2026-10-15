@@ -442,3 +442,101 @@ test("one governed kit match is enough to admit a compatible secondary product",
 
   assert.equal(result.kit.find((item) => item.role === "socks")?.id, "running-evidence-sock");
 });
+
+test("governed running-shoe → running-sock edge is separately sourced and cannot invent product facts", () => {
+  const shoe = product({
+    id: "evidence-running-shoe", title: "Documented Running Shoe",
+    categoryCode: "mens-running-shoes", sizes: ["42"],
+    knowledge: { status: "partial", identityQuality: "strong", activities: ["running"], surfaces: ["road"] }
+  });
+  const sock = product({
+    id: "evidence-running-sock", title: "Documented Running Sock",
+    categoryCode: "socks-hosiery",
+    knowledge: { status: "partial", identityQuality: "strong", activities: ["running"], moistureWicking: true }
+  });
+  const edge = {
+    sportCode: "running" as const,
+    useCase: "all",
+    primaryRole: "footwear" as const,
+    secondaryRole: "socks" as const,
+    secondaryKind: "all",
+    relationshipType: "recommended_with" as const,
+    sourceUrl: "https://www.rei.com/learn/expert-advice/socks.html",
+    sourceTitle: "REI: Choosing socks by sport",
+    evidenceExcerpt: "Expert guidance describes running socks as suitable with running footwear.",
+    confidence: 0.97
+  };
+  const out = buildSportFitRecommendation([shoe, sock], {
+    activity: "running", audience: "men", size: "42", surface: "road"
+  }, [edge]);
+  assert.equal(out.primary?.id, shoe.id);
+  assert.equal(out.kit[0]?.id, sock.id);
+  assert.equal(out.kitCompatibility[0]?.relationshipType, "recommended_with");
+  assert.equal(out.kitCompatibility[0]?.sourceUrl, edge.sourceUrl);
+  assert.ok(out.kit[0]?.appliedRules.includes("kit.compatibility.recommended_with"));
+  assert.ok(!out.kit[0]?.appliedRules.includes("football.shinguard_mandatory"));
+  assert.equal(scoreSportFitProduct(sock, { activity: "running", audience: "men" }).role, "socks");
+});
+
+test("football match compulsory socks are use-case scoped; shinguards require verified subtype", () => {
+  const boot = product({
+    id: "football-boot", title: "Football FG Boot", categoryCode: "mens-sneakers",
+    knowledge: { status: "verified", identityQuality: "strong", activities: ["football"] }
+  });
+  const sock = product({
+    id: "football-sock", title: "Football Match Socks", categoryCode: "socks-hosiery",
+    knowledge: { status: "verified", identityQuality: "strong", activities: ["football"] }
+  });
+  const generic = product({
+    id: "generic-accessory", title: "Sport Bag", categoryCode: "fitness-accessories",
+    knowledge: { status: "verified", identityQuality: "strong", activities: ["football"] }
+  });
+  const baseEdge = {
+    sportCode: "football" as const, useCase: "football_match",
+    primaryRole: "footwear" as const,
+    secondaryRole: "socks" as const, secondaryKind: "all",
+    relationshipType: "requires" as const,
+    sourceUrl: "https://www.theifab.com/laws/latest/the-players-equipment/",
+    sourceTitle: "IFAB 2026/27 Law 4",
+    evidenceExcerpt: "Socks and shin guards are compulsory in football matches.",
+    confidence: 1
+  };
+  const guardEdge = {
+    ...baseEdge, secondaryRole: "accessory" as const,
+    secondaryKind: "shin_guards"
+  };
+  const match = buildSportFitRecommendation([boot, sock, generic], {
+    activity: "football", audience: "men", useCase: "football_match"
+  }, [baseEdge, guardEdge]);
+  assert.equal(match.kitCompatibility.find((i) => i.productId === sock.id)?.relationshipType, "requires");
+  assert.ok(!match.kitCompatibility.some((i) => i.productId === generic.id));
+  const training = buildSportFitRecommendation([boot, sock], {
+    activity: "football", audience: "men", useCase: "football_training"
+  }, [baseEdge, guardEdge]);
+  assert.equal(training.kitCompatibility.length, 0);
+});
+
+test("compatibility edges never admit a stock-only secondary product or wrong sport", () => {
+  const shoe = product({
+    id: "hiking-primary", title: "Trail Hiking Shoe",
+    categoryCode: "mens-hiking-shoes",
+    knowledge: { status: "partial", identityQuality: "strong", activities: ["hiking"], surfaces: ["trail"] }
+  });
+  const generic = product({
+    id: "unknown-sock", title: "Ordinary Sock", categoryCode: "socks-hosiery"
+  });
+  const edge = {
+    sportCode: "hiking" as const, useCase: "all", primaryRole: "footwear" as const,
+    secondaryRole: "socks" as const, secondaryKind: "all",
+    relationshipType: "recommended_with" as const,
+    sourceUrl: "https://www.rei.com/learn/expert-advice/socks.html",
+    sourceTitle: "REI", evidenceExcerpt: "Hiking socks offer specialized foot comfort.",
+    confidence: 0.99
+  };
+  const out = buildSportFitRecommendation([shoe, generic], {
+    activity: "hiking", audience: "men", surface: "trail"
+  }, [edge]);
+  assert.equal(out.primary?.id, shoe.id);
+  assert.equal(out.kit.some((item) => item.id === generic.id), false);
+  assert.deepEqual(out.kitCompatibility, []);
+});
