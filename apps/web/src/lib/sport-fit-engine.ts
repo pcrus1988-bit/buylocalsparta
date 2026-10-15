@@ -81,6 +81,13 @@ export type SportFitKnowledge = Readonly<{
   weatherProtection?: readonly string[];
   sockHeight?: string;
   sockCushioning?: string;
+  // Exact-model padding zones are not a categorical cushioning intensity.
+  sockCushionZones?: readonly string[];
+  sockCottonPct?: number;
+  sockPolyesterPct?: number;
+  sockElastanePct?: number;
+  sockNylonPct?: number;
+  packQuantity?: number;
   moistureWicking?: boolean;
   sockArchSupport?: boolean;
   breathabilityLevel?: string;
@@ -1153,6 +1160,19 @@ function reasonsFor(
   if (matchedSize) reasons.push("Διαθέσιμο στο μέγεθος " + matchedSize);
 
   const knowledge = usableKnowledge(product);
+  if (knowledge && role === "socks") {
+    const zones = knowledge.sockCushionZones ?? [];
+    const heel = zones.includes("heel") && Boolean(matchingEvidence(knowledge,"sock_cushion_zone","heel"));
+    const toe = zones.includes("toe") && Boolean(matchingEvidence(knowledge,"sock_cushion_zone","toe"));
+    if (heel && toe) reasons.push("Ενίσχυση στη φτέρνα και στα δάχτυλα (όχι βαθμός cushioning)");
+    else if (heel) reasons.push("Ενίσχυση στη φτέρνα (η ένταση παραμένει άγνωστη)");
+    else if (toe) reasons.push("Ενίσχυση στα δάχτυλα (η ένταση παραμένει άγνωστη)");
+    const cotton = knowledge.sockCottonPct;
+    if (typeof cotton === "number" && Number.isFinite(cotton)
+        && matchingEvidence(knowledge,"sock_cotton_pct",String(cotton))) {
+      reasons.push(`Σύνθεση κατασκευαστή: ${cotton}% βαμβάκι`);
+    }
+  }
   if (knowledge && hasKnowledgeMatch(knowledge.activities, requestedActivityCodes(answers))) {
     reasons.push("Τεκμηριωμένη αντιστοίχιση δραστηριότητας");
   }
