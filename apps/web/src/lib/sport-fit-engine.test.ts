@@ -2149,7 +2149,25 @@ test("consultation summary explains the why in Greek and keeps only necessary te
       activities: ["walking"],
       useCases: ["all_day_standing"],
       widthProfile: "wide",
+      technologies: ["cloudfoam"],
+      manufacturerFitProfile: "regular",
       evidence: [
+        {
+          attributeCode: "footwear_technology",
+          value: "cloudfoam",
+          evidenceStrength: "manufacturer_claim",
+          confidence: 1,
+          identityConfidence: 1,
+          sourceType: "manufacturer_product"
+        },
+        {
+          attributeCode: "footwear_fit_profile",
+          value: "regular",
+          evidenceStrength: "manufacturer_claim",
+          confidence: 1,
+          identityConfidence: 1,
+          sourceType: "manufacturer_product"
+        },
         {
           attributeCode: "sport_activity",
           value: "walking",
@@ -2179,8 +2197,9 @@ test("consultation summary explains the why in Greek and keeps only necessary te
 
   assert.match(scored.consultationSummary ?? "", /πολύωρη ορθοστασία/i);
   assert.match(scored.consultationSummary ?? "", /Cloudfoam/);
-  assert.match(scored.consultationSummary ?? "", /memory foam/);
-  assert.match(scored.consultationSummary ?? "", /απορρόφηση κραδασμών/i);
+  assert.match(scored.consultationSummary ?? "", /Regular fit/);
+  assert.doesNotMatch(scored.consultationSummary ?? "", /memory foam/i);
+  assert.doesNotMatch(scored.consultationSummary ?? "", /απορρόφηση κραδασμών/i);
   assert.doesNotMatch(scored.consultationSummary ?? "", /confidence|match|support profile/i);
 });
 
@@ -2346,4 +2365,53 @@ test("bounded Sport & Fit catalogue rotates categories before global candidate l
   assert.ok(categoryRotation > -1, "category-balanced ordering must be present");
   assert.ok(limit > categoryRotation, "round-robin category selection must precede the global limit");
   assert.match(source.slice(categoryRotation, limit), /PARTITION BY c\.code/);
+});
+
+test("unverified footwear marketing is never presented as governed technical evidence", () => {
+  const misleading = product({
+    id: "marketing-only-technology",
+    title: "Cloudfoam Max Support Ultra",
+    categoryCode: "mens-running-shoes",
+    description: "Cloudfoam memory foam with waterproof arch support",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong"
+    }
+  });
+  const scored = scoreSportFitProduct(misleading, { activity: "running", audience: "men" });
+  assert.equal(scored.consultationSummary, undefined);
+});
+
+test("named exact technology may appear in explanation but never grades cushioning or support", () => {
+  const base = product({
+    id: "model-technical-neutral",
+    title: "Exact Model Neutral Trainer",
+    categoryCode: "mens-running-shoes",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"]
+    }
+  });
+  const verified = {
+    ...base,
+    knowledge: {
+      ...base.knowledge,
+      technologies: ["lightstrike_pro"],
+      manufacturerFitProfile: "regular",
+      evidence: [
+        { attributeCode: "footwear_technology", value: "lightstrike_pro", sourceType: "manufacturer_product", confidence: 1 },
+        { attributeCode: "footwear_fit_profile", value: "regular", sourceType: "manufacturer_product", confidence: 1 }
+      ]
+    }
+  };
+  const answers = { activity: "running" as const, audience: "men" as const, surface: "road" as const };
+  const a = scoreSportFitProduct(base, answers);
+  const b = scoreSportFitProduct(verified, answers);
+  assert.equal(a.technicalScore, b.technicalScore);
+  assert.equal(a.score, b.score);
+  assert.match(b.consultationSummary ?? "", /Lightstrike Pro/);
+  assert.match(b.consultationSummary ?? "", /Regular fit/);
+  assert.doesNotMatch(b.consultationSummary ?? "", /αυξημένη απορρόφηση/);
 });
