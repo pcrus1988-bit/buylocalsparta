@@ -2452,6 +2452,8 @@ test("sellable footwear size is bound to the exact canonical variant and rejects
   assert.deepEqual(stockedSportFootwearVariantSizes("One size"), []);
   assert.deepEqual(stockedSportFootwearVariantSizes("42, 43, 44"), []);
   assert.deepEqual(stockedSportFootwearVariantSizes("UK 8"), []);
+  assert.deepEqual(stockedSportFootwearVariantSizes("99"), []);
+  assert.deepEqual(stockedSportFootwearVariantSizes("4242"), []);
 });
 
 test("stock-positive shoe with unknown variant size cannot claim requested size", () => {
