@@ -10,7 +10,6 @@ import { hasAdminPermission } from "../../../../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../../../../lib/admin-session";
 import { researchRelationshipMap } from "../../../../../../../lib/research-geographic-relations-runtime";
 import type { SafeRelationshipCounts } from "../../../../../../../lib/research-geographic-relations-core";
-import type { RelationshipMapView } from "../../../../../../../lib/research-geographic-relations-view";
 import "../../../../../../research-map-relations.css";
 
 export const metadata: Metadata = {
@@ -76,8 +75,6 @@ export default async function ResearchRelationshipMapPage({ params, searchParams
       errorName: err instanceof Error ? err.name : "UnknownError" }));
   }
   if (!data && !unavailable) notFound();
-  const initialView: RelationshipMapView =
-    query.view === "gap" || query.view === "other" ? query.view : "segment";
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research · Interactive Relationships" />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
@@ -134,9 +131,12 @@ export default async function ResearchRelationshipMapPage({ params, searchParams
           <WorkspaceSectionHeading eyebrow="Αλληλεπίδραση με τον χάρτη"
             title="Δείτε ποσοστά, διαφορές και συγκρίσεις Περιφερειών"
             note="Η αλλαγή προβολής, η επιλογή περιοχής και η ταξινόμηση ενημερώνονται χωρίς νέα ανάκτηση ερωτηματολογίων." />
-          <GreeceRelationshipWorkbench root={link} filters={data.filters} regions={data.regions}
+          <GreeceRelationshipWorkbench key={[
+            data.filters.mode, data.filters.phase, data.filters.sector, data.filters.kad,
+            data.filters.preset, data.filters.a, data.filters.av, data.filters.b, data.filters.bv
+          ].join("|")} root={link} filters={data.filters} regions={data.regions}
             aLabel={data.pair.aLabel} bLabel={data.pair.bLabel}
-            initialView={initialView} initialCompare={query.compare} />
+            initialView={data.filters.view} initialCompare={data.filters.compare} />
           {data.unknownGeography && <p className="research-relation-small-note">
             Κάποιες έδρες επιχειρήσεων δεν αντιστοιχούν σε επαληθευμένη Περιφέρεια
             και δεν επινοούμε τοποθεσίες για αυτές.</p>}
