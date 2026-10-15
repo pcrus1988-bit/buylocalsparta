@@ -1,14 +1,8 @@
 import type { VendorOnboardingState } from "@buy-local-sparta/core";
 import { sendTransactionalEmailBestEffort } from "./transactional-email";
+import { KONTA_MOY_EMAIL_BASE_URL } from "./official-email-url";
 
 const APPLICATION_OPERATIONS_EMAIL = "info@kontamou.site";
-
-function publicBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
-  const explicit = env.BLS_PUBLIC_BASE_URL?.trim() || env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (explicit) return explicit.replace(/\/$/, "");
-  const production = env.VERCEL_PROJECT_PRODUCTION_URL?.trim() || env.VERCEL_URL?.trim();
-  return production ? `https://${production.replace(/^https?:\/\//, "").replace(/\/$/, "")}` : "https://kontamou.site";
-}
 
 export async function sendVendorApplicationReceiptEmail(input: {
   to: string;
@@ -25,7 +19,7 @@ export async function sendVendorApplicationReceiptEmail(input: {
     "Η αίτηση βρίσκεται τώρα στο στάδιο επαλήθευσης. Δεν δημιουργείται αυτόματα δημόσια παρουσία ή πρόσβαση vendor πριν ολοκληρωθούν οι απαιτούμενοι έλεγχοι.",
     "Θα σας ενημερώνουμε με email όταν αλλάζει ουσιαστικά το στάδιο της αίτησης ή όταν χρειαζόμαστε επιπλέον στοιχεία.",
     "",
-    `Πληροφορίες συνεργασίας: ${publicBaseUrl()}/join`,
+    `Πληροφορίες συνεργασίας: ${KONTA_MOY_EMAIL_BASE_URL}/join`,
     "",
     "KONTA MOY"
   ].join("\n");
@@ -58,7 +52,7 @@ export async function sendVendorApplicationStateEmail(input: {
     message.body,
     input.reason?.trim() ? `\nΣημείωση από την ομάδα: ${input.reason.trim()}` : undefined,
     "",
-    message.link ? `${message.linkLabel}: ${publicBaseUrl()}${message.link}` : undefined,
+    message.link ? `${message.linkLabel}: ${KONTA_MOY_EMAIL_BASE_URL}${message.link}` : undefined,
     "",
     "KONTA MOY"
   ].filter((line): line is string => typeof line === "string").join("\n");
@@ -77,7 +71,7 @@ export async function sendResearchVendorInvitationEmail(input: {
   tradingName: string;
   researchId: string;
 }) {
-  const applyUrl = `${publicBaseUrl()}/join`;
+  const applyUrl = `${KONTA_MOY_EMAIL_BASE_URL}/join`;
   return sendTransactionalEmailBestEffort({
     to: input.to,
     subject: "Πρόσκληση συνεργασίας · KONTA MOY",
@@ -119,7 +113,7 @@ export async function notifyOperationsOfVendorApplication(input: {
       `Πλάνο: ${input.requestedPlanCode}`,
       `Application ID: ${input.applicationId}`,
       "",
-      `Admin queue: ${publicBaseUrl()}/admin/applications`
+      `Admin queue: ${KONTA_MOY_EMAIL_BASE_URL}/admin/applications`
     ].join("\n"),
     eventType: "admin.vendor_application_received",
     idempotencyKey: `admin-vendor-application:${input.applicationId}`,
@@ -278,7 +272,7 @@ export async function notifyOperationsOfHubProspectApplication(input: {
       `Χρέωση: ${input.billingCycle}`,
       `Application ID: ${input.reference}`,
       "",
-      `Admin queue: ${publicBaseUrl()}/admin/applications`
+      `Admin queue: ${KONTA_MOY_EMAIL_BASE_URL}/admin/applications`
     ].join("\n"),
     eventType: "admin.hub_prospect_application_received",
     idempotencyKey: `admin-hub-prospect-application:${input.reference}`,

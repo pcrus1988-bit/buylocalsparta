@@ -39,6 +39,8 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Verify dependency-free domain/runtime suite
         run: npm run check
+      - name: Verify official transactional email URLs
+        run: node --experimental-strip-types --test apps/web/src/lib/official-email-url.test.ts
       - name: Typecheck Core
         run: npm run typecheck:core
       - name: Typecheck Mollie payment adapter
