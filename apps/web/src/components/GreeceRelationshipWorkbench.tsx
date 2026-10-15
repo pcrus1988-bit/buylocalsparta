@@ -169,7 +169,7 @@ export function GreeceRelationshipWorkbench({ root, filters, regions, aLabel, bL
             Όλη η Ελλάδα
           </button>}
         </div>
-        <label className="relation-explorer-select">Περιφέρεια Α
+        <label className="relation-explorer-select">Επιλεγμένη Περιφέρεια
           <select value={region} onChange={event => {
             const next = selectRegion(event.target.value, regions);
             setRegion(next);
