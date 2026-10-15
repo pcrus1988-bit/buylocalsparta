@@ -38,3 +38,84 @@
 .research-relation-row a{color:inherit}
 @media(max-width:880px){.research-relation-layout{grid-template-columns:minmax(0,1fr)}.research-relation-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.research-relation-filter-grid,.research-relation-custom .research-relation-filter-grid{grid-template-columns:minmax(0,1fr)}.research-relation-statgrid{grid-template-columns:minmax(0,1fr)}.research-relation-chip{font-size:.84rem}.research-relation-controls{padding:13px}.research-relation-control-header{align-items:flex-start;flex-direction:column}}
+
+
+/* Geography Explorer v2 — native controls and local-state interactions. */
+.research-relation-topic-search{display:grid;gap:6px;font-size:.9rem;font-weight:650}
+.research-relation-topic-search input,.relation-explorer-ranking-filters input,.relation-explorer-ranking-filters select,
+.relation-explorer-select select{width:100%;min-width:0;min-height:46px;border-radius:10px;border:1px solid var(--border,#bbcbca);
+ background:var(--surface,#fff);color:var(--text,#172e34);font-size:16px;padding:10px}
+.research-relation-topic-tabs{display:flex;gap:8px;flex-wrap:wrap}
+.research-relation-topic-tabs button{border-radius:9px;min-height:42px;padding:8px 12px;
+ border:1px solid var(--border,#bbcbca);background:var(--surface,#fff);color:var(--text,#1a383b);
+ font-size:.88rem;cursor:pointer}
+.research-relation-topic-tabs button.is-active{background:#dff5e7;border-color:#217c62;color:#14543f;font-weight:750}
+.research-relation-topic-tabs button:focus-visible,.relation-explorer-segments button:focus-visible,
+.relation-explorer-rank-list button:focus-visible,.research-relation-chip:focus-visible{outline:3px solid #d5ae3a;outline-offset:2px}
+.relation-explorer-workbench{display:grid;gap:15px;min-width:0}
+.relation-explorer-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.relation-explorer-toolbar strong{font-size:1.03rem}
+.relation-explorer-toolbar p{margin:5px 0 0;color:var(--text-muted,#58686d);font-size:.89rem}
+.relation-explorer-toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
+.relation-explorer-toolbar-actions button{min-height:44px}
+.relation-explorer-segments{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:var(--surface-muted,#ebf3f1);
+ border:1px solid var(--border,#cfdfda);border-radius:12px;gap:4px;padding:4px}
+.relation-explorer-segments button{border:0;min-height:48px;padding:8px 12px;border-radius:9px;cursor:pointer;
+ font-size:.92rem;background:transparent;color:var(--text,#20363b)}
+.relation-explorer-segments button.is-active{background:#196b59;color:#fff;font-weight:750;box-shadow:0 1px 3px #0001}
+.relation-explorer-share{border-radius:10px;background:#e9f5ea;border:1px solid #acccbb;padding:10px;display:flex;
+ gap:12px;flex-wrap:wrap;font-size:.9rem}
+.relation-explorer-share a{color:#175e4a}
+.relation-explorer-layout{grid-template-columns:minmax(0,1.7fr) minmax(290px,.92fr)}
+.relation-explorer-map{min-width:0}
+.relation-explorer-map-instruction{font-size:.86rem;margin:9px 0 0;color:var(--text-muted,#51676a)}
+.relation-explorer-sidebar{min-width:0;display:grid;align-content:start;gap:14px;border:1px solid var(--border,#cdded8);
+ border-radius:15px;background:var(--surface,#fff);padding:clamp(12px,1.5vw,18px)}
+.relation-explorer-sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}
+.relation-explorer-sidebar-head h3{margin:0;font-size:1.02rem}
+.relation-explorer-sidebar-head button{min-height:40px}
+.relation-explorer-select{display:grid;gap:7px;font-size:.88rem;font-weight:700;min-width:0}
+.relation-explorer-divider{border-top:1px solid var(--border,#d5e3e0)}
+.relation-explorer-region-card{display:grid;gap:12px}
+.relation-explorer-region-card h3{margin:0;font-size:1.12rem;color:var(--text,#172f32)}
+.relation-explorer-region-card>p{margin:0;color:var(--text-muted,#53676a);font-size:.9rem}
+.relation-explorer-pair{display:grid;grid-template-columns:minmax(0,1fr);gap:9px}
+.relation-explorer-group{border:1px solid var(--border,#d7e4e0);border-radius:11px;padding:11px;
+ display:grid;gap:6px;min-width:0;background:var(--surface-muted,#f7fbf9)}
+.relation-explorer-group>div:first-child{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.relation-explorer-group strong{font-size:.9rem}
+.relation-explorer-group small{display:block;font-size:.79rem;color:var(--text-muted,#50666b);line-height:1.35}
+.relation-explorer-group-value{font-size:1.7rem!important;color:#146a63}
+.relation-explorer-group .research-relation-bar{height:9px;background:#d4e6df;border-radius:12px;overflow:hidden}
+.relation-explorer-group .research-relation-bar span{display:block;height:100%;border-radius:12px;background:#137d77}
+.relation-explorer-difference{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;
+ border-radius:9px;background:#e8f4ef;padding:9px 12px;color:#164f43;font-size:.85rem}
+.relation-explorer-difference strong{font-size:1rem}
+.relation-explorer-cross-compare{display:grid;gap:5px;border-radius:10px;border:1px solid #aecbc0;
+ background:#eaf6f0;padding:13px;color:#164d40}
+.relation-explorer-cross-compare>span{font-size:1.6rem;font-weight:750}
+.relation-explorer-cross-compare small{font-size:.8rem}
+.relation-explorer-ranking{border-radius:14px;border:1px solid var(--border,#d0ddda);padding:clamp(12px,2vw,18px);min-width:0}
+.relation-explorer-ranking-filters{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) auto;gap:12px;align-items:end;margin:12px 0}
+.relation-explorer-ranking-filters label{display:grid;min-width:0;gap:7px;font-weight:600;font-size:.87rem}
+.relation-explorer-ranking-filters .relation-explorer-check{display:flex;align-items:center;gap:7px;min-height:44px}
+.relation-explorer-check input{width:19px;height:19px;accent-color:#146b59}
+.relation-explorer-rank-list{display:grid;gap:4px}
+.relation-explorer-rank-list button{display:grid;grid-template-columns:minmax(0,1fr) minmax(60px,1.3fr) minmax(80px,.65fr);
+ gap:10px;align-items:center;text-align:left;border:1px solid transparent;border-radius:9px;
+ background:transparent;padding:10px;cursor:pointer;color:var(--text,#23383b);min-height:48px}
+.relation-explorer-rank-list button:hover{background:var(--surface-muted,#f1f7f4)}
+.relation-explorer-rank-list button.is-active{background:#e2f2e9;border-color:#65a590}
+.relation-explorer-rank-label{min-width:0;font-size:.89rem}
+.relation-explorer-rank-meter{display:block;border-radius:8px;background:#e3eeea;height:10px;overflow:hidden}
+.relation-explorer-rank-meter>span{display:block;background:#247d76;border-radius:8px;height:100%}
+.relation-explorer-rank-list strong{font-size:.88rem;text-align:right;white-space:nowrap}
+@media(max-width:880px){.relation-explorer-layout{grid-template-columns:minmax(0,1fr)}
+ .relation-explorer-sidebar{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .relation-explorer-sidebar-head,.relation-explorer-region-card,.relation-explorer-cross-compare{grid-column:1/-1}}
+@media(max-width:580px){.relation-explorer-sidebar{grid-template-columns:minmax(0,1fr)}
+ .relation-explorer-ranking-filters{grid-template-columns:minmax(0,1fr)}
+ .relation-explorer-toolbar-actions{width:100%}
+ .relation-explorer-segments button{font-size:.79rem;padding:8px 5px}
+ .relation-explorer-rank-list button{grid-template-columns:minmax(0,1fr) minmax(45px,.55fr) 88px;gap:6px;padding:8px 5px}
+ .relation-explorer-rank-label,.relation-explorer-rank-list strong{font-size:.78rem}}
