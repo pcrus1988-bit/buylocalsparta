@@ -27,6 +27,8 @@ const FRAME_FLUSH_SIZE = 500;
 const MAX_JOB_ATTEMPTS = 3;
 // Logical automatic reminder batch; processed in resumable, bounded checkpoints.
 const AUTO_REMINDER_BATCH_SIZE = 10_000;
+// Hard submission ceiling: never start more than ten reminder emails per second.
+const AUTO_REMINDER_MIN_SEND_INTERVAL_MS = 100;
 const AUTO_REMINDER_CHECKPOINT_SIZE = 100;
 const AUTO_REMINDER_MIN_AGE_DAYS = 5;
 const AUTO_REMINDER_MIN_GAP_DAYS = 5;
@@ -1134,11 +1136,11 @@ export async function ensureGreekRetailAutomaticReminderBatch(): Promise<Readonl
         invite_id,
         count(*) FILTER (
           WHERE attempt_kind='reminder'
-            AND status IN ('sent','delivered','opened')
+            AND sent_at IS NOT NULL
         )::int AS sent_reminders,
         max(sent_at) FILTER (
           WHERE attempt_kind='reminder'
-            AND status IN ('sent','delivered','opened')
+            AND sent_at IS NOT NULL
         ) AS last_reminder_sent_at
       FROM research_invite_messages
       GROUP BY invite_id
@@ -3852,13 +3854,13 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
         SELECT
           invite_id,
           count(*) FILTER (
-            WHERE attempt_kind='reminder'
-              AND status IN ('sent','delivered','opened')
-          )::int AS sent_reminders,
+          WHERE attempt_kind='reminder'
+            AND sent_at IS NOT NULL
+        )::int AS sent_reminders,
           max(sent_at) FILTER (
-            WHERE attempt_kind='reminder'
-              AND status IN ('sent','delivered','opened')
-          ) AS last_reminder_sent_at
+          WHERE attempt_kind='reminder'
+            AND sent_at IS NOT NULL
+        ) AS last_reminder_sent_at
         FROM research_invite_messages
         GROUP BY invite_id
       )
@@ -3960,6 +3962,9 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
   let sentCount = 0;
   let skippedCount = 0;
   let failedCount = 0;
+  // Persist the last reserved submission slot across resumable checkpoints.
+  // This protects the ten-per-second ceiling even when a cron run resumes immediately.
+  let lastReminderSesAttemptAt = automatic ? numberValue(currentOutput.lastReminderSesAttemptAt) : 0;
   const failures: Array<{ inviteId: string; error: string }> = [];
 
   for (const inviteId of inviteIds.slice(checkpointStart, checkpointEnd)) {
@@ -3983,13 +3988,13 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
       WITH reminder_stats AS (
         SELECT
           count(*) FILTER (
-            WHERE attempt_kind='reminder'
-              AND status IN ('sent','delivered','opened')
-          )::int AS sent_reminders,
+          WHERE attempt_kind='reminder'
+            AND sent_at IS NOT NULL
+        )::int AS sent_reminders,
           max(sent_at) FILTER (
-            WHERE attempt_kind='reminder'
-              AND status IN ('sent','delivered','opened')
-          ) AS last_reminder_sent_at,
+          WHERE attempt_kind='reminder'
+            AND sent_at IS NOT NULL
+        ) AS last_reminder_sent_at,
           COALESCE(max(sequence_no),0)::int AS max_sequence
         FROM research_invite_messages
         WHERE invite_id=$1
@@ -4092,6 +4097,10 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
 
       const surveyUrl = `${base}/research/${encodeURIComponent(text(template.slug))}/t/${encodeURIComponent(token)}`;
       const methodologyUrl = `${base}/research/${encodeURIComponent(text(template.slug))}/methodology`;
+      const sendAt = Math.max(Date.now(), lastReminderSesAttemptAt + AUTO_REMINDER_MIN_SEND_INTERVAL_MS);
+      lastReminderSesAttemptAt = sendAt;
+      const waitMs = sendAt - Date.now();
+      if (waitMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
       const delivery = await sendResearchSurveyInvitation({
         destination: text(row.contact_value),
         studySlug: text(template.slug),
@@ -4199,6 +4208,7 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
       // forward instead of losing it after the first checkpoint.
       inviteIds,
       nextIndex: checkpointEnd,
+      lastReminderSesAttemptAt,
       __requeue: checkpointEnd < inviteIds.length,
       __delaySeconds: 0
     } : {})
