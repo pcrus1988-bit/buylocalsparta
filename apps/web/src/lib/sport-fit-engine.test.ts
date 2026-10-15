@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, sportProductRole, stockedSportFootwearVariantSizes, type SportFitProduct } from "./sport-fit-engine.ts";
+import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, sportProductRole, sportFitUniverseSelection, stockedSportFootwearVariantSizes, type SportFitProduct } from "./sport-fit-engine.ts";
 import { canonicalSportBrand, sportSizeGuideBrandKey } from "./sport-fit-brand.ts";
 
 function product(overrides: Partial<SportFitProduct> & Pick<SportFitProduct, "id" | "title" | "categoryCode">): SportFitProduct {
@@ -2490,4 +2490,38 @@ test("a single in-stock size is selected within a shared canonical family, witho
   assert.equal(recommendation.primary?.matchedSize, "43");
   assert.equal(recommendation.ranked.length, 1);
   assert.ok(!recommendation.ranked.some((item) => item.id === "42-in-stock"));
+});
+
+test("initial 3D universe caps Tier-2 and keeps primary footwear in front", () => {
+  const shoes = Array.from({ length: 50 }, (_, i) => product({
+    id: `primary-${i}`, title: `Road Running Shoe ${i}`,
+    categoryCode: "mens-running-shoes",
+    previewImageSrc: `https://example.com/${i}.jpg`
+  }));
+  const socks = Array.from({ length: 300 }, (_, i) => product({
+    id: `secondary-${i}`, title: `Football Boot Socks ${i}`,
+    categoryCode: "socks-hosiery",
+    previewImageSrc: `https://example.com/sock-${i}.jpg`
+  }));
+  const result = sportFitUniverseSelection([...socks, ...shoes], 96);
+  assert.equal(result.primaryCount, 50);
+  assert.equal(result.secondaryCount, 300);
+  assert.equal(result.universe.length, 62);
+  assert.equal(result.universe.filter((p) => sportProductRole(p) === "footwear").length, 50);
+  assert.equal(result.universe.filter((p) => sportProductRole(p) === "socks").length, 12);
+  assert.ok(result.universe.slice(0, 50).every((p) => sportProductRole(p) === "footwear"));
+  assert.ok(result.universe.slice(50).every((p) => sportProductRole(p) === "socks"));
+});
+
+test("initial universe cannot be displaced by secondary products even at the 96-item cap", () => {
+  const shoes = Array.from({ length: 105 }, (_, i) => product({
+    id: `running-footwear-${i}`, title: `Shoe ${i}`, categoryCode: "womens-running-shoes"
+  }));
+  const extras = Array.from({ length: 150 }, (_, i) => product({
+    id: `socks-${i}`, title: `Sock ${i}`, categoryCode: "socks-hosiery"
+  }));
+  const result = sportFitUniverseSelection([...extras, ...shoes]);
+  assert.equal(result.universe.length, 96);
+  assert.equal(result.universe.filter((p) => sportProductRole(p) === "socks").length, 0);
+  assert.equal(result.secondaryCount, 150);
 });
