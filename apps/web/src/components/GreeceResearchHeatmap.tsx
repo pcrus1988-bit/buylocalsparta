@@ -10,6 +10,8 @@ type SafeGeographicMapCell = Omit<GeographicMapCell, "respondents" | "answered" 
   selected: number | null;
   /** Independently redacted percentage for conditional relationship heatmaps. */
   ratioPercent?: number | null;
+  /** Only computed from already-disclosed percentages, never low-sample counts. */
+  differencePoints?: number | null;
 }>;
 import type { ResearchMapFilters } from "../lib/research-geographic-runtime";
 
@@ -51,10 +53,21 @@ function heatColor(value?: number) {
   return "rgb(" + from.map((v, i) => Math.round(v + (to[i] - v) * n)).join(",") + ")";
 }
 
-export function GreeceResearchHeatmap({ cells, filters, root }: {
+
+function differenceColor(delta?: number): string {
+  if (delta === undefined) return "#d9e2e7";
+  const t = Math.min(1, Math.abs(delta) / 40);
+  const from = [245, 245, 238];
+  const to = delta < 0 ? [168, 81, 82] : [8, 119, 131];
+  return "rgb(" + from.map((n, index) => Math.round(n + t * (to[index] - n))).join(",") + ")";
+}
+
+export function GreeceResearchHeatmap({ cells, filters, root, onRegionSelect, visualization = "standard" }: {
   cells: readonly SafeGeographicMapCell[];
   filters: ResearchMapFilters;
   root: string;
+  onRegionSelect?: (region: GreekRegionKey) => void;
+  visualization?: "standard" | "difference";
 }) {
   const [geo, setGeo] = useState<GeoJSON | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -98,29 +111,36 @@ export function GreeceResearchHeatmap({ cells, filters, root }: {
           const cell = cellByRegion.get(key);
           if (!cell) return null;
           const normalized = valueFor(cell, filters.metric, max);
+          const difference = visualization === "difference" ? cell.differencePoints : undefined;
+          const clippedDifference = difference == null ? undefined : Math.max(-40, Math.min(40, difference));
+          const color = visualization === "difference" ? differenceColor(clippedDifference) : heatColor(normalized);
           const valueLabel = filters.metric === "share"
             ? cell.ratioPercent !== undefined
               ? cell.ratioPercent == null ? "ανεπαρκής βάση για ασφαλή απεικόνιση" : cell.ratioPercent + "% (συγκεντρωτικό ποσοστό)"
               : cell.answered == null || cell.selected == null ? "ανεπαρκής βάση (n<10)" : (cell.selected / cell.answered * 100).toFixed(1) + "% (" + cell.selected + "/" + cell.answered + ")"
             : cell.respondents == null ? "ανεπαρκής βάση (n<10)" : cell.respondents + " ερωτηματολόγια";
+          const label = visualization === "difference"
+            ? difference == null ? "ανεπαρκής βάση" : (difference > 0 ? "+" : "") + difference + " ποσοστιαίες μονάδες"
+            : valueLabel;
           const params = new URLSearchParams();
           for (const [k, v] of Object.entries(filters)) { if (v && k !== "region") params.set(k, v); }
           params.set("region", key);
           const href = (root.endsWith("/map/relations") ? root : root + "/map") + "?" + params.toString();
-          return <a href={href} key={key} aria-label={cell.label + ": " + valueLabel}>
-            <path d={pathForGeometry(feature.geometry)} fill={heatColor(normalized)} fillRule="evenodd"
+          return <a href={href} key={key} aria-label={cell.label + ": " + label}
+            onClick={onRegionSelect ? event => { event.preventDefault(); onRegionSelect(key); } : undefined}>
+            <path d={pathForGeometry(feature.geometry)} fill={color} fillRule="evenodd"
               stroke={filters.region === key ? "#ec7f23" : "#538693"}
               strokeWidth={filters.region === key ? 2.8 : 0.95}
               vectorEffect="non-scaling-stroke"
               style={{ cursor: "pointer", transition: "fill 160ms ease" }}>
-              <title>{cell.label}: {valueLabel}. Πατήστε για ανάλυση.</title>
+              <title>{cell.label}: {label}. Πατήστε για ανάλυση.</title>
             </path>
           </a>;
         })}
       </svg>}
     </div>
     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-      <small>Χαμηλή ένταση <span aria-hidden="true" style={{ display: "inline-block", verticalAlign: "middle", width: 115, height: 12, borderRadius: 5, background: "linear-gradient(90deg,#d7ecee,#056777)" }} /> Υψηλή ένταση</small>
+      {visualization === "difference" ? <small>−40 π.μ. <span aria-hidden="true" style={{ display: "inline-block", verticalAlign: "middle", width: 115, height: 12, borderRadius: 5, background: "linear-gradient(90deg,#a85152,#f5f5ee,#087783)" }} /> +40 π.μ.</small> : <small>Χαμηλή ένταση <span aria-hidden="true" style={{ display: "inline-block", verticalAlign: "middle", width: 115, height: 12, borderRadius: 5, background: "linear-gradient(90deg,#d7ecee,#056777)" }} /> Υψηλή ένταση</small>}
       <small><span style={{ display: "inline-block", width: 11, height: 11, background: "#d9e2e7", marginRight: 5 }} /> Χωρίς επαρκή βάση · όχι μηδενική τιμή</small>
     </div>
   </div>;
