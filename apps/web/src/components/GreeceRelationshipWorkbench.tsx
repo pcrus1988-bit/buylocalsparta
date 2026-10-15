@@ -6,7 +6,7 @@ import { GREECE_REGIONS, type GreekRegionKey } from "../lib/research-geographic-
 import type { SafeRelationshipRegion } from "../lib/research-geographic-relations-core";
 import type { RelationshipFilters } from "../lib/research-geographic-relations-runtime";
 import {
-  relationshipRegionValue, relationshipMapCellValue, sortedRelationshipRegions,
+  relationshipRegionValue, relationshipMapCellValue, sortedRelationshipRegions, safeRelationshipRegionsCsv,
   type RelationshipMapView
 } from "../lib/research-geographic-relations-view";
 
@@ -107,6 +107,17 @@ export function GreeceRelationshipWorkbench({ root, filters, regions, aLabel, bL
     return root + "?" + query.toString();
   }, [root, filters, region, normalizedCompare, view]);
 
+  function downloadCsv() {
+    // Export the same redacted, rounded aggregates that this privileged UI displays.
+    const csv = "\\uFEFF" + safeRelationshipRegionsCsv(regions);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url; link.download = "kontamou-research-geographic-aggregates.csv";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   async function copyLink() {
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       try {
@@ -130,6 +141,7 @@ export function GreeceRelationshipWorkbench({ root, filters, regions, aLabel, bL
           setOnlyAvailable(false);
         }}>Επαναφορά χάρτη</button>
         <button type="button" className="button button-secondary" onClick={copyLink}>Αντιγραφή προβολής</button>
+        <button type="button" className="button button-secondary" onClick={downloadCsv}>Εξαγωγή συγκεντρωτικών CSV</button>
       </div>
     </div>
     <div className="relation-explorer-segments" role="group" aria-label="Τι εμφανίζει ο θερμικός χάρτης">
