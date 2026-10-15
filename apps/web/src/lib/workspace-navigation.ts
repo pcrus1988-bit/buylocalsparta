@@ -81,6 +81,7 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
       { label: "Παραδόσεις", href: "/vendor/settings/delivery", icon: "⌁", vendorCapability: "local_delivery.manage" },
       { label: "AADE & φορολογικά", href: "/vendor/settings/aade", icon: "#", vendorCapability: "aade.manage" },
       { label: "Προσφορές", href: "/vendor/settings/promotions", icon: "%", vendorCapability: "promotions.manage" },
+      { label: "Κοντινές προσφορές", href: "/vendor/settings/nearby-offers", icon: "◎", vendorCapability: "promotions.manage" },
       { label: "Εμφάνιση στη Google", href: "/vendor/settings/seo", icon: "⌕", vendorCapability: "seo.source_data.manage" },
       { label: "Πλάνο", href: "/vendor/settings/subscription", icon: "◎", vendorCapability: "subscription.manage" }
     ]
