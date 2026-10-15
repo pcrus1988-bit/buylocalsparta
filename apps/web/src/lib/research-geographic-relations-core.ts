@@ -82,6 +82,14 @@ export function relationshipAnswerCoverage(rows: readonly RawRelationshipCell[])
   return { answeredA: paired + onlyA, answeredB: paired + onlyB, paired, onlyA, onlyB };
 }
 
+/** Geographic coverage includes every available single-question answer, not only joint pairs. */
+export function relationshipAnswerCoverageByRegion(rows: readonly RawRelationshipCell[]) {
+  return GREECE_REGIONS.map(region => {
+    const source = rows.filter(row => greekRegionForPrefecture(row.prefecture) === region.key);
+    return { ...region, ...relationshipAnswerCoverage(source) };
+  });
+}
+
 function empty(): RelationshipCounts { return { answered:0, selected:0 }; }
 function plus(a: RelationshipCounts, b: RelationshipCounts): RelationshipCounts {
   return { answered:a.answered+b.answered, selected:a.selected+b.selected };
