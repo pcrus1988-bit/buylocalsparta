@@ -135,9 +135,12 @@ export function ResearchRelationshipExplorer({ root, filters, questions, sectors
       <fieldset className="research-relation-mode">
         <legend>Κατάσταση απαντήσεων</legend>
         <div className="research-relation-choice-row">
+          <Link prefetch={false} href={urlFor(root,filters,{mode:"all",region:""})}
+            aria-current={filters.mode==="all"?"page":undefined}
+            className={filters.mode==="all"?"is-active":""}>Όλες οι απαντήσεις</Link>
           <Link prefetch={false} href={urlFor(root,filters,{mode:"draft",region:""})}
             aria-current={filters.mode==="draft"?"page":undefined}
-            className={filters.mode==="draft"?"is-active":""}>Αποθηκευμένες</Link>
+            className={filters.mode==="draft"?"is-active":""}>Σε εξέλιξη</Link>
           <Link prefetch={false} href={urlFor(root,filters,{mode:"completed",region:""})}
             aria-current={filters.mode==="completed"?"page":undefined}
             className={filters.mode==="completed"?"is-active":""}>Οριστικές</Link>
@@ -162,9 +165,11 @@ export function ResearchRelationshipExplorer({ root, filters, questions, sectors
       </label>
     </div>
     <p className="research-relation-disclaimer">
-      {filters.mode==="draft"
-        ?"Προσωρινή εικόνα αποθηκευμένων ερωτηματολογίων. Δεν είναι οριστικές απαντήσεις ούτε επίσημη εκτίμηση."
-        :"Μόνο οριστικά υποβληθείσες απαντήσεις. Τα ποσοστά είναι περιγραφικά και μη σταθμισμένα."}
+      {filters.mode==="all"
+        ? "Συμπεριλαμβάνονται όλες οι καταγεγραμμένες απαντήσεις από οριστικά και μη οριστικά ερωτηματολόγια. Καμία απάντηση δεν διαγράφεται ή αλλάζει κατάσταση."
+        : filters.mode==="draft"
+        ? "Μόνο καταγεγραμμένες απαντήσεις ερωτηματολογίων σε εξέλιξη· δεν λογίζονται ως επίσημες υποβολές."
+        : "Μόνο οριστικά υποβληθείσες απαντήσεις. Τα ποσοστά είναι περιγραφικά και μη σταθμισμένα."}
     </p>
   </div>;
 }
