@@ -499,7 +499,7 @@ export async function updatePublicResearchConsents(input: Readonly<{
           normalizedGranted]);
       }
 
-      if (consentKind === "thank_you_code" && normalizedGranted) {
+      if (consentKind === "thank_you_code" && normalizedGranted && process.env.BLS_RESEARCH_THANK_YOU_DELIVERY_ENABLED === "true") {
         // The gift-code preference is deliberately offered only AFTER survey
         // completion. Queue the per-response delivery at the moment of this
         // explicit opt-in, otherwise the completion-time scheduler has no
