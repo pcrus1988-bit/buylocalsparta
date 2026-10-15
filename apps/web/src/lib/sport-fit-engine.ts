@@ -333,6 +333,23 @@ export function stockedSportFootwearVariantSizes(variantSize: unknown): readonly
   return canonical.key ? [size] : [];
 }
 
+/**
+ * Sport socks are sold in manufacturer-sized ranges, but inventory is still
+ * attached to exactly one canonical variant. Accept one numeric EU interval
+ * per variant only; never inherit a full family catalogue of sock ranges.
+ */
+export function stockedSportSockVariantSizes(variantSize: unknown): readonly string[] {
+  if (typeof variantSize !== "string") return [];
+  const size = variantSize.trim();
+  const range = size.match(/^(?:EU\s*)?(\d{2})\s*[-–]\s*(\d{2})$/i);
+  if (range) {
+    const from = Number(range[1]);
+    const to = Number(range[2]);
+    return from >= 18 && to <= 55 && from <= to && to - from <= 12 ? [size] : [];
+  }
+  return stockedSportFootwearVariantSizes(size);
+}
+
 function matchingSize(product: SportFitProduct, requestedSize: string | undefined, role: SportProductRole): string | undefined {
   const requested = requestedSize?.trim() ?? "";
   if (!requested || (role !== "footwear" && role !== "socks")) return undefined;
@@ -1347,12 +1364,14 @@ function kitSelectionEligible(
   );
   if (!hasGovernedKitMatch) return false;
 
-  if (product.role === "socks" && answers.size && product.sizes.length > 0) {
+  if (product.role === "socks" && answers.size) {
+    // Unknown-size socks are not a verified match for an explicit numeric EU
+    // foot size. Empty variant size metadata must not bypass this safeguard.
     const requestedNumeric = Number(
       normalize(answers.size).replace(/^eu\s*/, "").replace(",", ".")
     );
-    const hasComparableNumericSizing = product.sizes.some((size) => /\d/.test(size));
-    if (Number.isFinite(requestedNumeric) && hasComparableNumericSizing && !product.matchedSize) {
+    if (Number.isFinite(requestedNumeric) && requestedNumeric >= 18
+        && requestedNumeric <= 55 && !product.matchedSize) {
       return false;
     }
   }
