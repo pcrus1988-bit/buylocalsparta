@@ -164,6 +164,7 @@ export default async function ResearchRelationshipMapPage({ params, searchParams
             data.filters.mode, data.filters.phase, data.filters.sector, data.filters.kad,
             data.filters.preset, data.filters.a, data.filters.av, data.filters.b, data.filters.bv
           ].join("|")} root={link} filters={data.filters} regions={data.regions}
+            regionalCoverage={data.regionalCoverage}
             aLabel={data.pair.aLabel} bLabel={data.pair.bLabel}
             initialView={data.filters.view} initialCompare={data.filters.compare} />
           {data.unknownGeography && <p className="research-relation-small-note">
