@@ -217,7 +217,7 @@ export function GreeceRelationshipWorkbench({ root, filters, regions, regionalCo
           </select>
         </label>
         {compared && <RegionCard region={compared} aLabel={aLabel} bLabel={bLabel}
-          coverage={regionalCoverage?.find(x=>x.key===compared.key)} compact />}}
+          coverage={regionalCoverage?.find(x=>x.key===compared.key)} compact />}
         {selected && compared && <div className="relation-explorer-cross-compare" role="status">
           <strong>Διαφορά Περιφερειών · Ομάδα Α</strong>
           <span>{selected.segment.percent !== null && compared.segment.percent !== null
