@@ -12,7 +12,7 @@ export type RelationshipQuestion = Readonly<{
   code:string; label:string; type:"single"|"multi"|"scale"; options:readonly RelationshipChoice[];
 }>;
 export type RelationshipFilters = Readonly<{
-  mode:"draft"|"completed"; phase:"main"|"pilot"; sector:string; region:string;
+  mode:"draft"|"completed"; phase:"main"|"pilot"; sector:string; kad:string; region:string;
   preset:string; a:string; av:string; b:string; bv:string;
 }>;
 export type ResearchRelationshipDashboard = Readonly<{
@@ -20,6 +20,7 @@ export type ResearchRelationshipDashboard = Readonly<{
   pair:RelationshipPair;
   questions:readonly RelationshipQuestion[];
   sectors:readonly RelationshipChoice[];
+  kads:readonly RelationshipChoice[];
   regions:readonly SafeRelationshipRegion[];
   nationalSegment:SafeRelationshipCounts; nationalOther:SafeRelationshipCounts;
   unknownGeography:boolean; totalMatchedBase: number | null;
@@ -99,7 +100,7 @@ export async function researchRelationshipMap(
   ].join("\n"),[slug]);
   const study=studies.rows[0];
   if(!study?.instrument_id)return undefined;
-  const [qr,sr]=await Promise.all([
+  const [qr,sr,kr]=await Promise.all([
     pool.query<SqlRow>([
       "SELECT code,prompt_el,question_type,config,id FROM research_questions",
       "WHERE instrument_id=$1 AND question_type IN ('single','multi','scale')",
@@ -112,6 +113,16 @@ export async function researchRelationshipMap(
       "JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
       "WHERE r.study_id=$1 AND NULLIF(fu.sector_code,'') IS NOT NULL",
       "ORDER BY 1 LIMIT 40"
+    ].join("\n"),[study.study_id]),
+    pool.query<SqlRow>([
+      "SELECT matched.code, count(*) AS n FROM research_responses r",
+      "JOIN research_invites i ON i.id=r.invite_id",
+      "JOIN research_sample_units su ON su.id=i.sample_unit_id",
+      "JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
+      "CROSS JOIN LATERAL jsonb_array_elements_text(",
+      " CASE WHEN jsonb_typeof(fu.sampling_attributes->'matchedActivityCodes')='array'",
+      " THEN fu.sampling_attributes->'matchedActivityCodes' ELSE '[]'::jsonb END) AS matched(code)",
+      "WHERE r.study_id=$1 GROUP BY matched.code ORDER BY n DESC,matched.code LIMIT 100"
     ].join("\n"),[study.study_id])
   ]);
   const questions:RelationshipQuestion[]=qr.rows.map(row=>({
@@ -123,6 +134,8 @@ export async function researchRelationshipMap(
     key:text(row.code),label:SECTOR_LABELS[text(row.code)]??text(row.code)
   }));
   const sector=sectorOptions.some(x=>x.key===input.sector)?str(input.sector):"";
+  const kadOptions=kr.rows.map(row=>({key:text(row.code),label:text(row.code)}));
+  const kad=kadOptions.some(x=>x.key===input.kad)?str(input.kad):"";
   const region=GREECE_REGIONS.some(r=>r.key===input.region)?str(input.region,60):"";
   const mode=input.mode==="completed"?"completed":"draft";
   const phase=input.phase==="pilot"?"pilot":"main";
@@ -148,6 +161,7 @@ export async function researchRelationshipMap(
     " WHERE r.study_id=$1 AND r.instrument_id=$2",
     " AND r.status=$3 AND r.withdrawn_at IS NULL AND i.fieldwork_phase=$4",
     " AND ($9::text='' OR fu.sector_code=$9)",
+    " AND ($10::text='' OR COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb) ? $10::text)",
     " AND jsonb_typeof(a.answer) IN ('array','string','number')",
     " AND jsonb_typeof(b.answer) IN ('array','string','number')",
     " AND a.answer <> '[]'::jsonb AND b.answer <> '[]'::jsonb",
@@ -159,14 +173,14 @@ export async function researchRelationshipMap(
     "FROM complete_pairs GROUP BY prefecture,segment ORDER BY prefecture,segment"
   ].join("\n"),[
     study.study_id,study.instrument_id,mode==="completed"?"completed":"in_progress",phase,
-    qa.id,qb.id,[...resolved.pair.av],[...resolved.pair.bv],sector
+    qa.id,qb.id,[...resolved.pair.av],[...resolved.pair.bv],sector,kad
   ]);
   const agg=aggregateRelationship(records.rows.map(row=>({
     prefecture:text(row.prefecture),segment:Boolean(row.segment),
     answered:Number(row.answered??0),selected:Number(row.selected??0)
   })));
   const filters:RelationshipFilters={
-    mode,phase,sector,region,preset:resolved.preset,
+    mode,phase,sector,kad,region,preset:resolved.preset,
     a:resolved.a,av:resolved.av,b:resolved.b,bv:resolved.bv
   };
   await recordAdminPersonalDataAccess(principal,{
@@ -179,7 +193,7 @@ export async function researchRelationshipMap(
   });
   return {
     title:text(study.title),capturedAt:new Date().toISOString(),filters,
-    pair:resolved.pair,questions,sectors:sectorOptions,
+    pair:resolved.pair,questions,sectors:sectorOptions,kads:kadOptions,
     regions:agg.regions.map(safeRelationshipRegion),
     nationalSegment:safeRelationshipCounts(agg.nationalSegment),
     nationalOther:safeRelationshipCounts(agg.nationalOther),
