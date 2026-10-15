@@ -6,6 +6,7 @@ export type ResearchSurveyAdminSection =
   | "questions"
   | "evaluation"
   | "barometer"
+  | "free-text"
   | "behaviour"
   | "map"
   | "sampling"
@@ -37,6 +38,7 @@ export const RESEARCH_SURVEY_ADMIN_SECTIONS: ReadonlyArray<Readonly<{
   { key: "questions", label: "Questions", description: "Questionnaire structure, wording, answer options, order and analysis keys.", group: "design" },
   { key: "evaluation", label: "Evaluation & analysis", description: "Preregistered evaluation plus versioned later exploratory analyses.", group: "design" },
   { key: "barometer", label: "Live Barometer", description: "Live, unweighted provisional indices, response trends and question distributions; drafts and completed submissions stay separate.", group: "design" },
+  { key: "free-text", label: "Free-text themes", description: "Explore every non-withdrawn free-text response, grouped by topics with keyword, status, and question filters.", group: "design" },
   { key: "behaviour", label: "Participant Behaviour Analytics", description: "Daily and hourly questionnaire starts, completion duration and submission/backfill timeline.", group: "design" },
   { key: "map", label: "Interactive Map", description: "One-tap connections between questionnaire answers, industry filters and regional Greece comparisons.", group: "design" },
   { key: "sampling", label: "Cohort recruitment", description: "Full-cohort main fieldwork, Pilot-only sample draws.", group: "fieldwork" },
@@ -99,7 +101,7 @@ export function ResearchSurveyAdminNav({
         </div>
         <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
           {RESEARCH_SURVEY_ADMIN_SECTIONS.filter((item) => item.group === group.key).map((item) => {
-            const href = item.key === "overview" ? root : item.key === "map" ? root + "/map/relations" : root + "/" + item.key;
+            const href = item.key === "overview" ? root : item.key === "map" ? root + "/map/relations" : item.key === "free-text" ? root + "/responses/free-text" : root + "/" + item.key;
             return <Link prefetch={false}
               aria-current={current === item.key ? "page" : undefined}
               className={current === item.key ? "button" : "button button-secondary"}
