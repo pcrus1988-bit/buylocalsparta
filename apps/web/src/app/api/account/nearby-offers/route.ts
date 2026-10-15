@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const user = await requireAccountSession();
-    return Response.json(await getNearbyPreference(user), {headers:{"Cache-Control":"no-store"}});
+    return Response.json({...await getNearbyPreference(user),csrfToken:user.csrfToken}, {headers:{"Cache-Control":"no-store"}});
   } catch(error) {
     const message=error instanceof Error?error.message:"PREFERENCE_READ_FAILED";
     return Response.json({error:message},{status:message==="AUTH_REQUIRED"?401:400});
