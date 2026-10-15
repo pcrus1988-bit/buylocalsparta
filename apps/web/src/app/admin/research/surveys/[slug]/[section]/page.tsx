@@ -159,8 +159,10 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
           activeContacts={study.activeContacts}
           completed={study.completed}
           rewardEligible={study.rewardEligible}
+          rewardAwaitingOptIn={study.rewardAwaitingOptIn}
           rewardIssued={study.rewardIssued}
           rewardDeliveryFailed={study.rewardDeliveryFailed}
+          rewardDeliveryPaused={process.env.BLS_RESEARCH_THANK_YOU_DELIVERY_ENABLED !== "true"}
           pendingQualityReviews={study.qualityReview}
           succeededAnalysisRuns={study.succeededAnalysisRuns}
           latestReleaseVersion={study.latestReleaseVersion}
