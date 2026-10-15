@@ -3,6 +3,7 @@ import { renderKontaMoyEmail, resendConfigFromEnv, signedKontaMoyText } from "@b
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { KONTA_MOY_LEGAL_DETAILS } from "./vendor-agreement-pdf";
 import { resolveAutomaticEmailTemplate } from "./email-template-lab";
+import { KONTA_MOY_EMAIL_BASE_URL } from "./official-email-url";
 import {
   agreementActorUserId,
   agreementAudit,
@@ -21,7 +22,7 @@ export async function emailCommercialAgreementPdfVault(principal: SessionPrincip
   if (!destination) throw new Error("Vendor contract email is missing");
   const attachment = await readAgreementVaultPdf(String(row.unsigned_pdf_object_key));
   const config = resendConfigFromEnv();
-  const publicBaseUrl = publicBaseUrlFromEnv();
+  const publicBaseUrl = KONTA_MOY_EMAIL_BASE_URL;
   const emailInput = await resolveAutomaticEmailTemplate({
     subject: `KONTA MOY – Συμφωνία συνεργασίας ${row.agreement_code}`,
     text: [
@@ -91,9 +92,3 @@ export async function emailCommercialAgreementPdfVault(principal: SessionPrincip
   }
 }
 
-function publicBaseUrlFromEnv(): string {
-  const explicit = process.env.BLS_PUBLIC_BASE_URL?.trim() || process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (explicit) return explicit.replace(/\/$/, "");
-  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() || process.env.VERCEL_URL?.trim();
-  return production ? `https://${production.replace(/^https?:\/\//, "").replace(/\/$/, "")}` : "https://kontamou.site";
-}
