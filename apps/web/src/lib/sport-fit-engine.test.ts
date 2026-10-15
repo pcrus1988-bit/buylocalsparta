@@ -2527,3 +2527,58 @@ test("initial universe cannot be displaced by secondary products even at the 96-
   assert.equal(result.universe.filter((p) => sportProductRole(p) === "socks").length, 0);
   assert.equal(result.secondaryCount, 150);
 });
+
+test("exact manufacturer sock heel/toe cushioning zones add evidence-based detail without inventing cushioning grade", () => {
+  const base = product({
+    id: "adidas-ht3437", title: "ADIDAS 3-Stripes Linear Half-Crew 3P",
+    categoryCode: "socks-hosiery", sizes: ["40-42"],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      sockHeight: "quarter",
+      sockCushionZones: ["heel", "toe"],
+      sockCottonPct: 71,
+      sockPolyesterPct: 26,
+      sockElastanePct: 2,
+      sockNylonPct: 1,
+      packQuantity: 3,
+      evidence: [
+        { attributeCode:"sock_cushion_zone",value:"heel",sourceType:"manufacturer_product",confidence:1 },
+        { attributeCode:"sock_cushion_zone",value:"toe",sourceType:"manufacturer_product",confidence:1 },
+        { attributeCode:"sock_cotton_pct",value:"71",sourceType:"manufacturer_product",confidence:1 }
+      ]
+    }
+  });
+  const withoutZoneEvidence = {
+    ...base,
+    id: "adidas-no-evidence",
+    knowledge: { ...base.knowledge, evidence: [] }
+  };
+  const answers = { activity: "walking" as const, audience: "men" as const, size: "42" };
+  const documented = scoreSportFitProduct(base, answers);
+  const unverified = scoreSportFitProduct(withoutZoneEvidence, answers);
+  assert.ok(documented.reasons.some((reason) => /φτέρνα και στα δάχτυλα/.test(reason)));
+  assert.ok(documented.reasons.some((reason) => /71% βαμβάκι/.test(reason)));
+  assert.ok(!unverified.reasons.some((reason) => /φτέρνα και στα δάχτυλα|71% βαμβάκι/.test(reason)));
+  assert.equal(documented.technicalScore, unverified.technicalScore);
+  assert.equal(documented.score, unverified.score);
+  assert.equal(documented.role, "socks");
+  assert.equal(documented.knowledge?.sockCushioning, undefined);
+});
+
+test("uncertified manufacturer blend and sock pack size do not invent moisture-wicking, arch support or sports", () => {
+  const thin = product({
+    id:"ic1305",title:"adidas Think Linear Ankle Socks 3 Pairs",categoryCode:"socks-hosiery",
+    knowledge: {
+      status:"partial",identityQuality:"strong",
+      sockHeight:"ankle",packQuantity:3,
+      sockCottonPct:68,sockPolyesterPct:29,sockElastanePct:2,sockNylonPct:1
+    }
+  });
+  const answer = { activity:"hiking" as const,audience:"men" as const,frequency:"high" as const };
+  const scored = scoreSportFitProduct(thin,answer);
+  assert.equal(scored.knowledge?.moistureWicking,undefined);
+  assert.equal(scored.knowledge?.sockArchSupport,undefined);
+  assert.ok(scored.technicalRequirements.some(r=>r.id==="requirement.kit_activity" && r.status==="unknown"));
+  assert.ok(!scored.appliedRules.includes("kit.moisture_management_verified"));
+});
