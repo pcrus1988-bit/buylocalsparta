@@ -3,7 +3,7 @@ import { loadCatalogMetadata } from "./catalog-metadata";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 import { canonicalSportBrand } from "./sport-fit-brand";
-import { stockedSportFootwearVariantSizes } from "./sport-fit-engine";
+import { stockedSportFootwearVariantSizes, stockedSportSockVariantSizes } from "./sport-fit-engine";
 import type { SportAudience, SportFitKnowledge, SportFitKnowledgeEvidence, SportFitProduct, SportKnowledgeQueueStatus, SportKnowledgeStatus } from "./sport-fit-engine";
 
 type SportCatalogRow = Readonly<{
@@ -432,7 +432,9 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
       // footwear variant: availability is guaranteed only for cv.size.
       sizes: /(?:shoes|sneakers|boots|footwear)$/.test(row.category_code)
         ? stockedSportFootwearVariantSizes(row.variant_size)
-        : details?.sizes ?? [],
+        : row.category_code === "socks-hosiery"
+          ? stockedSportSockVariantSizes(row.variant_size)
+          : details?.sizes ?? [],
       fit: details?.fit,
       description: details?.description,
       attributes: details?.attributes ?? {},
