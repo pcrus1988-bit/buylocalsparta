@@ -24,9 +24,9 @@ export async function PATCH(request: Request) {
 export async function POST(request: Request) {
   try {
     const user=await requireAccountSession(request,true);
-    const body=await request.json() as {latitude?:unknown;longitude?:unknown;accuracy?:unknown};
+    const body=await request.json() as {latitude?:unknown;longitude?:unknown;accuracy?:unknown;canNotify?:unknown};
     const offers=await scanNearbyOffers(user,{
-      latitude:Number(body.latitude),longitude:Number(body.longitude),accuracy:Number(body.accuracy)
+      latitude:Number(body.latitude),longitude:Number(body.longitude),accuracy:Number(body.accuracy),canNotify:body.canNotify===true
     });
     return Response.json({offers},{headers:{"Cache-Control":"no-store"}});
   } catch(error){
