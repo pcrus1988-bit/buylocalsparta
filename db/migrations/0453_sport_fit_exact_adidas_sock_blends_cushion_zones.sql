@@ -201,12 +201,12 @@ JOIN public.sport_knowledge_sources s
  ON s.source_key='adidas_sock_exact_'||lower(f.code)||'_20261015'
 WHERE (SELECT enforce_data FROM _s453_scope);
 
-DO $$
-DECLARE m record;n int;
+DO $
+DECLARE model_row record;n int;
 BEGIN
  IF NOT (SELECT enforce_data FROM _s453_scope) THEN RETURN; END IF;
- FOR m IN SELECT family_id FROM _s453_models LOOP
-  PERFORM bls_private.refresh_sport_product_knowledge(m.family_id);
+ FOR model_row IN SELECT family_id FROM _s453_models LOOP
+  PERFORM bls_private.refresh_sport_product_knowledge(model_row.family_id);
  END LOOP;
  SELECT count(*) INTO n FROM _s453_facts f JOIN _s453_models m USING(code)
  JOIN public.sport_product_fact_evidence e ON e.family_id=m.family_id AND e.position=f.position
