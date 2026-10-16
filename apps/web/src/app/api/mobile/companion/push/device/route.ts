@@ -1,6 +1,6 @@
-import {requireMobileBearer} from "../../../../../../../lib/companion-mobile-auth";
+import {requireMobileBearer} from "../../../../../../lib/companion-mobile-auth";
 import {pushRegistrationEnabled,enrollCompanionDevice,
-  companionDeviceStatus,disableCompanionDevice} from "../../../../../../../lib/companion-push-service";
+  companionDeviceStatus,disableCompanionDevice} from "../../../../../../lib/companion-push-service";
 export const dynamic="force-dynamic";
 export const runtime="nodejs";
 const H={"Cache-Control":"no-store","Referrer-Policy":"no-referrer"};
