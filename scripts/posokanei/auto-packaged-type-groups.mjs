@@ -16,6 +16,14 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  // Narrow ordinary goods, audited against the 2026-10-16 retail archive.
+  // Generic parent categories still need an explicit source subtype.
+  ["μαυρη σοκολατα",["kg",/(?:σοκολατ.*μαυρ|μαυρ.*σοκολατ|dark.*chocolate)/u]],
+  ["τσαι",["kg",/(?:τσαι.*βουν|βουν.*τσαι|mountain.*tea)/u]],
+  ["τυρια",["kg",/(?:τυρ.*ημισκληρ|ημισκληρ.*τυρ|σκληρ.*τυρ.*τριμμ|τριμμ.*σκληρ.*τυρ)/u]],
+  ["φακες",["kg",/(?:φακ|φακ\p{L}*.*ψιλ|lentil)/u]],
+  ["λιγκουινι",["kg",/(?:λιγκουιν|linguine)/u]],
+
   // Additional individually inspected ordinary SKUs from the 2026-10-16
   // archived full-catalogue candidate queue.
   ["κατεψυγμενες αγκιναρες",["kg",/αγκιναρ|artichoke/u]],
@@ -93,7 +101,7 @@ const specs=new Map([
   ["φετα",["kg",/φετα|feta/u]],
   ["κεφαλοτυρι",["kg",/κεφαλοτυρ|hard cheese/u]],
   ["μπισκοτα",["kg",/μπισκοτ|biscuit|cookie/u]],
-  ["βουτηματα",["kg",/κουλουρακ|βουτημα|cookie/u]],
+  ["βουτηματα",["kg",/κουλουρακ|μουστοκουλουρ|βουτημα|cookie/u]],
   ["ψωμι τυποποιημενο",["kg",/ψωμι|bread/u]],
   ["αλευρι για ολες τις χρησεις",["kg",/αλευρι.*ολες.*χρησεις|all purpose flour/u]],
   ["στιγμιαιος καφες",["kg",/στιγμιαι.*καφ|καφ.*στιγμιαι|instant.*coffee/u]],
@@ -133,7 +141,7 @@ const specs=new Map([
   ["φρεσκο γαλα",["l",/φρεσκ.*γαλα|γαλα.*φρεσκ|fresh milk/u]],
   ["βουτυρο",["kg",/βουτυρ|butter/u]],
   ["πολτος ντοματας",["kg",/ντοματοπολτ|τοματοπολτ|ντοματα.*πολτ|tomato paste/u]],
-  ["χυμος ντοματας",["kg",/χυμ.*ντοματ|χυμ.*τοματ|tomato juice/u]],
+  ["χυμος ντοματας",["kg",/χυμ.*ντοματ|χυμ.*τοματ|tomato juice|(?=.*(?:ντοματ|τοματ))(?=.*passata)/u]],
   ["σαλτσα απο αποφλοιωμενες ντοματες",["kg",/ψιλοκομμ.*ντοματ|ψιλοκομμ.*τοματ|diced tomato/u]],
   ["χυμος πορτοκαλι",["l",/χυμ.*πορτοκαλ|orange juice/u]],
   ["κατεψυγμενα φασολακια",["kg",/φασολακια|green beans/u]],
