@@ -12,15 +12,15 @@ export async function POST(request:Request){
     if(raw.length>15000)return fail(413,"Η λίστα είναι πολύ μεγάλη.");
     const input:unknown=JSON.parse(raw);
     if(!input||typeof input!=="object"||Array.isArray(input))return fail(400,"Μη έγκυρη λίστα.");
-    const {lines,storeLimit}=input as {lines?:unknown;storeLimit?:unknown};
+    const {lines,storeLimit,retailerIds}=input as {lines?:unknown;storeLimit?:unknown;retailerIds?:unknown};
     if(!Array.isArray(lines)||lines.length<1||lines.length>20||
-      !Number.isSafeInteger(storeLimit)||typeof storeLimit!=="number"||storeLimit<1||storeLimit>3)
-      return fail(400,"Επιτρέπονται 1–20 προϊόντα και έως 3 αλυσίδες.");
+      !Number.isSafeInteger(storeLimit)||typeof storeLimit!=="number"||storeLimit<1||storeLimit>5||!Array.isArray(retailerIds)||retailerIds.length<1||retailerIds.length>24||retailerIds.some(id=>typeof id!=="string"||!/^[a-zA-Z0-9_-]{1,100}$/.test(id)))
+      return fail(400,"Επιτρέπονται 1–20 προϊόντα και έως 5 αλυσίδες με τουλάχιστον μία επιλεγμένη.");
     const snapshot=await loadPublishedReference();
     if(!snapshot)return fail(503,"Οι τιμές αναφοράς δεν είναι ακόμη διαθέσιμες.");
     const result=optimizeReferenceBasket({
       lines:lines as BasketLine[],products:snapshot.products,observations:snapshot.observations,
-      approvedGroups:snapshot.approvedGroups,snapshotDate:snapshot.snapshot_date,country:"GR",storeLimit
+      approvedGroups:snapshot.approvedGroups,snapshotDate:snapshot.snapshot_date,country:"GR",storeLimit,retailerIds
     });
     return NextResponse.json({status:"ready",result},{headers});
   }catch(e){

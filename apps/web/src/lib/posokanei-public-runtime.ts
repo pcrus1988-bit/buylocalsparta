@@ -15,6 +15,19 @@ import {transformSnapshot,sha256} from "../../../../scripts/posokanei/snapshot-a
 
 const MIRROR_BASE="https://raw.githubusercontent.com/spyrosavl/posokanei/main/";
 const MIRROR_TTL_MS=15*60*1000;
+// Accept only HTTPS product photographs; retailer logos, badges and internal hosts are never exposed.
+function safeProductPhoto(value:unknown):string|null{
+  if(typeof value!=="string"||value.length>1500)return null;
+  try{
+    const u=new URL(value);
+    if(u.protocol!=="https:"||u.username||u.password||u.port||u.hash||
+      !u.hostname.includes(".")||/(?:^|\.)localhost$/.test(u.hostname)||
+      /^(?:127\.|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(u.hostname)||
+      /(?:logo|favicon|avatar|retailer|supermarket|sprite|placeholder)/i.test(u.pathname))return null;
+    return u.toString();
+  }catch{return null;}
+}
+
 const MAX_ARCHIVE_BYTES=55_000_000;
 const STATUTORY_REUSE_REFERENCE="GR_N4727_2020_ART61_PUBLIC_SECTOR_REUSE";
 let mirrorCache:{value:PublishedReferenceSnapshot|null;expires:number}|null=null;
@@ -76,7 +89,7 @@ async function readGovernmentMirror():Promise<PublishedReferenceSnapshot|null>{
     products:transformed.references.map(p=>({
       source_product_id:p.source_product_id,name:p.name,brand:p.brand,
       category:p.category,unit:p.unit,unit_quantity:p.unit_quantity,
-      snapshot_date:p.snapshot_date
+      snapshot_date:p.snapshot_date,image_url:safeProductPhoto(p.image_source_url)
     })),
     observations:transformed.prices.filter(p=>p.price_eur>0).map(p=>({
       source_product_id:p.source_product_id,snapshot_date:p.snapshot_date,
@@ -111,7 +124,7 @@ async function cachedGovernmentMirror():Promise<PublishedReferenceSnapshot|null>
  */
 export type ReferenceProduct = {
   source_product_id:string; name:string; brand:string|null; category:string|null;
-  unit:string|null; unit_quantity:number|null; snapshot_date:string;
+  unit:string|null; unit_quantity:number|null; snapshot_date:string; image_url?:string|null;
 };
 export type ReferenceOffer = {
   source_product_id:string; snapshot_date:string; country:string;
@@ -198,7 +211,7 @@ export function publicCards(snapshot:PublishedReferenceSnapshot,ids:string[],cat
   const filter=new Set(ids);
   return snapshot.products.filter(p=>filter.has(p.source_product_id)).map(p=>({
     id:p.source_product_id,name:p.name,brand:p.brand,category:p.category,
-    unit:p.unit,unitQuantity:p.unit_quantity,groupId:catalog.groupId.get(p.source_product_id)||null,
+    unit:p.unit,unitQuantity:p.unit_quantity,imageUrl:safeProductPhoto(p.image_url),groupId:catalog.groupId.get(p.source_product_id)||null,
     offers:(catalog.byProduct.get(p.source_product_id)||[]).map(o=>({
       retailerId:o.retailer_id,retailerName:o.retailer_name||o.retailer_id,
       priceEur:o.price_eur,observedAt:o.source_price_updated_at,discount:o.is_discount===true
