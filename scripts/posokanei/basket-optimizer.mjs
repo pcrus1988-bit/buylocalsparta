@@ -48,6 +48,9 @@ function basketLineOptions(line, productById, groupById, priceByProduct, snapsho
     }
   } else throw new Error('Unsupported basket line kind');
 
+  if(line.lockedRetailerId != null && !identifier(line.lockedRetailerId)) {
+    throw new Error('Invalid lockedRetailerId');
+  }
   const options = [];
   let hasProduct = false, hasCompatiblePack = false;
   for(const id of requested) {
@@ -68,6 +71,7 @@ function basketLineOptions(line, productById, groupById, priceByProduct, snapsho
       hasCompatiblePack = true;
     }
     for(const observation of priceByProduct.get(id) ?? []) {
+      if(line.lockedRetailerId != null && observation.retailer_id !== line.lockedRetailerId) continue;
       const cents = Math.round(observation.price_eur * 100);
       if(!Number.isSafeInteger(cents) || cents < 1) continue;
       const totalCents = cents * count;
