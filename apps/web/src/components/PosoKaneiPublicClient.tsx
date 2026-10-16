@@ -231,8 +231,34 @@ export function PosoKaneiPublicClient(){
           {error&&<p className={styles.error} role="alert">{error}</p>}
           {result&&<div className={styles.results} aria-live="polite">
             <div className={styles.buttons}><button className={mode==="single"?styles.primary:styles.secondary} onClick={()=>setMode("single")} type="button">1 αλυσίδα</button><button className={mode==="limited"?styles.primary:styles.secondary} onClick={()=>setMode("limited")} type="button">Έως {storeLimit}</button><button className={mode==="all"?styles.primary:styles.secondary} onClick={()=>setMode("all")} type="button">Χωρίς όριο</button></div>
-            {plan?.complete?<><small>Σύνολο πλήρους λίστας</small><div className={styles.bigTotal}>{money(plan.totalEur)}</div><p>{plan.storeCount} αλυσίδα/αλυσίδες</p>{plan.items.map(item=><div className={styles.resultLine} key={item.lineId}><span>{item.productName}<small> {item.retailerName} · {item.packages} τεμ.</small></span><strong>{money(item.lineTotalEur)}</strong></div>)}</>:<p className={styles.error}>Δεν υπάρχει πλήρης λίστα με καταγεγραμμένες τιμές. Τα προϊόντα που λείπουν δεν υπολογίζονται ως δωρεάν.</p>}
-            {mode!=="single"&&result.savingsVsCheapestCompleteSingleStoreEur!==null&&<p className={styles.saving}>Ενδεικτική εξοικονόμηση έναντι μιας αλυσίδας: <strong>{money(result.savingsVsCheapestCompleteSingleStoreEur)}</strong></p>}
+            {plan?.complete?<><small>Σύνολο πλήρους λίστας</small><div className={styles.bigTotal}>{money(plan.totalEur)}</div><p><strong>{plan.storeCount}</strong> {plan.storeCount===1?"στάση":"στάσεις"} · Στις ίδιες τιμές προτιμάμε αλυσίδες που ήδη επισκέπτεσαι.</p>
+              {plan.stores.map(store=><section className={styles.storeGroup} key={store.id} aria-label={"Αγορές από "+store.name}>
+                <h4>{store.name}<small>{plan.items.filter(item=>item.retailerId===store.id).length} προϊόντα</small></h4>
+                {plan.items.filter(item=>item.retailerId===store.id).map(item=><div className={styles.resultLine} key={item.lineId}><span>{item.productName}<small>{item.packages} συσκευασία/ες</small></span><strong>{money(item.lineTotalEur)}</strong></div>)}
+              </section>)}
+            </>:<p className={styles.error}>Δεν υπάρχει πλήρης λίστα με καταγεγραμμένες τιμές. Τα προϊόντα που λείπουν δεν υπολογίζονται ως δωρεάν.</p>}
+            <section className={styles.classicComparison} aria-label="Σύγκριση με σενάριο επιλογής μίας αλυσίδας βάσει κάλυψης">
+              <span className={styles.eyebrow}>ΣΥΓΚΡΙΣΗ ΣΤΡΑΤΗΓΙΚΩΝ</span>
+              <h3>Πόσα εξοικονομείς με τη μοιρασμένη λίστα;</h3>
+              <p className={styles.methodNote}>Προσομοίωση παραδοσιακής επιλογής: διαλέγουμε <strong>μία</strong> από τις επιτρεπόμενες αλυσίδες που διαθέτει τα περισσότερα διαφορετικά προϊόντα της λίστας, <strong>χωρίς να βελτιστοποιούμε το συνολικό κόστος</strong>. Σε ισοβαθμία εφαρμόζεται σταθερή σειρά αλυσίδων, όχι η τιμή. Πρόκειται για ενδεικτικό σενάριο σύγκρισης, όχι επαληθευμένη αναπαραγωγή του αλγορίθμου του επίσημου PosoKanei.</p>
+              <div className={styles.comparisonColumns}>
+                <div className={styles.comparisonOption}>
+                  <small>Μία αλυσίδα · προτεραιότητα κάλυψης</small>
+                  <strong>{result.coverageFirstSingleStore?.complete?money(result.coverageFirstSingleStore.totalEur):"Μη πλήρες καλάθι"}</strong>
+                  <span>{result.coverageFirstSingleStore?.retailerName||"Χωρίς διαθέσιμη αλυσίδα"}</span>
+                  <span>{result.coverageFirstSingleStore?.coveredItemCount??0}/{result.lineCount} προϊόντα με καταγεγραμμένη τιμή</span>
+                </div>
+                <div className={styles.comparisonOption}>
+                  <small>KONTA MOY · έως {storeLimit} αλυσίδες</small>
+                  <strong>{result.cheapestWithinStoreLimit?.complete?money(result.cheapestWithinStoreLimit.totalEur):"Μη πλήρες καλάθι"}</strong>
+                  <span>{result.cheapestWithinStoreLimit?.complete?result.cheapestWithinStoreLimit.storeCount+" πραγματικές στάσεις":"Δεν έχει βρεθεί πλήρης συνδυασμός"}</span>
+                  <span>{result.cheapestWithinStoreLimit?.complete?result.lineCount+"/"+result.lineCount+" προϊόντα με τιμή":"Απαιτούνται τιμές για όλη τη λίστα"}</span>
+                </div>
+              </div>
+              {result.savingsVsCoverageFirstSingleStoreEur!==null
+                ?<p className={styles.saving}>Εξοικονόμηση έναντι της επιλογής βάσει κάλυψης: <strong>{money(result.savingsVsCoverageFirstSingleStoreEur)}</strong> {result.savingsVsCoverageFirstSingleStorePercent!==null?"("+result.savingsVsCoverageFirstSingleStorePercent.toLocaleString("el-GR")+"%)":""}</p>
+                :<p className={styles.methodNote}>Δεν εμφανίζουμε παραπλανητική εξοικονόμηση: η επιλογή μίας αλυσίδας δεν καλύπτει όλα τα προϊόντα, ή δεν υπάρχει πλήρης εναλλακτική λίστα. Το κόστος των προϊόντων που λείπουν παραμένει άγνωστο.</p>}
+            </section>
             {result.missingItems.length>0&&<p>Χωρίς τιμή: {result.missingItems.map(item=>labels[item.lineId]||item.lineId).join(", ")}</p>}
             <small>Δεν περιλαμβάνεται κόστος μετακίνησης, διανομή ή προγράμματα επιβράβευσης.</small>
           </div>}
