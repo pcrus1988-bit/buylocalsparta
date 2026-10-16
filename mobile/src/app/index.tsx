@@ -28,7 +28,7 @@ export default function Home() {
       <Link href="/stores" asChild><Pressable accessibilityRole="button" style={styles.quickButton}><Text style={styles.quickText}>▤ Καταστήματα</Text></Pressable></Link>
       <Link href="/basket" asChild><Pressable accessibilityRole="button" style={styles.quickButton}><Text style={styles.quickText}>▣ Καλάθι</Text></Pressable></Link>
     </View>
-    <Link href="/lists" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Λίστα αγορών & Wishlist →</Text></Pressable></Link>
+    <Link href="/lists" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Λίστες για καταστήματα & Wishlist →</Text></Pressable></Link>
     <Link href="/nearby" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Τι υπάρχει κοντά μου; →</Text></Pressable></Link>
     <Link href="/diagnostics" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Έλεγχος λειτουργίας συσκευής →</Text></Pressable></Link>
     <Link href="/notifications" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Ειδοποιήσεις Android →</Text></Pressable></Link>
