@@ -29,10 +29,11 @@ test("PosoKanei always shows compact shopping-list alternatives with explicit ma
   assert.match(source,/entry\.alternatives\.length>0\|\|entry\.candidates\.length>0/);
   assert.match(source,/<section className=\{styles\.suggestion\} key=\{entry\.lineId\}/);
   assert.match(source,/Εναλλακτικές για/);
-  assert.match(source,/Πιθανή εναλλακτική · μη ελεγμένη/);
+  assert.doesNotMatch(source,/Πιθανή εναλλακτική · μη ελεγμένη/);
+  assert.match(source,/Αυτόματα ελεγμένη αντιστοίχιση/);
   assert.match(source,/Ελεγμένος συγκρίσιμος τύπος/);
   assert.match(source,/onClick=\{\(\)=>chooseAlternative\(entry\.lineId,option\)\}/);
-  assert.match(source,/window\.confirm\(/);
+  assert.doesNotMatch(source,/Η εναλλακτική δεν έχει επιβεβαιωθεί/);
   assert.match(source,/packages===null\|\|packages>100/);
   assert.doesNotMatch(source,/Μη επιβεβαιωμένες εναλλακτικές:|Δεν επιτρέπεται αυτόματη αντικατάσταση|Πιθανά οικονομικότερα προϊόντα για/);
 });
@@ -45,12 +46,12 @@ test("All-price shopping-list suggestions are opt-in; other API callers retain c
 });
 
 test("a chosen reviewed alternative preserves original prices and refreshes total savings",()=>{
-  assert.match(source,/replacedFrom=next\.confidence==="reviewed_equivalent"/);
+  assert.match(source,/replacedFrom=\["reviewed_equivalent","automatically_verified"\]\.includes\(next\.confidence\)/);
   assert.match(source,/void calculate\(revised\)/);
   assert.match(source,/savingsIncludingBrands\(result,plan\)/);
   assert.match(source,/Συνολική εξοικονόμηση/);
   assert.match(source,/Εξοικονόμηση από επιλογή σούπερ μάρκετ/);
-  assert.match(source,/Unverified candidates remain opt-in/);
+  assert.doesNotMatch(source,/Unverified candidates remain opt-in/);
   assert.match(source,/Εναλλακτικές για/);
 });
 
