@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "KONTA MOY",
+    "slug": "kontamou",
+    "scheme": "kontamou",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "site.kontamou.mobile"
+    },
+    "android": {
+      "package": "site.kontamou.mobile",
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Το ΚΟΝΤΑ ΜΟΥ χρησιμοποιεί την τοποθεσία σου μόνο όταν το ζητάς, για κοντινά καταστήματα και προσφορές.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false
+        }
+      ]
+    ],
+    "extra": {
+      "marketplaceUrl": "https://kontamou.site"
+    }
+  }
+}
