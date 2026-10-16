@@ -3,7 +3,10 @@ import test from "node:test";
 import {classifyFcmResponse,companionDispatchGate} from "../src/lib/companion-fcm-status.ts";
 
 test("Only verified invalid registration responses suppress a device",()=>{
- assert.equal(classifyFcmResponse(404,{error:{status:"UNREGISTERED"}}),"invalid_token");
+ assert.equal(classifyFcmResponse(404,{error:{status:"NOT_FOUND",details:[
+   {"@type":"type.googleapis.com/google.firebase.fcm.v1.FcmError",errorCode:"UNREGISTERED"}
+ ]}}),"invalid_token");
+ assert.equal(classifyFcmResponse(404,{error:{status:"NOT_FOUND"}}),"failed");
  assert.equal(classifyFcmResponse(400,{error:{status:"INVALID_ARGUMENT",details:[
    {"@type":"type.googleapis.com/google.firebase.fcm.v1.FcmError",errorCode:"INVALID_ARGUMENT"}
  ]}}),"invalid_token");
