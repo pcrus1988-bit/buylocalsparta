@@ -38,33 +38,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: |
-            set -e
-            find /tmp/companion-apk -name '*.apk' -print
-            APK=$(find /tmp/companion-apk -name '*.apk' | head -n 1)
-            test -n "$APK"
-            adb install -r "$APK"
-            adb reverse tcp:8081 tcp:8081
-            ( cd mobile && CI=1 EXPO_NO_TELEMETRY=1 npx expo start --offline --port 8081 > /tmp/companion-metro.log 2>&1 & )
-            sleep 20
-            adb shell am start -n site.kontamou.companion/.MainActivity
-            sleep 35
-            adb shell uiautomator dump /sdcard/window.xml || true
-            adb pull /sdcard/window.xml /tmp/companion-ui.xml || true
-            adb shell screencap -p /sdcard/companion-screen.png || true
-            adb pull /sdcard/companion-screen.png /tmp/companion-screen.png || true
-            adb logcat -d -s ReactNativeJS:E AndroidRuntime:E ReactNative:E > /tmp/companion-error-log.txt || true
-            if grep -Ei 'FATAL EXCEPTION|Unable to load script|Invariant Violation|ReactNativeJS:.*Error:|AndroidRuntime:.*FATAL' /tmp/companion-error-log.txt; then
-              echo "Android startup/runtime error found"
-              exit 1
-            fi
-            if grep -Eiq 'KONTA MOY|KONTA|Companion|Σπάρτη|Ανακάλυψε|[α-ωάέήίόύώ]' /tmp/companion-ui.xml; then
-              echo "Android UI visible"
-            else
-              echo "Android visible UI not confirmed. Emulator and Metro logs are attached."
-              cat /tmp/companion-metro.log | tail -60
-              exit 1
-            fi
+          script: bash mobile/scripts/android_emulator_smoke.sh
       - name: Upload emulator screenshots and safe logs
         if: always()
         uses: actions/upload-artifact@v4
