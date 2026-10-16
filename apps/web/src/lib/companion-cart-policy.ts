@@ -14,10 +14,11 @@ export function companionCartRevision(cart:CompanionCartSnapshot):string{
    ({canonicalVariantId,quantity,priceMinor,available})).sort((a,b)=>a.canonicalVariantId.localeCompare(b.canonicalVariantId))};
  return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
 }
-export function parseCompanionCartPut(value:unknown):{revision:string;items:CompanionCartLine[]}{
+export function parseCompanionCartPut(value:unknown):{revision:string;expectedUpdatedAt:number|null;items:CompanionCartLine[]}{
  if(!value||typeof value!=="object"||Array.isArray(value))throw Error("INVALID_CART");
  const body=value as Record<string,unknown>;
  if(typeof body.revision!=="string"||!/^[a-f0-9]{64}$/.test(body.revision))throw Error("INVALID_REVISION");
+ if(body.expectedUpdatedAt!==null && (!Number.isSafeInteger(body.expectedUpdatedAt) || (body.expectedUpdatedAt as number)<0))throw Error("INVALID_REVISION");
  if(!Array.isArray(body.items)||body.items.length>100)throw Error("INVALID_CART");
  const seen=new Set<string>();const items:CompanionCartLine[]=[];
  for(const raw of body.items){
@@ -30,5 +31,5 @@ export function parseCompanionCartPut(value:unknown):{revision:string;items:Comp
   seen.add(item.canonicalVariantId);
   items.push({canonicalVariantId:item.canonicalVariantId,quantity:item.quantity});
  }
- return {revision:body.revision,items};
+ return {revision:body.revision,expectedUpdatedAt:body.expectedUpdatedAt as number|null,items};
 }
