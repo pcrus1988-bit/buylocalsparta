@@ -8,6 +8,7 @@ import {
   type CompanionAccount,type CompanionOrder
 } from "../lib/companion-session";
 import {theme} from "../theme";
+import {importAccountWishlist} from "../lib/companion-store";
 
 WebBrowser.maybeCompleteAuthSession();
 const REDIRECT="kontamoucompanion://auth";
@@ -27,6 +28,7 @@ export default function CompanionAccountScreen(){
  const [loading,setLoading]=useState(true);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
+ const [importNotice,setImportNotice]=useState("");
  const consumed=useRef("");
  const [request,response,promptAsync]=AuthSession.useAuthRequest({
    clientId:"kontamou-companion-android",
@@ -57,6 +59,15 @@ export default function CompanionAccountScreen(){
    }).finally(()=>setBusy(false));
  },[request,response,refresh]);
 
+ async function importWishlist(){
+   if(!account ||busy)return;
+   setBusy(true);
+   try {
+     const count=await importAccountWishlist(account.savedProducts);
+     setImportNotice(count?`Προστέθηκαν ${count} νέα είδη στην offline wishlist σου.`:"Όλα τα είδη υπάρχουν ήδη στην τοπική wishlist σου.");
+   }catch{setImportNotice("Η εισαγωγή απέτυχε. Τα αποθηκευμένα είδη στον λογαριασμό δεν άλλαξαν.");}
+   finally{setBusy(false);}
+ }
  async function logout(){
    setBusy(true);setError("");
    try{await disconnectCompanion();setAccount(null);}
@@ -124,10 +135,15 @@ export default function CompanionAccountScreen(){
           <Text style={styles.link}>Δες προϊόν ↗</Text>
          </Pressable>
        </View>)}
+      <Pressable accessibilityRole="button" disabled={busy||account.savedProducts.length===0}
+        onPress={()=>void importWishlist()} style={[styles.outline,(busy||!account.savedProducts.length)&&styles.disabled]}>
+        <Text style={styles.outlineText}>Εισαγωγή wishlist στον Android Companion</Text>
+      </Pressable>
+      {importNotice!==""&&<Text style={styles.info} accessibilityLiveRegion="polite">{importNotice}</Text>}
       <Link href="/lists" asChild><Pressable accessibilityRole="button" style={styles.outline}>
        <Text style={styles.outlineText}>Οι τοπικές μου λίστες →</Text>
       </Pressable></Link>
-      <Text style={styles.note}>Η τοπική Android λίστα παραμένει ξεχωριστή από την ιστοσελίδα. Ο συγχρονισμός διπλών εγγραφών απαιτεί ξεχωριστό έλεγχο.</Text>
+      <Text style={styles.note}>Η εισαγωγή αντιγράφει όσα είδη λείπουν στη συσκευή, χωρίς να αφαιρεί ή να αλλάζει την wishlist του λογαριασμού. Η πλήρης αμφίδρομη συγχρονισμένη wishlist δεν έχει ενεργοποιηθεί.</Text>
     </View>
   </>}
   <View style={styles.card}>
