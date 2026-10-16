@@ -31,6 +31,7 @@ Use the **standalone internal-test APK**, not the older `app-debug.apk`.
 - Background: lock phone or swipe away app; **no ongoing foreground location monitor remains**
 - Android account: sign-in shows disabled message until reviewed mobile auth backend enabled
 - Pickups: order QR is obtained only via existing authenticated marketplace page, not invented in the app
+- Native pickup screen: when auth is enabled on test hardware, show only account-owned pickup orders, prioritize `pickupReady`, honor cancellation/refund; opening a card uses the protected real order detail browser page and does not expose any QR in Android state
 - Notifications: FCM device registration is gated; no vendor marketing push or arbitrary notifications
 - Logout / remote revoke and Firebase token rotation after the production service is enabled, on a test customer only
 
