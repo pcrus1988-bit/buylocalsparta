@@ -9,6 +9,7 @@ export type CompanionNewAddress={
 function optional(value:unknown,max:number):string|undefined{
  if(value===undefined||value===null||value==="")return undefined;
  if(typeof value!=="string")throw Error("INVALID_ADDRESS");
+ if(/[\u0000-\u001f\u007f]/.test(value))throw Error("INVALID_ADDRESS");
  const normalized=value.normalize("NFKC").trim().replace(/\s+/g," ");
  if(normalized.length>max||/[\u0000-\u001f\u007f]/.test(normalized))
   throw Error("INVALID_ADDRESS");
