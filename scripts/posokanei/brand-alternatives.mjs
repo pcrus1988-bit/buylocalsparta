@@ -198,9 +198,11 @@ export function findBrandAlternatives({
   const demand=quantity.amount*packages;
   // Explicitly reviewed group membership is independent from heuristic title
   // tokens, so different legitimate packaging terminology still works.
-  const approvedForSource=new Set(approvedGroups
-    .filter(g=>g?.status==="approved"&&Array.isArray(g.memberIds)&&g.memberIds.includes(sourceId))
-    .flatMap(g=>g.memberIds));
+  const sourceGroups=approvedGroups.filter(g=>
+    g?.status==="approved"&&Array.isArray(g.memberIds)&&g.memberIds.includes(sourceId));
+  const approvedForSource=new Set(sourceGroups.flatMap(g=>g.memberIds));
+  const automaticForSource=new Set(sourceGroups
+    .filter(g=>g.approvalMethod==="automatic_commodity").flatMap(g=>g.memberIds));
   const poolById=new Map();
   if(family)for(const p of brandIndex.get(family+"|"+quantity.unit)||[])
     poolById.set(p.source_product_id,p);
@@ -233,7 +235,8 @@ export function findBrandAlternatives({
       originalTotalEur:euros(sourceCents),candidateTotalEur:euros(cents),
       savingsEur:euros(sourceCents-cents),
       savingPercent:Math.round(100*(sourceCents-cents)/sourceCents),
-      confidence:approvedForSource.has(candidate.source_product_id)?"reviewed_equivalent":"unverified_match"
+      confidence:approvedForSource.has(candidate.source_product_id)?"reviewed_equivalent":"unverified_match",
+      approvalMethod:automaticForSource.has(candidate.source_product_id)?"automatic_commodity":"manual_or_unverified"
     };
     const brandKey=normalize(candidate.brand)+"|"+entry.confidence;
     const prior=byBrand.get(brandKey);
