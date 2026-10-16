@@ -76,7 +76,7 @@
 .suggestionLine small{display:block;font-size:11px;color:#436d4c;margin-top:4px}
 .mobileBasketShortcut{display:none}
 @media(max-width:1120px){
- .mobileBasketShortcut{display:block;position:sticky;bottom:12px;z-index:8;width:min(100%,600px);margin:18px auto 0;border:0;border-radius:14px;background:#19513b;color:#fff;padding:15px;box-shadow:0 12px 30px #163e2e40;text-align:center}
+ .mobileBasketShortcut{display:block;position:fixed;bottom:max(12px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:8;width:min(calc(100% - 24px),600px);margin:0;border:0;border-radius:14px;background:#19513b;color:#fff;padding:15px;box-shadow:0 12px 30px #163e2e40;text-align:center}
 }
 @media(max-width:700px){
  .wrap{padding:0 14px}.hero{display:block;padding:24px 0 13px}.heroBox{padding:16px 18px;border-radius:15px;margin-top:16px}
@@ -97,3 +97,5 @@
  .pagination{gap:8px}.pagination button{font-size:11px;padding:9px}
  .footerNote{margin-top:23px}.sidebar{scroll-margin-top:20px}
 }
+
+@media(max-width:1120px){.scope{padding-bottom:106px}}
