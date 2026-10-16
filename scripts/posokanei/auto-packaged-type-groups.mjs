@@ -16,6 +16,35 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  // Additional individually inspected ordinary SKUs from the 2026-10-16
+  // archived full-catalogue candidate queue.
+  ["κατεψυγμενες αγκιναρες",["kg",/αγκιναρ|artichoke/u]],
+  ["κατεψυγμενο μιξ λαχανικων",["kg",/αναμικτ.*λαχανικ|λαχανικ.*αναμικτ|mixed vegetable/u]],
+  ["νισεστες",["kg",/νισεστε|cornstarch/u]],
+  ["ρυζογαλο",["kg",/ρυζογαλο|rice pudding/u]],
+  ["παπρικα",["kg",/παπρικ|paprika/u]],
+  ["ριγκατονι",["kg",/ριγκατονι|rigatoni/u]],
+  ["λαζανια",["kg",/λαζανακι|lasagne/u]],
+  ["στριφτο",["kg",/τριβελακι|fusilli/u]],
+  ["χυμος μηλου",["l",/χυμ.*μηλ|apple juice/u]],
+  ["χυμος εσπεριδοειδων",["l",/φρουτοποτ.*λεμον|λεμον.*φρουτοποτ/u]],
+  ["σοδα",["l",/σοδα|soda/u]],
+  ["καφες φιλτρου",["kg",/καφ.*φιλτρ|φιλτρ.*καφ|filter coffee/u]],
+  ["εσπρεσσο",["kg",/καφ.*espresso|espresso.*καφ|espresso/u]],
+  ["ρεγκατο",["kg",/regato|ρεγκατο/u]],
+  ["ποπ κορν",["kg",/ποπ.*κορν|popcorn/u]],
+
+  // Additional categories with unambiguous source-described product kinds;
+  // full normalized title family, distinct brands and labelled whole-pack
+  // quantity continue to gate every individual approved comparison.
+  ["επιδορπιο κρεμας",["kg",/κρεμα.*(?:βανιλ|καραμελ)|καραμελ.*κρεμα/u]],
+  ["γευματα",["kg",/σπανακορυζ|αρακας.*λαδερ|λαδερ.*αρακ/u]],
+  ["θαλασσινα και ψαρια",["kg",/(?=.*pollock)(?=.*(?:φιλετ|fillet))/u]],
+  ["πατατες",["kg",/κατεψυγμεν.*πατατ|πατατ.*κατεψυγμεν/u]],
+  ["μαργαρινη",["kg",/μαργαριν.*classic|classic.*μαργαριν|μαργαριν.*κλασικ|κλασικ.*μαργαριν/u]],
+  ["πουλερικα",["kg",/κοτοπουλ.*μπουτ.*φιλετ|φιλετ.*μπουτ.*κοτοπουλ/u]],
+  ["παιδικα δημητριακα",["kg",/choco\s*balls/u]],
+
   // Additional source-described types from the same reviewed 10,323-SKU audit.
   // Broad source categories below are bounded to explicit product-title kinds.
   ["παριζα παριζακι",["kg",/παριζα|παριζακι/u]],
@@ -149,12 +178,16 @@ function accepted(p){
   if(!config)return false;
   const title=norm(p.name);
   if(!config[1].test(title)||dangerous.test(title))return false;
+  // Raw/plain staples do not permit identically worded *processed* variants.
+  // Exact cross-brand family matching is necessary, but not sufficient.
+  if(["πουλερικα","πατατες"].includes(category)&&
+     /πανε|παναρισ|marinat|μαριναρ|seasoned|καρυκευ|μπαχαρ|spiced|προτηγαν|prefried|pre-fried|προψημεν|breaded|battered|wedge|σφην|sticks|τηγανιτ|προετοιμασμεν/u.test(title))return false;
   const size=referenceQuantity(p),label=titleQuantity(p.name);
   if(!size||!label||size.unit!==config[0]||label.unit!==size.unit||
      size.amount<.02||size.amount>40||Math.abs(size.amount-label.quantity)>1e-6)return false;
   const fam=productFamily(p);
   const bits=fam?.split("|")[1]?.split(" ").filter(Boolean)||[];
-  if(bits.length<2 && !["αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη","κατεψυγμενος αρακας","αριανι","κοραλλια","αλλα ζυμαρικα","ταχινι","φαρινα","ανθοτυρο"].includes(category))return false;
+  if(bits.length<2 && !["αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη","κατεψυγμενος αρακας","αριανι","κοραλλια","αλλα ζυμαρικα","ταχινι","φαρινα","ανθοτυρο","κατεψυγμενες αγκιναρες","νισεστες","ρυζογαλο","ριγκατονι","λαζανια","στριφτο","σοδα"].includes(category))return false;
   // Dairy requires fat information, otherwise packaging titles alone do not
   // distinguish normal, low fat, lactose-free and fermented variants.
   const listedFatPercent=/\b\d+(?:[.,]\d+)?\s*%/u.test(title);

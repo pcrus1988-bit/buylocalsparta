@@ -214,3 +214,18 @@ Additional narrowly scoped categories are kefir, condensed milk, pure cocoa powd
 ### 16 October — audited everyday staple expansion
 
 Added strictly category- and title-scoped matching rules for sheep/goat traditional yogurts, plain ayran, frozen spinach leaves, coarse/fine semolina, exact dry-pasta shapes (ziti, spaghetti numbers, coral, celery and rice-shaped pasta), baking couverture by declared variety, petit beurre biscuits, plain tahini, coarse chickpeas, ground garlic, grated mozzarella, dishwasher salt and glass-cleaner refill variants. All require accurate published physical pack quantity and exact family/subtype identity across trustworthy distinct brands. Organic, vegan, free-from and specialty dietary versions remain excluded by the existing negative gate; items are only source-described comparable TYPES, not ingredient or nutrition identity. No customer selection is made automatically and only strictly cheaper, whole-quantity equivalent prices can produce savings.
+
+
+### Precision batch: ready meal types, desserts, raw fillets, and basic groceries
+
+Additional allowlist predicates cover exactly described crème dessert varieties, named prepared frozen vegetable meals, Pollock fillets, plain frozen potatoes, classic margarine, raw chicken thigh fillets and Choco Balls cereals. A broad source category is never itself sufficient; every included product must carry the specific title subtype, brand evidence and a physically validated whole pack, and only products with identical normalized descriptive families are grouped. Variant mismatch (different fillings, flavors, fish species, processing methods, dietary claims, functional cholesterol-lowering spreads) is never waived. Comparability means shopping-choice product type, not proof of identical ingredients, origin, allergens, safety or nutrition. Shopper consent and cheaper-only whole-pack savings restrictions remain unchanged.
+
+
+### Second precision batch from remaining dated 2026-10-16 source families
+
+New narrow families considered in audit: frozen artichokes, frozen mixed vegetables, cornstarch, rice pudding, sweet paprika, rigatoni, small lasagne, trivellaki, apple juice, lemon fruit drink, soda water, flavored filter coffee, decaf ground espresso, grated Regato and butter popcorn. They are source-described comparable *types only* with exact normalized subtypes, complete verified declared packs, known distinct brands, and customer-controlled strictly-cheaper substitutions. Flavors, pasta shape, ingredients, formulation claims, preparation type and units are not merged across families. Always re-audit counts on the latest complete dated snapshot; never force an approval on source-title or quantity drift.
+
+
+### Final review hardening for Pollock and raw/plain comparables
+
+Pollock fillet approvals explicitly require both the Pollock species marker and the fillet marker. Generic Μπακαλιάρος Φιλέτο is never auto-approved as Pollock. Raw chicken thigh fillets and plain frozen potato approvals reject identically described breaded, marinated, seasoned, pre-fried or prepared products; an exact title-family match by itself cannot waive the unprocessed-intended-use restriction. These guardrails are enforced before grouping and covered by negative regression tests.
