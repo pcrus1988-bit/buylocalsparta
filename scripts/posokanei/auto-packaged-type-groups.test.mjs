@@ -183,3 +183,30 @@ test("fresh mozzarella, generic white cheese and smoked turkey stay distinct",()
  assert.equal(groups.length,2);
  assert.deepEqual(groups.map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["t-a","t-b"],["z-a","z-b"]]);
 });
+
+test("explicit frozen pea category permits simple brand-neutral pea labels with verified kg packs",()=>{
+ const list=[
+  p("pea-a","ΛΑΖΑΡΙΔΗ","ΛΑΖΑΡΙΔΗ Αρακάς 900g","Κατεψυγμένος Αρακάς","kg",.9),
+  p("pea-b","ΑΙΝΟΣ","ΑΙΝΟΣ Αρακάς 1kg","Κατεψυγμένος Αρακάς","kg",1),
+  p("pea-c","THIRD","THIRD Αρακάς Με Καρότο 1kg","Κατεψυγμένος Αρακάς","kg",1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["pea-a","pea-b"]]);
+});
+test("source-described full fat fresh milk may match without numerical fat percentage but not light",()=>{
+ const list=[
+  p("milk-full-a","ΦΑΡΜΑ ΗΛΕΙΑΣ","ΦΑΡΜΑ ΗΛΕΙΑΣ Φρέσκο Γάλα Πλήρες 1lt","Φρέσκο Γάλα","l",1),
+  p("milk-full-b","ΜΑΝΔΡΕΚΑΣ","ΜΑΝΔΡΕΚΑΣ Φρέσκο Γάλα Πλήρες 1lt","Φρέσκο Γάλα","l",1),
+  p("milk-light","ΕΒΟΛ","ΕΒΟΛ Φρέσκο Γάλα Ελαφρύ 590ml","Φρέσκο Γάλα","l",.59),
+  p("milk-unspecified","OTHER","OTHER Φρέσκο Γάλα 1lt","Φρέσκο Γάλα","l",1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["milk-full-a","milk-full-b"]]);
+});
+test("vinegar spelling variation unifies balsamic type without merging wine vinegar or conflicting physical units",()=>{
+ const list=[
+  p("v-a","ALFA","ALFA Ξίδι Βαλσάμικο 250ml","Ξύδι","l",.25),
+  p("v-b","BETA","BETA Ξύδι Βαλσάμικο 500ml","Ξύδι","l",.5),
+  p("v-wine","GAMMA","GAMMA Ξύδι από Λευκό Κρασί 500ml","Ξύδι","l",.5),
+  p("v-mass","DELTA","DELTA Ξύδι Βαλσάμικο 250g","Ξύδι","kg",.25)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["v-a","v-b"]]);
+});
