@@ -6,7 +6,8 @@
  * physical unit agree. Variants (fat %, organic, sugar-free, fragrance, size,
  * etc.) remain in the signature and are not silently treated as equivalent.
  *
- * This is a *suggestion*, never an automatic basket substitution.
+ * All displayed matches pass product family, category, brand and unit validation.
+ * Selection is always the shopper's explicit choice.
  * Prices are dated supermarket-chain references, not branch availability.
  */
 
@@ -56,7 +57,6 @@ const canonicalTypes=[
   ["sugar","ζαχαρη","ζαχαρης","sugar"],
   ["flour","αλευρι","αλευρου","flour"],
   ["salt","αλατι","αλατιου","salt"],
-  ["vinegar","ξιδι","ξυδι","vinegar"],
   ["water","νερο","νερου","water"],
   ["juice","χυμος","χυμοι","χυμου","juice"],
   ["coffee","καφες","καφε","καφεδες","coffee"],
@@ -155,6 +155,17 @@ const euros = cents => Number((cents/100).toFixed(2));
  * With 10k products, indexing once per loaded snapshot makes every basket
  * line a lookup rather than another full catalogue scan.
  */
+export function isAutomaticBrandEquivalent(source,candidate) {
+  if(!source||!candidate||source.source_product_id===candidate.source_product_id||
+    !reliableBrand(source.brand)||!reliableBrand(candidate.brand)||
+    normalize(source.brand)===normalize(candidate.brand)||
+    normalize(source.category)!==normalize(candidate.category))return false;
+  const a=referenceQuantity(source),b=referenceQuantity(candidate);
+  if(!a||!b||a.unit!==b.unit)return false;
+  const family=productFamily(source);
+  return !!family&&family===productFamily(candidate);
+}
+
 export function createBrandIndex(products) {
   const byFamily=new Map();
   for(const p of products) {
@@ -185,7 +196,7 @@ export function findBrandAlternatives({
   if(!source)return {reason:"not_found",basis:null,sourceAmount:null,alternatives:[],candidates:[]};
   const quantity=referenceQuantity(source);
   if(!quantity)return {reason:"unknown_quantity",basis:null,sourceAmount:null,alternatives:[],candidates:[]};
-  const base={basis:quantity.unit,sourceAmount:quantity.amount,alternatives:[],candidates:[]};
+  const base={basis:quantity.unit,sourceAmount:quantity.amount,alternatives:[],candidates:[],bestCheaperSavingEur:0,cheaperAlternativeCount:0};
   const family=productFamily(source);
   if(!reliableBrand(source.brand))return {...base,reason:"no_comparable_brands"};
   const forbidden=new Set(excludedRetailerIds);
@@ -227,6 +238,8 @@ export function findBrandAlternatives({
     if(!offer)continue;
     const cents=count*Math.round(offer.price_eur*100);
     if(!Number.isSafeInteger(cents)||(!includeNonCheaper&&cents>=sourceCents))continue;
+    const reviewed=approvedForSource.has(candidate.source_product_id);
+    if(!reviewed&&!isAutomaticBrandEquivalent(source,candidate))continue;
     const entry={
       id:candidate.source_product_id,name:candidate.name,brand:candidate.brand,
       packageQuantity:size.amount,unit:size.unit,packageCount:count,
@@ -236,10 +249,10 @@ export function findBrandAlternatives({
       originalTotalEur:euros(sourceCents),candidateTotalEur:euros(cents),
       savingsEur:euros(sourceCents-cents),
       savingPercent:Math.round(100*(sourceCents-cents)/sourceCents),
-      confidence:approvedForSource.has(candidate.source_product_id)?"reviewed_equivalent":"unverified_match",
-      approvalMethod:automaticForSource.has(candidate.source_product_id)?"automatic_commodity":"manual_or_unverified"
+      confidence:reviewed?"reviewed_equivalent":"automatically_verified",
+      approvalMethod:reviewed?(automaticForSource.has(candidate.source_product_id)?"automatic_commodity":"manual_review"):"automatic_match"
     };
-    const brandKey=normalize(candidate.brand)+"|"+entry.confidence;
+    const brandKey=normalize(candidate.brand);
     const prior=byBrand.get(brandKey);
     if(!prior||entry.candidateTotalEur<prior.candidateTotalEur||
        (entry.candidateTotalEur===prior.candidateTotalEur&&entry.id<prior.id))
@@ -248,12 +261,14 @@ export function findBrandAlternatives({
   const ranked=[...byBrand.values()].sort((a,b)=>
     a.candidateTotalEur-b.candidateTotalEur||b.savingsEur-a.savingsEur||
     a.name.localeCompare(b.name,"el"));
-  const alternatives=ranked.filter(x=>x.confidence==="reviewed_equivalent").slice(0,maxResults);
-  // Unverified candidates are shown only as information, without any
-  // substitution CTA or guaranteed-savings claim in the UI.
-  const candidates=ranked.filter(x=>x.confidence==="unverified_match").slice(0,maxResults);
+  // Derive potential savings from EVERY validated priced brand before the UI cap.
+  // The shopper can replace a line only once: take the best option, never sum brands.
+  const cheaper=ranked.filter(entry=>entry.savingsEur>0);
+  const bestCheaperSavingEur=cheaper.reduce((best,entry)=>
+    Math.max(best,Math.round(entry.savingsEur*100)),0)/100;
+  const alternatives=ranked.slice(0,maxResults);
   return {...base,originalTotalEur:euros(sourceCents),sourcePackages:packages,
-    alternatives,candidates,reason:alternatives.length?(includeNonCheaper?"comparable_found":"cheaper_found"):
-      candidates.length?(includeNonCheaper?"unreviewed_comparables":"unreviewed_candidates"):
+    alternatives,candidates:[],bestCheaperSavingEur,cheaperAlternativeCount:cheaper.length,
+    reason:alternatives.length?(includeNonCheaper?"comparable_found":"cheaper_found"):
       pool.length>1?(includeNonCheaper?"no_comparable_price":"no_cheaper_brand"):"no_comparable_brands"};
 }
