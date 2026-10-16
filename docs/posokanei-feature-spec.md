@@ -155,3 +155,16 @@ Production controls: `POSOKANEI_PUBLIC_RELEASE_ENABLED=true`, `POSOKANEI_DATA_RE
 When the simulated availability-first supermarket covers only 15 of 20 selected lines, show that supermarket's observed per-package and line prices for those 15 products, and compare them against KONTA MOY's best price-split across the same 15 *exact SKUs, package counts and quantities* within the user's allowed chains and maximum 1–5 stores. This subset optimization is independent of the full 20-line optimization; the actual supermarkets required may consequently differ. Never silently change brands or product sizes for this comparison, even for approved substitute groups.
 
 Present both matched-subset totals and every product-level pair of prices, supermarket chosen for the split, savings per line, total EUR savings and percentage against the coverage-first partial subtotal. Clearly label the remaining 5 items as excluded from this comparison, and retain the full 20-product result elsewhere. The single-store partial subtotal is *not* the cost of a full basket. If no matched lines exist, show no savings. Keep previously defined full-basket savings null where a complete one-store comparison is impossible. Apply all global supermarket exclusions to both price lists.
+
+
+## Catalogue comparisons: multilingual family discovery with explicit approval boundary (2026-10-16)
+
+The discovery engine processes **all source products**, not a fixed set of grocery categories. A deterministic curated lexicon recognizes selected Greek inflections and English product-type terms, removes explicitly declared brand wording and corroborated physical pack counts, and preserves meaningful formulation, fat content, dietary, scent, and size-class modifiers. Matching requires the same detailed source category and compatible source quantity unit; no blanket category-only or fuzzy equivalence.
+
+On every product card, **Σύγκριση άλλων μαρκών** queries lower-, equally- and higher-priced items for the requested amount, using whole-pack rounding and the current chain exclusions. Responses separate two evidence tiers:
+- **Reviewed equivalents (alternatives):** Both products belong to the same explicitly approved group. They may be added to a list on user request, never silently.
+- **Unverified matches (candidates):** Product wording and source metadata are similar but exchangeability is not established. Show these as possible related products with *hypothetical* price differences, no direct action to replace/add, and no guarantee of savings.
+
+Automatic basket alerts remain strictly cheaper-only, with a replacement CTA only for reviewed equivalents. The catalogue GET endpoint supports an opt-in show=all comparison; batch POST remains cheaper-only. This does not imply store-specific stock or marketplace checkout, and excludes travel costs. Aggregate coverage counts must distinguish reviewed matches from heuristically similar unreviewed pairs.
+
+Do not merge the superseded PR #1565 directly: its original matcher predates the safety gate merged in #1564. Reconcile it with that gate before considering a production deployment.
