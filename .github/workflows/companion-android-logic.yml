@@ -47,8 +47,10 @@ jobs:
         with:
           node-version: "24"
       - name: Install pinned SDK 57 dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Strict TypeScript check
         run: npm run check
       - name: Expo compatibility check
         run: npx expo install --check
+      - name: Export Android JavaScript bundle
+        run: npx expo export --platform android --output-dir dist-companion
