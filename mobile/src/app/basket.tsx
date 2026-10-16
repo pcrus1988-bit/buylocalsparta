@@ -21,10 +21,10 @@ export default function Basket(){
  const [loading,setLoading]=useState(true);
  const [notice,setNotice]=useState("");
  const version=useRef(0);
- const refresh=useCallback(async()=>{
+ const refresh=useCallback(async(preserveNotice=false)=>{
   const current=++version.current;
   setLoading(true);
-  try{const result=await loadNativeCart();if(current===version.current){setCart(result);setNotice("");}}
+  try{const result=await loadNativeCart();if(current===version.current){setCart(result);if(!preserveNotice)setNotice("");}}
   catch(e){
    if(current===version.current){
     setCart(null);
@@ -48,7 +48,7 @@ export default function Basket(){
   }catch(e){
    const code=e instanceof Error?e.message:"";
    setNotice(errorText(code));
-   if(code==="CART_CHANGED")await refresh();
+   if(code==="CART_CHANGED")await refresh(true);
   }finally{setBusy(false);}
  }
  function remove(item:NativeCartItem){
