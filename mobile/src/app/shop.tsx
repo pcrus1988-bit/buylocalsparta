@@ -5,6 +5,7 @@ import {searchCompanionCatalog,type CompanionCatalogProduct} from "../lib/compan
 import {getItems,addCatalogItem} from "../lib/companion-store";
 import {openMarketplace} from "../lib/marketplace-navigation";
 import {theme} from "../theme";
+import {addNativeCartVariant} from "../lib/companion-cart";
 
 const SUGGESTIONS=["Παπούτσια","Καλλυντικά","Ρούχα","Εργαλεία","Αθλητικά"];
 export default function NativeStorefront(){
@@ -45,6 +46,22 @@ export default function NativeStorefront(){
     outcome==="reactivated"?"Το προϊόν επέστρεψε στα εκκρεμή της wishlist.":"Αυτό το προϊόν υπάρχει ήδη στην wishlist σου.");
   }catch{setNotice("Δεν ήταν δυνατή η αποθήκευση στη συσκευή.");}
   finally{setSaving(null);}
+ }
+ async function addToBasket(product:CompanionCatalogProduct){
+  if(saving)return;
+  setSaving(product.variantId);setNotice("");
+  try{
+   await addNativeCartVariant(product.variantId);
+   setNotice("Το προϊόν προστέθηκε στο κοινό καλάθι του λογαριασμού σου.");
+  }catch(e){
+   const code=e instanceof Error?e.message:"";
+   setNotice(code==="CART_CHANGED"
+    ?"Το καλάθι ενημερώθηκε από άλλη συσκευή. Άνοιξέ το και δοκίμασε ξανά."
+    :code==="LOGIN_REQUIRED"?"Συνδέσου στο Companion από τον λογαριασμό σου για να αποθηκεύσεις κοινό καλάθι."
+    :code==="NOT_ENABLED"?"Το κοινό καλάθι Android δεν είναι ενεργό σε αυτή την έκδοση. Μπορείς να αγοράσεις μέσω του ιστότοπου."
+    :code==="INVALID_QUANTITY"?"Έχεις ήδη τη μέγιστη ποσότητα στο καλάθι."
+    :"Δεν προστέθηκε το προϊόν στο καλάθι. Δοκίμασε στον ασφαλή ιστότοπο.");
+  }finally{setSaving(null);}
  }
  async function addToShopping(product:CompanionCatalogProduct){
   if(saving)return;
@@ -103,6 +120,11 @@ export default function NativeStorefront(){
           style={styles.shopping} onPress={()=>void addToShopping(product)}>
          <Text style={styles.shoppingText}>+ Λίστα αγορών</Text>
        </Pressable>
+       <Pressable accessibilityRole="button" disabled={saving!==null}
+          accessibilityLabel={`Προσθήκη ${product.title} στο πραγματικό καλάθι`}
+          style={styles.save} onPress={()=>void addToBasket(product)}>
+         <Text style={styles.saveText}>+ Καλάθι</Text>
+       </Pressable>
        <Pressable accessibilityRole="link"
           onPress={()=>void openMarketplace({path:"/product/"+product.variantId})}>
         <Text style={styles.openText}>Δες προϊόν / αγορά ↗</Text>
@@ -124,7 +146,7 @@ export default function NativeStorefront(){
       <Text style={styles.quickButtonText}>Καλάθι & checkout →</Text>
    </Pressable></Link>
   </View>
-  <Text style={styles.footnote}>Τα προϊόντα που προστίθενται στη wishlist ή στη λίστα αγορών φυλάσσονται στη συσκευή και δεν εισάγονται αυτόματα στο καλάθι αγοράς. Το checkout χρησιμοποιεί το πραγματικό καλάθι της ιστοσελίδας KONTA MOY.</Text>
+  <Text style={styles.footnote}>Τα προϊόντα που προστίθενται στη wishlist ή στη λίστα αγορών φυλάσσονται στη συσκευή και δεν εισάγονται αυτόματα στο καλάθι αγοράς. Το εγγενές καλάθι συγχρονίζει με τον συνδεδεμένο λογαριασμό, εφόσον η υπηρεσία είναι ενεργή. Το checkout παραμένει στον ασφαλή ιστότοπο KONTA MOY.</Text>
  </ScrollView>;
 }
 const styles=StyleSheet.create({
