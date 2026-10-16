@@ -12,6 +12,7 @@ on:
       - "apps/web/test/companion-fcm-status.test.ts"
       - "apps/web/test/companion-catalog-policy.test.ts"
       - "mobile/test/marketplace-links.test.ts"
+      - "mobile/test/canonical-id.test.ts"
       - ".github/workflows/companion-android-logic.yml"
   push:
     branches: [main]
@@ -37,7 +38,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - run: node --experimental-strip-types --test mobile/test/nearby-matching.test.ts apps/web/test/companion-pkce.test.ts apps/web/test/companion-push-policy.test.ts apps/web/test/companion-fcm-status.test.ts apps/web/test/companion-catalog-policy.test.ts mobile/test/marketplace-links.test.ts mobile/test/navigation-contract.test.mjs
+      - run: node --experimental-strip-types --test mobile/test/nearby-matching.test.ts apps/web/test/companion-pkce.test.ts apps/web/test/companion-push-policy.test.ts apps/web/test/companion-fcm-status.test.ts apps/web/test/companion-catalog-policy.test.ts mobile/test/marketplace-links.test.ts mobile/test/navigation-contract.test.mjs mobile/test/canonical-id.test.ts
   android-types:
     name: Android Expo dependency and typecheck
     runs-on: ubuntu-latest
