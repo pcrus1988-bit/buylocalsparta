@@ -64,7 +64,7 @@ function Section({ id, eyebrow, title, description, items }: { id: string; eyebr
 export function AccountHomeHub({ activeOrders, unreadNotifications, savedProducts, savedSearches }: { activeOrders: number; unreadNotifications: number; savedProducts: number; savedSearches: number }) {
   return <div className={`shell ${styles.hub}`}>
     <div className={styles.overview}>
-      <div><span className={styles.eyebrow}>Ο λογαριασμός μου</span><h1>Όλα σου τα πράγματα. <span>Σε ένα μέρος.</span></h1><p>Δες τι χρειάζεται την προσοχή σου και πήγαινε κατευθείαν σε ό,τι θέλεις.</p></div>
+      <div><span className={styles.eyebrow}>Ο λογαριασμός μου</span><h2>Τι θέλεις να κάνεις <span>σήμερα;</span></h2><p>Οι πιο σημαντικές ενέργειες και η δραστηριότητά σου, χωρίς περιττά μενού.</p></div>
       <Link className={styles.browseLink} href="/shop">Ανακάλυψε προϊόντα <span aria-hidden="true">↗</span></Link>
     </div>
     <div className={styles.stats} aria-label="Η δραστηριότητά σου">
