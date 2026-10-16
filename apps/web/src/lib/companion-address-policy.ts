@@ -1,5 +1,5 @@
-/** Pure input contract for first-party Android creation of a customer-owned address.
- * Update/delete are deliberately absent until versioned editing is reviewed.
+/** Strict customer-owned native address input contract; update/delete IDs are
+ * validated but must still be authorized by the account-scoped database service.
  */
 export type CompanionNewAddress={
  label:string;fullName:string;line1:string;line2?:string;locality:string;
@@ -48,4 +48,24 @@ export function parseCompanionNewAddress(value:unknown):CompanionNewAddress{
   isDefaultBilling:x.isDefaultBilling===true,
   isDefaultDelivery:x.isDefaultDelivery===true
  };
+}
+
+/** Existing address IDs are opaque public IDs, never a customer selector. */
+export function parseCompanionAddressId(value:unknown):string{
+ if(typeof value!=="string"||!/^[A-Za-z0-9_-]{6,128}$/.test(value))
+  throw Error("INVALID_ADDRESS_ID");
+ return value;
+}
+export function parseCompanionAddressUpdate(value:unknown):CompanionNewAddress&{id:string}{
+ if(!value||typeof value!=="object"||Array.isArray(value))
+  throw Error("INVALID_ADDRESS");
+ const body=value as Record<string,unknown>;
+ const id=parseCompanionAddressId(body.id);
+ const {id:_discard,...fields}=body;
+ return {id,...parseCompanionNewAddress(fields)};
+}
+export function parseCompanionAddressRemoval(value:unknown):{id:string}{
+ if(!value||typeof value!=="object"||Array.isArray(value)
+  ||Object.keys(value).length!==1)throw Error("INVALID_ADDRESS");
+ return {id:parseCompanionAddressId((value as Record<string,unknown>).id)};
 }
