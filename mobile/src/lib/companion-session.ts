@@ -152,15 +152,18 @@ export async function companionAuthorizedRequest<T>(
    },
    ...(payload===undefined?{}:{body:JSON.stringify(payload)}),
  });
+ const epoch=sessionEpoch;
  let token=await accessToken();
- if(!token)throw Error("LOGIN_REQUIRED");
+ if(!token||epoch!==sessionEpoch)throw Error("LOGIN_REQUIRED");
  let r=await call(token);
+ if(epoch!==sessionEpoch)throw Error("LOGIN_REQUIRED");
  if(r.status===401){
    activeAccess=null;expiresAt=0;
    token=await accessToken();
-   if(!token)throw Error("LOGIN_REQUIRED");
+   if(!token||epoch!==sessionEpoch)throw Error("LOGIN_REQUIRED");
    r=await call(token);
  }
+ if(epoch!==sessionEpoch)throw Error("LOGIN_REQUIRED");
  if(!r.ok){
   if(r.status===409 && path==="/cart"){
    const body=await r.json().catch(()=>null) as {error?:unknown}|null;
@@ -169,5 +172,7 @@ export async function companionAuthorizedRequest<T>(
   }
   throw Error(r.status===429?"RATE_LIMITED":r.status===503?"NOT_ENABLED":r.status===401?"LOGIN_REQUIRED":"REQUEST_FAILED");
  }
- return await r.json() as T;
+ const payloadResponse=await r.json() as T;
+ if(epoch!==sessionEpoch)throw Error("LOGIN_REQUIRED");
+ return payloadResponse;
 }
