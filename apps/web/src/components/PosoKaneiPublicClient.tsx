@@ -13,7 +13,7 @@ type Mode="single"|"limited"|"all";
 const money=(n:number|null|undefined)=>typeof n==="number"&&Number.isFinite(n)?new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(n):"—";
 const empty:Listing={status:"unavailable",products:[],categories:[],groups:[],retailers:[]};
 function pricePerUnit(product:Product,price:number){
-  const base:Record<string,[string,number]>={kg:["kg",1],g:["kg",.001],gr:["kg",.001],l:["L",1],ml:["L",.001],piece:["τεμ.",1],pcs:["τεμ.",1]};
+  const base:Record<string,[string,number]>={kg:["kg",1],g:["kg",.001],gr:["kg",.001],l:["L",1],L:["L",1],ml:["L",.001],piece:["τεμ.",1],pcs:["τεμ.",1]};
   const unit=product.unit?base[product.unit]:undefined;
   if(!unit||!product.unitQuantity||product.unitQuantity<=0)return null;
   return {price:price/(product.unitQuantity*unit[1]),unit:unit[0]};
@@ -115,8 +115,8 @@ export function PosoKaneiPublicClient(){
         </div>
         <div className={styles.heroBox}>
           <small>Τελευταία καταγραφή</small>
-          <strong>{listing.snapshotDate??"Δεν έχει δημοσιευτεί"}</strong>
-          <span>{listing.status==="ready"?"Ενδεικτικές καταγεγραμμένες τιμές":"Αναμένεται επαληθευμένη δημοσίευση τιμών"}</span>
+          <strong>{loading?"Φόρτωση τιμών…":listing.snapshotDate??"Δεν έχει δημοσιευτεί"}</strong>
+          <span>{loading?"Ενημέρωση πραγματικών καταγεγραμμένων τιμών…":listing.status==="ready"?"Ενδεικτικές καταγεγραμμένες τιμές":"Αναμένεται επαληθευμένη δημοσίευση τιμών"}</span>
         </div>
       </div>
       <div className={styles.disclaimer} role="note"><strong>Σημαντικό:</strong> Οι τιμές είναι ενδεικτικές καταγραφές, όχι απόδειξη διαθεσιμότητας ή ίδιας τιμής στο τοπικό κατάστημα. Δεν πραγματοποιούνται αγορές ή παραγγελίες μέσω της σύγκρισης.</div>
