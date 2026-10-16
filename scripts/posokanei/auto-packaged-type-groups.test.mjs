@@ -547,5 +547,10 @@ test("exact traditional grape-must cookies and fine domestic lentils compare wit
  p("le-b","FARMER","FARMER Φακές Ψιλές Ελληνικές 500gr","Φακές","kg",.5),
  p("le-bio","OLA BIO","OLA BIO Φακές Ψιλές Ελληνικές 500g","Φακές","kg",.5)
  ];
- assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["le-a","le-b"],["mu-a","mu-b"]]);
+ // A BIO-marked producer shares this family signature; fail the whole
+ // family closed rather than implying its organic product equals conventional.
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["mu-a","mu-b"]]);
+ // Without the ambiguous/claim-bearing third product, ordinary lentils can
+ // be compared within their explicitly described origin and grain size.
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list.filter(x=>x.source_product_id!=="le-bio")).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["le-a","le-b"],["mu-a","mu-b"]]);
 });
