@@ -1,7 +1,9 @@
 import * as SQLite from "expo-sqlite";
 import { DeviceEventEmitter } from "react-native";
+import {validCanonicalPublicId} from "./canonical-id";
+import {planCatalogAdd,planListMoveMerge,type CatalogAddAction,type ListKind} from "./list-rules";
+export type {ListKind} from "./list-rules";
 
-export type ListKind = "shopping" | "wishlist";
 export type ListItem = {
   id: string;
   kind: ListKind;
@@ -67,6 +69,41 @@ export async function addItem(kind:ListKind,title:string,quantity=1,variantId:st
     id,kind,clean,quantity,variantId,Date.now());
   return id;
 }
+/** Add a real canonical variant to a chosen local list, without duplicate rows.
+ * Wishlist: idempotent (reopens a checked item).
+ * Shopping: repeated adds increment quantity, capped at 99.
+ */
+export async function addCatalogItem(
+ kind:ListKind,product:{variantId:string;title:string},quantity=1
+):Promise<CatalogAddAction>{
+ const variant=product.variantId?.trim();
+ const title=product.title?.normalize("NFKC").trim().replace(/\s+/g," ");
+ if(!validCanonicalPublicId(variant)||!title||title.length<2||title.length>120)
+  throw Error("INVALID_CATALOG_ITEM");
+ const db=await database();
+ let action:CatalogAddAction="added";
+ await db.withExclusiveTransactionAsync(async tx=>{
+   const old=await tx.getFirstAsync<{id:string;quantity:number;completed:number}>(
+    "SELECT id,quantity,completed FROM companion_items WHERE kind=? AND variant_id=? ORDER BY created_at DESC LIMIT 1",
+    kind,variant
+   );
+   const plan=planCatalogAdd(kind,old?{quantity:old.quantity,completed:old.completed===1}:null,quantity);
+   action=plan.action;
+   if(old){
+     if(plan.action!=="exists")
+       await tx.runAsync("UPDATE companion_items SET quantity=?,completed=? WHERE id=?",
+         plan.quantity,plan.completed?1:0,old.id);
+     return;
+   }
+   const id=`companion_${Date.now()}_${Math.random().toString(36).slice(2,12)}`;
+   await tx.runAsync(
+    "INSERT INTO companion_items(id,kind,title,quantity,completed,variant_id,created_at) VALUES(?,?,?,?,0,?,?)",
+    id,kind,title,plan.quantity,variant,Date.now()
+   );
+ });
+ return action;
+}
+
 export async function setItemCompleted(id:string,completed:boolean){
   const db=await database();
   await db.runAsync("UPDATE companion_items SET completed=? WHERE id=?",completed?1:0,id);
@@ -80,8 +117,35 @@ export async function setItemQuantity(id:string,quantity:number){
 export async function moveItem(id:string,kind:ListKind){
  if(kind!=="shopping"&&kind!=="wishlist")throw new Error("INVALID_KIND");
  const db=await database();
- await db.runAsync("UPDATE companion_items SET kind=? WHERE id=?",kind,id);
+ await db.withExclusiveTransactionAsync(async tx=>{
+   const source=await tx.getFirstAsync<{
+     kind:ListKind;variant_id:string|null;quantity:number;completed:number
+   }>("SELECT kind,variant_id,quantity,completed FROM companion_items WHERE id=?",id);
+   if(!source||source.kind===kind)return;
+   const target=source.variant_id?await tx.getFirstAsync<{
+     id:string;quantity:number;completed:number
+   }>("SELECT id,quantity,completed FROM companion_items WHERE kind=? AND variant_id=? AND id<>? ORDER BY created_at DESC LIMIT 1",kind,source.variant_id,id):null;
+   if(target){
+     const merged=planListMoveMerge(
+      {quantity:source.quantity,completed:source.completed===1},
+      {quantity:target.quantity,completed:target.completed===1}
+     );
+     await tx.runAsync("UPDATE companion_items SET quantity=?,completed=? WHERE id=?",
+       merged.quantity,merged.completed?1:0,target.id);
+     await tx.runAsync("DELETE FROM companion_items WHERE id=?",id);
+   }else{
+     await tx.runAsync("UPDATE companion_items SET kind=? WHERE id=?",kind,id);
+   }
+ });
 }
+/** Only remove checked-off local entries after explicit user confirmation. */
+export async function clearCompletedItems(kind:ListKind):Promise<number>{
+ if(kind!=="shopping"&&kind!=="wishlist")throw Error("INVALID_KIND");
+ const db=await database();
+ const result=await db.runAsync("DELETE FROM companion_items WHERE kind=? AND completed=1",kind);
+ return result.changes;
+}
+
 export async function removeItem(id:string){
   const db=await database();
   await db.runAsync("DELETE FROM companion_items WHERE id=?",id);
