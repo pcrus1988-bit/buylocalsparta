@@ -4,14 +4,15 @@ import { theme } from "../theme";
 const accountPages=[
  {label:"Ο λογαριασμός μου",path:"/account"},
  {label:"Οι παραγγελίες μου",path:"/account/orders"},
- {label:"Αγαπημένα",path:"/account/wishlist"},
+ {label:"Παραλαβές / QR",path:"/account/orders?view=pickup"},
+ {label:"Wishlist λογαριασμού",path:"/account/wishlist"},
  {label:"Ειδοποιήσεις",path:"/account/notifications"},
 ] as const;
 
 export default function Account() {
  return <ScrollView contentContainerStyle={styles.screen}>
-   <Text style={styles.title}>Ο λογαριασμός σου</Text>
-   <Text style={styles.lead}>Οι αγορές και η τοπική σου αγορά, συγκεντρωμένες με ασφάλεια.</Text>
+   <Text style={styles.title}>KONTA MOY Companion · Ο λογαριασμός σου</Text>
+   <Text style={styles.lead}>Παρακολούθησε τις παραγγελίες και άνοιξε τον ασφαλή κωδικό QR παραλαβής όταν είναι έτοιμη.</Text>
    <View style={styles.card}>
      {accountPages.map(p=><Pressable accessibilityRole="button" key={p.path} style={styles.link} onPress={()=>void Linking.openURL("https://kontamou.site"+p.path)}>
        <Text style={styles.linkText}>{p.label} ↗</Text>
