@@ -4,14 +4,15 @@ import {summarizeCheaperAlternatives} from "./alternative-opportunities.mjs";
 
 const approved=(saving,original=2)=>({confidence:"reviewed_equivalent",savingsEur:saving,originalTotalEur:original});
 const unverified=(saving)=>({confidence:"unverified_match",savingsEur:saving,originalTotalEur:3});
+const automatic=(saving)=>({confidence:"automatically_verified",savingsEur:saving,originalTotalEur:3});
 
 test("banner counts distinct eligible list rows and sums only each row's largest approved saving",()=>{
   const x=summarizeCheaperAlternatives([
     {lineId:"item-a",alternatives:[approved(.24),approved(.07),unverified(2)]},
-    {lineId:"item-b",alternatives:[approved(.05),approved(-.1),unverified(5)]},
+    {lineId:"item-b",alternatives:[approved(.05),automatic(.4),approved(-.1),unverified(5)]},
     {lineId:"item-c",alternatives:[approved(0)]}
   ]);
-  assert.deepEqual(x,{lineIds:["item-a","item-b"],productCount:2,potentialSavingEur:.29});
+  assert.deepEqual(x,{lineIds:["item-a","item-b"],productCount:2,potentialSavingEur:.64});
 });
 
 test("hide potential-savings CTA when only unverified, equal or more expensive offers exist",()=>{
