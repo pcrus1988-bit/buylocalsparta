@@ -10,6 +10,7 @@ module.exports=({config})=>{
    name:"KONTA MOY Companion Preview",
    scheme:"kontamoucompanionpreview",
   }:{}),
+  extra:{...config.extra,companionPreview:preview},
   android:{
    ...config.android,
    ...(preview?{
