@@ -16,6 +16,10 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  ["ξυδι",["l",/ξιδ|vinegar/u]],
+  ["κατεψυγμενες μπαμιες",["kg",/μπαμι|okra/u]],
+  ["κοφτο μακαρονι",["kg",/κοφτ.*μακαρον|μακαρον.*κοφτ|short pasta/u]],
+  ["kοφτο mακαρονι",["kg",/κοφτ.*μακαρον|μακαρον.*κοφτ|short pasta/u]],
   ["κρουασαν",["kg",/κρουασαν|croissant/u]],
   ["χαλβας",["kg",/χαλβα|halva/u]],
   ["γκουντα",["kg",/γκουντα|gouda/u]],
