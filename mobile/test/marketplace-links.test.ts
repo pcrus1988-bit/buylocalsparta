@@ -13,6 +13,14 @@ test("first party browse and checkout routes are canonical HTTPS",()=>{
  assert.equal(marketplaceUrl({path:"/product/brown-calf-leather-platform-shoes"}),
    "https://kontamou.site/product/brown-calf-leather-platform-shoes");
 });
+test("customer order detail handoff accepts only a first-party validated path",()=>{
+ assert.equal(marketplaceUrl({path:"/account/orders/ord_10027"}),
+  "https://kontamou.site/account/orders/ord_10027");
+ for(const path of ["/account/orders/../../admin","/account/orders/ord_123%2Fadmin",
+  "/account/orders/a?redirect=evil","/account/orders/too.short","/account/orders//evil.com"]){
+  assert.throws(()=>marketplaceUrl({path}));
+ }
+});
 test("reject external hosts, arbitrary paths, route traversal and malformed query",()=>{
  for(const path of ["//evil.example/shop","https://evil.example/shop","/admin",
    "/product/../../checkout","/product/%2f%2fhost","/vendor/private"]){
