@@ -12,7 +12,7 @@
 
 const normalize = value => String(value||"").normalize("NFD")
   .replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("el-GR")
-  .replace(/[’‘´΄']/g," ").replace(/[–—−]/g,"-")
+  .replace(/[’‘´΄']/g,"").replace(/[–—−]/g,"-")
   .replace(/\s+/g," ").trim();
 
 const generic = new Set([
@@ -71,6 +71,24 @@ const canonicalTypes=[
 ];
 const typeAliases=new Map(canonicalTypes.flatMap(([type,...words])=>words.map(w=>[w,type])));
 
+// Reviewed aliases for a source-declared brand and its actual package marking.
+// Never infer aliases from partial textual similarity or store names.
+const declaredBrandAliases=new Map([
+  ["αβ βασιλοπουλος",["αβ"]],
+  ["every day",["everyday"]],
+  ["w5 lidl",["w5"]],
+  ["my planet",["planet"]],
+  ["coffee way",["coffeeway"]],
+  ["mr grand",["mrgrand"]],
+  ["3 αλφα",["3α","3αλφα"]],
+  ["ευ ελαιολαδο",["ευ"]],
+  ["νουνου",["nounou","noynoy"]]
+]);
+function reliableBrand(value){
+  const text=normalize(value).replace(/[^\p{L}\p{N}]+/gu," ").trim();
+  return !!text && !/^(?:διαφορα|ean\b|unknown\b|unbranded\b|χωρις brand\b|χωρις μαρκα\b|αγνωστ)/u.test(text);
+}
+
 function greekToLatin(value) {
   const pairs={ου:"ou",αι:"e",ει:"i",οι:"i",υι:"i",μπ:"b",ντ:"d",γκ:"g",γγ:"ng"};
   const one={α:"a",β:"v",γ:"g",δ:"d",ε:"e",ζ:"z",η:"i",θ:"th",ι:"i",κ:"k",
@@ -85,7 +103,8 @@ function words(value) {
 function withoutExplicitBrand(tokens,brand) {
   const exact=words(brand);
   if(!exact.length)return tokens;
-  const alternatives=[exact];
+  const aliases=declaredBrandAliases.get(words(brand).join(" "))||[];
+  const alternatives=[exact,...aliases.map(words)];
   // A source title may Romanize its explicitly declared Greek brand. Only
   // strip a WHOLE brand phrase; do not strip similar product words.
   if(/[α-ω]/.test(normalize(brand))) {
@@ -129,7 +148,7 @@ export function createBrandIndex(products) {
   const byFamily=new Map();
   for(const p of products) {
     const f=productFamily(p),q=referenceQuantity(p);
-    if(!f||!q||!p.brand||!normalize(p.brand))continue;
+    if(!f||!q||!reliableBrand(p.brand))continue;
     const key=f+"|"+q.unit;
     const group=byFamily.get(key)||[];
     group.push(p);
@@ -157,7 +176,7 @@ export function findBrandAlternatives({
   if(!quantity)return {reason:"unknown_quantity",basis:null,sourceAmount:null,alternatives:[]};
   const base={basis:quantity.unit,sourceAmount:quantity.amount,alternatives:[]};
   const family=productFamily(source);
-  if(!family||!source.brand)return {...base,reason:"no_comparable_brands"};
+  if(!family||!reliableBrand(source.brand))return {...base,reason:"no_comparable_brands"};
   const forbidden=new Set(excludedRetailerIds);
   const bestOffer=id=>(offersByProduct.get(id)||[])
     .filter(o=>!forbidden.has(o.retailer_id)&&validPrice(o.price_eur))
@@ -170,7 +189,7 @@ export function findBrandAlternatives({
   const pool=brandIndex.get(family+"|"+quantity.unit)||[];
   const byBrand=new Map();
   for(const candidate of pool) {
-    if(candidate.source_product_id===sourceId||normalize(candidate.brand)===normalize(source.brand))continue;
+    if(candidate.source_product_id===sourceId||!reliableBrand(candidate.brand)||normalize(candidate.brand)===normalize(source.brand))continue;
     const size=referenceQuantity(candidate);
     if(!size||size.unit!==quantity.unit)continue;
     const count=Math.ceil(demand/size.amount-1e-9);
