@@ -10,7 +10,7 @@ export type BrandSuggestion = {
   packageQuantity:number;unit:"kg"|"l"|"piece";packageCount:number;
   priceEur:number;unitPriceEur:number;retailerId:string;retailerName:string;
   originalTotalEur:number;candidateTotalEur:number;
-  savingsEur:number;savingPercent:number;confidence:"reviewed_equivalent"|"unverified_match"
+  savingsEur:number;savingPercent:number;confidence:"reviewed_equivalent"|"unverified_match";approvalMethod:"automatic_commodity"|"manual_or_unverified"
 };
 export type BrandIndex = Map<string,PriceReference[]>;
 export function referenceQuantity(product:PriceReference):{unit:"kg"|"l"|"piece";amount:number}|null;
