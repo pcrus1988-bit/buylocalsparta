@@ -111,7 +111,11 @@ export default function CompanionAccountScreen(){
         onPress={()=>void promptAsync()} style={[styles.primary,(!request||busy)&&styles.disabled]}>
         <Text style={styles.primaryLabel}>{busy?"Σύνδεση…":"Σύνδεση KONTA MOY"}</Text>
       </Pressable>
-      <Text style={styles.note}>Η λειτουργία απαιτεί πρώτα την ενεργοποίηση της υπηρεσίας Android Companion. Καμία άδεια τοποθεσίας δεν απαιτείται για σύνδεση.</Text>
+      <Pressable accessibilityRole="link" style={styles.outline}
+        onPress={()=>void Linking.openURL(WEBSITE+"/account")}>
+        <Text style={styles.outlineText}>Άνοιγμα λογαριασμού στον ιστότοπο ↗</Text>
+      </Pressable>
+      <Text style={styles.note}>Μέχρι την ενεργοποίηση της εγγενούς σύνδεσης Companion, μπορείς να χρησιμοποιείς τον υπάρχοντα λογαριασμό KONTA MOY μέσω browser. Η πρόσβαση στο browser δεν μεταφέρει cookies στην εφαρμογή.</Text>
     </View>}
   {account && <>
     <View style={styles.card}>
