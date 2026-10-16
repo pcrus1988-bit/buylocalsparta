@@ -32,6 +32,9 @@ if(approvedGroups!==null && (!Array.isArray(approvedGroups)||
   throw new Error("Expected a validated set of human-approved groups");
 if(published?.groups?.length && !approvedGroups?.length)
   throw new Error("All approved product groups drifted or became unavailable");
+const requestedApprovedCount=published?.groups?.filter(g=>g?.status==="approved").length??0;
+if(requestedApprovedCount>0&&approvedGroups?.length!==requestedApprovedCount)
+  throw new Error(`Approved source-SKU drift: validated ${approvedGroups?.length??0} of ${requestedApprovedCount} pinned groups. Refuse publication until review.`);
 
 const offers=new Map();
 for(const observation of prices){

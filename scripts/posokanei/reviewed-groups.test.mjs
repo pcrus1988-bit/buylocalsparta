@@ -9,11 +9,11 @@ const products=pinned.groups.flatMap(g=>g.members.map(({id,name,brand,category,u
  source_product_id:id,name,brand,category,unit,unit_quantity
 })));
 const build=(p=products,data=pinned)=>buildApprovedReferenceGroups(p,data);
-test("nine manually reviewed groups are published only for exact source SKUs",()=>{
+test("manually reviewed groups are published only for exact source SKUs",()=>{
  const groups=build();
- assert.equal(groups.length,9);
- assert.equal(groups.reduce((n,g)=>n+g.memberIds.length,0),51);
- assert.equal(new Set(groups.flatMap(g=>g.memberIds)).size,51);
+ assert.equal(groups.length,pinned.groups.length);
+ assert.equal(groups.reduce((n,g)=>n+g.memberIds.length,0),products.length);
+ assert.equal(new Set(groups.flatMap(g=>g.memberIds)).size,products.length);
  assert.ok(groups.every(g=>g.memberIds.length>=2&&g.status==="approved"));
 });
 test("source ID reassignments, title drift, brand drift, category drift, and quantity drift revoke entire group",()=>{
@@ -22,9 +22,9 @@ test("source ID reassignments, title drift, brand drift, category drift, and qua
   const altered=products.map(p=>p===victim?{...p,...change}:p);
   const groups=build(altered);
   assert.ok(!groups.some(g=>g.id===first.id));
-  assert.equal(groups.length,8);
+  assert.equal(groups.length,pinned.groups.length-1);
  }
- assert.equal(build(products.filter(p=>p.source_product_id!==victim.source_product_id)).length,8);
+ assert.equal(build(products.filter(p=>p.source_product_id!==victim.source_product_id)).length,pinned.groups.length-1);
 });
 test("fail closed for unapproved, duplicate and overlapping memberships",()=>{
  assert.equal(build(products,{...pinned,schema_version:2}).length,0);
