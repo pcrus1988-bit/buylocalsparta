@@ -9,6 +9,7 @@ import {
   type CompanionAccount,type CompanionOrder
 } from "../lib/companion-session";
 import {theme} from "../theme";
+import {validCanonicalPublicId} from "../lib/canonical-id";
 import {clearCompanionLocalData,importAccountWishlist,getItems} from "../lib/companion-store";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -76,7 +77,7 @@ export default function CompanionAccountScreen(){
    try{
      const local=await getItems("wishlist");
      const ids=[...new Set(local.filter(x=>!x.completed && x.variantId
-       && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x.variantId))
+       && validCanonicalPublicId(x.variantId))
        .map(x=>x.variantId as string))].slice(0,50);
      if(!ids.length){
        setImportNotice("Δεν υπάρχουν στην τοπική wishlist επιβεβαιωμένα είδη KONTA MOY για συγχρονισμό.");
