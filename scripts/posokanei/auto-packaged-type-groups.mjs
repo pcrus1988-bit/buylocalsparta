@@ -16,6 +16,19 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  ["αλευρι για ολες τις χρησεις",["kg",/αλευρι.*ολες.*χρησεις|all purpose flour/u]],
+  ["στιγμιαιος καφες",["kg",/στιγμιαι.*καφ|καφ.*στιγμιαι|instant.*coffee/u]],
+  ["σοκολατα γαλακτος",["kg",/σοκολατ.*γαλακ|milk chocolate/u]],
+  ["σοκολατα κακαο",["kg",/κακαο.*σκονη|cocoa powder/u]],
+  ["σοκολατουχο γαλα με γευσεις",["l",/σοκολατουχ.*γαλα|γαλα.*σοκολατουχ|chocolate milk/u]],
+  ["αγγελαδινο γιαουρτι",["kg",/γιαουρτ.*αγελαδ|αγελαδ.*γιαουρτ|cow.*yogurt/u]],
+  ["πουρες",["kg",/πουρ.*πατατ|πατατ.*πουρ|potato puree/u]],
+  ["μαυρο πιπερι",["kg",/μαυρ.*πιπερ|πιπερ.*μαυρ|black pepper/u]],
+  ["ριγανη",["kg",/ριγαν|oregano/u]],
+  ["βρωμη",["kg",/βρωμ|oats/u]],
+  ["παξιμαδι",["kg",/παξιμαδ|rusk/u]],
+  ["σπαγγετινι",["kg",/σπαγγετιν|spaghettini/u]],
+  ["νυφαδες καλαμποκιου",["kg",/νιφαδ.*καλαμποκ|καλαμποκ.*νιφαδ|corn flakes/u]],
   ["φυσικο μεταλλικο νερο",["l",/φυσικ.*μεταλλικ.*νερ|νερ.*φυσικ.*μεταλλικ|natural mineral water/u]],
   ["πατατακια",["kg",/πατατακ|chips?/u]],
   ["μουσταρδα",["kg",/μουσταρδ|mustard/u]],
@@ -91,10 +104,10 @@ function accepted(p){
      size.amount<.02||size.amount>40||Math.abs(size.amount-label.quantity)>1e-6)return false;
   const fam=productFamily(p);
   const bits=fam?.split("|")[1]?.split(" ").filter(Boolean)||[];
-  if(bits.length<2 && !["αραβοσιτελαιο","πυρηνελαιο"].includes(category))return false;
+  if(bits.length<2 && !["αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη"].includes(category))return false;
   // Dairy requires fat information, otherwise packaging titles alone do not
   // distinguish normal, low fat, lactose-free and fermented variants.
-  if(["φρεσκο γαλα","στραγγιστο γιαουρτι","κρεμα γαλακτος"].includes(category) &&
+  if(["φρεσκο γαλα","στραγγιστο γιαουρτι","αγγελαδινο γιαουρτι","κρεμα γαλακτος"].includes(category) &&
     !/\b\d+(?:[.,]\d+)?\s*%/u.test(title))return false;
   return true;
 }
