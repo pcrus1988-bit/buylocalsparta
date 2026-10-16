@@ -249,6 +249,32 @@ export function optimizeReferenceBasket({
     priceByProduct.set(observation.source_product_id,existing);
   }
   const definedLines = lines.map(line=>basketLineOptions(line,productById,groupById,priceByProduct,snapshotDate));
+  // Preserve the customer's ORIGINAL selected products after an explicit reviewed
+  // brand replacement. Never trust claimed savings or prices supplied by the client.
+  // An old/new pair only counts if the current approved snapshot still verifies the
+  // same product type AND the current pack count fulfils the original quantity.
+  const initialLines=lines.map(line=>{
+    if(line.kind!=='exact'||!line.replacedFrom)return line;
+    const previous=line.replacedFrom;
+    if(!identifier(previous.sourceProductId)||!Number.isSafeInteger(previous.packageCount)||
+      previous.packageCount<1||previous.packageCount>100||
+      previous.sourceProductId===line.sourceProductId)return line;
+    const before=productById.get(previous.sourceProductId);
+    const after=productById.get(line.sourceProductId);
+    const originalPack=before&&packageQuantity(before);
+    const chosenPack=after&&packageQuantity(after);
+    if(!originalPack||!chosenPack||originalPack.unit!==chosenPack.unit||
+      !approvedGroups.some(g=>g.status==='approved'&&g.basis===originalPack.unit&&
+        Array.isArray(g.memberIds)&&g.memberIds.includes(previous.sourceProductId)&&
+        g.memberIds.includes(line.sourceProductId)))return line;
+    const required=Math.ceil(originalPack.amount*previous.packageCount/chosenPack.amount-1e-9);
+    if(required!==line.packageCount)return line;
+    return {...line,sourceProductId:previous.sourceProductId,packageCount:previous.packageCount,
+      replacedFrom:undefined};
+  });
+  const reviewedBrandSwitchCount=lines.filter((line,i)=>initialLines[i].sourceProductId!==line.sourceProductId).length;
+  const originalDefinedLines=reviewedBrandSwitchCount?
+    initialLines.map(line=>basketLineOptions(line,productById,groupById,priceByProduct,snapshotDate)):null;
   const relevantIds = [...new Set(definedLines.flatMap(l=>l.options.map(o=>o.retailerId)))].sort(compareIds);
   if(relevantIds.length>MAX_RETAILERS) {
     throw new Error('Too many retailers for exhaustive optimization; narrow selection first');
@@ -285,6 +311,34 @@ export function optimizeReferenceBasket({
   }
   const bestTwoStore = storeLimit>=2 ? candidatesByLimit[1] : null;
   const savings = bestSingle && bestAny ? toEuros(Math.max(0,bestSingle._cents-bestAny._cents)):null;
+  // Like-for-like benchmark: original brands at the lowest recorded COMPLETE
+  // one-chain basket. If no one chain carries the original list, fall back to
+  // its optimal basket under the very same supermarket limit. Never price
+  // unavailable lines at zero, and never mix snapshot dates or retailer filters.
+  let originalBestSingle=null,originalBestLimited=null;
+  if(originalDefinedLines){
+    const originalRetailers=[...new Set(originalDefinedLines.flatMap(l=>l.options.map(o=>o.retailerId)))].sort(compareIds);
+    for(const retailerId of originalRetailers){
+      const candidate=candidatePlan(originalDefinedLines,new Set([retailerId]));
+      if(candidate.complete)originalBestSingle=prefer(originalBestSingle,candidate);
+    }
+    if(!originalBestSingle&&storeLimit>1){
+      function scanOriginal(combination,start){
+        if(combination.length){
+          const candidate=candidatePlan(originalDefinedLines,new Set(combination));
+          if(candidate.complete)originalBestLimited=prefer(originalBestLimited,candidate);
+        }
+        if(combination.length===storeLimit)return;
+        for(let i=start;i<originalRetailers.length;i++){
+          scanOriginal([...combination,originalRetailers[i]],i+1);
+        }
+      }
+      scanOriginal([],0);
+    }
+  }
+  const originalBenchmark=originalBestSingle||originalBestLimited;
+  const brandSwitchSavingsEur=originalBestSingle?.complete&&bestSingle?.complete?
+    toEuros(originalBestSingle._cents-bestSingle._cents):null;
   // This deliberately models the user-described availability-first, one-store
   // heuristic; it is NOT a claim about the official service's source code.
   const coverageFirstCandidate=[...singleStoreCandidates].sort((a,b)=>
@@ -366,6 +420,10 @@ export function optimizeReferenceBasket({
     cheapestWithinStoreLimit:displayPlan(bestDistributed),
     byStoreLimit:candidatesByLimit.map((plan,index)=>({maxStores:index+1,plan:displayPlan(plan)})),
     singleStoreCandidates,coverageFirstSingleStore,coverageMatchedProductsComparison,
+    reviewedBrandSwitchCount,
+    originalBasketBenchmarkEur:originalBenchmark?.complete?originalBenchmark.totalEur:null,
+    originalBasketBenchmarkMode:originalBestSingle?'single':originalBestLimited?'limited':null,
+    brandSwitchSavingsEur,
     savingsVsCoverageFirstSingleStoreEur,savingsVsCoverageFirstSingleStorePercent,
     savingsVsCheapestCompleteSingleStoreEur:savings,
     limitation:'Reference-only supermarket chain snapshots; not branch prices, stock, buyable checkout, delivery or travel-cost totals'
