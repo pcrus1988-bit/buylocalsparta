@@ -16,7 +16,7 @@ jobs:
   offline-adapter-and-comparison:
     name: Offline adapter and price comparison tests
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,3 +24,8 @@ jobs:
           node-version: '24'
       - name: Test reference importer and comparison engine
         run: node --test scripts/posokanei/*.test.mjs
+      - name: Privately audit latest full public snapshot
+        run: node scripts/posokanei/import-snapshot.mjs --latest --out "$RUNNER_TEMP/posokanei"
+      - name: Report non-identifying import counts
+        run: |
+          node -e 'const fs=require("node:fs");const m=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/posokanei/manifest.json","utf8"));console.log(JSON.stringify({date:m.snapshot_date,total:m.source_total,collected:m.source_collected,prices:m.reference_price_observations,checksum:m.snapshot_sha256,warnings:m.warnings}));'
