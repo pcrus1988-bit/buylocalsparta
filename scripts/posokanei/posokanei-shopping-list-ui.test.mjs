@@ -12,7 +12,7 @@ test("PosoKanei does not render standalone reviewed-group browsing or catalogue 
 
 test("PosoKanei still offers approved alternatives and safe substitutions on the shopping list",()=>{
   assert.match(source,/id="posokanei-basket"/);
-  assert.match(source,/method:"POST"[^]*?\/"\/api\/posokanei\/alternatives"/);
+  assert.match(source,/fetch\("\/api\/posokanei\/alternatives",\{\s*method:"POST"/);
   assert.match(source,/Φθηνότερες μάρκες για/);
   assert.match(source,/Πιθανά οικονομικότερα προϊόντα για/);
   assert.match(source,/onClick=\{\(\)=>chooseCheaper\(result\.lineId,a\)\}/);
