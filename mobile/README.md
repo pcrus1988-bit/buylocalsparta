@@ -60,6 +60,12 @@ response: `{ "verifiedOnly": true, "products": [{ "vendorId": "...", "vendorName
 
 For privacy and authorization, neither customer IDs nor personal list contents are accepted by this endpoint. It does not return campaign-exclusive promotions. Nearby radius hard cap is 500m and accepted GPS uncertainty <=200m. Client matches words/variant IDs and gives a **possible match** notification, with a link to reconfirm live product details before visiting.
 
+## Multi-item offline shopping-list entry — 16 October 2026
+
+The native shopping list has a collapsible **Προσθήκη ολόκληρης λίστας** field. Shoppers can paste up to 40 Greek or English product notes (maximum 2,400 characters). Supported quantities include `2x Γάλα` and `Ντομάτες × 3`; plain numeric product names are preserved. The parser merges case/accent-equivalent notes, while the SQLite transaction safely merges existing *free-text* shopping entries, reopens completed items and refuses totals above 99 without partial changes. Canonical IDs are **never** inferred from text. Invalid imports do not update the database. No remote services, marketing, location, server saved-products or cart operations are involved.
+
+On-device QA: paste multiple lines; verify duplicate merging, quantities, completed-state reactivation, full-batch rollback on overflow, offline persistence after restart and unchanged canonical variants. Parser tests: `mobile/test/shopping-list-import.test.ts`.
+
 ## Shopping-list usability increment — 16 October 2026
 
 The Android catalogue search now lets shoppers explicitly add the **exact canonical variant** to either the offline shopping list or offline wishlist. Shopping-list repeats increment quantity instead of silently making duplicate rows (up to 99); wishlist repeats are idempotent and can reopen a completed saved item. Moving a canonical product between lists safely merges its quantity with an existing destination entry, retaining unfinished intent. Generic free-text notes remain independent and private.
