@@ -16,6 +16,17 @@ const readJsonl=async name=>(await readFile(join(resolve(dir),name),"utf8"))
 const [products,prices]=await Promise.all([
   readJsonl("reference-products.jsonl"),readJsonl("reference-prices.jsonl")
 ]);
+// The importer archives raw products and prices, NOT human review approvals.
+// A caller auditing a published artifact may pass its reviewed-group JSON as
+// an explicit second argument. Without that proof, approved coverage is unknown
+// rather than misleadingly reported as zero.
+const reviewedFile=process.argv[3];
+const published=reviewedFile?JSON.parse(await readFile(resolve(reviewedFile),"utf8")):null;
+const approvedGroups=published===null?null:Array.isArray(published)?published:published?.approvedGroups;
+if(approvedGroups!==null && (!Array.isArray(approvedGroups)||
+    approvedGroups.some(g=>g?.status!=="approved"||!Array.isArray(g.memberIds))))
+  throw new Error("Expected a validated set of human-approved groups");
+
 const offers=new Map();
 for(const observation of prices){
   if(observation.country!=="GR"||observation.price_eur<=0)continue;
@@ -27,7 +38,10 @@ const index=createBrandIndex(products);
 const count={
   products:products.length,pricedProducts:0,productsWithKnownSize:0,
   productsWithBrandAndFamily:0,productsWithOtherBrandInFamily:0,
-  productsWithCheaperApprovedBrand:0,approvedOffers:0,productsWithCheaperUnreviewedCandidate:0,unreviewedOffers:0,
+  approvedCoverageAudited:approvedGroups!==null,
+  productsWithCheaperApprovedBrand:approvedGroups===null?null:0,
+  approvedOffers:approvedGroups===null?null:0,
+  productsWithCheaperUnreviewedCandidate:0,unreviewedOffers:0,
   unknownQuantity:0
 };
 for(const product of products){
@@ -43,9 +57,10 @@ for(const product of products){
   if(!group.some(p=>p.source_product_id!==product.source_product_id&&p.brand!==product.brand))continue;
   count.productsWithOtherBrandInFamily++;
   const res=findBrandAlternatives({
-    sourceId:product.source_product_id,products,offersByProduct:offers,brandIndex:index
+    sourceId:product.source_product_id,products,offersByProduct:offers,brandIndex:index,
+    approvedGroups:approvedGroups||[]
   });
-  if(res.alternatives.length) {
+  if(approvedGroups!==null && res.alternatives.length) {
     count.productsWithCheaperApprovedBrand++;
     count.approvedOffers+=res.alternatives.length;
   }
