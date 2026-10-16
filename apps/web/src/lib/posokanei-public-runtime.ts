@@ -1,6 +1,109 @@
 import "server-only";
 
 /**
+ * Read-only mirror of *published government-origin product names and prices*.
+ * Legal basis used by this release: Greek Law 4727/2020 art. 61 (public-sector
+ * commercial/noncommercial reuse), subject to art. 59 exclusions.
+ * The third-party archive's MIT source-code license is NOT our data license.
+ *
+ * Fixed upstream (no user-provided URLs), index/path/date checks, full-snapshot
+ * completeness validation, zero-price exclusion, no images or marketplace offers.
+ * Per-process TTL coalesces concurrent cold requests and avoids per-keystroke
+ * re-downloading of the 20+ MB snapshot.
+ */
+import {transformSnapshot,sha256} from "../../../../scripts/posokanei/snapshot-adapter.mjs";
+
+const MIRROR_BASE="https://raw.githubusercontent.com/spyrosavl/posokanei/main/";
+const MIRROR_TTL_MS=15*60*1000;
+const MAX_ARCHIVE_BYTES=55_000_000;
+const STATUTORY_REUSE_REFERENCE="GR_N4727_2020_ART61_PUBLIC_SECTOR_REUSE";
+let mirrorCache:{value:PublishedReferenceSnapshot|null;expires:number}|null=null;
+let mirrorPending:Promise<PublishedReferenceSnapshot|null>|null=null;
+
+async function mirrorJson(url:string,maxBytes:number):Promise<{raw:Uint8Array;body:unknown}>{
+  const result=await fetch(url,{cache:"no-store",redirect:"error",signal:AbortSignal.timeout(25000),headers:{Accept:"application/json"}});
+  if(!result.ok)throw new Error("PosoKanei source unavailable: "+result.status);
+  const declared=Number(result.headers.get("content-length")||0);
+  if(declared>maxBytes)throw new Error("PosoKanei snapshot too large");
+  if(!result.body)throw new Error("PosoKanei archive has no body");
+  const reader=result.body.getReader();
+  const chunks:Uint8Array[]=[];
+  let total=0;
+  try{
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      total+=value.byteLength;
+      if(total>maxBytes)throw new Error("PosoKanei snapshot exceeds safe size");
+      chunks.push(value);
+    }
+  }finally{reader.releaseLock();}
+  const raw=new Uint8Array(total);let position=0;
+  for(const chunk of chunks){raw.set(chunk,position);position+=chunk.byteLength;}
+  return {raw,body:JSON.parse(new TextDecoder().decode(raw)) as unknown};
+}
+
+async function readGovernmentMirror():Promise<PublishedReferenceSnapshot|null>{
+  const idx=await mirrorJson(MIRROR_BASE+"data/latest.json",20_000);
+  const pointer=idx.body as {date?:unknown;path?:unknown;total?:unknown;collected?:unknown}|null;
+  if(!pointer||typeof pointer.date!=="string"||!validDate(pointer.date)||
+    typeof pointer.path!=="string"||
+    pointer.path!=="data/"+pointer.date.slice(0,4)+"/posokanei-"+pointer.date+".json"||
+    !Number.isSafeInteger(pointer.total)||pointer.total!==pointer.collected||
+    typeof pointer.total!=="number"||pointer.total<1||pointer.total>100000){
+    throw new Error("Untrusted PosoKanei archive pointer");
+  }
+  const result=await mirrorJson(MIRROR_BASE+pointer.path,MAX_ARCHIVE_BYTES);
+  const parsed=result.body as {date?:unknown;total?:unknown;collected?:unknown}|null;
+  if(!parsed||parsed.date!==pointer.date||
+    parsed.total!==pointer.total||parsed.collected!==pointer.collected){
+    throw new Error("PosoKanei archive pointer and snapshot disagree");
+  }
+  const transformed=transformSnapshot(parsed,{countries:["GR"]});
+  if(transformed.manifest.warnings.invalid_price_rows!==0||
+     transformed.manifest.warnings.missing_price_arrays!==0){
+    throw new Error("PosoKanei snapshot failed price-array quality checks");
+  }
+  if(transformed.references.length!==pointer.total||
+     transformed.prices.length===0)throw new Error("Incomplete Greek price-reference archive");
+
+  return {
+    schema_version:1,source:"posokanei.gov.gr",
+    snapshot_date:transformed.manifest.snapshot_date,
+    snapshot_sha256:sha256(result.raw),permission_reference:STATUTORY_REUSE_REFERENCE,
+    source_total:transformed.references.length,
+    // Explicit projection: never republish source images, stock or vendor offers.
+    products:transformed.references.map(p=>({
+      source_product_id:p.source_product_id,name:p.name,brand:p.brand,
+      category:p.category,unit:p.unit,unit_quantity:p.unit_quantity,
+      snapshot_date:p.snapshot_date
+    })),
+    observations:transformed.prices.filter(p=>p.price_eur>0).map(p=>({
+      source_product_id:p.source_product_id,snapshot_date:p.snapshot_date,
+      country:p.country,retailer_id:p.retailer_id,
+      retailer_name:p.retailer_name||p.retailer_id,price_eur:p.price_eur,
+      source_price_updated_at:p.source_price_updated_at,
+      is_discount:p.is_discount
+    })),
+    // Unlike title/brand similarity, cross-brand equivalence is never guessed.
+    approvedGroups:[]
+  };
+}
+async function cachedGovernmentMirror():Promise<PublishedReferenceSnapshot|null>{
+  if(mirrorCache&&mirrorCache.expires>Date.now())return mirrorCache.value;
+  if(!mirrorPending){
+    mirrorPending=readGovernmentMirror().then(data=>{
+      const age=data?Date.now()-Date.parse(data.snapshot_date+"T23:59:59Z"):Infinity;
+      const value=age>=-86_400_000&&age<=10*86_400_000?data:null;
+      mirrorCache={value,expires:Date.now()+MIRROR_TTL_MS};
+      return value;
+    }).finally(()=>{mirrorPending=null;});
+  }
+  return mirrorPending;
+}
+
+
+/**
  * Public market-reference data is completely independent of KONTA MOY vendor offers.
  * Importing a third-party archive does not itself establish redistribution rights.
  * There are THREE independent gates: release flag, verified rights flag, and
@@ -29,6 +132,7 @@ export const publicReferenceEnabled=()=>
 
 export async function loadPublishedReference():Promise<PublishedReferenceSnapshot|null>{
   if(!publicReferenceEnabled())return null;
+  if(process.env.POSOKANEI_PUBLIC_SOURCE_MODE==="government_mirror")return cachedGovernmentMirror();
   const configured=process.env.POSOKANEI_PUBLIC_SNAPSHOT_URL;
   if(!configured)return null;
   let url:URL;
