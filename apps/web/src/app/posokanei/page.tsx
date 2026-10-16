@@ -14,5 +14,5 @@ export function generateMetadata():Metadata{
   };
 }
 export default function PosoKaneiPage(){
-  return <main><SiteHeader/><PosoKaneiPublicClient/><SiteFooter/></main>;
+  return <main><SiteHeader /><PosoKaneiPublicClient/><SiteFooter /></main>;
 }
