@@ -8,6 +8,7 @@ import styles from "./CustomerAccountExperience.module.css";
 import { productPublicPath } from "../lib/product-url";
 import { clearCustomerTryOnBrowserStorage } from "../lib/try-on-browser-storage";
 import { AccountTryOnSetupClient } from "./AccountTryOnSetupClient";
+import { AccountHomeHub } from "./AccountHomeHub";
 
 type Dashboard = {
   account: { email: string };
@@ -119,63 +120,37 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
 
     {error && <div className="shell account-action-error" role="alert"><strong>Η ενέργεια δεν ολοκληρώθηκε.</strong><span>{error}</span><button type="button" onClick={() => setError("")} aria-label="Κλείσιμο μηνύματος">×</button></div>}
 
-    <section className={`shell ${styles.priorityGrid}`} aria-label="Βασικές ενέργειες πελάτη">
+    <AccountHomeHub activeOrders={activeOrders.length} unreadNotifications={data.unreadNotifications} savedProducts={data.savedProducts.length} savedSearches={data.savedSearches.length} />
+
+    {latestActiveOrder && <section className={`shell ${styles.priorityGrid} ${styles.priorityGridSolo}`} aria-label="Ενεργή παραγγελία">
       <article className={`${styles.priorityCard} ${styles.trackerCard}`} id="order-tracking">
         <div className={styles.priorityHead}>
-          <div>
-            <span className={styles.priorityKicker}>Live order tracking</span>
-            <h2>{latestActiveOrder ? latestActiveOrder.referenceNumber : "Οι παραγγελίες σου"}</h2>
-          </div>
-          {latestActiveOrder && <span className={styles.priorityStatus}>{latestActiveOrder.status}</span>}
+          <div><span className={styles.priorityKicker}>Τελευταία ενεργή παραγγελία</span><h2>{latestActiveOrder.referenceNumber}</h2></div>
+          <span className={styles.priorityStatus}>{latestActiveOrder.status}</span>
         </div>
-        {latestActiveOrder ? <>
-          <div className={styles.orderMeta}>
-            <span>{date(latestActiveOrder.createdAt)}</span>
-            <span>{modeLabel(latestActiveOrder.fulfilmentMode)}</span>
-            <strong>{latestActiveOrder.total}</strong>
-          </div>
-          <CustomerLifecycle label={`Ζωντανή πορεία ${latestActiveOrder.referenceNumber}`} stages={customerOrderLifecycle(latestActiveOrder.status, latestActiveOrder.fulfilmentMode)} />
-          <div className={styles.priorityActions}>
-            <Link className={styles.primaryPriorityAction} href={`/account/orders/${latestActiveOrder.id}`}>Παρακολούθηση παραγγελίας</Link>
-            <Link className={styles.secondaryPriorityAction} href="/account/orders">Όλες οι παραγγελίες</Link>
-          </div>
-        </> : <div className={styles.emptyTracker}>
-          <p>Μόλις κάνεις μια παραγγελία, η τρέχουσα κατάσταση και το επόμενο βήμα θα εμφανίζονται εδώ — χωρίς να χρειάζεται να ψάχνεις.</p>
-          <div className={styles.priorityActions}><Link className={styles.primaryPriorityAction} href="/shop">Ανακάλυψε προϊόντα</Link></div>
-        </div>}
-      </article>
-
-      <article className={`${styles.priorityCard} ${styles.askLocalCard}`} id="ask-local">
-        <div>
-          <span className={styles.priorityKicker}>Ask Local</span>
-          <div className={styles.priorityHead}><h2>Δεν το βρίσκεις; Ζήτησέ το.</h2></div>
-          <p className={styles.askLocalCopy}>Πες μας τι ψάχνεις. Το αίτημα δρομολογείται ιδιωτικά στην κατάλληλη τοπική επιχείρηση, ώστε να μη χρειάζεται να τηλεφωνείς ή να ψάχνεις παντού.</p>
-        </div>
+        <div className={styles.orderMeta}><span>{date(latestActiveOrder.createdAt)}</span><span>{modeLabel(latestActiveOrder.fulfilmentMode)}</span><strong>{latestActiveOrder.total}</strong></div>
+        <CustomerLifecycle label={`Πορεία ${latestActiveOrder.referenceNumber}`} stages={customerOrderLifecycle(latestActiveOrder.status, latestActiveOrder.fulfilmentMode)} />
         <div className={styles.priorityActions}>
-          <Link className={styles.primaryPriorityAction} href="/account/ask-local">Άνοιγμα Ask Local</Link>
-          <Link className={styles.secondaryPriorityAction} href="/shops">Τοπικές επιχειρήσεις</Link>
+          <Link className={styles.primaryPriorityAction} href={`/account/orders/${latestActiveOrder.id}`}>Δες την πορεία της παραγγελίας</Link>
+          <Link className={styles.secondaryPriorityAction} href="/account/orders">Όλες οι παραγγελίες</Link>
         </div>
       </article>
-    </section>
+    </section>}
 
-    <AccountTryOnSetupClient variant="dashboard" />
 
-    <section className="shell customer-overview-attention" id="overview" aria-labelledby="customer-attention-title">
+
+    {attentionCount > 0 && <section className="shell customer-overview-attention" id="overview" aria-labelledby="customer-attention-title">
       <div className="customer-overview-attention-head"><div><div className="eyebrow">Τώρα</div><h2 id="customer-attention-title">{attentionCount ? "Χρειάζεται κάτι από εσένα" : "Όλα κυλούν κανονικά"}</h2></div><p>{attentionCount ? "Εδώ εμφανίζονται μόνο όσα χρειάζονται δική σου ενέργεια. Τα υπόλοιπα συνεχίζουν από κατάστημα, πλατφόρμα ή μεταφορέα." : "Δεν υπάρχει κάποια ενέργεια που να περιμένει από εσένα αυτή τη στιγμή."}</p></div>
       <div className="customer-action-stack">
         {attentionOrders.slice(0, 3).map((order) => <CustomerActionCard key={order.id} tone="action" title={`${order.referenceNumber} · ${order.status}`} body={orderAttentionBody(order.status)} href={`/account/orders/${order.id}`} action={orderAttentionAction(order.status)} />)}
         {data.unreadNotifications > 0 && <CustomerActionCard tone="action" title={`${data.unreadNotifications} ${data.unreadNotifications === 1 ? "νέα ειδοποίηση" : "νέες ειδοποιήσεις"}`} body="Δες τι άλλαξε στις παραγγελίες, τα αιτήματα και τον λογαριασμό σου." href="/account/notifications" action="Δες ειδοποιήσεις" />}
         {attentionCount === 0 && <CustomerActionCard tone="success" title="Δεν χρειάζεται ενέργεια αυτή τη στιγμή" body="Θα σε ενημερώσουμε όταν αλλάξει κάτι ή όταν χρειάζεται απόφαση από εσένα." />}
       </div>
-    </section>
+    </section>}
 
-    <section className="shell customer-kpi-links account-snapshot dashboard-kpis-refined" aria-label="Σύνοψη λογαριασμού">
-      <Link className={attentionOrders.length ? "customer-kpi-link needs-attention" : "customer-kpi-link"} href="/account/orders"><span>Ενεργές παραγγελίες</span><strong>{activeOrders.length}</strong><small>{attentionOrders.length ? `${attentionOrders.length} χρειάζονται προσοχή` : "Καμία ενέργεια τώρα"}</small></Link>
-      <Link className={data.unreadNotifications ? "customer-kpi-link needs-attention" : "customer-kpi-link"} href="/account/notifications"><span>Νέες ειδοποιήσεις</span><strong>{data.unreadNotifications}</strong><small>Όλες οι αλλαγές σε ένα σημείο</small></Link>
-      <Link className="customer-kpi-link" href="/account/wishlist"><span>Wishlist</span><strong>{data.savedProducts.length}</strong><small>{data.savedSearches.length} αποθηκευμένες αναζητήσεις</small></Link>
-      <Link className="customer-kpi-link" href="/account/profile"><span>Προφίλ & διευθύνσεις</span><strong>→</strong><small>Παράδοση, τιμολόγηση και στοιχεία</small></Link>
-    </section>
-
+    <details className={`shell ${styles.activityDisclosure}`}>
+      <summary className={styles.activityToggle}><span><strong>Πρόσφατη δραστηριότητα</strong><small>Ειδοποιήσεις, παραγγελίες, ιστορικό και προσωπικές προτιμήσεις</small></span><span aria-hidden="true">⌄</span></summary>
+      <div className={styles.activityContent}>
     <section className="shell account-section-intro dashboard-section-heading" aria-labelledby="account-activity-title"><div><div className="eyebrow">Σε εξέλιξη</div><h2 id="account-activity-title">Οι αγορές και οι ενημερώσεις σου</h2></div><p>Τα σημαντικά μένουν ανοιχτά. Ιστορικό, προτιμήσεις και προτάσεις είναι διαθέσιμα πιο κάτω όταν τα χρειάζεσαι.</p></section>
 
     <section className="shell account-live-grid">
@@ -227,6 +202,10 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
         </div>
       </details>
     </section>
+
+        <AccountTryOnSetupClient variant="dashboard" />
+      </div>
+    </details>
 
     <section className={`shell account-live-card account-wide ${styles.helpCard}`} aria-label="Βοήθεια λογαριασμού">
       <div className="account-card-head"><div><div className="eyebrow">Χρειάζεσαι εξήγηση;</div><h2>Οδηγοί για τις βασικές ροές</h2></div></div>
