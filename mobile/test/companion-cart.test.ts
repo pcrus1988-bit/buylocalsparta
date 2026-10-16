@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {cartItemsAfterChange,nextCartQuantity,type NativeCartItem} from "../src/lib/companion-cart.ts";
+import {cartItemsAfterChange,nextCartQuantity} from "../src/lib/companion-cart-rules.ts";
+import type {NativeCartItem} from "../src/lib/companion-cart.ts";
 const a="c61f2b2a-1397-47b8-8e63-d82cbed75abe";
 const b="cv_12345678";
 const data:NativeCartItem[]=[
