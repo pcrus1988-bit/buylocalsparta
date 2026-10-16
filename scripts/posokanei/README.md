@@ -68,3 +68,18 @@ The output includes cheapest *complete* single-chain basket, cheapest complete s
 A group request uses a quantity in kg/l/piece and buys a whole number of packages from ONE equivalent source SKU for that line. A customer can lock a particular approved brand using `lockedProductId`, or use `kind:"exact"` to preserve a chosen source product. Only explicitly approved equivalence groups can substitute across brands. The comparator cannot infer source product equivalence from names alone.
 
 The optimizer treats chain prices as historical references, not branch-specific guaranteed availability. Travel, loyalty cards, delivery, and discounts requiring special eligibility are not included. This is not the KONTA MOY shopping cart or checkout.
+
+
+## Public interface handoff (rights-gated and disabled by default)
+
+The new `/posokanei` UI is customer-facing source code; it does not show research-only or synthetic prices to the public.
+
+1. Run the existing importer privately: `node scripts/posokanei/import-snapshot.mjs --latest --out /tmp/posokanei`. Or allow the private `PosoKanei Private Snapshot Audit` GitHub Actions scheduled/manual workflow after merge; that workflow emits audit metadata only and does not publish data.
+2. Independently obtain and record explicit permitted commercial display/database reuse terms. Never use the third-party software license as a substitute.
+3. Prepare reviewed groups JSON with `id`, `label`, `status: "approved"`, `basis: "kg" | "l" | "piece"`, `memberIds`, `reviewer`, and `reviewed_at` (`YYYY-MM-DD`). An empty array `[]` is valid until groups have been manually curated.
+4. After rights verification, build an artifact **locally**: `node scripts/posokanei/build-public-snapshot.mjs --staging /tmp/posokanei --groups /tmp/reviewed-groups.json --out /tmp/posokanei-public.json --rights-verified --permission-ref YOUR_DOCUMENTED_APPROVAL_ID`.
+5. Independently audit the JSON artifact and host it in operator-controlled HTTPS storage; then set `POSOKANEI_PUBLIC_RELEASE_ENABLED=true`, `POSOKANEI_DATA_REUSE_APPROVED=true`, and `POSOKANEI_PUBLIC_SNAPSHOT_URL=https://your-host/posokanei-public.json` after staging acceptance.
+
+The published-data loader rejects snapshots older than 10 days and releases nothing when the gates are off, regardless of URL configuration. The `GET /api/posokanei` endpoint paginates products, supports Greek search/category and reviewed-group comparisons; `POST /api/posokanei/optimize` computes only from trusted server-side published prices (up to 20 list entries, up to 3 chains in the UI). No anonymous caller can provide price data. Do not put a raw importer JSONL file at a public URL.
+
+The CLI does not grant rights, self-approve equivalence, push to storage, or modify vendor prices. Images remain absent until independently licensed. The public route itself remains non-price-bearing until authorized data is supplied.

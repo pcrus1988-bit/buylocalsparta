@@ -113,3 +113,20 @@ A responsive Greek prototype now exists at **`/admin/posokanei/preview`**, linke
 **To preview:** the draft PR must first pass release checks and be deployed to an admin-authenticated preview environment. The path does not exist on the production main branch until the changes are merged and deployed. Admin permissions cannot be bypassed by knowing the URL.
 
 **Remaining prerequisites for real public browsing:** audit permissible data usage, authorize commercial product/price listings, ingest actual data into an independently governed source-specific database model with reviewed equivalents and data freshness/availability, then swap the synthetic UI provider for an authenticated reviewed read model before explicitly enabling the public route. Never enable public commercial price display merely by switching an environment flag.
+
+
+## October 16 — rights-gated public interface implemented in PR #1554
+
+A real, responsive Greek customer explorer now exists in source at `/posokanei`. Its product-search page and `GET /api/posokanei` listing can display exact-product chain comparisons, price observations, approved cross-brand alternatives, and retailer-specific selections. The comparison list submits to `POST /api/posokanei/optimize`, which uses the same isolated, tested basket optimizer as the private preview. The public UI never imports synthetic admin prices; no source imagery, retailer checkout, physical-stock claims or KONTA MOY marketplace offers are used.
+
+The public price API is deliberately **fail closed**. Display is possible only with all of:
+
+- `POSOKANEI_PUBLIC_RELEASE_ENABLED=true`
+- `POSOKANEI_DATA_REUSE_APPROVED=true` — operator attests source/database redistribution and display rights, separate from the importer code's license
+- `POSOKANEI_PUBLIC_SNAPSHOT_URL=https://...` — a controlled HTTPS location serving the `build-public-snapshot.mjs` JSON read artifact with approved `permission_reference`
+
+The server validates snapshot identity, dated freshness (max 10 days), complete product count, approved curated equivalence groups, unique country-GR retailer observations and positive prices. Without these conditions, the landing page displays a clearly marked not-yet-published empty state; it never exposes fixture or research-only archive records. Metadata is noindex until the release flag and rights flag are set.
+
+`build-public-snapshot.mjs` accepts only valid importer staging input with an independently verified human approval reference. It outputs a local JSON candidate and **does not upload or publish it**. A scheduled private GitHub Action can fetch the latest public mirror daily, log manifest counts/checksum only, and never upload raw third-party datasets; activation requires merging the PR. No production import, public price release, or license grant has occurred.
+
+The existing `/admin/posokanei/preview` remains a strictly synthetic administrator demo. Before enabling the public flags: obtain documented rights, run a complete importer stage and verify quality, prepare human-reviewed groups, upload the approved artifact to operator-controlled HTTPS storage, and test browse/optimize plus freshness on staging.
