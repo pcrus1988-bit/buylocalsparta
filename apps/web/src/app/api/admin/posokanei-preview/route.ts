@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     if(!Array.isArray(params.lines) || params.lines.length>20 || params.lines.length<1) {
       return error(400,"Η λίστα πρέπει να περιέχει 1–20 προϊόντα.");
     }
-    if(!Number.isSafeInteger(params.storeLimit) || Number(params.storeLimit)<1 || Number(params.storeLimit)>3) {
+    if(typeof params.storeLimit!=="number" || !Number.isSafeInteger(params.storeLimit) || params.storeLimit<1 || params.storeLimit>3) {
       return error(400,"Επιτρέπονται έως 3 αλυσίδες στην προεπισκόπηση.");
     }
     // The common engine rejects invalid IDs, unapproved substitutions and quantities.
