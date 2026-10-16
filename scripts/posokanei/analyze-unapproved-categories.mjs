@@ -36,5 +36,6 @@ console.log(JSON.stringify({
  snapshotProducts:products.length,manualGroups:manual.length,autoGroups:auto.length,expandedGroups:expanded.length,expandedMembers:expanded.reduce((n,g)=>n+g.memberIds.length,0),
  totalCrossBrandUnapprovedGroups:categories.reduce((n,x)=>n+x.families,0),
  totalCrossBrandUnapprovedMembers:categories.reduce((n,x)=>n+x.products,0),
- categoryCount:categories.length,categories:categories.slice(0,85)
+ categoryCount:categories.length,
+ categories:(process.argv.includes("--examples")?categories.slice(0,85):categories.slice(0,60).map(({category,unit,families,products})=>({category,unit,families,products})))
 },null,2));
