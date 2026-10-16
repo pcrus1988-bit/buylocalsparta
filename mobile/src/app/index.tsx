@@ -1,5 +1,5 @@
 import { Link } from "expo-router";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { theme } from "../theme";
 
 const WEB = "https://kontamou.site";
@@ -10,6 +10,7 @@ function External({label,href}:{label:string;href:string}) {
 }
 export default function Home() {
   return <ScrollView contentContainerStyle={styles.screen}>
+    <Image source={require("../../assets/icon.png")} style={styles.brandImage} accessibilityLabel="KONTA MOY — επίσημο λογότυπο" />
     <Text style={styles.kicker}>DEVELOPED IN SPARTA FOR GREECE</Text>
     <Text style={styles.title}>Η τοπική αγορά σου, πάντα κοντά.</Text>
     <Text style={styles.lead}>Γνώρισε καταστήματα της περιοχής, ανακάλυψε προϊόντα και διάλεξε τι πραγματικά σε ενδιαφέρει.</Text>
@@ -43,11 +44,12 @@ export default function Home() {
         <Text style={styles.secondaryText}>Ο λογαριασμός μου →</Text>
       </Pressable>
     </Link>
-    <Text style={styles.note}>Έκδοση ανάπτυξης Android: οι τοπικές λίστες αποθηκεύονται στη συσκευή. Παραγγελίες και παραλαβές ανοίγουν με ασφάλεια στον υπάρχοντα ιστότοπο μέχρι να ολοκληρωθεί το native login.</Text>
+    <Text style={styles.note}>Έκδοση ανάπτυξης Android: οι τοπικές λίστες αποθηκεύονται στη συσκευή. Σύνδεση στον ίδιο λογαριασμό μέσω ασφαλούς browser και PKCE, μόλις ενεργοποιηθεί η υπηρεσία. Ο κωδικός QR παραλαβής συνεχίζει να ανοίγει στον επίσημο ιστότοπο.</Text>
   </ScrollView>;
 }
 const styles=StyleSheet.create({
-  screen:{padding:24,gap:22,paddingBottom:50},
+  screen:{padding:24,gap:18,paddingBottom:50},
+  brandImage:{width:160,height:122,resizeMode:"contain"},
   kicker:{fontSize:11,color:theme.green,letterSpacing:2,fontWeight:"700"},
   title:{fontSize:35,lineHeight:42,fontWeight:"800",color:theme.ink},
   lead:{fontSize:16,lineHeight:25,color:theme.muted},
