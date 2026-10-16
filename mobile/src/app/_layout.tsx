@@ -18,6 +18,7 @@ export default function RootLayout() {
       <Stack.Screen name="account" options={{title:"Ο λογαριασμός μου"}} />
       <Stack.Screen name="lists" options={{title:"Οι λίστες μου"}} />
       <Stack.Screen name="pickups" options={{title:"Οι παραλαβές μου"}} />
+      <Stack.Screen name="notifications" options={{title:"Ειδοποιήσεις Android"}} />
     </Stack>
   </>;
 }
