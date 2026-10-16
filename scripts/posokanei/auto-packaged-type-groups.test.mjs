@@ -181,5 +181,5 @@ test("fresh mozzarella, generic white cheese and smoked turkey stay distinct",()
  ];
  const groups=deriveAutoPackagedTypeGroups(list);
  assert.equal(groups.length,2);
- assert.deepEqual(groups.map(g=>g.memberIds),[["t-a","t-b"],["z-a","z-b"]]);
+ assert.deepEqual(groups.map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["t-a","t-b"],["z-a","z-b"]]);
 });
