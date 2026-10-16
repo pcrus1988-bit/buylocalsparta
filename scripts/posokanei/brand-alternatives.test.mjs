@@ -28,7 +28,7 @@ const o=(id,retailer_id,price_eur)=>({retailer_id,retailer_name:retailer_id,pric
 const offers=new Map([
   ["a",[o("a","alpha",1.20),o("a","beta",1.40)]],
   ["b",[o("b","beta",0.55),o("b","alpha",1.25)]],
-  ["c",[o("c","alpha",1.18)]],
+  ["c",[o("c","alpha",1.30)]],
   ["passata",[o("passata","alpha",0.10)]],
   ["bio",[o("bio","alpha",0.20)]],
   ["wrongcat",[o("wrongcat","alpha",0.20)]],
@@ -109,4 +109,17 @@ test("preserve dietary markers and fats in signatures",()=>{
   const free=p("b","Brand γάλα χωρίς λακτόζη 3,5% 1L","Brand","MILK","l",1);
   assert.notEqual(productFamily(plain),productFamily(free));
   assert.notEqual(productFamily(plain),productFamily(p("c","Brand γάλα 1,5% 1L","Brand","MILK","l",1)));
+});
+
+test("a genuine one-cent cheaper alternative is still shown",()=>{
+  const duo=[
+    p("base","ALPHA Pasta penne 500g","ALPHA","PASTA","g",500),
+    p("alt","BETA Pasta penne 500g","BETA","PASTA","g",500)
+  ];
+  const prices=new Map([
+    ["base",[o("base","alpha",1.00)]],["alt",[o("alt","beta",0.99)]]
+  ]);
+  const match=findBrandAlternatives({sourceId:"base",products:duo,offersByProduct:prices});
+  assert.equal(match.alternatives.length,1);
+  assert.equal(match.alternatives[0].savingsEur,0.01);
 });
