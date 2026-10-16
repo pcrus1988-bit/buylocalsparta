@@ -161,6 +161,13 @@ export async function companionAuthorizedRequest<T>(
    if(!token)throw Error("LOGIN_REQUIRED");
    r=await call(token);
  }
- if(!r.ok)throw Error(r.status===409?"CART_CHANGED":r.status===503?"NOT_ENABLED":r.status===401?"LOGIN_REQUIRED":"REQUEST_FAILED");
+ if(!r.ok){
+  if(r.status===409 && path==="/cart"){
+   const body=await r.json().catch(()=>null) as {error?:unknown}|null;
+   throw Error(body?.error==="CART_CHANGED"?"CART_CHANGED":
+     body?.error==="PRODUCT_UNAVAILABLE"?"PRODUCT_UNAVAILABLE":"REQUEST_FAILED");
+  }
+  throw Error(r.status===503?"NOT_ENABLED":r.status===401?"LOGIN_REQUIRED":"REQUEST_FAILED");
+ }
  return await r.json() as T;
 }
