@@ -6,6 +6,9 @@ export type ReviewedSavingCandidate = {
 export type AlternativeOpportunityLine = {
   lineId:string;
   alternatives:ReviewedSavingCandidate[];
+  /** Calculated across all accepted priced candidates before UI truncation. */
+  bestCheaperSavingEur?:number;
+  cheaperAlternativeCount?:number;
 };
 export function summarizeCheaperAlternatives(
   results:AlternativeOpportunityLine[]
