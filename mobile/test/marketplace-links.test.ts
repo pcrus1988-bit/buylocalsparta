@@ -8,6 +8,8 @@ test("first party browse and checkout routes are canonical HTTPS",()=>{
    "https://kontamou.site/shops?q=%CE%BC%CE%B1%CE%B3%CE%B1%CE%B6%CE%AF");
  assert.equal(marketplaceUrl({path:"/product/05f782e0-cad3-4266-a542-44cd6a8292c7"}),
    "https://kontamou.site/product/05f782e0-cad3-4266-a542-44cd6a8292c7");
+ assert.equal(marketplaceUrl({path:"/product/cv_55467684072d4bd19f6d"}),
+   "https://kontamou.site/product/cv_55467684072d4bd19f6d");
  assert.equal(marketplaceUrl({path:"/product/brown-calf-leather-platform-shoes"}),
    "https://kontamou.site/product/brown-calf-leather-platform-shoes");
 });
