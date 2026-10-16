@@ -20,51 +20,78 @@ export type CompanionAccount={
 };
 let activeAccess:string|null=null,expiresAt=0;
 let refreshing:Promise<string|null>|null=null;
+// Invalidate late login/refresh responses as soon as logout begins.
+let sessionEpoch=0;
+// Serialize Android Keystore writes/deletes so a pending write cannot race logout.
+let storeQueue:Promise<void>=Promise.resolve();
+function withStoreLock<T>(operation:()=>Promise<T>):Promise<T>{
+ const job=storeQueue.then(operation,operation);
+ storeQueue=job.then(()=>undefined,()=>undefined);
+ return job;
+}
 
 function validToken(value:unknown):value is string{
  return typeof value==="string" && /^[A-Za-z0-9_-]{43}$/.test(value);
 }
-async function saveTokens(tokens:TokenResponse){
+async function saveTokens(tokens:TokenResponse,epoch:number){
  if(!validToken(tokens.accessToken)||!validToken(tokens.refreshToken)
    ||tokens.tokenType!=="Bearer"||!Number.isFinite(tokens.expiresIn)||tokens.expiresIn<=0)
    throw new Error("INVALID_SESSION");
- // Refresh belongs only in Android Keystore-backed SecureStore. Access stays in RAM.
- // Persist refresh before replacing live access so a storage failure fails closed.
- await SecureStore.setItemAsync(REFRESH_KEY,tokens.refreshToken,{keychainService:REFRESH_KEY});
- activeAccess=tokens.accessToken;
- expiresAt=Date.now()+tokens.expiresIn*1000;
+ // Keystore mutation happens in one serial queue with logout.
+ await withStoreLock(async()=>{
+   if(epoch!==sessionEpoch)throw new Error("SESSION_CHANGED");
+   await SecureStore.setItemAsync(REFRESH_KEY,tokens.refreshToken,{keychainService:REFRESH_KEY});
+   if(epoch!==sessionEpoch)throw new Error("SESSION_CHANGED");
+   activeAccess=tokens.accessToken;
+   expiresAt=Date.now()+tokens.expiresIn*1000;
+ });
 }
 export async function connectCompanion(code:string,verifier:string){
  if(!validToken(code)||!(/^[A-Za-z0-9_-]{43,128}$/.test(verifier)))throw new Error("INVALID_GRANT");
+ const startEpoch=sessionEpoch;
  const r=await fetch(`${BASE}/auth/token`,{
    method:"POST",headers:{"content-type":"application/json"},
    body:JSON.stringify({grant_type:"authorization_code",code,code_verifier:verifier})
  });
  if(!r.ok)throw new Error(r.status===503?"NOT_ENABLED":"LOGIN_FAILED");
  const payload=await r.json() as TokenResponse;
- await saveTokens(payload);
+ if(startEpoch!==sessionEpoch)throw new Error("SESSION_CHANGED");
+ // Any older in-flight refresh cannot replace a newly approved session.
+ await saveTokens(payload,++sessionEpoch);
 }
 async function refreshAccess():Promise<string|null>{
- const refresh=await SecureStore.getItemAsync(REFRESH_KEY,{keychainService:REFRESH_KEY});
- if(!validToken(refresh))return null;
+ const epoch=sessionEpoch;
+ const refresh=await withStoreLock(async()=>
+   epoch===sessionEpoch
+    ? SecureStore.getItemAsync(REFRESH_KEY,{keychainService:REFRESH_KEY})
+    : null
+ );
+ if(!validToken(refresh)||epoch!==sessionEpoch)return null;
  try{
    const r=await fetch(`${BASE}/auth/token`,{
      method:"POST",headers:{"content-type":"application/json"},
      body:JSON.stringify({grant_type:"refresh_token",refresh_token:refresh})
    });
+   if(epoch!==sessionEpoch)return null;
    if(!r.ok){
      if(r.status===401){
-       // Invalid/revoked refresh is not a temporary network failure.
-       await SecureStore.deleteItemAsync(REFRESH_KEY,{keychainService:REFRESH_KEY});
-       activeAccess=null;expiresAt=0;
+       // Only delete the same refresh token. Never wipe a later approved login.
+       await withStoreLock(async()=>{
+         if(epoch!==sessionEpoch)return;
+         const current=await SecureStore.getItemAsync(REFRESH_KEY,{keychainService:REFRESH_KEY});
+         if(current!==refresh)return;
+         await SecureStore.deleteItemAsync(REFRESH_KEY,{keychainService:REFRESH_KEY});
+         activeAccess=null;expiresAt=0;
+       });
      }
      return null;
    }
    const tokens=await r.json() as TokenResponse;
-   await saveTokens(tokens);
-   return activeAccess;
+   if(epoch!==sessionEpoch)return null;
+   await saveTokens(tokens,epoch);
+   return epoch===sessionEpoch?activeAccess:null;
  }catch{
-   // Keep local session on offline/timeouts; retry when user next opens account.
+   // Retain original offline session on network timeouts; logout is irrevocable.
    return null;
  }
 }
@@ -74,31 +101,38 @@ async function accessToken():Promise<string|null>{
  return refreshing;
 }
 export async function loadCompanionAccount():Promise<CompanionAccount|null>{
+ const epoch=sessionEpoch;
  const token=await accessToken();
- if(!token)return null;
+ if(!token||epoch!==sessionEpoch)return null;
  let r=await fetch(`${BASE}/account`,{
    headers:{Authorization:`Bearer ${token}`},cache:"no-store"
  });
+ if(epoch!==sessionEpoch)return null;
  if(r.status===401){
    activeAccess=null;expiresAt=0;
    const replacement=await accessToken();
-   if(!replacement)return null;
+   if(!replacement||epoch!==sessionEpoch)return null;
    r=await fetch(`${BASE}/account`,{
      headers:{Authorization:`Bearer ${replacement}`},cache:"no-store"
    });
  }
  if(!r.ok)throw new Error(r.status===503?"ACCOUNT_UNAVAILABLE":"ACCOUNT_SYNC_FAILED");
  const snapshot=await r.json() as CompanionAccount;
+ if(epoch!==sessionEpoch)return null;
  if(!snapshot||typeof snapshot.account?.email!=="string"
    ||!Array.isArray(snapshot.orders)||!Array.isArray(snapshot.savedProducts))
    throw new Error("INVALID_ACCOUNT_RESPONSE");
  return snapshot;
 }
 export async function disconnectCompanion(){
- const refresh=await SecureStore.getItemAsync(REFRESH_KEY,{keychainService:REFRESH_KEY});
- // Clear local secrets even if the remote revocation service is offline.
+ // Make all previous network responses unusable before the first await.
+ ++sessionEpoch;
  activeAccess=null;expiresAt=0;
- await SecureStore.deleteItemAsync(REFRESH_KEY,{keychainService:REFRESH_KEY});
+ const refresh=await withStoreLock(async()=>{
+   const saved=await SecureStore.getItemAsync(REFRESH_KEY,{keychainService:REFRESH_KEY});
+   await SecureStore.deleteItemAsync(REFRESH_KEY,{keychainService:REFRESH_KEY});
+   return saved;
+ });
  if(validToken(refresh)){
    try{
      await fetch(`${BASE}/auth/token`,{method:"DELETE",headers:{"content-type":"application/json"},
