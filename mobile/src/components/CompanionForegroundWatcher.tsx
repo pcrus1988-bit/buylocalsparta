@@ -1,5 +1,5 @@
 import {useEffect} from "react";
-import {AppState} from "react-native";
+import {AppState,DeviceEventEmitter} from "react-native";
 import * as Location from "expo-location";
 import {getPreferences} from "../lib/companion-store";
 import {scanVerifiedNearbyStock} from "../lib/nearby-client";
@@ -47,13 +47,16 @@ export function CompanionForegroundWatcher(){
     if(disposed||AppState.currentState!=="active")sub.remove();
     else locationSubscription=sub;
   }
+  const preferenceChanged=DeviceEventEmitter.addListener("companion-preferences-changed",()=>{
+    void stop().then(()=>start());
+  });
   const changed=AppState.addEventListener("change",status=>{
     if(status==="active")void start();
     else void stop();
   });
   // Re-read preference after returning to the app; never prompt from watcher.
   void start();
-  return()=>{disposed=true;changed.remove();void stop();};
+  return()=>{disposed=true;changed.remove();preferenceChanged.remove();void stop();};
  },[]);
  return null;
 }
