@@ -112,7 +112,8 @@ export function PosoKaneiPublicClient(){
             headers:{"Content-Type":"application/json"},
             body:JSON.stringify({
               lines:exact.map(l=>({id:l.id,sourceProductId:l.sourceProductId,packageCount:l.packageCount})),
-              excludedRetailerIds:excluded
+              excludedRetailerIds:excluded,
+              includeNonCheaper:true
             })
           });
           const json=await response.json() as {
@@ -127,7 +128,7 @@ export function PosoKaneiPublicClient(){
               .map(x=>[x.lineId,x])
           ));
         }catch{
-          if(!controller.signal.aborted)setNotice("Ο έλεγχος φθηνότερων μαρκών δεν ολοκληρώθηκε. Δοκίμασε ξανά.");
+          if(!controller.signal.aborted)setNotice("Ο έλεγχος εναλλακτικών δεν ολοκληρώθηκε. Δοκίμασε ξανά.");
         }finally{
           if(!controller.signal.aborted)setCheckingBrands(false);
         }
@@ -140,7 +141,7 @@ export function PosoKaneiPublicClient(){
     const key=id();
     setLabels(current=>({...current,[key]:p.name}));
     update([...lines,{id:key,kind:"exact",sourceProductId:p.id,packageCount:1}]);
-    setNotice("Προστέθηκε στη λίστα: "+p.name+" · ελέγχονται όλες οι μάρκες της λίστας.");
+    setNotice("Προστέθηκε στη λίστα: "+p.name);
   }
   function addReviewedComparable(option:Cheaper){
     if(option.confidence!=="reviewed_equivalent")return;
@@ -150,31 +151,33 @@ export function PosoKaneiPublicClient(){
     update([...lines,{id:key,kind:"exact",sourceProductId:option.id,packageCount:option.packageCount}]);
     setNotice("Προστέθηκε η εγκεκριμένη εναλλακτική με "+option.packageCount+" συσκευασία/ες.");
   }
-  function chooseCheaper(lineId:string,next:Cheaper){
+  function chooseAlternative(lineId:string,next:Cheaper){
+    if(next.confidence==="unverified_match"&&
+       !window.confirm("Η εναλλακτική δεν έχει επιβεβαιωθεί ως ισοδύναμη. Έλεγξε συστατικά και χαρακτηριστικά. Θέλεις να την επιλέξεις;"))return;
     const selected=brandResults[lineId];
     if(!selected||typeof selected.sourceAmount!=="number"||!selected.basis)return;
     const original=lines.find(line=>line.id===lineId);
     const packages=original?.kind==="exact"&&
       original.sourceProductId===selected.sourceProductId&&next.unit===selected.basis?
       packagesForEquivalent(selected.sourceAmount,original.packageCount,next.packageQuantity):null;
-    if(packages===null){
+    if(packages===null||packages>100){
       setNotice("Η νέα συσκευασία δεν επαρκεί για την ίδια ποσότητα.");
       return;
     }
-    // Keep the customer's first exact choice as the comparison baseline.
-    // The server revalidates equivalence, quantity and live snapshot prices.
-    const replacedFrom=original?.kind==="exact"?
+    // Preserve the first original brand ONLY for snapshot-approved equivalents.
+    // Unverified candidates remain opt-in and never count as verified savings.
+    const replacedFrom=next.confidence==="reviewed_equivalent"&&original?.kind==="exact"?
       (original.replacedFrom||{sourceProductId:original.sourceProductId,packageCount:original.packageCount}):undefined;
     const revised=lines.map(line=>line.id===lineId?
       ({...line,sourceProductId:next.id,packageCount:packages,replacedFrom} as BasketLine):line);
     update(revised);
     setLabels(current=>({...current,[lineId]:next.name}));
     void calculate(revised);
-    setNotice("Η μάρκα ενημερώθηκε. Η ποσότητα διατηρήθηκε με "+packages+" συσκευασίες. Ενημερώνεται και η συνολική εξοικονόμηση.");
+    setNotice("Η εναλλακτική επιλέχθηκε. Η ποσότητα διατηρήθηκε με "+packages+" συσκευασίες. "+
+      (replacedFrom?"Υπολογίζονται οι συνολικές οικονομίες.":"Η ισοδυναμία δεν έχει ελεγχθεί και δεν δηλώνουμε εξοικονόμηση από αλλαγή μάρκας."));
   }
   function changeLine(key:string,patch:Partial<BasketLine>){
-    // Editing the requested quantity creates a new shopping requirement; no
-    // longer claim historical brand savings for the old package quantity.
+    // Manually editing quantity establishes a new basket requirement.
     update(lines.map(line=>line.id===key?
       ({...line,...patch,...(line.kind==="exact"&&"packageCount" in patch?{replacedFrom:undefined}:{})} as BasketLine):line));
   }
@@ -299,28 +302,25 @@ export function PosoKaneiPublicClient(){
           {!lines.length?<p className={styles.message}>Πρόσθεσε προϊόντα για να υπολογίσουμε το συνολικό κόστος στα σούπερ μάρκετ.</p>:<details className={styles.listDetails}><summary>Προϊόντα στη λίστα ({lines.length}) · Προβολή / επεξεργασία</summary><div className={styles.lines}>{lines.map(l=><div className={styles.line} key={l.id}>
             <div className={styles.lineTop}><strong>{labels[l.id]||"Προϊόν"}</strong><button type="button" onClick={()=>update(lines.filter(x=>x.id!==l.id))} aria-label="Αφαίρεση από τη λίστα">✕</button></div>
             <label>{l.kind==="exact"?"Συσκευασίες":"Ποσότητα ("+(listing.groups.find(g=>g.id===l.groupId)?.basis||"kg")+")"}<input type="number" min="1" max="100" step={l.kind==="exact"?"1":"0.1"} value={l.kind==="exact"?l.packageCount:l.requiredBaseQuantity} onChange={e=>changeLine(l.id,l.kind==="exact"?{packageCount:Number(e.target.value)}:{requiredBaseQuantity:Number(e.target.value)})}/></label>
-            {l.kind==="exact"&&<small className={styles.brandStatus}>{checkingBrands?"Έλεγχος συγκρίσιμων μαρκών…":brandResults[l.id]?.alternatives.length?`✅ ${brandResults[l.id].alternatives.length} εγκεκριμένη/ες συγκρίσιμη/ες μάρκα/ες`:brandResults[l.id]?.candidates?.length?`🔎 ${brandResults[l.id].candidates.length} πιθανές οικονομικότερες επιλογές (μη ελεγμένη ισοδυναμία)`:brandResults[l.id]?.reason==="unknown_quantity"?"Δεν υπάρχουν επαρκή στοιχεία ποσότητας":brandResults[l.id]?.reason==="no_source_price"?"Δεν υπάρχει τιμή στις επιλεγμένες αλυσίδες":"Δεν βρέθηκε φθηνότερη συγκρίσιμη μάρκα"}</small>}
+            {l.kind==="exact"&&<small className={styles.brandStatus}>{checkingBrands?"Αναζήτηση εναλλακτικών…":brandResults[l.id]&&(brandResults[l.id].alternatives.length+brandResults[l.id].candidates.length)>0?"Διαθέσιμες εναλλακτικές: "+(brandResults[l.id].alternatives.length+brandResults[l.id].candidates.length):brandResults[l.id]?.reason==="unknown_quantity"?"Λείπουν στοιχεία ποσότητας":brandResults[l.id]?.reason==="no_source_price"?"Δεν υπάρχει τιμή στις επιλεγμένες αλυσίδες":"Δεν βρέθηκαν συγκρίσιμα προϊόντα"}</small>}
 
           </div>)}</div></details>}
           {notice&&<p className={styles.notice} role="status">{notice}</p>}
-          {lines.some(l=>l.kind==="exact")&&<button type="button" className={styles.textButton} onClick={()=>setBrandRefresh(n=>n+1)} disabled={checkingBrands}>{checkingBrands?"Έλεγχος όλων των προϊόντων…":"Ανανέωση ελέγχου μαρκών για όλη τη λίστα ↻"}</button>}
-          {Object.values(brandResults).filter(x=>x.alternatives.length>0).map(result=><details className={styles.suggestion} key={result.lineId}>
-            <summary>💡 Φθηνότερες μάρκες για {labels[result.lineId]||"προϊόν"} ({result.alternatives.length})</summary>
-            <p>Ίδια λεπτομερής κατηγορία και περιγραφή προϊόντος. Σύγκριση του κόστους για τη ζητούμενη ποσότητα, με ολόκληρες συσκευασίες και μόνο τις επιλεγμένες αλυσίδες. Έλεγξε τα χαρακτηριστικά πριν αντικαταστήσεις.</p>
-            {result.alternatives.map(a=><div className={styles.suggestionLine} key={a.id}>
-              <span><strong>{a.name}</strong><small>{a.retailerName} · {a.packageCount} συσκ. × {money(a.priceEur)} = {money(a.candidateTotalEur)}</small><small>Έναντι {money(a.originalTotalEur)} · λιγότερα {money(a.savingsEur)} ({a.savingPercent}%)</small><small>{a.approvalMethod==="automatic_commodity"?"Αυτόματη έγκριση τύπου · έλεγξε συστατικά / αλλεργιογόνα":"Χειροκίνητα ελεγμένος τύπος"}</small></span>
-              <button type="button" className={styles.secondary} onClick={()=>chooseCheaper(result.lineId,a)}>Αντικατάσταση μάρκας</button>
-            </div>)}
-            <small>Ενδεικτικές καταγεγραμμένες τιμές αλυσίδων · η τελική εξοικονόμηση εξαρτάται από το συνολικό σχέδιο αγορών.</small>
-          </details>)}
-          {Object.values(brandResults).filter(x=>x.candidates?.length>0).map(entry=><details className={styles.suggestion} key={"candidate-"+entry.lineId}>
-            <summary>🔎 Πιθανά οικονομικότερα προϊόντα για {labels[entry.lineId]||"προϊόν"} ({entry.candidates.length})</summary>
-            <p><strong>Μη επιβεβαιωμένες εναλλακτικές:</strong> τα προϊόντα έχουν ομοιότητες στην κατηγορία, την ονομασία και τις μονάδες, αλλά ΔΕΝ έχει επαληθευτεί ότι είναι ισοδύναμα. Συστατικά, αλλεργιογόνα, διατροφικές ιδιότητες, τύπος και χρήση μπορεί να διαφέρουν. Η σύγκριση τιμής είναι υποθετική και δεν αποτελεί εγγυημένη εξοικονόμηση.</p>
-            {entry.candidates.map(candidate=><div className={styles.suggestionLine} key={candidate.id}>
-              <span><strong>{candidate.name}</strong><small>{candidate.retailerName} · {candidate.packageCount} συσκ. × {money(candidate.priceEur)} = {money(candidate.candidateTotalEur)}</small><small>Διαφορά καταγεγραμμένης τιμής, μόνο αν καλύπτει την ανάγκη σου: {money(candidate.savingsEur)}</small></span>
-            </div>)}
-            <small>Δεν επιτρέπεται αυτόματη αντικατάσταση από μη ελεγμένες ομάδες προϊόντων. Επίλεξε χειροκίνητα ένα διαφορετικό προϊόν από την αναζήτηση αφού ελέγξεις τα χαρακτηριστικά του.</small>
-          </details>)}
+          {lines.some(l=>l.kind==="exact")&&<button type="button" className={styles.textButton} onClick={()=>setBrandRefresh(n=>n+1)} disabled={checkingBrands}>{checkingBrands?"Αναζήτηση εναλλακτικών…":"Ανανέωση εναλλακτικών ↻"}</button>}
+          {Object.values(brandResults).filter(entry=>entry.alternatives.length>0||entry.candidates.length>0).map(entry=>
+            <section className={styles.suggestion} key={entry.lineId} aria-label={"Εναλλακτικές για "+(labels[entry.lineId]||"προϊόν")}>
+              <h3>Εναλλακτικές για {labels[entry.lineId]||"προϊόν"} ({entry.alternatives.length+entry.candidates.length})</h3>
+              {[...entry.alternatives,...entry.candidates].map(option=><div className={styles.suggestionLine} key={option.confidence+":"+option.id}>
+                <span>
+                  <strong>{option.name}</strong>
+                  <small>{option.retailerName} · {option.packageCount} συσκ. × {money(option.priceEur)} = {money(option.candidateTotalEur)}</small>
+                  <small>{option.savingsEur>0?"Φθηνότερο κατά "+money(option.savingsEur):option.savingsEur<0?"Ακριβότερο κατά "+money(-option.savingsEur):"Ίδια καταγεγραμμένη τιμή"}</small>
+                  <small>{option.confidence==="unverified_match"?"Πιθανή εναλλακτική · μη ελεγμένη":option.approvalMethod==="automatic_commodity"?"Αυτόματα εγκεκριμένος τύπος":"Ελεγμένος συγκρίσιμος τύπος"}</small>
+                </span>
+                <button type="button" className={styles.secondary} onClick={()=>chooseAlternative(entry.lineId,option)}>Επιλογή</button>
+              </div>)}
+            </section>
+          )}
           <p className={styles.basketPreset}>Αυτόματη επιλογή οικονομικότερων αλυσίδων · έως {storeLimit} από τις επιλεγμένες <button type="button" onClick={()=>{setSettingsOpen(true);window.scrollTo({top:0,behavior:"smooth"});}}>Αλλαγή</button></p>
           <button className={styles.calculate} type="button" onClick={()=>{void calculate();}} disabled={!lines.length||listing.status!=="ready"||working||listing.retailers.length===excluded.length}>{working?"Υπολογισμός…":"Βρες το οικονομικότερο καλάθι →"}</button>
           {error&&<p className={styles.error} role="alert">{error}</p>}
@@ -343,8 +343,8 @@ export function PosoKaneiPublicClient(){
             </>:<p className={styles.error}>Δεν υπάρχει πλήρης λίστα με καταγεγραμμένες τιμές. Τα προϊόντα που λείπουν δεν υπολογίζονται ως δωρεάν.</p>}
             {mode!=="single"&&actualSavings!==null&&<p className={styles.saving}>Εξοικονόμηση από επιλογή σούπερ μάρκετ για <strong>τις τωρινές μάρκες</strong>: <strong>{money(actualSavings)}</strong></p>}
             {!!result.reviewedBrandSwitchCount&&plan?.complete&&<>
-              {result.brandSwitchSavingsEur!==null&&<p className={styles.saving}>Από τις {result.reviewedBrandSwitchCount} αλλαγές μάρκας, σε σύγκριση με την αρχική λίστα σε μία αλυσίδα: <strong>{result.brandSwitchSavingsEur>=0?money(result.brandSwitchSavingsEur):"επιπλέον κόστος "+money(-result.brandSwitchSavingsEur)}</strong></p>}
-              {savingsWithBrands!==null&&<p className={styles.saving}><strong>{savingsWithBrands>=0?"Συνολική εξοικονόμηση":"Επιπλέον συνολικό κόστος"} με τις επιλεγμένες φθηνότερες μάρκες:</strong> <strong>{money(Math.abs(savingsWithBrands))}</strong> <small>Έναντι της αρχικής λίστας {result.originalBasketBenchmarkMode==="single"?"σε μία αλυσίδα":"με έως "+storeLimit+" αλυσίδες"}, με τις ίδιες καταγεγραμμένες τιμές και επιλεγμένες αλυσίδες. Δεν προστίθενται διπλά οι εξοικονομήσεις.</small></p>}
+              {result.brandSwitchSavingsEur!==null&&<p className={styles.saving}>Από τις {result.reviewedBrandSwitchCount} εγκεκριμένες αλλαγές μάρκας, σε σύγκριση με την αρχική λίστα σε μία αλυσίδα: <strong>{result.brandSwitchSavingsEur>=0?money(result.brandSwitchSavingsEur):"επιπλέον κόστος "+money(-result.brandSwitchSavingsEur)}</strong></p>}
+              {savingsWithBrands!==null&&<p className={styles.saving}><strong>{savingsWithBrands>=0?"Συνολική εξοικονόμηση":"Επιπλέον συνολικό κόστος"} με τις επιλεγμένες ελεγμένες μάρκες:</strong> <strong>{money(Math.abs(savingsWithBrands))}</strong> <small>Έναντι της αρχικής λίστας {result.originalBasketBenchmarkMode==="single"?"σε μία αλυσίδα":"με έως "+storeLimit+" αλυσίδες"}, με τις ίδιες καταγεγραμμένες τιμές και επιλεγμένες αλυσίδες. Δεν προστίθενται διπλά οι εξοικονομήσεις.</small></p>}
               {savingsWithBrands===null&&<p className={styles.methodNote}>Δεν υπάρχει πλήρης αρχική λίστα για συγκρίσιμη συνολική εξοικονόμηση. Καμία ελλείπουσα τιμή δεν μετρά ως μηδέν.</p>}
             </>}
             <section className={styles.classicComparison} aria-label="Σύγκριση με σενάριο επιλογής μίας αλυσίδας βάσει κάλυψης">
@@ -394,7 +394,7 @@ export function PosoKaneiPublicClient(){
           </div>}
         </div></aside>
       </div>
-      {!!lines.length&&<button type="button" className={styles.mobileBasketShortcut} onClick={()=>document.getElementById("posokanei-basket")?.scrollIntoView({behavior:"smooth",block:"start"})}>{Object.values(brandResults).some(x=>x.alternatives.length>0||x.candidates?.length>0)?"🔎 Εναλλακτικές μάρκες · Δες →":`🛒 Λίστα ${lines.length} · Υπολογισμός →`}</button>}
+      {!!lines.length&&<button type="button" className={styles.mobileBasketShortcut} onClick={()=>document.getElementById("posokanei-basket")?.scrollIntoView({behavior:"smooth",block:"start"})}>{Object.values(brandResults).some(x=>x.alternatives.length>0||x.candidates?.length>0)?"🔎 Εναλλακτικές · Δες →":`🛒 Λίστα ${lines.length} · Υπολογισμός →`}</button>}
       <p className={styles.footerNote}>KONTA MOY × PosoKanei · Ανεξάρτητη υπηρεσία αναφοράς τιμών. Χωρίς πραγματική αγορά, απόθεμα ή σύνδεση με το checkout του ΚΟΝΤΑ ΜΟΥ.</p><p className={styles.footerNote}>Πηγή τιμών: <a href="https://posokanei.gov.gr/" target="_blank" rel="noopener noreferrer">posokanei.gov.gr</a> · Δημόσιο ημερήσιο αρχείο: <a href="https://github.com/spyrosavl/posokanei" target="_blank" rel="noopener noreferrer">spyrosavl/posokanei</a> · Νομική βάση περαιτέρω χρήσης: ν. 4727/2020, άρθρο 61 (με επιφύλαξη άρθρου 59). Δεν αποτελεί επίσημη κυβερνητική υπηρεσία.</p>
     </div>
   </div>;
