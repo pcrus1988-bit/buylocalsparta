@@ -87,7 +87,7 @@ export default function NativeStorefront(){
          <Text style={styles.saveText}>{saved.has(product.variantId)?"✓ Στη wishlist":"♡ Αποθήκευση"}</Text>
        </Pressable>
        <Pressable accessibilityRole="link"
-          onPress={()=>void openMarketplace({path:"/product/"+(product.slug||product.variantId)})}>
+          onPress={()=>void openMarketplace({path:"/product/"+product.variantId})}>
         <Text style={styles.openText}>Δες προϊόν / αγορά ↗</Text>
        </Pressable>
       </View>
