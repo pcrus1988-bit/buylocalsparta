@@ -16,6 +16,17 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  // Additional categories with unambiguous source-described product kinds;
+  // full normalized title family, distinct brands and labelled whole-pack
+  // quantity continue to gate every individual approved comparison.
+  ["επιδορπιο κρεμας",["kg",/κρεμα.*(?:βανιλ|καραμελ)|καραμελ.*κρεμα/u]],
+  ["γευματα",["kg",/σπανακορυζ|αρακας.*λαδερ|λαδερ.*αρακ/u]],
+  ["θαλασσινα και ψαρια",["kg",/μπακαλιαρ.*(?:pollock|φιλετ)|pollock.*φιλετ/u]],
+  ["πατατες",["kg",/κατεψυγμεν.*πατατ|πατατ.*κατεψυγμεν/u]],
+  ["μαργαρινη",["kg",/μαργαριν.*classic|classic.*μαργαριν|μαργαριν.*κλασικ|κλασικ.*μαργαριν/u]],
+  ["πουλερικα",["kg",/κοτοπουλ.*μπουτ.*φιλετ|φιλετ.*μπουτ.*κοτοπουλ/u]],
+  ["παιδικα δημητριακα",["kg",/choco\s*balls/u]],
+
   // Additional source-described types from the same reviewed 10,323-SKU audit.
   // Broad source categories below are bounded to explicit product-title kinds.
   ["παριζα παριζακι",["kg",/παριζα|παριζακι/u]],
