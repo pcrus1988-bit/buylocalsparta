@@ -1,0 +1,514 @@
+{
+  "schema_version": 1,
+  "source": "posokanei.gov.gr",
+  "review_policy": "Approved as same source-described commodity type, not identical recipe, origin, nutritional/allergen profile or price guarantee; approval is individual-SKU and revoked on title/category/quantity drift",
+  "groups": [
+    {
+      "id": "white-granulated-sugar",
+      "label": "Ζάχαρη λευκή κρυσταλλική",
+      "status": "approved",
+      "basis": "kg",
+      "review_date": "2026-10-16",
+      "review_basis": "human-inspected-source-product-name-category-brand-quantity",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "0a75887c6b394ab4810c7e7a21f9ffe8",
+          "name": "CRISTAL Ζάχαρη Λευκή Κρυσταλλική 1kg",
+          "brand": "Cristal",
+          "category": "Λευκή Ζάχαρη",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "10ef821bdcc64033a886961dda015ba6",
+          "name": "SUGARTIA Ζάχαρη Λευκή Κρυσταλλική 1kg",
+          "brand": "SUGARTIA",
+          "category": "Λευκή Ζάχαρη",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "17cc4228042945708ca80536b6e9268b",
+          "name": "ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ Ζάχαρη Λευκή Κρυσταλλική 1κ",
+          "brand": "ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ",
+          "category": "Λευκή Ζάχαρη",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "36b9203507ad4c939bbae7d1613b2149",
+          "name": "FARMER Ζάχαρη Λευκή Κρυσταλλική 1kg",
+          "brand": "FARMER",
+          "category": "Λευκή Ζάχαρη",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "3750d34d3865404eb5c491500617a991",
+          "name": "SUDZUCKER Ζάχαρη Λευκή Κρυσταλλική 1kg",
+          "brand": "SUDZUCKER",
+          "category": "Λευκή Ζάχαρη",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "653f8123ec1c43b39c0321810f657269",
+          "name": "LUX FARM Ζάχαρη Λευκή Κρυσταλλική 1 kg",
+          "brand": "LUX FARM",
+          "category": "Λευκή Ζάχαρη",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "9b9c0e100c494c509e33fd3b7b99fc95",
+          "name": "DIAMANT Ζάχαρη Λευκή Κρυσταλλική 1kg",
+          "brand": "DIAMANT",
+          "category": "Λευκή Ζάχαρη",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "ec295782acd947d4850172bcd1451fbb",
+          "name": "ΑΒ ΕΠΙΛΟΓΗ Ζάχαρη Λευκή Κρυσταλλική 1kg",
+          "brand": "ΑΒ ΕΠΙΛΟΓΗ",
+          "category": "Λευκή Ζάχαρη",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "f3d6b5ac710344e1aa4134d16209e41a",
+          "name": "ΓΑΒΡΗΛΟΥ Ζάχαρη Λευκή Κρυσταλλική 1kg",
+          "brand": "ΑΦΟΙ ΓΑΒΡΗΛΟΥ",
+          "category": "Λευκή Ζάχαρη",
+          "unit": "kg",
+          "unit_quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "plain-penne-rigate",
+      "label": "Πέννες ριγέ απλές",
+      "status": "approved",
+      "basis": "kg",
+      "review_date": "2026-10-16",
+      "review_basis": "human-inspected-source-product-name-category-brand-quantity",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "1773b06e27ae46eb914d7ae334fdf035",
+          "name": "ΕΠΙΛΟΓΗ ΜΟΥ Πέννες Ριγέ 500g",
+          "brand": "επιλογη μου",
+          "category": "Πέννες Ριγέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "1f6873eab7b34ddc936bfc01645c1edc",
+          "name": "MY KOUZINA Πέννες Ριγέ 500g",
+          "brand": "my kouzina",
+          "category": "Πέννες Ριγέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "36f9759d86d346a190f65f1bc025d86b",
+          "name": "COMBINO Ζυμαρικά Πέννες Ριγέ 500g",
+          "brand": "combino",
+          "category": "Πέννες Ριγέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "3a1ed19cfb234141bfbd5238c96931fc",
+          "name": "MELISSA Πένες Ριγέ 500g",
+          "brand": "Melissa",
+          "category": "Πέννες Ριγέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "937a13e56141403db58ae01e2d8f2b19",
+          "name": "ΜΑΚΒΕΛ Πένες Ριγέ 500gr",
+          "brand": "ΜΑΚΒΕΛ",
+          "category": "Πέννες Ριγέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "ae4a243102a14295a7df705382e00349",
+          "name": "BARILLA Πένες Ριγέ 500g",
+          "brand": "Barilla",
+          "category": "Πέννες Ριγέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "b94d8fdce5c84c7fb2aaf09451ad4a24",
+          "name": "ΜΑΡΑΤΑ Πένες Ριγέ 500g",
+          "brand": "Μαράτα",
+          "category": "Πέννες Ριγέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "c67d97858e4440c7b556a9b1ecc23896",
+          "name": "WORLD'S MARKET Πέννες Ριγέ 500gr",
+          "brand": "WORLD'S MARKET",
+          "category": "Πέννες Ριγέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        }
+      ]
+    },
+    {
+      "id": "wholegrain-penne-rigate",
+      "label": "Πέννες ριγέ ολικής άλεσης",
+      "status": "approved",
+      "basis": "kg",
+      "review_date": "2026-10-16",
+      "review_basis": "human-inspected-source-product-name-category-brand-quantity",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "07de8abf5aab434b9b9790697a230c1f",
+          "name": "COMBINO Πέννες Ριγέ Ολικής Άλεσης 500g",
+          "brand": "combino",
+          "category": "Πέννες Ριγέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "427deb563bf74305a92a66cd84702a19",
+          "name": "MELISSA Πένες Ριγέ Ολικής Άλεσης 500g",
+          "brand": "Melissa",
+          "category": "Πέννες Ριγέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "6c641e41e30f4d03affcfe309316df63",
+          "name": "MISKO Πένες Ριγκάτε Ολικής Άλεσης 500g",
+          "brand": "MISKO",
+          "category": "Πέννες Ριγέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "9f28c04469854fad90f5aef6619129b5",
+          "name": "WORLD'S MARKET ΠΕΝΝΕΣ ΡΙΓΕ ΟΛΙΚΗΣ 500GR",
+          "brand": "WORLD'S MARKET",
+          "category": "Πέννες Ριγέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        }
+      ]
+    },
+    {
+      "id": "greek-glasse-rice",
+      "label": "Ρύζι γλασέ ελληνικό",
+      "status": "approved",
+      "basis": "kg",
+      "review_date": "2026-10-16",
+      "review_basis": "human-inspected-source-product-name-category-brand-quantity",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "26fdefb20d4646e8a8c74c4d6910eee9",
+          "name": "MY KOUZINA Ρύζι Γλασσέ Ελληνικό 500g",
+          "brand": "my kouzina",
+          "category": "Ρύζι Γλασέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "30f576b31d6c4f64b37de2d10a337229",
+          "name": "ΣΚΛΑΒΕΝΙΤΗΣ Ρύζι Γλασέ Ελληνικό 500g",
+          "brand": "ΣΚΛΑΒΕΝΙΤΗΣ",
+          "category": "Ρύζι Γλασέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "4c852dc4fa3847ffaf0ea582c3d68bb5",
+          "name": "ΑΒ ΕΠΙΛΟΓΗ Ρύζι Γλασέ Ελληνικό 1kg",
+          "brand": "ΑΒ ΕΠΙΛΟΓΗ",
+          "category": "Ρύζι Γλασέ",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "8ef7e6e1ebe3452a9c6aac0c6a598e5a",
+          "name": "ΑΒ ΕΠΙΛΟΓΗ Ρύζι Γλασέ Ελληνικό 500g",
+          "brand": "ΑΒ ΕΠΙΛΟΓΗ",
+          "category": "Ρύζι Γλασέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "d09aa7694c0d46ecb3cffccd12a9b07c",
+          "name": "ECONOMY Ρύζι Ελληνικό Γλασέ 1kg",
+          "brand": "ECONOMY",
+          "category": "Ρύζι Γλασέ",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "fc54ef9ded9542089ad41ca647755a42",
+          "name": "ECONOMY Ρύζι Ελληνικό Γλασέ 500γρ",
+          "brand": "ECONOMY",
+          "category": "Ρύζι Γλασέ",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        }
+      ]
+    },
+    {
+      "id": "imported-small-lentils",
+      "label": "Φακές ψιλές εισαγωγής",
+      "status": "approved",
+      "basis": "kg",
+      "review_date": "2026-10-16",
+      "review_basis": "human-inspected-source-product-name-category-brand-quantity",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "03192015514141aa96cd811df39b8ecd",
+          "name": "3 ΑΛΦΑ Φακές Ψιλές Εισαγωγής 500g",
+          "brand": "3 αλφα",
+          "category": "Φακές",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "257b90cef7664aa7ba14401ec84975cb",
+          "name": "ECONOMY Φακές Ψιλές Εισαγωγής 500γρ",
+          "brand": "ECONOMY",
+          "category": "Φακές",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "298d2118130a470ab2f941f083b589f8",
+          "name": "ΓΑΛΑΞΙΑΣ Φακές Ψιλές Εισαγωγής 500gr",
+          "brand": "Γαλαξίας",
+          "category": "Φακές",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "3ad11fa326fe4e96bdf89945b0639e6f",
+          "name": "ΣΚΛΑΒΕΝΙΤΗΣ Φακές Ψιλές Εισαγωγής 500g",
+          "brand": "ΣΚΛΑΒΕΝΙΤΗΣ",
+          "category": "Φακές",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "9871411da9014f9bba65fe6628a66a0b",
+          "name": "ΩΜΕΓΑ Special Φακές Ψιλές Εισαγωγής 500gr",
+          "brand": "ΩΜΕΓΑ",
+          "category": "Φακές",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        }
+      ]
+    },
+    {
+      "id": "imported-medium-beans",
+      "label": "Φασόλια μέτρια εισαγωγής",
+      "status": "approved",
+      "basis": "kg",
+      "review_date": "2026-10-16",
+      "review_basis": "human-inspected-source-product-name-category-brand-quantity",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "46d0afaa366b447e8502eb83aa535225",
+          "name": "ΓΑΛΑΞΙΑΣ Φασόλια Μέτρια Εισαγωγής 500gr",
+          "brand": "Γαλαξίας",
+          "category": "Φασόλια",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "7c8e0b51761c490f9ef590c9017cb9ce",
+          "name": "3 ΑΛΦΑ Φασόλια Μέτρια Εισαγωγής 500g",
+          "brand": "3 αλφα",
+          "category": "Φασόλια",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "bb4f0b6736404203a8c90a9a594df72d",
+          "name": "ECONOMY Φασόλια Μέτρια Εισαγωγής 500γρ",
+          "brand": "ECONOMY",
+          "category": "Φασόλια",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "e4cecf310423478dae8f3183062189b0",
+          "name": "ΣΚΛΑΒΕΝΙΤΗΣ Φασόλια Μέτρια Εισαγωγής 500g",
+          "brand": "ΣΚΛΑΒΕΝΙΤΗΣ",
+          "category": "Φασόλια",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "f78f6c21685f4777ada4e1efa56cbe46",
+          "name": "ΩΜΕΓΑ Special Φασόλια Μέτρια Εισαγωγής 500gr",
+          "brand": "ΩΜΕΓΑ",
+          "category": "Φασόλια",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        }
+      ]
+    },
+    {
+      "id": "plain-all-purpose-flour",
+      "label": "Αλεύρι για όλες τις χρήσεις, απλό",
+      "status": "approved",
+      "basis": "kg",
+      "review_date": "2026-10-16",
+      "review_basis": "human-inspected-source-product-name-category-brand-quantity",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "081d2856532c4d289d9e72906ab6f447",
+          "name": "ΜΑΣΟΥΤΗΣ ΑΠΟ ΤΟΝ ΤΟΠΟ ΜΑΣ Αλεύρι για Όλες τις Χρήσεις 1kg",
+          "brand": "ΑΠΟ ΤΟΝ ΤΟΠΟ ΜΑΣ",
+          "category": "Αλεύρι Για Όλες Τις Χρήσεις",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "112d6c65e0364f14b539688ccf6bd8fd",
+          "name": "ΑΛΛΑΤΙΝΗ Αλεύρι για Όλες τις Χρήσεις 1kg",
+          "brand": "Αλλατίνη",
+          "category": "Αλεύρι Για Όλες Τις Χρήσεις",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "31643b982d234d818bab7cd94ea28f0d",
+          "name": "Μύλοι Κρήτης Αλεύρι Για Όλες Τις Χρήσεις 1 kg",
+          "brand": "ΜΥΛΟΙ ΚΡΗΤΗΣ",
+          "category": "Αλεύρι Για Όλες Τις Χρήσεις",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "3fd0d52f609049d18588f76e4b174964",
+          "name": "ΜΑΡΑΤΑ Αλεύρι για Όλες τις Χρήσεις 1kg",
+          "brand": "Μαράτα",
+          "category": "Αλεύρι Για Όλες Τις Χρήσεις",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "42896ef852bf41d7a213adf6c76ad859",
+          "name": "ΑΒ ΕΠΙΛΟΓΗ Αλεύρι για Όλες τις Χρήσεις 1kg",
+          "brand": "ΑΒ ΕΠΙΛΟΓΗ",
+          "category": "Αλεύρι Για Όλες Τις Χρήσεις",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "4f55529ae8c0485abf28306c248f56af",
+          "name": "ΜΥΛΟΙ ΘΡΑΚΗΣ Αλεύρι για Όλες τις Χρήσεις 1kg",
+          "brand": "ΜΥΛΟΙ ΘΡΑΚΗΣ",
+          "category": "Αλεύρι Για Όλες Τις Χρήσεις",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "92161b4aef954736b5f592f778f0a316",
+          "name": "ΧΑΛΚΙΑΔΑΚΗΣ Αλεύρι Για Όλες Τις Χρήσεις 1 kg",
+          "brand": "Χαλκιαδάκης",
+          "category": "Αλεύρι Για Όλες Τις Χρήσεις",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "9903d6c98f4c48e2ba1bd6d3c8ebb7ce",
+          "name": "ΓΙΩΤΗΣ Αλεύρι για Όλες τις Χρήσεις 1kg",
+          "brand": "ΓΙΩΤΗΣ",
+          "category": "Αλεύρι Για Όλες Τις Χρήσεις",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "9fca715e9e2d4e9aa400a60198af532b",
+          "name": "ΑΓΡΟΚΤΗΜΑ Αλεύρι για Όλες τις Χρήσεις 1kg",
+          "brand": "Αγρόκτημα",
+          "category": "Αλεύρι Για Όλες Τις Χρήσεις",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "b76886e5c5da4c43b6df736486993929",
+          "name": "MY KOUZINA Αλεύρι Για Όλες Τις Χρήσεις 1kg",
+          "brand": "my kouzina",
+          "category": "Αλεύρι Για Όλες Τις Χρήσεις",
+          "unit": "kg",
+          "unit_quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "tomato-paste-28-30",
+      "label": "Τοματοπολτός 28–30% · 410 γρ.",
+      "status": "approved",
+      "basis": "kg",
+      "review_date": "2026-10-16",
+      "review_basis": "human-inspected-source-product-name-category-brand-quantity",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "115bf70df0df401685c4e8167203aa3d",
+          "name": "MY KOUZINA Τοματοπολτός 28%-30% 410g",
+          "brand": "my kouzina",
+          "category": "Πολτός Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.41
+        },
+        {
+          "id": "c30c43b7330f462cb7540f589a390432",
+          "name": "ΜΑΣΟΥΤΗΣ ΑΠΟ ΤΟΝ ΤΟΠΟ ΜΑΣ Τοματοπολτός 28-30% 410g",
+          "brand": "ΑΠΟ ΤΟΝ ΤΟΠΟ ΜΑΣ",
+          "category": "Πολτός Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.41
+        }
+      ]
+    },
+    {
+      "id": "greek-carolina-rice",
+      "label": "Ρύζι Καρολίνα ελληνικό",
+      "status": "approved",
+      "basis": "kg",
+      "review_date": "2026-10-16",
+      "review_basis": "human-inspected-source-product-name-category-brand-quantity",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "061cbb8392ef4fe09b23fd4f9af0665e",
+          "name": "ΑΒ ΕΠΙΛΟΓΗ Ρύζι Καρολίνα Ελληνικό 1kg",
+          "brand": "ΑΒ Βασιλόπουλος",
+          "category": "Ρύζι Καρολίνα",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "06cf6d43648c4c9aa817505a8af86c4b",
+          "name": "ECONOMY Ρύζι Ελληνικό Καρολίνα 500γρ",
+          "brand": "ECONOMY",
+          "category": "Ρύζι Καρολίνα",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        }
+      ]
+    }
+  ]
+}

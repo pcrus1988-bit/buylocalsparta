@@ -167,7 +167,6 @@ There are **two distinct layers**:
 
 Both layers respect source snapshot, detailed category, physical unit, package quantity, global retailer exclusions and price freshness. The on-demand product-card **Σύγκρινε άλλες μάρκες** view can show cheaper, equal-price or more expensive records with appropriate labels, while automatic cheaper-brand basket checks remain strictly cheaper-only. Catalogued similarities do not establish ingredient equivalence, safety, allergen compatibility, or local branch inventory. Production government-mirror snapshots currently contain no automatically approved cross-brand groups.
 
-
 ## Next reviewed-brand expansion: offline editor queue
 
 To find source-grounded new candidates **without inventing product equivalence**, run the audited snapshot importer, then:
@@ -177,6 +176,6 @@ node scripts/posokanei/import-snapshot.mjs --latest --out /tmp/posokanei-review
 node scripts/posokanei/build-comparable-review-queue.mjs /tmp/posokanei-review --out /tmp/posokanei-review/candidate-queue.json --limit 100
 ```
 
-After the curated approved-group file is available, add `--approved scripts/posokanei/approved-equivalence-groups.json` to exclude fully reviewed families. The CLI collects families with compatible reference units, detailed source category, normalized brand-free naming, at least two brands, valid Greek chain-price evidence, and an actual whole-pack price difference. The output contains product IDs, source labels, brands, quantities, cheapest observed chain price and a demonstrative potential saving for the original amount, ranked for review. It explicitly distinguishes existing reviewed member IDs from unreviewed source members. The tool **never** adds group approvals or user-facing direct substitutions.
+For the already published curated reviewed groups, add `--approved scripts/posokanei/approved-equivalence-groups.json` to exclude fully reviewed families. The CLI collects families with compatible reference units, detailed source category, normalized brand-free naming, at least two brands, valid Greek chain-price evidence, and an actual whole-pack price difference. The output contains product IDs, source labels, brands, quantities, cheapest observed chain price and a demonstrative potential saving for the original amount, ranked for review. It explicitly distinguishes existing reviewed member IDs from unreviewed source members. The tool **never** adds group approvals or user-facing direct substitutions.
 
 Every new group must undergo human examination of products, category, ingredient / allergy implications, formulation, country-of-origin qualifiers, intended use, packaging and source IDs, plus individual source-pin preservation. Product similarity is not identical ingredients; queue amounts are indicative cross-chain minimum observations, not a feasible mixed-store basket or guaranteed saving. Queue output remains an explicit operator-local file rather than a public CI artifact or user-specific shopping history; build logs print aggregate counts only. If no evidence is available, the queue remains empty instead of guessing.
