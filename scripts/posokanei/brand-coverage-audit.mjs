@@ -27,7 +27,7 @@ const index=createBrandIndex(products);
 const count={
   products:products.length,pricedProducts:0,productsWithKnownSize:0,
   productsWithBrandAndFamily:0,productsWithOtherBrandInFamily:0,
-  productsWithCheaperComparableBrand:0,comparablyPricedOffers:0,
+  productsWithCheaperApprovedBrand:0,approvedOffers:0,productsWithCheaperUnreviewedCandidate:0,unreviewedOffers:0,
   unknownQuantity:0
 };
 for(const product of products){
@@ -46,8 +46,12 @@ for(const product of products){
     sourceId:product.source_product_id,products,offersByProduct:offers,brandIndex:index
   });
   if(res.alternatives.length) {
-    count.productsWithCheaperComparableBrand++;
-    count.comparablyPricedOffers+=res.alternatives.length;
+    count.productsWithCheaperApprovedBrand++;
+    count.approvedOffers+=res.alternatives.length;
+  }
+  if(res.candidates.length) {
+    count.productsWithCheaperUnreviewedCandidate++;
+    count.unreviewedOffers+=res.candidates.length;
   }
 }
 if(count.products<1||count.pricedProducts<1)throw Error("No valid public reference products");
