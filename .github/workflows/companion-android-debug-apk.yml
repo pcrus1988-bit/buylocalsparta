@@ -1,9 +1,6 @@
 name: Companion Android Debug APK
 on:
-  pull_request:
-    paths:
-      - mobile/**
-      - .github/workflows/companion-android-debug-apk.yml
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
