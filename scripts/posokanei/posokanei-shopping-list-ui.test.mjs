@@ -43,6 +43,7 @@ test("All-price shopping-list suggestions are opt-in; other API callers retain c
   assert.match(route,/includeNonCheaper:input\.includeNonCheaper===true/);
   assert.match(route,/typeof input\.includeNonCheaper!=="boolean"/);
   assert.match(route,/includeNonCheaper:allBrands/);
+  assert.match(route,/maxResults:25/);
 });
 
 test("a chosen reviewed alternative preserves original prices and refreshes total savings",()=>{
@@ -59,6 +60,8 @@ test("basket savings prompt expands verified cheaper options and selected altern
   assert.match(source,/summarizeCheaperAlternatives\(Object\.values\(brandResults\)\)/);
   assert.match(source,/savingsOpportunities\.productCount>0&&<button/);
   assert.match(source,/Εξοικονόμησε έως/);
+  assert.match(source,/includeNonCheaper:false/);
+  assert.match(source,/Πρόσθετη δυνητική εξοικονόμηση/);
   assert.match(source,/savingsOpportunities\.potentialSavingEur/);
   assert.match(source,/setExpandedAlternatives\(current=>\[\.\.\.new Set\(\[\.\.\.current,\.\.\.savingsOpportunities\.lineIds\]\)\]\)/);
   assert.match(source,/scrollIntoView\(\{behavior:"smooth",block:"start"\}\)/);
