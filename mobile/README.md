@@ -130,3 +130,16 @@ The Android draft now includes a first-party **account-owned cart** instead of b
 - **Unreleased**: native address editing, shipping/locker selection, native payment UI, conflict-proof mixed browser-local cart merge, live auth/FCM tests, APK rebuild and production activation. Neither a passed JavaScript export nor a debug APK alone proves an actual purchase can complete.
 
 Regression tests cover revision changes (including the unsaved-cart sentinel), guarded cart inputs, exact canonical items, bounds and client mutations. The Android CI checks matching, security tests, pinned Expo dependencies, TypeScript and JS bundle. Production web and Android physical-device checkout tests are still required before enabling the flags.
+
+## Android account address-book increment — 16 October 2026
+
+The existing KONTA MOY account address service now has a gated Android Companion bridge, plus a fully native Greek-language **saved addresses** screen linked from Account and Basket.
+
+- `GET /api/mobile/companion/addresses`: reads only the authenticated customer's address-book profile through the existing `PostgresCustomerAddressService.profile`; no private cookies, location or other customers' records are accepted.
+- `POST /api/mobile/companion/addresses`: **create only** (no edit/delete) through `PostgresCustomerAddressService.upsert` for the mobile bearer owner, with a size bound, strict field allowlist, full-name check, five-digit Greek postcode, optional phone validation, an explicit country restriction to GR and a customer-scoped rate limiter of at most five attempts/minute. The service also updates the account profile name, consistent with web address creation.
+- Independent production gate: `COMPANION_ANDROID_ADDRESSES_ENABLED=true` AND already-deployed `COMPANION_ANDROID_AUTH_ENABLED=true`. Remain **OFF** until security review and on-device PKCE tests complete. Missing or revoked bearer is denied. No new schema or credentials on the phone.
+- The native Android address screen displays saved billing/delivery defaults and can explicitly create a new address. It does not persist customer address details in SQLite, logs, marketing/location payloads or preferences. An active app session still retains screen state temporarily in memory.
+- Existing-address editing, deletion and the actual checkout fulfilment choices remain with the first-party secure website. The same saved addresses are available to the existing authoritative web checkout; native selections are not silently forwarded or assumed to be chosen.
+- Node tests cover invalid ownership/body fields, unsupported countries, required full name and postcode, embedded control characters and the native form. The mobile build/SDK export CI and physical-device lifecycle testing are separate release gates.
+
+**Important checkout caveat:** Adding addresses does not make payments native. The browser must be signed into the same account, and the buyer must review the actual final cart, price, address, fulfilment, shipping/locker and Mollie payment before confirming. No production flags or databases are changed by this draft PR.
