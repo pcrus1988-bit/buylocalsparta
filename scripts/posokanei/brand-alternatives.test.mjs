@@ -28,7 +28,7 @@ const o=(id,retailer_id,price_eur)=>({retailer_id,retailer_name:retailer_id,pric
 const offers=new Map([
   ["a",[o("a","alpha",1.20),o("a","beta",1.40)]],
   ["b",[o("b","beta",0.55),o("b","alpha",1.25)]],
-  ["c",[o("c","alpha",1.13)]],
+  ["c",[o("c","alpha",1.18)]],
   ["passata",[o("passata","alpha",0.10)]],
   ["bio",[o("bio","alpha",0.20)]],
   ["wrongcat",[o("wrongcat","alpha",0.20)]],
