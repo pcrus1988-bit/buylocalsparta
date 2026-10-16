@@ -10,6 +10,12 @@ export const runtime="nodejs";
 const headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
 // Reuse the immutable match index for the lifetime of a published snapshot.
 const indexes=new WeakMap<PublishedReferenceSnapshot,BrandIndex>();
+const catalogues=new WeakMap<PublishedReferenceSnapshot,ReturnType<typeof pricedCatalog>>();
+function catalogFor(snapshot:PublishedReferenceSnapshot){
+  let catalogue=catalogues.get(snapshot);
+  if(!catalogue){catalogue=pricedCatalog(snapshot);catalogues.set(snapshot,catalogue);}
+  return catalogue;
+}
 export async function GET(req:Request){
   try{
     const params=new URL(req.url).searchParams;
@@ -27,7 +33,8 @@ export async function GET(req:Request){
     if(!index){index=createBrandIndex(snap.products);indexes.set(snap,index);}
     const matches=findBrandAlternatives({
       sourceId:id,packages,products:snap.products,
-      offersByProduct:pricedCatalog(snap).byProduct,brandIndex:index,
+      offersByProduct:catalogFor(snap).byProduct,brandIndex:index,
+      approvedGroups:snap.approvedGroups,
       excludedRetailerIds:excluded
     });
     if(matches.reason==="not_found")
@@ -71,13 +78,13 @@ export async function POST(request:Request){
     if(!snapshot)return NextResponse.json({status:"unavailable",lines:[]},{status:503,headers});
     let index=indexes.get(snapshot);
     if(!index){index=createBrandIndex(snapshot.products);indexes.set(snapshot,index);}
-    const catalogue=pricedCatalog(snapshot);
+    const catalogue=catalogFor(snapshot);
     const results=requested.map(line=>({
       lineId:line.id,sourceProductId:line.sourceProductId,
       ...findBrandAlternatives({
         sourceId:line.sourceProductId,packages:line.packageCount,
         products:snapshot.products,offersByProduct:catalogue.byProduct,
-        brandIndex:index,
+        brandIndex:index,approvedGroups:snapshot.approvedGroups,
         excludedRetailerIds:input.excludedRetailerIds as string[]
       })
     }));
