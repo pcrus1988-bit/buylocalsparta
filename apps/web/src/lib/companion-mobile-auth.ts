@@ -166,7 +166,7 @@ export async function mobileAccountSnapshot(userId:string) {
         EXISTS(
           SELECT 1 FROM public.fulfilment_orders fo
           JOIN public.pickup_groups pg ON pg.fulfilment_order_id=fo.id
-          WHERE fo.order_id=o.id AND pg.ready_at IS NOT NULL AND pg.collected_at IS NULL
+          WHERE fo.order_id=o.id AND fo.mode='pickup' AND fo.status='ready_for_handover'\n            AND o.status NOT IN ('cancelled','refunded')\n            AND pg.ready_at IS NOT NULL AND pg.collected_at IS NULL
         ) AS pickup_ready
       FROM public.customer_orders o
       WHERE o.user_id=$1::uuid
