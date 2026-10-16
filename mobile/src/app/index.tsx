@@ -14,15 +14,16 @@ export default function Home() {
     <Text style={styles.title}>Η τοπική αγορά σου, πάντα κοντά.</Text>
     <Text style={styles.lead}>Γνώρισε καταστήματα της περιοχής, ανακάλυψε προϊόντα και διάλεξε τι πραγματικά σε ενδιαφέρει.</Text>
     <View style={styles.hero}>
-      <Text style={styles.heroLabel}>KONTA MOY NEARBY</Text>
-      <Text style={styles.heroTitle}>Μια πόλη γεμάτη ευκαιρίες.</Text>
-      <Text style={styles.heroText}>Εσύ αποφασίζεις πότε θα αναζητήσουμε τις κοντινές προσφορές. Χωρίς διαρκή παρακολούθηση.</Text>
+      <Text style={styles.heroLabel}>KONTA MOY COMPANION</Text>
+      <Text style={styles.heroTitle}>Η λίστα σου ξέρει τη γειτονιά.</Text>
+      <Text style={styles.heroText}>Λίστα αγορών, wishlist και υπενθυμίσεις κοντά σε φυσικά καταστήματα, πάντα με επιλογή σου.</Text>
       <Link href="/nearby" asChild>
         <Pressable style={styles.primary} accessibilityRole="button">
           <Text style={styles.primaryText}>Ανακάλυψε τι είναι κοντά σου →</Text>
         </Pressable>
       </Link>
     </View>
+    <Link href="/lists" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Λίστα αγορών & Wishlist →</Text></Pressable></Link>
     <View style={styles.row}>
       <View style={styles.tile}>
         <Text style={styles.tileTitle}>Αγορές</Text>
@@ -40,7 +41,7 @@ export default function Home() {
         <Text style={styles.secondaryText}>Ο λογαριασμός μου →</Text>
       </Pressable>
     </Link>
-    <Text style={styles.note}>Πρώτη έκδοση ανάπτυξης: οι αγορές και ο λογαριασμός ανοίγουν στον ασφαλή ιστότοπο KONTA MOY. Η εγγενής σύνδεση λογαριασμού και παραγγελιών είναι επόμενο στάδιο.</Text>
+    <Text style={styles.note}>Έκδοση ανάπτυξης Android: οι τοπικές λίστες αποθηκεύονται στη συσκευή. Παραγγελίες και παραλαβές ανοίγουν με ασφάλεια στον υπάρχοντα ιστότοπο μέχρι να ολοκληρωθεί το native login.</Text>
   </ScrollView>;
 }
 const styles=StyleSheet.create({
