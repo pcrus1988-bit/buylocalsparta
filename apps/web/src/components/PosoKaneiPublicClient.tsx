@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback,useEffect,useMemo,useState} from "react";
+import {useCallback,useEffect,useState} from "react";
 import type {BasketLine,BasketPlan,BasketResult} from "../../../../scripts/posokanei/basket-optimizer.mjs";
 import {groupShoppingPlan,planFingerprint,savingsForPlan,shoppingPlanText,packagesForEquivalent} from "../../../../scripts/posokanei/shopping-plan.mjs";
 import styles from "./PosoKaneiPublicClient.module.css";
@@ -30,14 +30,6 @@ export function PosoKaneiPublicClient(){
   const [listing,setListing]=useState<Listing>(empty);
   const [loading,setLoading]=useState(true);
   const [active,setActive]=useState<string|null>(null);
-  const [comparedProduct,setComparedProduct]=useState<string|null>(null);
-  const [comparison,setComparison]=useState<{
-    status:string;reason?:string;alternatives:Cheaper[];candidates:Cheaper[]
-  }|null>(null);
-  const [comparisonLoading,setComparisonLoading]=useState(false);
-  const [group,setGroup]=useState<string|null>(null);
-  const [alternatives,setAlternatives]=useState<Product[]>([]);
-  const [sorting,setSorting]=useState<"unit"|"package">("unit");
   const [lines,setLines]=useState<BasketLine[]>([]);
   const [labels,setLabels]=useState<Record<string,string>>({});
   const [storeLimit,setStoreLimit]=useState(5);
@@ -99,56 +91,6 @@ export function PosoKaneiPublicClient(){
     },180);
     return ()=>{clearTimeout(timer);abort.abort();};
   },[q,category,page,excluded,preferencesLoaded]);
-  useEffect(()=>{
-    if(!group){setAlternatives([]);return;}
-    const abort=new AbortController();
-    void (async()=>{
-      try {
-        const response=await fetch("/api/posokanei?group="+encodeURIComponent(group)+(excluded.length?"&exclude="+encodeURIComponent(excluded.join(",")):""),{signal:abort.signal,cache:"no-store"});
-        const data=await response.json() as Listing;
-        if(!abort.signal.aborted)setAlternatives(data.status==="ready"?data.products:[]);
-      }catch{if(!abort.signal.aborted)setAlternatives([]);}
-    })();
-    return ()=>abort.abort();
-  },[group,excluded]);
-  // On-demand, abortable per-product candidate search. No background fetch
-  // across all 24 rendered product cards, and no unverified auto-substitution.
-  useEffect(()=>{
-    if(!comparedProduct){setComparison(null);setComparisonLoading(false);return;}
-    const controller=new AbortController();
-    setComparison(null);setComparisonLoading(true);
-    void (async()=>{
-      try{
-        const url="/api/posokanei/alternatives?productId="+encodeURIComponent(comparedProduct)+
-          "&packages=1&show=all"+(excluded.length?"&exclude="+encodeURIComponent(excluded.join(",")):"");
-        const response=await fetch(url,{signal:controller.signal,cache:"no-store"});
-        if(!response.ok)throw Error("brand comparison unavailable");
-        const json=await response.json() as {
-          status:string;reason?:string;alternatives?:Cheaper[];candidates?:Cheaper[]
-        };
-        if(!controller.signal.aborted)setComparison({status:json.status,reason:json.reason,
-          alternatives:json.alternatives||[],candidates:json.candidates||[]});
-      }catch{
-        if(!controller.signal.aborted)setComparison({status:"unavailable",alternatives:[],candidates:[]});
-      }finally{
-        if(!controller.signal.aborted)setComparisonLoading(false);
-      }
-    })();
-    return()=>controller.abort();
-  },[comparedProduct,excluded,q,category,page]);
-  const groupInfo=listing.groups.find(g=>g.id===group);
-  useEffect(()=>{
-    if(group&&alternatives.length)
-      document.getElementById("posokanei-reviewed-comparisons")?.scrollIntoView({behavior:"smooth",block:"start"});
-  },[group,alternatives]);
-  const ranked=useMemo(()=>[...alternatives].sort((a,b)=>{
-    const aPrice=a.offers[0]?.priceEur??Infinity,bPrice=b.offers[0]?.priceEur??Infinity;
-    if(sorting==="unit"){
-      const au=pricePerUnit(a,aPrice)?.price??Infinity,bu=pricePerUnit(b,bPrice)?.price??Infinity;
-      if(au!==bu)return au-bu;
-    }
-    return aPrice-bPrice||a.name.localeCompare(b.name,"el");
-  }),[alternatives,sorting]);
   const update=useCallback((next:BasketLine[])=>{setLines(next);setResult(null);setError("");},[]);
   // One race-safe, quantity-aware request refreshes ALL existing basket SKUs.
   // A store exclusion or line edit automatically invalidates older alerts.
@@ -197,15 +139,6 @@ export function PosoKaneiPublicClient(){
     update([...lines,{id:key,kind:"exact",sourceProductId:p.id,packageCount:1}]);
     setNotice("Προστέθηκε στη λίστα: "+p.name+" · ελέγχονται όλες οι μάρκες της λίστας.");
   }
-  function addReviewedComparable(option:Cheaper){
-    // Never enable direct substitution from a name-based, unreviewed match.
-    if(option.confidence!=="reviewed_equivalent")return;
-    if(lines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα.");return;}
-    const key=id();
-    setLabels(current=>({...current,[key]:option.name}));
-    update([...lines,{id:key,kind:"exact",sourceProductId:option.id,packageCount:option.packageCount}]);
-    setNotice("Προστέθηκε συγκρίσιμη μάρκα με "+option.packageCount+" συσκευασία/ες.");
-  }
   function chooseCheaper(lineId:string,next:Cheaper){
     const selected=brandResults[lineId];
     if(!selected||typeof selected.sourceAmount!=="number"||!selected.basis)return;
@@ -220,13 +153,6 @@ export function PosoKaneiPublicClient(){
     changeLine(lineId,{sourceProductId:next.id,packageCount:packages});
     setLabels(current=>({...current,[lineId]:next.name}));
     setNotice("Η μάρκα ενημερώθηκε. Η ποσότητα διατηρήθηκε με "+packages+" συσκευασίες.");
-  }
-  function addGroup(g:Group){
-    if(lines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
-    const key=id();
-    setLabels(current=>({...current,[key]:g.label}));
-    update([...lines,{id:key,kind:"group",groupId:g.id,requiredBaseQuantity:1}]);
-    setNotice("Προστέθηκαν ισοδύναμα προϊόντα στη λίστα.");
   }
   function changeLine(key:string,patch:Partial<BasketLine>){
     update(lines.map(line=>line.id===key?({...line,...patch} as BasketLine):line));
@@ -305,13 +231,6 @@ export function PosoKaneiPublicClient(){
             <label>Αναζήτηση προϊόντος<input type="search" value={q} onChange={e=>{setQ(e.target.value);setPage(1);setActive(null);}} placeholder="π.χ. ρύζι, γάλα, ντομάτα ψιλοκομμένη" /></label>
             <label>Κατηγορία<select value={category} onChange={e=>{setCategory(e.target.value);setPage(1);}}><option value="">Όλες οι κατηγορίες</option>{(listing.categoryGroups||[]).map(c=><option key={c} value={c}>{c}</option>)}</select></label>
           </div>
-          {listing.groups.length>0&&<details className={styles.reviewedBrowser}>
-            <summary>Συγκρίσεις εγκεκριμένων τύπων · {listing.groups.length} είδη προϊόντων</summary>
-            <p>Διάλεξε ένα είδος για σύγκριση τιμής ανά μάρκα, συσκευασία ή κιλό. Η χειροκίνητη ή αυτόματη αντιστοίχιση αφορά τον περιγραφόμενο τύπο του προϊόντος, όχι εγγύηση ίδιων συστατικών, αλλεργιογόνων ή προέλευσης.</p>
-            <div className={styles.reviewedChips}>
-              {listing.groups.map(g=><button key={g.id} type="button" className={styles.secondary} onClick={()=>{setGroup(g.id);setSorting("unit");}}>{g.label} ↗</button>)}
-            </div>
-          </details>}
           {loading&&<p className={styles.message} role="status">Φόρτωση καταλόγου…</p>}
           {listing.status==="ready"&&!loading&&listing.products.length===0&&<p className={styles.message}>Δεν βρέθηκαν καταγεγραμμένες τιμές με αυτά τα κριτήρια.</p>}
           <div className={styles.cards}>
@@ -326,37 +245,7 @@ export function PosoKaneiPublicClient(){
                 <div className={styles.buttons}>
                   <button className={styles.primary} type="button" disabled={!best} onClick={()=>addProduct(p)}>+ Στη λίστα · καλύτερη τιμή</button>
                   <button className={styles.secondary} type="button" onClick={()=>setActive(expanded?null:p.id)} aria-expanded={expanded}>Τιμές στις αλυσίδες {expanded?"−":"+"}</button>
-                  <button className={styles.textButton} type="button" aria-expanded={comparedProduct===p.id}
-                    onClick={()=>setComparedProduct(current=>current===p.id?null:p.id)}>
-                    Σύγκρινε άλλες μάρκες {comparedProduct===p.id?"−":"↗"}
-                  </button>
-                  {p.groupId&&<button className={styles.textButton} type="button" onClick={()=>{setGroup(p.groupId);setSorting("unit");}}>Ομάδα συγκρίσιμων ↗</button>}
                 </div>
-                {comparedProduct===p.id&&<div className={styles.comparablePanel} aria-label={"Συγκρίσιμες μάρκες για "+p.name}>
-                  <h4>Σύγκριση άλλων μαρκών</h4>
-                  <p>Η αναζήτηση χρησιμοποιεί ονομασία, κατηγορία και ολόκληρες συσκευασίες για την ποσότητα του αρχικού προϊόντος. Αυτόματα εγκεκριμένη, χειροκίνητα ελεγμένη και ανεπιβεβαίωτη ομοιότητα διαχωρίζονται ρητά.</p>
-                  {comparisonLoading?<p role="status">Αναζήτηση συγκρίσιμων προϊόντων…</p>:
-                    comparison?.status==="unavailable"?<p role="status">Δεν ολοκληρώθηκε η σύγκριση τιμών.</p>:
-                    comparison&&comparison.alternatives.length+comparison.candidates.length>0?<>
-                      {comparison.alternatives.length>0&&<><h5>Εγκεκριμένες συγκρίσιμες μάρκες</h5>
-                        {comparison.alternatives.map(a=><div className={styles.comparableRow} key={a.id}>
-                          <div><strong>{a.name}</strong><small>{a.retailerName} · {a.packageCount} × {money(a.priceEur)} = {money(a.candidateTotalEur)}</small>
-                            <small>{a.approvalMethod==="automatic_commodity"?"Αυτόματη έγκριση τύπου · έλεγξε την ετικέτα":"Χειροκίνητα ελεγμένος τύπος"}</small>
-                            <small className={a.savingsEur>0?styles.comparableBenefit:undefined}>{a.savingsEur>0?"Φθηνότερο κατά "+money(a.savingsEur):a.savingsEur===0?"Ίδια τιμή":"Ακριβότερο κατά "+money(Math.abs(a.savingsEur))}</small></div>
-                          <button type="button" className={styles.secondary} onClick={()=>addReviewedComparable(a)}>+ Στη λίστα</button>
-                        </div>)}</>}
-                      {comparison.candidates.length>0&&<><h5>Πιθανές ομοιότητες · όχι ελεγμένη ισοδυναμία</h5>
-                        {comparison.candidates.map(a=><div className={styles.comparableRow} key={a.id}>
-                          <div><strong>{a.name}</strong><small>{a.retailerName} · {a.packageCount} × {money(a.priceEur)} = {money(a.candidateTotalEur)}</small>
-                            <small>Διαφορά τιμής εφόσον σε καλύπτει: {a.savingsEur>0?"−"+money(a.savingsEur):a.savingsEur===0?"ίδια τιμή":"+"+money(Math.abs(a.savingsEur))}. Η ισοδυναμία ΔΕΝ έχει επαληθευτεί.</small></div>
-                          <button type="button" className={styles.secondary}
-                            onClick={()=>{setQ(a.name.slice(0,100));setPage(1);setComparedProduct(null);setActive(null);}}>
-                            Δες το προϊόν
-                          </button>
-                        </div>)}</>}
-                    </>:
-                    <p role="status">{comparison?.reason==="unknown_quantity"?"Ανεπαρκή στοιχεία ποσότητας.":"Δεν βρέθηκαν άλλα συγκρίσιμα προϊόντα με καταγεγραμμένες τιμές."}</p>}
-                </div>}
                 {expanded&&<div className={styles.offers}><h4>Καταγεγραμμένες τιμές · μόνο από τις επιλεγμένες αλυσίδες</h4>
                   {p.offers.map((o,i)=><div key={o.retailerId} className={styles.offer}><span>{o.retailerName}{i===0&&<small className={styles.lowest}> Χαμηλότερη καταγραφή</small>}{o.discount&&<small> · Σήμανση έκπτωσης</small>}</span><strong>{money(o.priceEur)}</strong></div>)}
                 </div>}
@@ -364,16 +253,9 @@ export function PosoKaneiPublicClient(){
             })}
           </div>
           {listing.status==="ready"&&(page>1||listing.hasMore)&&<nav className={styles.pagination} aria-label="Σελίδες προϊόντων"><button type="button" disabled={page===1} onClick={()=>setPage(p=>p-1)}>← Προηγούμενη</button><span>Σελίδα {page}</span><button type="button" disabled={!listing.hasMore} onClick={()=>setPage(p=>p+1)}>Επόμενη →</button></nav>}
-          {groupInfo&&<section id="posokanei-reviewed-comparisons" className={styles.alternative} aria-label="Σύγκριση ισοδύναμων προϊόντων">
-            <div className={styles.heading}><div><span className={styles.eyebrow}>02 · ΕΓΚΕΚΡΙΜΕΝΟΙ ΤΥΠΟΙ ΠΡΟΪΟΝΤΩΝ</span><h2>{groupInfo.label}</h2></div><button type="button" className={styles.close} onClick={()=>setGroup(null)} aria-label="Κλείσιμο εναλλακτικών">✕</button></div>
-            <p className={styles.methodNote}>Προϊόντα με χειροκίνητη ή αυτόματη έγκριση του περιγραφόμενου τύπου και της ποσότητας. Έλεγξε τα συστατικά, αλλεργιογόνα και την προέλευση προτού επιλέξεις εναλλακτική μάρκα.</p>
-            <div className={styles.buttons}><button className={sorting==="unit"?styles.primary:styles.secondary} onClick={()=>setSorting("unit")} type="button">Ανά {groupInfo.basis}</button><button className={sorting==="package"?styles.primary:styles.secondary} onClick={()=>setSorting("package")} type="button">Ανά συσκευασία</button></div>
-            {ranked.map(p=><div className={styles.offer} key={p.id}><span><strong>{p.brand||p.name}</strong><small> {p.name} · {p.offers[0]?.retailerName||""}</small></span><span><strong>{money(p.offers[0]?.priceEur)}</strong><small> {money(pricePerUnit(p,p.offers[0]?.priceEur??0)?.price)}/{groupInfo.basis}</small></span><button type="button" onClick={()=>addProduct(p)}>+ Στη λίστα</button></div>)}
-            <button className={styles.primary} type="button" onClick={()=>addGroup(groupInfo)}>+ Η οικονομικότερη ισοδύναμη μάρκα</button>
-          </section>}
         </section>
         <aside className={styles.sidebar} aria-label="Λίστα και εξοικονόμηση"><div className={styles.basket} id="posokanei-basket">
-          <div className={styles.heading}><div><span className={styles.eyebrow}>03 · ΤΟ ΚΑΛΑΘΙ ΣΟΥ</span><h2>Η λίστα αγορών</h2></div><span className={styles.count}>{lines.length}</span></div>
+          <div className={styles.heading}><div><span className={styles.eyebrow}>02 · ΤΟ ΚΑΛΑΘΙ ΣΟΥ</span><h2>Η λίστα αγορών</h2></div><span className={styles.count}>{lines.length}</span></div>
           {!lines.length?<p className={styles.message}>Πρόσθεσε προϊόντα για να υπολογίσουμε το συνολικό κόστος στα σούπερ μάρκετ.</p>:<details className={styles.listDetails}><summary>Προϊόντα στη λίστα ({lines.length}) · Προβολή / επεξεργασία</summary><div className={styles.lines}>{lines.map(l=><div className={styles.line} key={l.id}>
             <div className={styles.lineTop}><strong>{labels[l.id]||"Προϊόν"}</strong><button type="button" onClick={()=>update(lines.filter(x=>x.id!==l.id))} aria-label="Αφαίρεση από τη λίστα">✕</button></div>
             <label>{l.kind==="exact"?"Συσκευασίες":"Ποσότητα ("+(listing.groups.find(g=>g.id===l.groupId)?.basis||"kg")+")"}<input type="number" min="1" max="100" step={l.kind==="exact"?"1":"0.1"} value={l.kind==="exact"?l.packageCount:l.requiredBaseQuantity} onChange={e=>changeLine(l.id,l.kind==="exact"?{packageCount:Number(e.target.value)}:{requiredBaseQuantity:Number(e.target.value)})}/></label>
