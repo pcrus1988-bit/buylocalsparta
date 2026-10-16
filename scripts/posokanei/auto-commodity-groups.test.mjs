@@ -50,14 +50,16 @@ test("manual approved members take precedence; automatic groups do not overlap",
   assert.equal(generated.length,2);
   assert.ok(generated.every(g=>g.memberIds.every(id=>!reviewed[0].memberIds.includes(id))));
 });
-test("real price-saving engine treats only automatically approved pair as opt-in replacement",()=>{
+test("real price-saving engine accepts strict automatic matches and preserves curated provenance",()=>{
   const items=products.filter(p=>["basmati-a","basmati-b","basmati-special"].includes(p.source_product_id));
   const groups=run(items);
   const offers=new Map([["basmati-a",[{price_eur:4,retailer_id:"a"}]],
     ["basmati-b",[{price_eur:1,retailer_id:"b"}]],["basmati-special",[{price_eur:.1,retailer_id:"b"}]]]);
   const base={sourceId:"basmati-a",products:items,offersByProduct:offers};
   const noGroups=findBrandAlternatives(base);
-  assert.equal(noGroups.alternatives.length,0);
+  assert.equal(noGroups.alternatives.length,1);
+  assert.equal(noGroups.alternatives[0].id,"basmati-b");
+  assert.equal(noGroups.alternatives[0].confidence,"automatically_verified");
   const res=findBrandAlternatives({...base,approvedGroups:groups});
   assert.equal(res.alternatives.length,1);
   assert.equal(res.alternatives[0].id,"basmati-b");
