@@ -15,6 +15,7 @@ export const SITE_LINKS = {
   home: { label: "Αρχική", href: "/", description: "Η κεντρική είσοδος στην τοπική αγορά της Σπάρτης." },
   chooseLocation: { label: "Επίλεξε περιοχή", href: "/choose-location", description: "Ανακάλυψε τα ενεργά και επερχόμενα τοπικά HUB του ΚΟΝΤΑ ΜΟΥ σε όλη την Ελλάδα." },
   shop: { label: "Προϊόντα", href: "/shop", description: "Ο ενιαίος κατάλογος προϊόντων του marketplace." },
+  posokanei: { label: "KONTA MOY × PosoKanei", href: "/posokanei", description: "Ανεξάρτητη σύγκριση καταγεγραμμένων τιμών σούπερ μάρκετ. Δεν αποτελούν προσφορές του marketplace." },
   brands: { label: "Brands", href: "/brands", description: "Brand Guides που συνδέουν την ταυτότητα κάθε brand με τις κατηγορίες και τα προϊόντα που είναι πραγματικά διαθέσιμα." },
   colorFinder: { label: "Color Finder", href: "/color-finder", description: "Διάλεξε χρώμα και βρες τις πιο κοντινές διαθέσιμες αποχρώσεις nail polish." },
   paintStudio: { label: "Paint Studio", href: "/paint-and-build-studio", description: "Η Τέλεια Πινελιά: βρες σύστημα βαφής, απόχρωση και ποσότητα με έναν απλό Paint Consultant 3 βημάτων." },
@@ -110,7 +111,7 @@ export const PRIMARY_NAVIGATION: ReadonlyArray<SiteLink> = [
 ];
 
 export const FOOTER_NAVIGATION = [
-  { title: "Ανακάλυψε", links: [SITE_LINKS.shop, SITE_LINKS.brands, SITE_LINKS.colorFinder, SITE_LINKS.paintStudio, SITE_LINKS.bazaar, SITE_LINKS.shops, SITE_LINKS.advice, SITE_LINKS.askLocal] },
+  { title: "Ανακάλυψε", links: [SITE_LINKS.shop, SITE_LINKS.posokanei, SITE_LINKS.brands, SITE_LINKS.colorFinder, SITE_LINKS.paintStudio, SITE_LINKS.bazaar, SITE_LINKS.shops, SITE_LINKS.advice, SITE_LINKS.askLocal] },
   { title: "Αγορά με σιγουριά", links: [SITE_LINKS.howItWorks, SITE_LINKS.giftCards, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
   { title: "ΚΟΝΤΑ ΜΟΥ Σπάρτη", links: [SITE_LINKS.about, SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.join, SITE_LINKS.researchObservatory, SITE_LINKS.sitemap] },
   { title: "Νομικά & ιδιωτικότητα", links: [SITE_LINKS.terms, SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] }
