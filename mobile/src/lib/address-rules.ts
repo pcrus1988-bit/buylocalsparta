@@ -16,6 +16,9 @@ export const EMPTY_ADDRESS:AddressDraft={
 };
 function clean(value:string){return value.normalize("NFKC").trim().replace(/\s+/g," ");}
 export function prepareNewAddress(draft:AddressDraft):NewAddressPayload{
+ if([draft.label,draft.fullName,draft.line1,draft.line2,draft.locality,draft.region,
+  draft.postcode,draft.phone].some(v=>/[\u0000-\u001f\u007f]/.test(v)))
+  throw Error("INVALID_ADDRESS");
  const label=clean(draft.label)||"Διεύθυνση";
  const fullName=clean(draft.fullName);
  const line1=clean(draft.line1);
