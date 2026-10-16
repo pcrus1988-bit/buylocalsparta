@@ -28,6 +28,10 @@ jobs:
         run: node scripts/posokanei/import-snapshot.mjs --latest --out "$RUNNER_TEMP/posokanei"
       - name: Audit full-catalogue cheaper-brand matching coverage
         run: node scripts/posokanei/brand-coverage-audit.mjs "$RUNNER_TEMP/posokanei" scripts/posokanei/approved-equivalence-groups.json
+      - name: Rank unverified comparable families for manual review
+        run: |
+          node scripts/posokanei/build-comparable-review-queue.mjs "$RUNNER_TEMP/posokanei" --out "$RUNNER_TEMP/posokanei/candidate-queue.json" --approved scripts/posokanei/approved-equivalence-groups.json --limit 100
+          # The complete queue is ephemeral on the runner and never published.
       - name: Report non-identifying import counts
         run: |
           node -e 'const fs=require("node:fs");const m=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/posokanei/manifest.json","utf8"));console.log(JSON.stringify({date:m.snapshot_date,total:m.source_total,collected:m.source_collected,prices:m.reference_price_observations,checksum:m.snapshot_sha256,warnings:m.warnings}));'
