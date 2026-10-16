@@ -106,3 +106,27 @@ export async function disconnectCompanion(){
    }catch{/* previously issued bearer expires within 15 minutes */}
  }
 }
+
+/** Owned Companion API calls only. Access never leaves this first-party HTTPS origin. */
+export async function companionAuthorizedRequest<T>(
+ path:"/push/device"|"/push/test",method:"GET"|"PUT"|"DELETE"|"POST",payload?:unknown
+):Promise<T>{
+ const call=async(token:string)=>fetch(`${BASE}${path}`,{
+   method,headers:{
+    Authorization:`Bearer ${token}`,
+    ...(payload===undefined?{}:{"Content-Type":"application/json"})
+   },
+   ...(payload===undefined?{}:{body:JSON.stringify(payload)}),
+ });
+ let token=await accessToken();
+ if(!token)throw Error("LOGIN_REQUIRED");
+ let r=await call(token);
+ if(r.status===401){
+   activeAccess=null;expiresAt=0;
+   token=await accessToken();
+   if(!token)throw Error("LOGIN_REQUIRED");
+   r=await call(token);
+ }
+ if(!r.ok)throw Error(r.status===503?"NOT_ENABLED":r.status===401?"LOGIN_REQUIRED":"REQUEST_FAILED");
+ return await r.json() as T;
+}
