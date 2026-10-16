@@ -2,6 +2,8 @@ import { Stack } from "expo-router";
 import {useEffect} from "react";
 import * as Notifications from "expo-notifications";
 import {Linking} from "react-native";
+import {companionPushStatus} from "../lib/companion-push";
+import {companionAuthorizedRequest} from "../lib/companion-session";
 import { StatusBar } from "expo-status-bar";
 import { theme } from "../theme";
 import { CompanionForegroundWatcher } from "../components/CompanionForegroundWatcher";
@@ -27,7 +29,18 @@ export default function RootLayout() {
     void Notifications.getLastNotificationResponseAsync().then(response=>{
       if(response)open(response.notification.request.content.data);
     }).catch(()=>undefined);
-    return()=>subscription.remove();
+    const rotated=Notifications.addPushTokenListener(token=>{
+      if(token.type!=="fcm"||typeof token.data!=="string")return;
+      // Re-register only a previously consented first-party mobile session.
+      void companionPushStatus().then(status=>{
+        if(!status.enabled)return;
+        return companionAuthorizedRequest("/push/device","PUT",{
+          token:token.data,
+          purposes:{orderUpdates:status.orderUpdates,savedItems:status.savedItems,vendorOffers:false}
+        });
+      }).catch(()=>undefined);
+    });
+    return()=>{subscription.remove();rotated.remove();};
   },[]);
   return <>
     <CompanionForegroundWatcher />
