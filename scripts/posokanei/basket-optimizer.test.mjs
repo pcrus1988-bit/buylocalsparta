@@ -325,3 +325,49 @@ test('fair comparator pins approved group to exact baseline SKU and package coun
   assert.equal(tomato.optimizedLineTotalEur,0.8);
   assert.equal(overlap.savingsEur,0);
 });
+
+test('a reviewed cheaper-brand choice contributes to total savings without doubling store savings',()=>{
+  const original=price('chopped-a','alpha',3);
+  const selected=price('chopped-b','alpha',2);
+  const chosenOtherStore=price('chopped-b','beta',1);
+  const observations=[original,selected,chosenOtherStore,price('milk','alpha',1),price('milk','beta',2)];
+  const r=run({observations,storeLimit:2,lines:[
+    {id:'tom',kind:'exact',sourceProductId:'chopped-b',packageCount:2,
+      replacedFrom:{sourceProductId:'chopped-a',packageCount:2}},
+    {id:'milk',kind:'exact',sourceProductId:'milk',packageCount:1}
+  ]});
+  assert.equal(r.reviewedBrandSwitchCount,1);
+  assert.equal(r.originalBasketBenchmarkMode,'single');
+  assert.equal(r.originalBasketBenchmarkEur,7);
+  assert.equal(r.bestSingleStore.totalEur,5);
+  assert.equal(r.cheapestWithinStoreLimit.totalEur,3);
+  assert.equal(r.brandSwitchSavingsEur,2);
+  assert.equal(r.savingsVsCheapestCompleteSingleStoreEur,2);
+});
+
+test('unreviewed switches and unsupported pack quantities cannot fabricate savings',()=>{
+  const fake=run({lines:[{id:'fake',kind:'exact',sourceProductId:'passata',packageCount:1,
+    replacedFrom:{sourceProductId:'chopped-a',packageCount:2}}]});
+  assert.equal(fake.reviewedBrandSwitchCount,0);
+  assert.equal(fake.originalBasketBenchmarkEur,null);
+  const wrongCount=run({lines:[{id:'wrong',kind:'exact',sourceProductId:'chopped-b',packageCount:1,
+    replacedFrom:{sourceProductId:'chopped-a',packageCount:2}}]});
+  assert.equal(wrongCount.reviewedBrandSwitchCount,0);
+  assert.equal(wrongCount.originalBasketBenchmarkEur,null);
+});
+
+test('when no single chain covers originals, compare complete baskets under the store cap',()=>{
+  const r=run({storeLimit:2,observations:[
+    price('chopped-a','alpha',3),price('chopped-b','alpha',2),
+    price('milk','beta',1)
+  ],lines:[
+    {id:'tom',kind:'exact',sourceProductId:'chopped-b',packageCount:2,
+      replacedFrom:{sourceProductId:'chopped-a',packageCount:2}},
+    {id:'milk',kind:'exact',sourceProductId:'milk',packageCount:1}
+  ]});
+  assert.equal(r.originalBasketBenchmarkMode,'limited');
+  assert.equal(r.originalBasketBenchmarkEur,7);
+  assert.equal(r.bestSingleStore,null);
+  assert.equal(r.cheapestWithinStoreLimit.totalEur,5);
+  assert.equal(r.brandSwitchSavingsEur,null);
+});
