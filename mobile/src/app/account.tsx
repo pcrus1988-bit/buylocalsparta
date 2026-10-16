@@ -4,11 +4,11 @@ import {Link} from "expo-router";
 import {useCallback,useEffect,useRef,useState} from "react";
 import {Linking,Pressable,ScrollView,StyleSheet,Text,View} from "react-native";
 import {
-  connectCompanion,disconnectCompanion,loadCompanionAccount,
+  connectCompanion,disconnectCompanion,loadCompanionAccount,companionAuthorizedRequest,
   type CompanionAccount,type CompanionOrder
 } from "../lib/companion-session";
 import {theme} from "../theme";
-import {importAccountWishlist} from "../lib/companion-store";
+import {importAccountWishlist,getItems} from "../lib/companion-store";
 
 WebBrowser.maybeCompleteAuthSession();
 const REDIRECT="kontamoucompanion://auth";
@@ -67,6 +67,29 @@ export default function CompanionAccountScreen(){
      setImportNotice(count?`Προστέθηκαν ${count} νέα είδη στην offline wishlist σου.`:"Όλα τα είδη υπάρχουν ήδη στην τοπική wishlist σου.");
    }catch{setImportNotice("Η εισαγωγή απέτυχε. Τα αποθηκευμένα είδη στον λογαριασμό δεν άλλαξαν.");}
    finally{setBusy(false);}
+ }
+ async function uploadWishlist(){
+   if(!account||busy)return;
+   setBusy(true);setImportNotice("");
+   try{
+     const local=await getItems("wishlist");
+     const ids=[...new Set(local.filter(x=>!x.completed && x.variantId
+       && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x.variantId))
+       .map(x=>x.variantId as string))].slice(0,50);
+     if(!ids.length){
+       setImportNotice("Δεν υπάρχουν στην τοπική wishlist επιβεβαιωμένα είδη KONTA MOY για συγχρονισμό.");
+       return;
+     }
+     const outcome=await companionAuthorizedRequest<{added:number;submitted:number;skipped:number}>(
+       "/wishlist/import","POST",{variantIds:ids}
+     );
+     setImportNotice(outcome.added
+       ? `Αποθηκεύτηκαν ${outcome.added} νέα είδη στο λογαριασμό σου. ${outcome.skipped} ήταν ήδη αποθηκευμένα ή μη επιλέξιμα.`
+       : "Δεν προστέθηκαν νέα είδη: υπάρχουν ήδη ή δεν είναι διαθέσιμα στον κατάλογο.");
+     setAccount(await loadCompanionAccount());
+   }catch{
+     setImportNotice("Δεν ολοκληρώθηκε ο συγχρονισμός στον λογαριασμό.");
+   }finally{setBusy(false);}
  }
  async function logout(){
    setBusy(true);setError("");
@@ -139,11 +162,15 @@ export default function CompanionAccountScreen(){
         onPress={()=>void importWishlist()} style={[styles.outline,(busy||!account.savedProducts.length)&&styles.disabled]}>
         <Text style={styles.outlineText}>Εισαγωγή wishlist στον Android Companion</Text>
       </Pressable>
+      <Pressable accessibilityRole="button" disabled={busy}
+        onPress={()=>void uploadWishlist()} style={[styles.outline,busy&&styles.disabled]}>
+        <Text style={styles.outlineText}>Αποθήκευση Android wishlist στον λογαριασμό →</Text>
+      </Pressable>
       {importNotice!==""&&<Text style={styles.info} accessibilityLiveRegion="polite">{importNotice}</Text>}
       <Link href="/lists" asChild><Pressable accessibilityRole="button" style={styles.outline}>
        <Text style={styles.outlineText}>Οι τοπικές μου λίστες →</Text>
       </Pressable></Link>
-      <Text style={styles.note}>Η εισαγωγή αντιγράφει όσα είδη λείπουν στη συσκευή, χωρίς να αφαιρεί ή να αλλάζει την wishlist του λογαριασμού. Η πλήρης αμφίδρομη συγχρονισμένη wishlist δεν έχει ενεργοποιηθεί.</Text>
+      <Text style={styles.note}>Οι δύο ενέργειες αντιγράφουν μόνο επιβεβαιωμένα προϊόντα χωρίς διαγραφές. Ελεύθερες σημειώσεις λίστας παραμένουν ιδιωτικές στη συσκευή.</Text>
     </View>
   </>}
   <View style={styles.card}>
