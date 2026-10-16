@@ -11,12 +11,12 @@
 | Home/navigation | Five persistent Android destinations and KONTA MOY branding | N/A | Localization/accessibility/device analytics |
 | Product discovery | Real indexed catalogue search, real canonical variant IDs, saved favourites, exact product links | Existing detail/size selector/offer price/add-to-cart | Category hierarchy, facets, images, offer-price projection, infinite scroll |
 | Stores/HUBs | Store-search launcher, Nearby, area selector links | Approved public vendor and brand directories | Native server-driven store/HUB directory and audited profiles |
-| Shopping lists | Offline SQLite, quantities, completion, moving between lists, OS share, explicit account wishlist copy | Website saved products | Conflict-resolving bidirectional sync, named lists, revision control |
+| Local vendor reminder lists | Offline SQLite for per-device KONTA MOY marketplace items and notes, quantities, completion and sharing | Existing marketplace saved products | Conflict-resolving opt-in sync, named local lists; no supermarket optimizations |
 | Wishlist | Native exact-variant selection and saved-product import/export behind signed-in session | Website wishlist | Native account-auth activation, stock/price watches |
 | Cart | Native navigation and clear active-cart transition | Existing cross-vendor cart in browser session | Backend-owned authenticated cart API, cross-device reconciliation, promo rules |
 | Checkout | Native explanation and safe Android Custom Tab | Existing checkout, payment, returns, pickup/delivery | Native order summary and secure payment SDK/redirect while retaining existing order/fiscal engine |
 | Orders | Native authenticated snapshot in source, not enabled live | Existing order tracking and support | Signed-in order timeline, courier status, returns/refunds, disputes |
-| Pickup | Native readiness indicator in source and instructions | Actual secured pickup QR from original order page | Native authenticated QR/receipt with replay and expiry protection |
+| Pickup | Authenticated read-only list of the customer's actual pickup orders; prioritizes backend-confirmed ready items; Preview uses browser fallback | Actual secured QR stays at protected original order page | Production PKCE activation, physical-device tests and optional audited short-lived native QR |
 | Nearby | Foreground-only verified shops and fresh local-pickup stock; list matches stay on device | Official shop product details | Physical vendor-coordinate QA and true opted-in production field tests |
 | Notifications | Local opt-in while app open; FCM registration/transactional outbox staged | Browser account preferences | Firebase project, tested Android delivery, consent/revocation, allowed recurring background triggers |
 | BAZAAR / brand directory | Discoverable via services | Existing public pages | Native listing API and product offer filters |
@@ -25,7 +25,7 @@
 | Vendor marketplace | Entry in services | Existing merchant sign-in and dashboard | Separate vendor role navigation, seller isolation and approval workflows |
 | KONTA MOY FISCAL | Entry in services | Existing `/timologio` service | Dedicated mobile invoicing only when fiscal/audit security and AADE workflows permit |
 | Research Observatory | Entry in services | Existing public research portals | Appropriate native reader with aggregation/confidentiality controls |
-| KONTA MOY × PosoKanei | No native implementation claimed | Do not guess URL/endpoint | Verify independent production API route, licensed data, supermarket preferences and split basket before integration |
+| KONTA MOY × PosoKanei | Separate supermarket comparison product; no grocery optimization logic in Companion | Independent feature, not an Android-native grocery implementation | Maintain product/data separation; any future external link must be explicitly labelled |
 
 **Browser handoff is a deliberate temporary supported feature, not native completion.** Android Custom Tabs keep payment, password, cookies and merchant data in the first-party browser experience. The native app never synthesizes a paid order or treats a local wishlist as a live cart.
 
@@ -50,7 +50,7 @@
 
 **Next (transactional 0.6):** Unified server-side cart, order pricing/stock reconciliation, native checkout redirect and confirmation. Never enable an alternate client checkout outside existing payment/fiscal engine.
 
-**Next (intelligence and operations 0.7+):** Sport & Fit native views, Try-On eligibility/consent, notifications on true user-owned events, approved vendor mode, and verified PosoKanei integration.
+**Next (intelligence and operations 0.7+):** Sport & Fit native views, Try-On eligibility/consent, notifications on true user-owned events, approved vendor mode. PosoKanei's supermarket comparisons and basket optimizer remain separately owned; they are not a Companion milestone.
 
 **Store release (1.0):** Stable Android signing keys, forward-compatible migrations, crash-free physical-device regression matrix (Android 13/14/15+), Play privacy review, staged opt-in rollout with backout plan. No background marketing geolocation.
 
