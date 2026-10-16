@@ -29,16 +29,29 @@ function eggEvidence(product){
     /(?:βιολογ|organic)/u.test(text)?"organic":
     /(?:κλωβ|cage)/u.test(text)?"cage":null;
   if(!housing)return null;
-  const grade=/(?:large|\b63\s*[-/]\s*73\s*g\b|μεγαλ)/u.test(text)?"L":
-    /(?:medium|\b53\s*[-/]\s*63\s*g\b|μεσαι)/u.test(text)?"M":
-    /(?:small|\b43\s*[-/]\s*53\s*g\b|μικρ)/u.test(text)?"S":
-    /(?:extra large|xlarge|\b73\s*[-/]\s*83\s*g\b)/u.test(text)?"XL":null;
-  if(!grade)return null;
+  // Reconcile EVERY textual and numerical grade signal. Reject contradictory
+  // labels rather than allowing the first matching regex to win (e.g.
+  // "Medium 63-73g" is not evidence of either a reliable M or L grade).
+  // Strip the XL phrase before testing L to avoid "extra large" becoming L.
+  const signals=new Set();
+  const withoutXL=text.replace(/(?:\bextra[\s-]*large\b|\bx[\s-]*large\b|\bxl\b|πολυ[\s-]*μεγαλ\p{L}*)/gu,()=>{
+    signals.add("XL");return " ";
+  });
+  for(const [grade,pattern] of [
+    ["L",/(?:\blarge\b|μεγαλ\p{L}*)/u],
+    ["M",/(?:\bmedium\b|μεσαι\p{L}*)/u],
+    ["S",/(?:\bsmall\b|μικρ\p{L}*)/u]
+  ])if(pattern.test(withoutXL))signals.add(grade);
+  for(const [grade,pattern] of [
+    ["S",/(?:^|[^\p{L}\p{N}])43\s*[-/]\s*53\s*(?:g|gr|γρ|γραμμαρια)(?=$|[^\p{L}])/u],
+    ["M",/(?:^|[^\p{L}\p{N}])53\s*[-/]\s*63\s*(?:g|gr|γρ|γραμμαρια)(?=$|[^\p{L}])/u],
+    ["L",/(?:^|[^\p{L}\p{N}])63\s*[-/]\s*73\s*(?:g|gr|γρ|γραμμαρια)(?=$|[^\p{L}])/u],
+    ["XL",/(?:^|[^\p{L}\p{N}])73\s*[-/]\s*83\s*(?:g|gr|γρ|γραμμαρια)(?=$|[^\p{L}])/u]
+  ])if(pattern.test(text))signals.add(grade);
+  if(signals.size!==1)return null;
+  const grade=[...signals][0];
 
-  // Do not allow two grades or husbandry methods in one label.
-  const allGrades=[/(?:large|μεγαλ)/u,/(?:medium|μεσαι)/u,/(?:small|μικρ)/u,/(?:extra large|xlarge)/u]
-    .filter(re=>re.test(text));
-  if(allGrades.length>1)return null;
+  // Repeated or contradictory husbandry classifications also fail closed.
   const allHousing=[/(?:αχυρων|barn)/u,/(?:ελευθερ.*βοσκ|free range)/u,
     /(?:βιολογ|organic)/u,/(?:κλωβ|cage)/u].filter(re=>re.test(text));
   if(allHousing.length>1)return null;
