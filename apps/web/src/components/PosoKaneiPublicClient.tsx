@@ -350,7 +350,7 @@ export function PosoKaneiPublicClient(){
                   <div className={styles.amount}><small>Από</small><strong>{money(best?.priceEur)}</strong><small>{best?.retailerName||"—"}</small>{unit&&<small>{money(unit.price)}/{unit.unit}</small>}</div>
                 </div>
                 <div className={styles.buttons}>
-                  <button className={styles.primary} type="button" disabled={!best} onClick={()=>addProduct(p)}>+ Στη λίστα · καλύτερη τιμή</button>
+                  <button className={styles.primary} type="button" disabled={!best} onClick={()=>addProduct(p)}>+ Στη λίστα</button>
                   <button className={styles.secondary} type="button" onClick={()=>setActive(expanded?null:p.id)} aria-expanded={expanded}>Τιμές στις αλυσίδες {expanded?"−":"+"}</button>
                   {cheaperCatalogueOptions.length>0&&<button className={styles.textButton} type="button"
                     aria-expanded={comparedProduct===p.id}
@@ -382,10 +382,10 @@ export function PosoKaneiPublicClient(){
         <aside className={`${styles.sidebar} ${mobileListOpen?styles.mobileBasketOpen:""}`} aria-label="Λίστα και εξοικονόμηση" role={mobileListOpen?"dialog":undefined} aria-modal={mobileListOpen?true:undefined}><div className={styles.basket} id="posokanei-basket">
           <div className={styles.drawerHeader}><strong>Η λίστα σου</strong><button type="button" onClick={()=>setMobileListOpen(false)} aria-label="Κλείσιμο λίστας">✕</button></div>
           <div className={styles.heading}><div><span className={styles.eyebrow}>02 · ΤΟ ΚΑΛΑΘΙ ΣΟΥ</span><h2>Η λίστα αγορών</h2></div><span className={styles.count}>{lines.length}</span></div>
-          <div className={styles.saveBar}>
+          {lines.length>0&&<div className={styles.saveBar}>
             <button className={styles.saveButton} type="button" disabled={!lines.length||savingList||accountStatus==="checking"} onClick={()=>{void saveList();}}>{savingList?"Αποθήκευση…":accountStatus==="guest"?"🔒 Σύνδεση / εγγραφή & αποθήκευση":"💾 Αποθήκευση λίστας"}</button>
-            <small>{accountStatus==="guest"?"Σύγκρινε χωρίς λογαριασμό. Για να κρατήσεις τη λίστα σου, συνδέσου ή κάνε εγγραφή.":savedAt?"Αποθηκευμένη στον λογαριασμό σου":accountStatus==="checking"?"Έλεγχος λογαριασμού…":"Οι αλλαγές αποθηκεύονται όταν πατήσεις Αποθήκευση."}</small>
-          </div>
+            <small>{accountStatus==="guest"?"Για να διατηρήσεις τη λίστα, συνδέσου ή κάνε εγγραφή.":savedAt?"✓ Αποθηκεύτηκε στον λογαριασμό σου":accountStatus==="checking"?"Έλεγχος λογαριασμού…":"Για να κρατήσεις τις αλλαγές, πάτησε Αποθήκευση."}</small>
+          </div>}
           {!lines.length?<p className={styles.message}>Πρόσθεσε προϊόντα για να βρεις το οικονομικότερο καλάθι.</p>:<details className={styles.listDetails} open><summary>Προϊόντα στη λίστα ({lines.length}) · Επεξεργασία</summary><div className={styles.lines}>{lines.map(l=><div className={styles.line} key={l.id}>
             <div className={styles.lineTop}><strong>{labels[l.id]||"Προϊόν"}</strong><button type="button" onClick={()=>update(lines.filter(x=>x.id!==l.id))} aria-label="Αφαίρεση από τη λίστα">✕</button></div>
             <label>{l.kind==="exact"?"Συσκευασίες":"Ποσότητα ("+(listing.groups.find(g=>g.id===l.groupId)?.basis||"kg")+")"}<input type="number" min="1" max="100" step={l.kind==="exact"?"1":"0.1"} value={l.kind==="exact"?l.packageCount:l.requiredBaseQuantity} onChange={e=>changeLine(l.id,l.kind==="exact"?{packageCount:Number(e.target.value)}:{requiredBaseQuantity:Number(e.target.value)})}/></label>
@@ -403,7 +403,7 @@ export function PosoKaneiPublicClient(){
             <span className={styles.savingsOpportunityAction}>Δες τι σε συμφέρει <span aria-hidden="true">→</span></span>
             <small>Εκτίμηση από καταγεγραμμένες τιμές ανά προϊόν· το τελικό όφελος υπολογίζεται ξεχωριστά.</small>
           </button>}
-          {lines.some(l=>l.kind==="exact")&&<button type="button" className={styles.textButton} onClick={()=>setBrandRefresh(n=>n+1)} disabled={checkingBrands}>{checkingBrands?"Αναζήτηση εναλλακτικών…":"Ανανέωση εναλλακτικών ↻"}</button>}
+          {lines.some(l=>l.kind==="exact"&&!dismissedAlternativeLines.includes(l.id))&&<button type="button" className={styles.textButton} onClick={()=>setBrandRefresh(n=>n+1)} disabled={checkingBrands}>{checkingBrands?"Αναζήτηση εναλλακτικών…":"Ανανέωση εναλλακτικών ↻"}</button>}
           {availableAlternativeResults.map(entry=>
             <section className={styles.suggestion} key={entry.lineId} id={"posokanei-alternative-"+entry.lineId} aria-label={"Εναλλακτικές για "+(labels[entry.lineId]||"προϊόν")}>
               <div className={styles.suggestionDisclosure}>
@@ -425,12 +425,12 @@ export function PosoKaneiPublicClient(){
               </div>
             </section>
           )}
-          <p className={styles.basketPreset}>Αυτόματη επιλογή οικονομικότερων αλυσίδων · έως {storeLimit} από τις επιλεγμένες <button type="button" onClick={()=>{setSettingsOpen(true);window.scrollTo({top:0,behavior:"smooth"});}}>Αλλαγή</button></p>
+          <p className={styles.basketPreset}>Σύγκριση σε έως {storeLimit} σούπερ μάρκετ. <button type="button" onClick={()=>{setSettingsOpen(true);setMobileListOpen(false);window.scrollTo({top:0,behavior:"smooth"});}}>Αλλαγή</button></p>
           <button className={styles.calculate} type="button" onClick={()=>{void calculate();}} disabled={!lines.length||listing.status!=="ready"||working||listing.retailers.length===excluded.length}>{working?"Υπολογισμός…":"Βρες το οικονομικότερο καλάθι →"}</button>
           {error&&<p className={styles.error} role="alert">{error}</p>}
           {result&&<div className={styles.results} aria-live="polite">
             <div className={styles.buttons}><button className={mode==="single"?styles.primary:styles.secondary} onClick={()=>setMode("single")} type="button">1 αλυσίδα</button><button className={mode==="limited"?styles.primary:styles.secondary} onClick={()=>setMode("limited")} type="button">Έως {storeLimit}</button></div>
-            {plan?.complete?<><small>Σύνολο πλήρους λίστας</small><div className={styles.bigTotal}>{money(plan.totalEur)}</div><p className={styles.methodNote}>Στις ίδιες τιμές προτιμάμε αλυσίδες που ήδη επισκέπτεσαι, ώστε να αποφεύγονται επιπλέον στάσεις.</p>
+            {plan?.complete?<><small>Σύνολο πλήρους λίστας</small><div className={styles.bigTotal}>{money(plan.totalEur)}</div><p className={styles.methodNote}>Σε ίδιες τιμές προτιμάμε σούπερ μάρκετ που ήδη θα επισκεφθείς.</p>
               <div className={styles.planToolbar}>
                 <span role="status">{completedCount}/{plan.items.length} προϊόντα στη λίστα ολοκληρώθηκαν</span>
                 <button type="button" className={styles.secondary} onClick={()=>{void copyPlan();}}>Αντιγραφή ανά κατάστημα</button>
