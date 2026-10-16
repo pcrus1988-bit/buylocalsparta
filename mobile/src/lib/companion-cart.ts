@@ -4,12 +4,12 @@ export {cartItemsAfterChange,nextCartQuantity} from "./companion-cart-rules";
 import {companionAuthorizedRequest} from "./companion-session";
 
 export type NativeCartItem={canonicalVariantId:string;title:string;quantity:number;priceMinor:number;available:boolean};
-export type NativeCart={revision:string;currency:"EUR";priceFinal:false;availabilityFinal:false;items:NativeCartItem[]};
+export type NativeCart={revision:string;updatedAt:number|null;currency:"EUR";priceFinal:false;availabilityFinal:false;items:NativeCartItem[]};
 type NativeCartEnvelope={cart:NativeCart};
 
 function validateCart(data:NativeCartEnvelope):NativeCart{
  const cart=data?.cart;
- if(!cart||typeof cart.revision!=="string"||!/^[a-f0-9]{64}$/.test(cart.revision)
+ if(!cart||(cart.updatedAt!==null&&(!Number.isSafeInteger(cart.updatedAt)||cart.updatedAt<0))||typeof cart.revision!=="string"||!/^[a-f0-9]{64}$/.test(cart.revision)
    ||cart.currency!=="EUR"||cart.priceFinal!==false||cart.availabilityFinal!==false
    ||!Array.isArray(cart.items)||cart.items.length>100)throw Error("INVALID_CART_RESPONSE");
  const seen=new Set<string>();
@@ -29,7 +29,7 @@ export async function loadNativeCart():Promise<NativeCart>{
 }
 export async function replaceNativeCart(base:NativeCart,items:readonly {canonicalVariantId:string;quantity:number}[]):Promise<NativeCart>{
  return validateCart(await companionAuthorizedRequest<NativeCartEnvelope>("/cart","PUT",{
-  revision:base.revision,items
+  revision:base.revision,expectedUpdatedAt:base.updatedAt,items
  }));
 }
 export async function addNativeCartVariant(variantId:string):Promise<NativeCart>{
