@@ -16,6 +16,15 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  // Additional source-described types from the same reviewed 10,323-SKU audit.
+  // Broad source categories below are bounded to explicit product-title kinds.
+  ["παριζα παριζακι",["kg",/παριζα|παριζακι/u]],
+  ["μαρμελαδες μελι αλειμμα",["kg",/φυστικοβουτυρ|peanut.*butter/u]],
+  ["κονσερβες τονος θαλασσινα",["kg",/σαρδελ|τονο|tuna|sardine/u]],
+  ["τορτελινια",["kg",/τορτελιν|tortellini/u]],
+  ["κολα",["l",/(?:^|[^\p{L}])cola(?=$|[^\p{L}])|κολα/u]],
+  ["ανθοτυρο",["kg",/ανθοτυρ/u]],
+
   // Source-described ordinary product types inspected in the full 2026-10-15
   // remaining-family audit. Exact category, normalized subtype and pack unit
   // still all have to agree; whitelist membership alone does NOT approve.
@@ -42,7 +51,7 @@ const specs=new Map([
   ["σοκολατα κακαο",["kg",/κακαο|cocoa/u]],
   ["χυμος bυσσινο",["l",/βυσσιν|bυσσιν|cherry/u]],
   ["αλλαντικα γαλοπουλας",["kg",/γαλοπουλ|turkey/u]],
-  ["λευκο τυρι",["kg",/λευκ.*τυρ|mozzarella|μοτσαρελα/u]],
+  ["λευκο τυρι",["kg",/λευκ.*τυρ|mozzarella|μοτσαρελα|αιγοπροβει|κατσικισι/u]],
   ["υγρα πιατων",["l",/υγρ.*πιατων|πιατων.*υγρ|απορρυπαντικ.*πιατων|dishwashing/u]],
 
   ["ξυδι",["l",/ξιδ|ξυδ|vinegar/u]],
@@ -59,8 +68,8 @@ const specs=new Map([
   ["ψωμι τυποποιημενο",["kg",/ψωμι|bread/u]],
   ["αλευρι για ολες τις χρησεις",["kg",/αλευρι.*ολες.*χρησεις|all purpose flour/u]],
   ["στιγμιαιος καφες",["kg",/στιγμιαι.*καφ|καφ.*στιγμιαι|instant.*coffee/u]],
-  ["σοκολατα γαλακτος",["kg",/σοκολατ.*γαλακ|milk chocolate/u]],
-  ["σοκολατα κακαο",["kg",/κακαο.*σκονη|cocoa powder/u]],
+  ["σοκολατα γαλακτος",["kg",/σοκολατ.*γαλακ|γαλακ.*σοκολατ|milk chocolate/u]],
+  ["σοκολατα κακαο",["kg",/κακαο.*σκονη|σκονη.*κακαο|cocoa powder/u]],
   ["σοκολατουχο γαλα με γευσεις",["l",/σοκολατουχ.*γαλα|γαλα.*σοκολατουχ|γαλα.*κακαο|chocolate milk/u]],
   ["αγγελαδινο γιαουρτι",["kg",/γιαουρτ.*αγελαδ|αγελαδ.*γιαουρτ|cow.*yogurt/u]],
   ["πουρες",["kg",/πουρ.*πατατ|πατατ.*πουρ|potato puree/u]],
@@ -71,7 +80,7 @@ const specs=new Map([
   ["σπαγγετινι",["kg",/σπαγγετιν|spaghettini/u]],
   ["νυφαδες καλαμποκιου",["kg",/νιφαδ.*καλαμποκ|καλαμποκ.*νιφαδ|corn flakes/u]],
   ["φυσικο μεταλλικο νερο",["l",/φυσικ.*μεταλλικ.*νερ|νερ.*φυσικ.*μεταλλικ|natural mineral water/u]],
-  ["πατατακια",["kg",/πατατακ|chips?/u]],
+  ["πατατακια",["kg",/πατατακ|τσιπς|chips?/u]],
   ["μουσταρδα",["kg",/μουσταρδ|mustard/u]],
   ["μαρμελαδα",["kg",/μαρμελαδ|jam/u]],
   ["ελληνικος καφες",["kg",/ελληνικ.*καφ|καφ.*ελληνικ|greek coffee/u]],
@@ -145,7 +154,7 @@ function accepted(p){
      size.amount<.02||size.amount>40||Math.abs(size.amount-label.quantity)>1e-6)return false;
   const fam=productFamily(p);
   const bits=fam?.split("|")[1]?.split(" ").filter(Boolean)||[];
-  if(bits.length<2 && !["αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη","κατεψυγμενος αρακας","αριανι","κοραλλια","αλλα ζυμαρικα","ταχινι"].includes(category))return false;
+  if(bits.length<2 && !["αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη","κατεψυγμενος αρακας","αριανι","κοραλλια","αλλα ζυμαρικα","ταχινι","φαρινα","ανθοτυρο"].includes(category))return false;
   // Dairy requires fat information, otherwise packaging titles alone do not
   // distinguish normal, low fat, lactose-free and fermented variants.
   const listedFatPercent=/\b\d+(?:[.,]\d+)?\s*%/u.test(title);
