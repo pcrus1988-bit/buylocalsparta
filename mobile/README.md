@@ -60,6 +60,14 @@ response: `{ "verifiedOnly": true, "products": [{ "vendorId": "...", "vendorName
 
 For privacy and authorization, neither customer IDs nor personal list contents are accepted by this endpoint. It does not return campaign-exclusive promotions. Nearby radius hard cap is 500m and accepted GPS uncertainty <=200m. Client matches words/variant IDs and gives a **possible match** notification, with a link to reconfirm live product details before visiting.
 
+## Shopping-list usability increment — 16 October 2026
+
+The Android catalogue search now lets shoppers explicitly add the **exact canonical variant** to either the offline shopping list or offline wishlist. Shopping-list repeats increment quantity instead of silently making duplicate rows (up to 99); wishlist repeats are idempotent and can reopen a completed saved item. Moving a canonical product between lists safely merges its quantity with an existing destination entry, retaining unfinished intent. Generic free-text notes remain independent and private.
+
+The lists screen can hide completed entries and delete checked entries after confirmation. None of these actions modifies the server-side account wishlist, cart, stock or order ledger. The local SQLite database file and schema are unchanged; previously installed local data remains in place when the **same signing identity** is used. Preview remains a separate package ID to avoid breaking the original Android installation.
+
+Logic regression tests: `mobile/test/list-rules.test.ts`, included in `npm run test:matching` and the Companion Android Logic Acceptance workflow. Still verify on-device add → repeat/add → cross-list move → tick → filter → cleanup → restart.
+
 ## Next release milestones
 
 1. Mobile customer OAuth/PKCE or reviewed first-party token exchange; Android secure token storage, short-lived access + refresh rotation/revocation, logout; authorization contract with existing account.
