@@ -3,17 +3,21 @@ on:
   pull_request:
     paths:
       - "mobile/**"
+      - "apps/web/src/lib/companion-*.ts"
       - "apps/web/src/app/api/mobile/companion/**"
+      - "apps/web/test/companion-pkce.test.ts"
       - ".github/workflows/companion-android-logic.yml"
   push:
     branches: [main]
     paths:
       - "mobile/**"
+      - "apps/web/src/lib/companion-*.ts"
       - "apps/web/src/app/api/mobile/companion/**"
+      - "apps/web/test/companion-pkce.test.ts"
       - ".github/workflows/companion-android-logic.yml"
 jobs:
   matching:
-    name: Offline matcher safety
+    name: Offline matching and PKCE safety
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -21,4 +25,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - run: node --experimental-strip-types --test mobile/test/nearby-matching.test.ts
+      - run: node --experimental-strip-types --test mobile/test/nearby-matching.test.ts apps/web/test/companion-pkce.test.ts
+  android-types:
+    name: Android Expo dependency and typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install pinned SDK 57 dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Strict TypeScript check
+        run: npm run check
+      - name: Expo compatibility check
+        run: npx expo install --check
