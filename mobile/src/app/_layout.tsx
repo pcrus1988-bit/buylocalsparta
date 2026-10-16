@@ -17,6 +17,7 @@ export default function RootLayout() {
       <Stack.Screen name="nearby" options={{title:"Κοντά μου"}} />
       <Stack.Screen name="account" options={{title:"Ο λογαριασμός μου"}} />
       <Stack.Screen name="lists" options={{title:"Οι λίστες μου"}} />
+      <Stack.Screen name="pickups" options={{title:"Οι παραλαβές μου"}} />
     </Stack>
   </>;
 }
