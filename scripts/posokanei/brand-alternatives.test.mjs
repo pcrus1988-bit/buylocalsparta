@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createBrandIndex,findBrandAlternatives,productFamily,referenceQuantity
+  createBrandIndex,findBrandAlternatives,productFamily,referenceQuantity,isAutomaticBrandEquivalent
 } from "./brand-alternatives.mjs";
 
 const p=(id,name,brand,category="ΝΤΟΜΑΤΑ ΚΟΝΚΑΣΕ",unit="g",unit_quantity=400)=>({
@@ -125,17 +125,17 @@ test("a genuine one-cent cheaper alternative is still shown",()=>{
   assert.equal(match.alternatives[0].savingsEur,0.01);
 });
 
-test("unreviewed lookalikes never become approved suggestions or auto-substitutions",()=>{
+test("strict family matches are accepted as automatically verified alternatives",()=>{
   const result=run("a",{approvedGroups:[]});
-  assert.equal(result.reason,"unreviewed_candidates");
-  assert.deepEqual(result.alternatives,[]);
-  assert.equal(result.candidates[0].id,"b");
-  assert.equal(result.candidates[0].confidence,"unverified_match");
+  assert.equal(result.reason,"cheaper_found");
+  assert.deepEqual(result.candidates,[]);
+  assert.equal(result.alternatives[0].id,"b");
+  assert.equal(result.alternatives[0].confidence,"automatically_verified");
+  assert.equal(result.alternatives[0].approvalMethod,"automatic_match");
+  assert.ok(isAutomaticBrandEquivalent(products[0],products[1]));
+  assert.ok(!isAutomaticBrandEquivalent(products[0],products.find(p=>p.source_product_id==="passata")));
   const wrongGroup=run("a",{approvedGroups:[{status:"approved",memberIds:["b","c"]}]});
-  assert.deepEqual(wrongGroup.alternatives,[]);
-  assert.equal(wrongGroup.candidates[0].id,"b");
-  const pending=run("a",{approvedGroups:[{status:"pending",memberIds:["a","b"]}]});
-  assert.deepEqual(pending.alternatives,[]);
+  assert.equal(wrongGroup.alternatives[0].confidence,"automatically_verified");
 });
 
 test("Greek inflections and transliterated types match only within detailed category",()=>{
@@ -239,15 +239,15 @@ test("catalogue mode includes equal and more expensive comparable brands without
   const cheaper=findBrandAlternatives(input);
   assert.equal(cheaper.alternatives.length,0);
   const all=findBrandAlternatives({...input,includeNonCheaper:true});
-  assert.equal(all.reason,"unreviewed_comparables");
-  assert.deepEqual(all.candidates.map(x=>x.id),["b","c"]);
-  assert.equal(all.candidates[0].savingsEur,0);
-  assert.equal(all.candidates[1].savingsEur,-.3);
-  assert.ok(!all.candidates.some(x=>x.id==="d"));
-  assert.deepEqual(all.alternatives,[]);
+  assert.equal(all.reason,"comparable_found");
+  assert.deepEqual(all.alternatives.map(x=>x.id),["b","c"]);
+  assert.equal(all.alternatives[0].savingsEur,0);
+  assert.equal(all.alternatives[1].savingsEur,-.3);
+  assert.ok(!all.alternatives.some(x=>x.id==="d"));
+  assert.deepEqual(all.candidates,[]);
 });
 
-test("even when showing costly brands, human-approved group membership gates direct substitutions",()=>{
+test("curated and automatic eligible brands share one selectable list",()=>{
   const items=[
     p("a","ΑΛΦΑ Γάλα Πλήρες 3,5% 1lt","ΑΛΦΑ","ΓΑΛΑ","L",1),
     p("b","ΒΗΤΑ milk Πλήρες 3,5% 1lt","ΒΗΤΑ","ΓΑΛΑ","L",1),
@@ -258,10 +258,10 @@ test("even when showing costly brands, human-approved group membership gates dir
     sourceId:"a",products:items,offersByProduct:prices,includeNonCheaper:true,
     approvedGroups:[{status:"approved",memberIds:["a","b"]}]
   });
-  assert.deepEqual(x.alternatives.map(y=>y.id),["b"]);
-  assert.deepEqual(x.candidates.map(y=>y.id),["c"]);
-  assert.equal(x.alternatives[0].confidence,"reviewed_equivalent");
-  assert.equal(x.candidates[0].confidence,"unverified_match");
+  assert.deepEqual(x.alternatives.map(y=>y.id),["c","b"]);
+  assert.deepEqual(x.candidates,[]);
+  assert.equal(x.alternatives[0].confidence,"automatically_verified");
+  assert.equal(x.alternatives[1].confidence,"reviewed_equivalent");
 });
 
 test("availability-gated catalogue comparisons require a priced, approved different brand",()=>{
@@ -288,4 +288,28 @@ test("availability-gated catalogue comparisons require a priced, approved differ
   assert.deepEqual(findBrandAlternatives({...input,excludedRetailerIds:["chain-b"]}).alternatives,[]);
   assert.deepEqual(findBrandAlternatives({...input,approvedGroups:[]}).alternatives,[]);
   assert.deepEqual(findBrandAlternatives({...input,offersByProduct:new Map([["chosen",catalogue.get("chosen")]])}).alternatives,[]);
+});
+
+test("potential savings covers every eligible cheaper brand before display truncation",()=>{
+  const items=[
+    p("a","ΑΛΦΑ Ρύζι Μπασμάτι 1kg","ΑΛΦΑ","ΡΥΖΙ","kg",1),
+    p("b","ΒΗΤΑ Ρύζι Μπασμάτι 1kg","ΒΗΤΑ","ΡΥΖΙ","kg",1),
+    p("c","ΓΑΜΜΑ Ρύζι Μπασμάτι 1kg","ΓΑΜΜΑ","ΡΥΖΙ","kg",1),
+    p("d","ΔΕΛΤΑ Ρύζι Μπασμάτι 1kg","ΔΕΛΤΑ","ΡΥΖΙ","kg",1),
+    p("diet","ΕΨΙΛΟΝ Ρύζι Μπασμάτι Βιολογικό 1kg","ΕΨΙΛΟΝ","ΡΥΖΙ","kg",1)
+  ];
+  const prices=new Map([
+    ["a",[o("a","a",4)]],["b",[o("b","b",3)]],
+    ["c",[o("c","b",2.5)]],["d",[o("d","b",2)]],
+    ["diet",[o("diet","b",.1)]]
+  ]);
+  const x=findBrandAlternatives({sourceId:"a",products:items,offersByProduct:prices,maxResults:1});
+  assert.equal(x.alternatives.length,1);
+  assert.equal(x.cheaperAlternativeCount,3);
+  assert.equal(x.bestCheaperSavingEur,2);
+  assert.equal(x.alternatives[0].id,"d");
+  const excluded=findBrandAlternatives({sourceId:"a",products:items,offersByProduct:prices,
+    maxResults:1,excludedRetailerIds:["b"]});
+  assert.equal(excluded.bestCheaperSavingEur,0);
+  assert.equal(excluded.cheaperAlternativeCount,0);
 });
