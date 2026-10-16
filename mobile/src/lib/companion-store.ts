@@ -131,3 +131,14 @@ export async function importAccountWishlist(
  });
  return inserted;
 }
+
+/** On-device privacy reset. Does not touch server-side user saved products. */
+export async function clearCompanionLocalData(){
+ const db=await database();
+ await db.withExclusiveTransactionAsync(async tx=>{
+   await tx.runAsync("DELETE FROM companion_items");
+   await tx.runAsync("DELETE FROM companion_alerts");
+   await tx.runAsync("DELETE FROM companion_preferences");
+ });
+ DeviceEventEmitter.emit("companion-preferences-changed");
+}
