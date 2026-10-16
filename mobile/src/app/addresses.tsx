@@ -27,6 +27,7 @@ function message(error:unknown){
  if(code==="ADDRESS_REQUIRED")return "Συμπλήρωσε τη διεύθυνση και την πόλη.";
  if(code==="INVALID_POSTCODE")return "Ο ταχυδρομικός κώδικας πρέπει να έχει 5 ψηφία.";
  if(code==="INVALID_PHONE")return "Έλεγξε τον αριθμό τηλεφώνου.";
+ if(code==="RATE_LIMITED")return "Έγιναν πολλές προσπάθειες. Προσπάθησε αργότερα.";
  return "Δεν ολοκληρώθηκε η ενημέρωση. Μπορείς να διαχειριστείς τις διευθύνσεις στον ασφαλή ιστότοπο.";
 }
 export default function CompanionAddresses(){
@@ -111,17 +112,17 @@ export default function CompanionAddresses(){
        <TextInput accessibilityLabel={field.label} style={styles.input}
         placeholder={field.placeholder} keyboardType={field.keyboard??"default"}
         autoCapitalize={field.key==="postcode"||field.key==="phone"?"none":"sentences"}
-        maxLength={LIMITS[field.key]}
+        maxLength={LIMITS[field.key]} editable={!saving}
         value={draft[field.key]} onChangeText={value=>setDraft(old=>({...old,[field.key]:value}))}/>
      </View>)}
      <Text style={styles.hint}>Χώρα: Ελλάδα (GR). Η διεύθυνση καταχωρείται στον ίδιο λογαριασμό που χρησιμοποιεί το checkout.</Text>
      <View style={styles.switchRow}>
       <Text style={styles.switchText}>Προεπιλογή τιμολόγησης</Text>
-      <Switch value={draft.isDefaultBilling} onValueChange={v=>setDraft(o=>({...o,isDefaultBilling:v}))}/>
+      <Switch disabled={saving} value={draft.isDefaultBilling} onValueChange={v=>setDraft(o=>({...o,isDefaultBilling:v}))}/>
      </View>
      <View style={styles.switchRow}>
       <Text style={styles.switchText}>Προεπιλογή παράδοσης</Text>
-      <Switch value={draft.isDefaultDelivery} onValueChange={v=>setDraft(o=>({...o,isDefaultDelivery:v}))}/>
+      <Switch disabled={saving} value={draft.isDefaultDelivery} onValueChange={v=>setDraft(o=>({...o,isDefaultDelivery:v}))}/>
      </View>
      <Text style={styles.hint}>Η αποθήκευση ενημερώνει και το ονοματεπώνυμο του προφίλ πελάτη, όπως και στην υπάρχουσα ιστοσελίδα.</Text>
      <Pressable accessibilityRole="button" disabled={saving} onPress={()=>void save()}
