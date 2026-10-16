@@ -99,5 +99,7 @@ test("catalogue alternative selection keeps its baseline for server-calculated r
   assert.match(source,/function addReviewedComparable\(option:Cheaper,sourceProduct:Product\)/);
   assert.match(source,/replacedFrom:\{sourceProductId:sourceProduct\.id,packageCount:1\}/);
   assert.match(source,/onClick=\{\(\)=>addReviewedComparable\(a,p\)\}/);
+  assert.match(source,/void calculate\(revised\)/);
+  assert.match(source,/Δυνητικό όφελος/);
   assert.match(source,/lockedRetailerId:undefined/);
 });
