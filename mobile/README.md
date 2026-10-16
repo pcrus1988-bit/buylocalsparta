@@ -60,3 +60,23 @@ For privacy and authorization, neither customer IDs nor personal list contents a
 7. Google Play location use declaration review. Google Play rejects background location used *solely* for ads. Assess any user-initiated shopping companion background use on its own merits. A limited active shopping trip using a user-started foreground service is a possible separately reviewed option, **not implemented** and not guaranteed to be accepted. Android can kill location/geofence execution when the app is terminated.
 
 Official docs: https://docs.expo.dev/versions/v57.0.0/sdk/location/ and https://support.google.com/googleplay/android-developer/answer/9799150.
+
+## Android customer identity bridge (added in PR #1553)
+
+The source now contains a guarded first-party Android authorization flow using **authorization code + S256 PKCE**. The browser uses an existing authenticated customer session to request explicit approval. A 2-minute single-use code returns to the registered Android scheme; only a client holding the matching PKCE verifier can exchange it. The mobile app holds its access token in RAM and its rotating refresh token in Android Keystore-backed `expo-secure-store`.
+
+**Protected API endpoints:**
+- `GET /account/companion-connect`: explicit customer approval in the secure marketplace browser; never accepts arbitrary redirect URIs.
+- `POST /api/mobile/companion/auth/authorize`: browser session + CSRF + same-origin approval, issues a short-lived authorization code.
+- `POST /api/mobile/companion/auth/token`: one-use code exchange and serialized refresh-token rotation. Replay of a previous refresh revokes its session.
+- `DELETE /api/mobile/companion/auth/token`: revoke an Android session on logout.
+- `GET /api/mobile/companion/account`: authenticated read of **only this user's** orders, pickup-ready status and existing saved products, with no pickup QR secrets or password hashes.
+- `/account/companion-sessions`: website security page to review and remotely revoke each Android device's session.
+
+Tokens are random 256-bit values; only their SHA-256 hashes are stored in the backend. Access tokens expire in 15 minutes, refresh validity rolls for up to 30 days with an absolute 90-day ceiling, and user status is checked on reads. No mobile session is created until a user actively approves it.
+
+**Deployment gate:** all protected routes are off unless production explicitly sets `COMPANION_ANDROID_AUTH_ENABLED=true`. Only enable after migration `20261016074500_companion_android_sessions.sql` is applied through the governed schema pipeline and GitHub native/backend security checks pass. The migration enables RLS, revokes direct public Data API access and adds expiry cleanup. The app must **not** hold a DB connection string, service-role key, browser cookie or reusable pickup QR.
+
+## Validation status
+
+The Android offline matcher and PKCE vector CI passes. Dedicated Android SDK 57 dependency installation and TypeScript CI is being resolved; a physical Android app build and live OAuth redirect test remain required. A web preview cannot prove Chrome Custom Tabs redirect behavior or Android Keystore storage. Do not publish the app until the complete login/refresh/logout, account ownership, token replay and permission-revocation flow is tested on physical Android devices.
