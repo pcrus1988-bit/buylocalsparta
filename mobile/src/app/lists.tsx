@@ -108,7 +108,7 @@ export default function CompanionListsScreen(){
  return <ScrollView contentContainerStyle={styles.screen} keyboardShouldPersistTaps="handled">
   <Text style={styles.kicker}>KONTA MOY COMPANION</Text>
   <Text style={styles.title}>Οι λίστες μου</Text>
-  <Text style={styles.sub}>Οργάνωσε όσα θέλεις να αγοράσεις. Οι λίστες αποθηκεύονται στη συσκευή σου και δεν κοινοποιούνται σε καταστήματα.</Text>
+  <Text style={styles.sub}>Οργάνωσε προϊόντα από τα καταστήματα KONTA MOY και προσωπικές υπενθυμίσεις κοντά σου. Οι λίστες μένουν στη συσκευή σου· δεν συγκρίνουν τιμές σούπερ μάρκετ.</Text>
   <View style={styles.tabs}>
    {([["shopping","Λίστα αγορών"],["wishlist","Wishlist"]] as const).map(([key,label])=>
     <Pressable key={key} accessibilityRole="button" accessibilityState={{selected:kind===key}} onPress={()=>setKind(key)} style={[styles.tab,kind===key&&styles.tabActive]}>
