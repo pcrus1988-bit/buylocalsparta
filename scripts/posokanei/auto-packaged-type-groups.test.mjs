@@ -484,3 +484,26 @@ test("butter popcorn explicitly matches declared flavor but not plain or cheddar
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["p1","p2"]]);
 });
+
+test("generic cod fillets cannot obtain Pollock approval without an explicit Pollock species marker",()=>{
+ const list=[
+ p("generic-a","A","A Μπακαλιάρος Φιλέτο 800g","Θαλασσινά και Ψάρια","kg",.8),
+ p("generic-b","B","B Μπακαλιάρος Φιλέτο 600g","Θαλασσινά και Ψάρια","kg",.6),
+ p("real-a","AB","AB Μπακαλιάρος Pollock Φιλέτο 850g","Θαλασσινά και Ψάρια","kg",.85),
+ p("real-b","CD","CD Μπακαλιάρος Pollock Φιλέτο 600g","Θαλασσινά και Ψάρια","kg",.6)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["real-a","real-b"]]);
+});
+test("processed chicken thigh fillets and pre-fried potato variants fail plain raw/frozen approvals",()=>{
+ const list=[
+ p("ch-a","A","A Κοτόπουλο Μπούτι Φιλέτο Πανέ 700g","Πουλερικά","kg",.7),
+ p("ch-b","B","B Κοτόπουλο Μπούτι Φιλέτο Πανέ 650g","Πουλερικά","kg",.65),
+ p("mar-a","A","A Κοτόπουλο Μπούτι Φιλέτο Μαριναρισμένο 700g","Πουλερικά","kg",.7),
+ p("mar-b","B","B Κοτόπουλο Μπούτι Φιλέτο Μαριναρισμένο 650g","Πουλερικά","kg",.65),
+ p("pt-a","A","A Κατεψυγμένες Πατάτες Προτηγανισμένες 1kg","Πατάτες","kg",1),
+ p("pt-b","B","B Κατεψυγμένες Πατάτες Προτηγανισμένες 2kg","Πατάτες","kg",2),
+ p("raw-a","A","A Κοτόπουλο Μπούτι Φιλέτο 700g","Πουλερικά","kg",.7),
+ p("raw-b","B","B Κοτόπουλο Μπούτι Φιλέτο 650g","Πουλερικά","kg",.65)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["raw-a","raw-b"]]);
+});
