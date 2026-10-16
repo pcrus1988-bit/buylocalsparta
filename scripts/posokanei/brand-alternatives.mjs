@@ -82,15 +82,15 @@ function productIndex(products){
 
 export function findBrandAlternatives({
   sourceId,packages=1,products,offersByProduct,excludedRetailerIds=[],
-  brandIndex=createBrandIndex(products),maxResults=5
+  brandIndex=createBrandIndex(products),approvedGroups=[],maxResults=5
 }) {
   if(!Number.isSafeInteger(packages)||packages<1||packages>100)
     throw new Error("packages must be an integer 1–100");
   const source=productIndex(products).get(sourceId);
-  if(!source)return {reason:"not_found",basis:null,sourceAmount:null,alternatives:[]};
+  if(!source)return {reason:"not_found",basis:null,sourceAmount:null,alternatives:[],candidates:[]};
   const quantity=referenceQuantity(source);
-  if(!quantity)return {reason:"unknown_quantity",basis:null,sourceAmount:null,alternatives:[]};
-  const base={basis:quantity.unit,sourceAmount:quantity.amount,alternatives:[]};
+  if(!quantity)return {reason:"unknown_quantity",basis:null,sourceAmount:null,alternatives:[],candidates:[]};
+  const base={basis:quantity.unit,sourceAmount:quantity.amount,alternatives:[],candidates:[]};
   const family=productFamily(source);
   if(!family||!source.brand)return {...base,reason:"no_comparable_brands"};
   const forbidden=new Set(excludedRetailerIds);
@@ -103,6 +103,11 @@ export function findBrandAlternatives({
   if(!Number.isSafeInteger(sourceCents)||sourceCents<=0)return {...base,reason:"no_source_price"};
   const demand=quantity.amount*packages;
   const pool=brandIndex.get(family+"|"+quantity.unit)||[];
+  // Inferred similarity is not reviewed product equivalence. Require shared
+  // human-approved group membership before authorizing a substitution.
+  const approvedForSource=new Set(approvedGroups
+    .filter(g=>g?.status==="approved"&&Array.isArray(g.memberIds)&&g.memberIds.includes(sourceId))
+    .flatMap(g=>g.memberIds));
   const byBrand=new Map();
   for(const candidate of pool) {
     if(candidate.source_product_id===sourceId||normalize(candidate.brand)===normalize(source.brand))continue;
@@ -123,18 +128,23 @@ export function findBrandAlternatives({
       originalTotalEur:euros(sourceCents),candidateTotalEur:euros(cents),
       savingsEur:euros(sourceCents-cents),
       savingPercent:Math.round(100*(sourceCents-cents)/sourceCents),
-      confidence:"matched_details"
+      confidence:approvedForSource.has(candidate.source_product_id)?"reviewed_equivalent":"unverified_match"
     };
-    const brandKey=normalize(candidate.brand);
+    const brandKey=normalize(candidate.brand)+"|"+entry.confidence;
     const prior=byBrand.get(brandKey);
     if(!prior||entry.candidateTotalEur<prior.candidateTotalEur||
        (entry.candidateTotalEur===prior.candidateTotalEur&&entry.id<prior.id))
       byBrand.set(brandKey,entry);
   }
-  const alternatives=[...byBrand.values()].sort((a,b)=>
+  const ranked=[...byBrand.values()].sort((a,b)=>
     a.candidateTotalEur-b.candidateTotalEur||b.savingsEur-a.savingsEur||
-    a.name.localeCompare(b.name,"el")).slice(0,maxResults);
+    a.name.localeCompare(b.name,"el"));
+  const alternatives=ranked.filter(x=>x.confidence==="reviewed_equivalent").slice(0,maxResults);
+  // Unverified candidates are shown only as information, without any
+  // substitution CTA or guaranteed-savings claim in the UI.
+  const candidates=ranked.filter(x=>x.confidence==="unverified_match").slice(0,maxResults);
   return {...base,originalTotalEur:euros(sourceCents),sourcePackages:packages,
-    alternatives,reason:alternatives.length?"cheaper_found":
+    alternatives,candidates,reason:alternatives.length?"cheaper_found":
+      candidates.length?"unreviewed_candidates":
       pool.length>1?"no_cheaper_brand":"no_comparable_brands"};
 }
