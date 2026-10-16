@@ -72,7 +72,6 @@
 .suggestionHeader button{border:0;background:transparent;font-size:16px}
 .suggestion p{font-size:12px;color:#355e45;line-height:1.5}
 .suggestionLine{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #c6dcc6}
-.suggestion>h3{font-size:14px;line-height:1.45;font-weight:750;color:#22593e;margin:0 0 10px;overflow-wrap:anywhere}
 .suggestionLine button{flex-shrink:0}
 .suggestionLine>span{flex:1;min-width:0;font-size:13px}
 .suggestionLine small{display:block;font-size:11px;color:#436d4c;margin-top:4px}
@@ -130,9 +129,6 @@
 
 
 .brandStatus{grid-column:1/-1;color:#527b60;line-height:1.4;font-size:11px}
-details.suggestion{display:block;padding:12px;margin:10px 0;border-radius:12px}
-details.suggestion>summary{font-size:13px;line-height:1.45;font-weight:750;cursor:pointer;color:#22593e}
-details.suggestion[open]>summary{margin-bottom:10px}
 
 /* Preserve the latest main branch availability-first comparison styles. */
 .classicComparison{margin:18px 0 12px;border-top:1px solid #d8e4d7;padding-top:18px}
@@ -187,9 +183,6 @@ details.suggestion[open]>summary{margin-bottom:10px}
 .disclaimer details{display:inline;margin-left:8px}
 .disclaimer summary{display:inline;cursor:pointer;font-weight:700;text-decoration:underline;text-underline-offset:2px}
 .suggestion{background:#fafcf8;border:1px solid #dce8d9;padding:0;margin-top:9px;overflow:hidden}
-.suggestionDisclosure>summary{display:flex;flex-direction:column;gap:4px;cursor:pointer;padding:12px 13px;list-style-position:inside;overflow-wrap:anywhere}
-.suggestionDisclosure>summary strong{color:#20573c;font-size:13px;font-weight:750}
-.suggestionDisclosure>summary small{font-size:11px;color:#597d61;font-weight:500}
 .suggestionLine{padding:11px 14px;border-top:1px solid #e2ece0;align-items:center}
 .suggestionLine>span strong{font-size:13px;line-height:1.4}
 .suggestionLine small{font-size:11px;line-height:1.35}
@@ -234,3 +227,41 @@ details.suggestion[open]>summary{margin-bottom:10px}
 .suggestionToggle span:last-child{display:grid;place-items:center;flex-shrink:0;font-size:20px;width:28px;height:28px;border-radius:50%;background:#dbe9d9}
 .suggestionToggle[aria-expanded="true"]{border-bottom:1px solid #dfebdf}
 @media(max-width:700px){.savingsOpportunity{padding:14px}.savingsOpportunityAction{width:100%}}
+
+/* October tidy-up: short, scannable actions and savings rather than comparison prose. */
+.scope .card .buttons{align-items:stretch}
+.scope .card .buttons .primary{min-height:44px}
+.scope .card .buttons .textButton{background:#edf5ed;border:1px solid #cbdfce;border-radius:11px;padding:10px 13px;color:#155a39}
+.scope .card .buttons .textButton:hover{background:#e1f1e3}
+.scope .card .buttons .primary:hover,.scope .saveButton:hover,.scope .calculate:hover{background:#27704c}
+.comparablePanel{background:#f8fbf7;border-color:#d9e6d8}
+.comparablePanel h4{font-family:inherit;font-weight:800}
+.comparablePanel>p{font-size:11px;margin-bottom:6px}
+.comparableRow{gap:10px}
+.comparableRow>div{display:flex;flex-direction:column;gap:4px}
+.comparableRow small{margin-top:0}
+.comparableBenefit,.savingAmount{color:#187046!important;font-weight:800!important;font-size:12px!important}
+.suggestionToggle{min-height:50px;font-weight:700}
+.suggestionLine{background:#fffefa;gap:12px}
+.suggestionLine small{margin:4px 0 0}
+.suggestionLine .secondary,.comparableRow .secondary{border-color:#215b40;color:#1c5b3b;background:#eff6ee;min-height:40px}
+.suggestionLine .secondary:hover,.comparableRow .secondary:hover{background:#def0e1}
+.selectedAlternativeNote{grid-column:1/-1;color:#2e774e;font-size:11px;font-weight:750;padding-left:3px}
+.savingsOpportunity{box-shadow:none;margin:12px 0}
+.savingsOpportunity>strong{font-size:clamp(19px,2.5vw,23px)}
+.saveBar{margin:8px 0 12px;padding:10px 12px;gap:5px}
+.saveBar small{font-size:11px}
+.basketPreset{font-size:11px}
+.listDetails .lines{max-height:none;overflow:visible}
+@media(max-width:700px){
+  .scope .card .buttons{grid-template-columns:1fr 1fr}
+  .scope .card .buttons .textButton{grid-column:1/-1;min-height:43px;font-size:12px}
+  .suggestionLine{padding:12px}
+  .suggestionLine>span strong{font-size:13px}
+  .comparablePanel{padding:12px}
+  .comparableRow{flex-direction:row;align-items:center;flex-wrap:wrap}
+  .comparableRow>div{flex-basis:190px}
+  .comparableRow button{width:auto}
+  .scope .card{box-shadow:0 2px 10px #143e290b}
+  .scope .card .buttons{margin-top:10px}
+}
