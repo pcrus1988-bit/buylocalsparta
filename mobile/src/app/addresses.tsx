@@ -111,7 +111,7 @@ export default function CompanionAddresses(){
  return <ScrollView contentContainerStyle={styles.screen} keyboardShouldPersistTaps="handled">
   <Text style={styles.kicker}>KONTA MOY COMPANION · ΔΙΕΥΘΥΝΣΕΙΣ</Text>
   <Text style={styles.title}>Οι διευθύνσεις μου</Text>
-  <Text style={styles.body}>Δες τις αποθηκευμένες διευθύνσεις του λογαριασμού σου και πρόσθεσε νέα. Η επιλογή τρόπου παράδοσης και η πληρωμή γίνονται στο ασφαλές checkout.</Text>
+  <Text style={styles.body}>Δες τις αποθηκευμένες διευθύνσεις του λογαριασμού σου και πρόσθεσε, άλλαξε ή διέγραψε διευθύνσεις. Η επιλογή τρόπου παράδοσης και η πληρωμή γίνονται στο ασφαλές checkout.</Text>
   {loading&&<ActivityIndicator color={theme.green} accessibilityLabel="Φόρτωση διευθύνσεων"/>}
   {notice!==""&&<Text style={styles.notice} accessibilityLiveRegion="polite">{notice}</Text>}
   {!loading&&profile===null&&<View style={styles.card}>
@@ -138,15 +138,25 @@ export default function CompanionAddresses(){
        {address.isDefaultBilling&&<Text style={styles.pill}>Τιμολόγηση</Text>}
        {address.isDefaultDelivery&&<Text style={styles.pill}>Παράδοση</Text>}
       </View>
+      <View style={styles.pills}>
+       <Pressable accessibilityRole="button" disabled={saving||loading}
+        style={styles.smallAction} onPress={()=>editAddress(address)}>
+        <Text style={styles.link}>Επεξεργασία</Text>
+       </Pressable>
+       <Pressable accessibilityRole="button" disabled={saving||loading}
+        style={styles.smallAction} onPress={()=>confirmRemoval(address)}>
+        <Text style={styles.deleteText}>Διαγραφή</Text>
+       </Pressable>
+      </View>
      </View>)}
-    <Text style={styles.hint}>Η αλλαγή ή διαγραφή υπάρχουσας διεύθυνσης γίνεται προς το παρόν μέσω του ασφαλούς λογαριασμού στον ιστότοπο.</Text>
+    <Text style={styles.hint}>Οι αλλαγές εφαρμόζονται στις μελλοντικές αγορές, όχι στις ήδη ολοκληρωμένες παραγγελίες.</Text>
    </View>
    <Pressable accessibilityRole="button" style={styles.primary}
-    disabled={saving} onPress={()=>setFormOpen(v=>!v)}>
-    <Text style={styles.primaryText}>{formOpen?"Κλείσιμο φόρμας":"＋ Προσθήκη νέας διεύθυνσης"}</Text>
+    disabled={saving} onPress={toggleForm}>
+    <Text style={styles.primaryText}>{formOpen?"Άκυρο · κλείσιμο φόρμας":"＋ Προσθήκη νέας διεύθυνσης"}</Text>
    </Pressable>
    {formOpen&&<View style={styles.card}>
-     <Text style={styles.heading}>Νέα διεύθυνση στην Ελλάδα</Text>
+     <Text style={styles.heading}>{editingId?"Επεξεργασία διεύθυνσης":"Νέα διεύθυνση στην Ελλάδα"}</Text>
      {FIELDS.map(field=><View key={field.key} style={styles.field}>
        <Text style={styles.fieldLabel}>{field.label}</Text>
        <TextInput accessibilityLabel={field.label} style={styles.input}
@@ -167,7 +177,7 @@ export default function CompanionAddresses(){
      <Text style={styles.hint}>Η αποθήκευση ενημερώνει και το ονοματεπώνυμο του προφίλ πελάτη, όπως και στην υπάρχουσα ιστοσελίδα.</Text>
      <Pressable accessibilityRole="button" disabled={saving} onPress={()=>void save()}
       style={[styles.primary,saving&&styles.disabled]}>
-      <Text style={styles.primaryText}>{saving?"Αποθήκευση…":"Αποθήκευση στον λογαριασμό"}</Text>
+      <Text style={styles.primaryText}>{saving?"Αποθήκευση…":editingId?"Αποθήκευση αλλαγών":"Αποθήκευση στον λογαριασμό"}</Text>
      </Pressable>
     </View>}
   </>}
@@ -201,6 +211,8 @@ const styles=StyleSheet.create({
  input:{borderColor:theme.border,borderWidth:1,borderRadius:12,paddingHorizontal:12,paddingVertical:13,fontSize:16,color:theme.ink},
  switchRow:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",gap:12},
  switchText:{flex:1,color:theme.ink,fontSize:14,fontWeight:"700"},
+ smallAction:{borderRadius:10,padding:9,backgroundColor:theme.white,borderWidth:1,borderColor:theme.border},
+ deleteText:{color:"#A54536",fontWeight:"800",fontSize:13},
  hint:{fontSize:12,color:theme.muted,lineHeight:18},
  notice:{color:theme.ink,fontSize:13,lineHeight:20},
  disabled:{opacity:.55}
