@@ -44,6 +44,7 @@ export function PosoKaneiPublicClient(){
   const [brandResults,setBrandResults]=useState<Record<string,{
     lineId:string;sourceProductId:string;basis:string|null;sourceAmount:number|null;
     reason:string;alternatives:Cheaper[];candidates:Cheaper[];
+    bestCheaperSavingEur:number;cheaperAlternativeCount:number;
   }>>({});
   const [expandedAlternatives,setExpandedAlternatives]=useState<string[]>([]);
   const [checkingBrands,setCheckingBrands]=useState(false);
@@ -151,13 +152,14 @@ export function PosoKaneiPublicClient(){
             body:JSON.stringify({
               lines:exact.map(l=>({id:l.id,sourceProductId:l.sourceProductId,packageCount:l.packageCount})),
               excludedRetailerIds:excluded,
-              includeNonCheaper:true
+              includeNonCheaper:false
             })
           });
           const json=await response.json() as {
             status:string;lines?:Array<{
               lineId:string;sourceProductId:string;basis:string|null;sourceAmount:number|null;
-              reason:string;alternatives:Cheaper[];candidates:Cheaper[]
+              reason:string;alternatives:Cheaper[];candidates:Cheaper[];
+              bestCheaperSavingEur:number;cheaperAlternativeCount:number
             }>
           };
           if(!response.ok||json.status!=="ready")throw Error("unavailable");
@@ -385,7 +387,7 @@ export function PosoKaneiPublicClient(){
             <span>Βρήκαμε φθηνότερες εναλλακτικές για <strong>{savingsOpportunities.productCount} {savingsOpportunities.productCount===1?"προϊόν":"προϊόντα"}</strong> της λίστας σου.</span>
             <strong>Εξοικονόμησε έως {money(savingsOpportunities.potentialSavingEur)}</strong>
             <span className={styles.savingsOpportunityAction}>Δες τις εναλλακτικές <span aria-hidden="true">→</span></span>
-            <small>Εκτίμηση από καταγεγραμμένες τιμές ανά προϊόν· το τελικό όφελος υπολογίζεται ξεχωριστά.</small>
+            <small>Δυνητικό όφελος από όλες τις διαθέσιμες φθηνότερες εναλλακτικές. Η πραγματική εξοικονόμηση υπολογίζεται αφού επιλέξεις.</small>
           </button>}
           {lines.some(l=>l.kind==="exact")&&<button type="button" className={styles.textButton} onClick={()=>setBrandRefresh(n=>n+1)} disabled={checkingBrands}>{checkingBrands?"Αναζήτηση εναλλακτικών…":"Ανανέωση εναλλακτικών ↻"}</button>}
           {Object.values(brandResults).filter(entry=>entry.alternatives.length>0||entry.candidates.length>0).map(entry=>
@@ -394,7 +396,7 @@ export function PosoKaneiPublicClient(){
                 <button type="button" className={styles.suggestionToggle}
                   aria-expanded={expandedAlternatives.includes(entry.lineId)}
                   onClick={()=>setExpandedAlternatives(current=>current.includes(entry.lineId)?current.filter(id=>id!==entry.lineId):[...current,entry.lineId])}>
-                  <span>💡 Εναλλακτικές για {labels[entry.lineId]||"προϊόν"} ({entry.alternatives.length+entry.candidates.length})</span>
+                  <span>💡 Εναλλακτικές για {labels[entry.lineId]||"προϊόν"} ({entry.cheaperAlternativeCount??entry.alternatives.length+entry.candidates.length})</span>
                   <span aria-hidden="true">{expandedAlternatives.includes(entry.lineId)?"−":"+"}</span>
                 </button>
               {expandedAlternatives.includes(entry.lineId)&&[...entry.alternatives,...entry.candidates].map(option=><div className={styles.suggestionLine} key={option.confidence+":"+option.id}>
@@ -430,6 +432,7 @@ export function PosoKaneiPublicClient(){
               <p className={styles.planCaution}>Μπορείς να τσεκάρεις όσα αγόρασες. Η πρόοδος μένει μόνο σε αυτή τη συσκευή, για το συγκεκριμένο σχέδιο και ημερομηνία τιμών.</p>
             </>:<p className={styles.error}>Δεν υπάρχει πλήρης λίστα με καταγεγραμμένες τιμές. Τα προϊόντα που λείπουν δεν υπολογίζονται ως δωρεάν.</p>}
             {mode!=="single"&&actualSavings!==null&&<p className={styles.saving}>Εξοικονόμηση από επιλογή σούπερ μάρκετ για <strong>τις τωρινές μάρκες</strong>: <strong>{money(actualSavings)}</strong></p>}
+            {savingsOpportunities.productCount>0&&<p className={styles.methodNote}>Πρόσθετη δυνητική εξοικονόμηση με αλλαγή μάρκας: <strong>έως {money(savingsOpportunities.potentialSavingEur)}</strong>. Δεν προστίθεται στο πραγματοποιημένο όφελος μέχρι να επιλέξεις εναλλακτική. Η τελική σύγκριση υπολογίζεται ξανά με τους περιορισμούς της λίστας.</p>
             {!!result.reviewedBrandSwitchCount&&plan?.complete&&<>
               {result.brandSwitchSavingsEur!==null&&<p className={styles.saving}>Από τις {result.reviewedBrandSwitchCount} αλλαγές μάρκας, έναντι της αρχικής λίστας σε μία αλυσίδα: <strong>{result.brandSwitchSavingsEur>=0?money(result.brandSwitchSavingsEur):"επιπλέον κόστος "+money(-result.brandSwitchSavingsEur)}</strong></p>}
               {savingsWithBrands!==null&&<p className={styles.saving}><strong>{savingsWithBrands>=0?"Συνολική εξοικονόμηση":"Επιπλέον συνολικό κόστος"} με τις επιλεγμένες μάρκες:</strong> <strong>{money(Math.abs(savingsWithBrands))}</strong> <small>Έναντι της αρχικής λίστας {result.originalBasketBenchmarkMode==="single"?"σε μία αλυσίδα":"με έως "+storeLimit+" αλυσίδες"}, στις ίδιες τιμές. Δεν υπολογίζονται δύο φορές οι ίδιες οικονομίες.</small></p>}
