@@ -1,4 +1,4 @@
-import {validCanonicalPublicId} from "./canonical-id";
+import {validCanonicalPublicId} from "./canonical-id.ts";
 import type {NativeCartItem} from "./companion-cart";
 
 export function cartItemsAfterChange(
