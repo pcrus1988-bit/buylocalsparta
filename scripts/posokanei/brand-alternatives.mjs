@@ -106,8 +106,7 @@ export function findBrandAlternatives({
     const offer=bestOffer(candidate.source_product_id);
     if(!offer)continue;
     const cents=count*Math.round(offer.price_eur*100);
-    if(cents>=sourceCents||!Number.isSafeInteger(cents)||
-      (sourceCents-cents)/sourceCents<0.03)continue;
+    if(cents>=sourceCents||!Number.isSafeInteger(cents))continue;
     const entry={
       id:candidate.source_product_id,name:candidate.name,brand:candidate.brand,
       packageQuantity:size.amount,unit:size.unit,packageCount:count,
