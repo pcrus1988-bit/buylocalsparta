@@ -1,5 +1,5 @@
 export type ReviewedSavingCandidate = {
-  confidence:"reviewed_equivalent"|"unverified_match";
+  confidence:"reviewed_equivalent"|"automatically_verified"|"unverified_match";
   savingsEur:number;
   originalTotalEur:number;
 };
