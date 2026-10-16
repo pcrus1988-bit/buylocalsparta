@@ -1,5 +1,7 @@
 import {useFocusEffect} from "expo-router";
-import {useCallback,useState} from "react";
+import {useCallback,useEffect,useState} from "react";
+import * as Notifications from "expo-notifications";
+import {companionAuthorizedRequest} from "../lib/companion-session";
 import {Pressable,ScrollView,StyleSheet,Switch,Text,View} from "react-native";
 import {companionPushStatus,disableCompanionPush,
  registerCompanionPush,sendCompanionTestPush} from "../lib/companion-push";
@@ -26,6 +28,21 @@ export default function CompanionPushSettings(){
    }catch{/* Keep consent unchanged when offline or not signed in. */}
  },[]);
  useFocusEffect(useCallback(()=>{void refresh();},[refresh]));
+ useEffect(()=>{
+   const sub=Notifications.addPushTokenListener(token=>{
+     if(token.type!=="fcm"||typeof token.data!=="string")return;
+     // A rotated token is registered only when the customer already opted in.
+     // Do NOT call getDevicePushTokenAsync here (it can trigger this listener).
+     void companionPushStatus().then(status=>{
+       if(!status.enabled)return;
+       return companionAuthorizedRequest("/push/device","PUT",{
+         token:token.data,
+         purposes:{orderUpdates:status.orderUpdates,savedItems:status.savedItems,vendorOffers:false}
+       });
+     }).catch(()=>undefined);
+   });
+   return()=>sub.remove();
+ },[]);
  async function save(){
    if(busy)return;
    setBusy(true);
