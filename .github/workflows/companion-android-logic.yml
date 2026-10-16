@@ -37,7 +37,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - run: node --experimental-strip-types --test mobile/test/nearby-matching.test.ts apps/web/test/companion-pkce.test.ts apps/web/test/companion-push-policy.test.ts apps/web/test/companion-fcm-status.test.ts apps/web/test/companion-catalog-policy.test.ts mobile/test/marketplace-links.test.ts
+      - run: node --experimental-strip-types --test mobile/test/nearby-matching.test.ts apps/web/test/companion-pkce.test.ts apps/web/test/companion-push-policy.test.ts apps/web/test/companion-fcm-status.test.ts apps/web/test/companion-catalog-policy.test.ts mobile/test/marketplace-links.test.ts mobile/test/navigation-contract.test.mjs
   android-types:
     name: Android Expo dependency and typecheck
     runs-on: ubuntu-latest
