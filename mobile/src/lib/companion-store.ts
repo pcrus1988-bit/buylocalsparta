@@ -63,12 +63,31 @@ export async function getItems(kind?: ListKind): Promise<ListItem[]> {
 export async function addItem(kind:ListKind,title:string,quantity=1,variantId:string|null=null){
   const clean=title.normalize("NFKC").trim().replace(/\s+/g," ");
   if(!["shopping","wishlist"].includes(kind)||clean.length<2||clean.length>120
-    ||!Number.isSafeInteger(quantity)||quantity<1||quantity>99)throw new Error("INVALID_ITEM");
+    ||!Number.isSafeInteger(quantity)||quantity<1||quantity>99
+    ||(variantId!==null&&!validCanonicalPublicId(variantId)))throw new Error("INVALID_ITEM");
   const db=await database();
-  const id=`companion_${Date.now()}_${Math.random().toString(36).slice(2,12)}`;
-  await db.runAsync("INSERT INTO companion_items(id,kind,title,quantity,completed,variant_id,created_at) VALUES(?,?,?,?,0,?,?)",
-    id,kind,clean,quantity,variantId,Date.now());
-  return id;
+  let resultId="";
+  await db.withExclusiveTransactionAsync(async tx=>{
+    // Re-using a free-text shopping item should not create a second row.
+    // Canonical variants follow addCatalogItem(), never a fuzzy text match.
+    if(kind==="shopping"&&variantId===null){
+      const rows=await tx.getAllAsync<{id:string;title:string;quantity:number}>(
+        "SELECT id,title,quantity FROM companion_items WHERE kind='shopping' AND variant_id IS NULL"
+      );
+      const existing=rows.find(row=>normalizedNoteKey(row.title)===normalizedNoteKey(clean));
+      if(existing){
+        if(existing.quantity+quantity>99)throw Error("QUANTITY_LIMIT");
+        await tx.runAsync("UPDATE companion_items SET quantity=?,completed=0 WHERE id=?",
+          existing.quantity+quantity,existing.id);
+        resultId=existing.id;
+        return;
+      }
+    }
+    resultId=`companion_${Date.now()}_${Math.random().toString(36).slice(2,12)}`;
+    await tx.runAsync("INSERT INTO companion_items(id,kind,title,quantity,completed,variant_id,created_at) VALUES(?,?,?,?,0,?,?)",
+      resultId,kind,clean,quantity,variantId,Date.now());
+  });
+  return resultId;
 }
 /** Add multiple local handwritten shopping notes in one atomic transaction.
  * Normalized matches merge, but canonical variants are never inferred from text.
