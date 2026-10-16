@@ -12,7 +12,7 @@ test("native form creates only supported Greek customer-address fields",()=>{
 });
 test("native address form requires full name street city and postcode",()=>{
  for(const patch of [{fullName:"Maria"},{line1:""},{locality:" "},
- {postcode:"123"},{postcode:"ABCDE"},{phone:"123"}])
+ {postcode:"123"},{postcode:"ABCDE"},{phone:"123"},{line1:"Road\\nInjected"}])
   assert.throws(()=>prepareNewAddress({...valid,...patch}));
 });
 test("native preparation trims optional address fields without inventing defaults",()=>{
