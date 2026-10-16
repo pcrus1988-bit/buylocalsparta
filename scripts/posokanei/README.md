@@ -35,36 +35,36 @@ When a local staging snapshot is available, you can run a shopping-list comparis
 
 Create a private JSON input file, for example /tmp/posokanei-list.json:
 
-\`\`\`json
+```json
 {
   "lines": [
     {"id":"rice","kind":"exact","sourceProductId":"REPLACE_WITH_ARCHIVE_ID","packageCount":2},
     {"id":"tomatoes","kind":"group","groupId":"reviewed-chopped-tomatoes","requiredBaseQuantity":0.8}
   ]
 }
-\`\`\`
+```
 
 The example IDs must be replaced with real staged identifiers in a local environment. A reviewed-groups JSON array is mandatory for group lines:
 
-\`\`\`json
+```json
 [
   {"id":"reviewed-chopped-tomatoes","status":"approved","basis":"kg","memberIds":["REPLACE_WITH_EXACT_CHOPPED_TOMATO_SOURCE_IDS"]}
 ]
-\`\`\`
+```
 
 Run:
 
-\`\`\`sh
+```sh
 node scripts/posokanei/optimize-basket.mjs \
   --staging /tmp/kontamou-posokanei \
   --list /tmp/posokanei-list.json \
   --groups /tmp/posokanei-reviewed-groups.json \
   --store-limit 3 \
   --out /tmp/private-posokanei-basket-result.json
-\`\`\`
+```
 
 The output includes cheapest *complete* single-chain basket, cheapest complete split-chain basket within 1–4 chain visits, unconstrained cheapest chain mix, item selection/quantity, missing-item reasons, savings where a valid complete single-chain baseline exists, and source snapshot identity. Missing supermarket products **never** count as free basket items. If a basket cannot be completed, the displayed complete-basket total is null.
 
-A group request uses a quantity in kg/l/piece and buys a whole number of packages from ONE equivalent source SKU for that line. A customer can lock a particular approved brand using \`lockedProductId\`, or use \`kind:"exact"\` to preserve a chosen source product. Only explicitly approved equivalence groups can substitute across brands. The comparator cannot infer source product equivalence from names alone.
+A group request uses a quantity in kg/l/piece and buys a whole number of packages from ONE equivalent source SKU for that line. A customer can lock a particular approved brand using `lockedProductId`, or use `kind:"exact"` to preserve a chosen source product. Only explicitly approved equivalence groups can substitute across brands. The comparator cannot infer source product equivalence from names alone.
 
 The optimizer treats chain prices as historical references, not branch-specific guaranteed availability. Travel, loyalty cards, delivery, and discounts requiring special eligibility are not included. This is not the KONTA MOY shopping cart or checkout.
