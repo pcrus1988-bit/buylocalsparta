@@ -1,9 +1,28 @@
 import { Stack } from "expo-router";
+import {useEffect} from "react";
+import * as Notifications from "expo-notifications";
+import {Linking} from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { theme } from "../theme";
 import { CompanionForegroundWatcher } from "../components/CompanionForegroundWatcher";
 
 export default function RootLayout() {
+  useEffect(()=>{
+    const open=(data:Record<string,unknown>)=>{
+      const url=data.productUrl;
+      if(typeof url==="string"&&url.startsWith("https://kontamou.site/shop?")){
+        void Linking.openURL(url);
+      }
+    };
+    const subscription=Notifications.addNotificationResponseReceivedListener(response=>{
+      open(response.notification.request.content.data);
+    });
+    // Also support the cold-start tap path on Android.
+    void Notifications.getLastNotificationResponseAsync().then(response=>{
+      if(response)open(response.notification.request.content.data);
+    }).catch(()=>undefined);
+    return()=>subscription.remove();
+  },[]);
   return <>
     <CompanionForegroundWatcher />
     <StatusBar style="dark" />
