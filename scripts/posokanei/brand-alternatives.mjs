@@ -56,6 +56,7 @@ const canonicalTypes=[
   ["sugar","ζαχαρη","ζαχαρης","sugar"],
   ["flour","αλευρι","αλευρου","flour"],
   ["salt","αλατι","αλατιου","salt"],
+  ["vinegar","ξιδι","ξυδι","vinegar"],
   ["water","νερο","νερου","water"],
   ["juice","χυμος","χυμοι","χυμου","juice"],
   ["coffee","καφες","καφε","καφεδες","coffee"],
