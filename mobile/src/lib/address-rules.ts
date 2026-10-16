@@ -42,3 +42,17 @@ export function prepareNewAddress(draft:AddressDraft):NewAddressPayload{
   ...(line2?{line2}:{}),...(region?{region}:{}),...(phone?{phone}:{}),
   isDefaultBilling:draft.isDefaultBilling,isDefaultDelivery:draft.isDefaultDelivery};
 }
+
+export function draftFromSavedAddress(address:{
+ label:string;fullName:string;companyName?:string;vatNumber?:string;
+ line1:string;line2?:string;locality:string;region?:string;postcode:string;
+ phone?:string;isDefaultBilling:boolean;isDefaultDelivery:boolean
+}):AddressDraft{
+ return {
+  label:address.label,fullName:address.fullName,
+  companyName:address.companyName??"",vatNumber:address.vatNumber??"",
+  line1:address.line1,line2:address.line2??"",locality:address.locality,
+  region:address.region??"",postcode:address.postcode,phone:address.phone??"",
+  isDefaultBilling:address.isDefaultBilling,isDefaultDelivery:address.isDefaultDelivery
+ };
+}
