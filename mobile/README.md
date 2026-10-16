@@ -1,5 +1,16 @@
 # KONTA MOY Companion — Android
 
+## Verified Android development milestone — 16 October 2026
+
+- **Reproducible dependencies:** `mobile/package-lock.json` committed. GitHub Actions passed `npm ci`, TypeScript, Expo SDK 57 compatibility and `npx expo export --platform android`.
+- **Official identity:** The exact website wordmark is used to generate `mobile/assets/icon.png` and `mobile/assets/adaptive-icon.png`; Android launcher, splash and Companion home screen are configured.
+- **Account wishlist:** The customer can explicitly copy canonical saved variants *from the website to the Android offline wishlist* and back *from the Android offline wishlist to the website*. Both are add-only, with no implicit deletions; generic shopping notes stay local. Not automatic conflict-aware sync.
+- **Local privacy reset:** The user can clear offline lists, reminder history and location/marketing preferences independently of website account data.
+- **Transactional order notifications:** Three isolated migrations + strict-gated service code provide opted-in real order/pickup outbox, a private worker endpoint, live permission rechecks and provider-confirmed invalid-token handling. No sender is active in production.
+- **Native build:** The Android debug Gradle compilation workflow ran from the verified lockfile. The build is not complete until a successful APK artifact is present. The workflow is now manual to prevent every PR update from launching another expensive compilation.
+- **Production state:** The mobile authentication, FCM device registration and transactional outbox tables have NOT been applied to production; no FCM credentials or push dispatch flags enabled. No verified/signed Play-release APK or on-device tests.
+
+
 An Android-only customer companion app (React Native / Expo SDK 57) in the existing KONTA MOY repository. Work-in-progress source code; **not yet built, signed, submitted to Play or deployed to real customers**. This folder stays outside the root npm workspaces to protect existing web production deployment and lockfile until native dependency integration is validated.
 
 ## Current implementation (2026-10-16)
@@ -15,11 +26,11 @@ An Android-only customer companion app (React Native / Expo SDK 57) in the exist
 
 ## Installation & QA
 
-The native package-lock has not yet been generated because this environment does not have access to the npm registry. The Expo docs were checked for recommended SDK 57 package versions; run on a networked developer environment:
+The pinned `mobile/package-lock.json` has now been committed and verified in GitHub CI. Use a reproducible clean install on networked Android developer machines:
 
 ```bash
 cd mobile
-npm install
+npm ci
 npx expo install --check
 npm run check
 npm run test:matching
@@ -27,7 +38,7 @@ npx expo-doctor
 npx expo run:android
 ```
 
-Commit the generated `mobile/package-lock.json` and use `npm ci` for reproducible Android CI afterwards. An independent GitHub workflow runs no-dependency matcher/GPS unit tests now. Real Android GPS, notification permission, app lifecycle and battery optimization behavior must be tested on physical devices.
+The Android CI uses `npm ci` and exports a production-format Android JS bundle. The debug APK still requires full native Gradle acceptance and physical-device verification. An independent GitHub workflow runs no-dependency matcher/GPS unit tests now. Real Android GPS, notification permission, app lifecycle and battery optimization behavior must be tested on physical devices.
 
 ## Critical boundaries
 
