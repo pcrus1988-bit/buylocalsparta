@@ -33,23 +33,88 @@ export function referenceQuantity(p) {
   return null;
 }
 
+
+/**
+ * Curated, one-to-one product-type spellings. These are wording equivalences,
+ * not recipe/variant equivalences: e.g. passata is NOT diced tomato, and
+ * full-fat milk is NOT light or lactose-free milk.
+ */
+const canonicalTypes=[
+  ["tomato","ντοματα","ντοματες","τοματα","τοματες","tomato","tomatoes"],
+  ["diced","κονκασε","ψιλοκομμενη","ψιλοκομμενες","ψιλοκομμενο","ψιλοκομμενα","diced","chopped"],
+  ["milk","γαλα","γαλακτος","milk"],
+  ["yogurt","γιαουρτι","γιαουρτια","γιαουρτης","yogurt","yoghurt"],
+  ["cheese","τυρι","τυρια","τυρου","cheese"],
+  ["rice","ρυζι","ρυζιου","rice"],
+  ["lentils","φακες","φακη","lentils"],
+  ["chickpeas","ρεβιθια","ρεβιθι","chickpeas"],
+  ["beans","φασολια","φασολι","beans"],
+  ["spaghetti","σπαγγετι","σπαγγετ","spaghetti","spagetti"],
+  ["penne","πεννες","πεννε","penne"],
+  ["pasta","ζυμαρικα","μακαρονια","pasta"],
+  ["oliveoil","ελαιολαδο","ελαιολαδου","oliveoil"],
+  ["sugar","ζαχαρη","ζαχαρης","sugar"],
+  ["flour","αλευρι","αλευρου","flour"],
+  ["salt","αλατι","αλατιου","salt"],
+  ["water","νερο","νερου","water"],
+  ["juice","χυμος","χυμοι","χυμου","juice"],
+  ["coffee","καφες","καφε","καφεδες","coffee"],
+  ["instant","στιγμιαιος","στιγμιαιου","instant"],
+  ["biscuits","μπισκοτα","μπισκοτο","biscuits","biscuit"],
+  ["chocolate","σοκολατα","σοκολατες","chocolate"],
+  ["shampoo","σαμπουαν","shampoo"],
+  ["detergent","απορρυπαντικο","απορρυπαντικα","detergent"],
+  ["softener","μαλακτικο","μαλακτικα","softener"],
+  ["diapers","πανες","πανα","diapers"],
+  ["soap","σαπουνι","σαπουνια","soap"],
+  ["toothpaste","οδοντοκρεμα","toothpaste"]
+];
+const typeAliases=new Map(canonicalTypes.flatMap(([type,...words])=>words.map(w=>[w,type])));
+
+function greekToLatin(value) {
+  const pairs={ου:"ou",αι:"e",ει:"i",οι:"i",υι:"i",μπ:"b",ντ:"d",γκ:"g",γγ:"ng"};
+  const one={α:"a",β:"v",γ:"g",δ:"d",ε:"e",ζ:"z",η:"i",θ:"th",ι:"i",κ:"k",
+    λ:"l",μ:"m",ν:"n",ξ:"x",ο:"o",π:"p",ρ:"r",σ:"s",ς:"s",τ:"t",υ:"y",
+    φ:"f",χ:"ch",ψ:"ps",ω:"o"};
+  const source=normalize(value);
+  return source.replace(/ου|αι|ει|οι|υι|μπ|ντ|γκ|γγ|[α-ω]/g,ch=>pairs[ch]||one[ch]||ch);
+}
+function words(value) {
+  return normalize(value).replace(/[^\p{L}\p{N}%]+/gu," ").trim().split(/\s+/).filter(Boolean);
+}
+function withoutExplicitBrand(tokens,brand) {
+  const exact=words(brand);
+  if(!exact.length)return tokens;
+  const alternatives=[exact];
+  // A source title may Romanize its explicitly declared Greek brand. Only
+  // strip a WHOLE brand phrase; do not strip similar product words.
+  if(/[α-ω]/.test(normalize(brand))) {
+    const roman=words(greekToLatin(brand));
+    if(roman.join(" ")!==exact.join(" "))alternatives.push(roman);
+  }
+  const output=[...tokens];
+  for(const phrase of alternatives){
+    for(let pos=0;pos<=output.length-phrase.length;){
+      if(phrase.every((word,i)=>word===output[pos+i]))output.splice(pos,phrase.length);
+      else pos++;
+    }
+  }
+  return output;
+}
 export function productFamily(p) {
-  const category=normalize(p?.category);
+  const category=normalize(p?.category).replace(/[^\p{L}\p{N}]+/gu," ").trim();
   if(!category||typeof p?.name!=="string")return null;
   let name=normalize(p.name);
-  const brand=normalize(p.brand);
-  // Remove the explicit *whole brand phrase*; never infer brands from similar
-  // words in titles. Protect word boundaries by padding with spaces.
-  if(brand)name=(" "+name+" ").replaceAll(" "+brand+" "," ").trim();
-  // Discard only physical pack volumes, not fat percentages, numeric formats,
-  // formulas, fragrances, ages, coffee strengths or other distinguishing traits.
+  // Discard only physical package volume/weight. Fat %, age, strength,
+  // dosage, chemical variants, number of ply, etc. must still match.
   name=name.replace(/(?:^|[^\p{L}\p{N}])\d+(?:[.,]\d+)?\s*(?:kg|gr|g|ml|lt|l|γρ|γραμ|γραμμαρια|κιλ|λιτρα|μλ)(?=$|[^\p{L}])/gu," ");
-  const tokens=name.replace(/[^\p{L}\p{N}%]+/gu," ").split(/\s+/)
-    .filter(x=>x.length>0&&!generic.has(x));
+  const tokens=withoutExplicitBrand(words(name),p.brand)
+    .filter(token=>!generic.has(token))
+    .map(token=>typeAliases.get(token)||token);
   if(!tokens.length)return null;
-  // One strong product term is valid within a detailed category; prevent very
-  // short or generic-only labels from producing broad category substitutions.
   if(tokens.length===1&&tokens[0].length<5)return null;
+  // Keep repeated terms and all remaining modifiers, preventing spurious
+  // family collapse across "χωρις ζαχαρη", "zero", "light", etc.
   return category+"|"+tokens.sort().join(" ");
 }
 
