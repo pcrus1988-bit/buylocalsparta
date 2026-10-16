@@ -2,7 +2,7 @@ import {Link,useFocusEffect} from "expo-router";
 import {useCallback,useState} from "react";
 import {ActivityIndicator,Pressable,ScrollView,StyleSheet,Text,TextInput,View} from "react-native";
 import {searchCompanionCatalog,type CompanionCatalogProduct} from "../lib/companion-catalog";
-import {getItems,importAccountWishlist} from "../lib/companion-store";
+import {getItems,addCatalogItem} from "../lib/companion-store";
 import {openMarketplace} from "../lib/marketplace-navigation";
 import {theme} from "../theme";
 
@@ -39,19 +39,31 @@ export default function NativeStorefront(){
   if(saving)return;
   setSaving(product.variantId);setNotice("");
   try{
-   const inserted=await importAccountWishlist([{
-    variantId:product.variantId,title:product.title
-   }]);
+   const outcome=await addCatalogItem("wishlist",product);
    await refresh();
-   setNotice(inserted?"Το προϊόν αποθηκεύτηκε στην offline wishlist με την ακριβή παραλλαγή του.":
-    "Αυτό το προϊόν υπάρχει ήδη στην wishlist σου.");
+   setNotice(outcome==="added"?"Το προϊόν προστέθηκε στην offline wishlist με την ακριβή παραλλαγή του.":
+    outcome==="reactivated"?"Το προϊόν επέστρεψε στα εκκρεμή της wishlist.":"Αυτό το προϊόν υπάρχει ήδη στην wishlist σου.");
   }catch{setNotice("Δεν ήταν δυνατή η αποθήκευση στη συσκευή.");}
   finally{setSaving(null);}
+ }
+ async function addToShopping(product:CompanionCatalogProduct){
+  if(saving)return;
+  setSaving(product.variantId);setNotice("");
+  try{
+   const outcome=await addCatalogItem("shopping",product);
+   setNotice(outcome==="incremented"
+     ?"Η ποσότητα του προϊόντος στη λίστα αγορών αυξήθηκε κατά 1."
+     :"Το προϊόν προστέθηκε στη λίστα αγορών σου.");
+  }catch(e){
+   setNotice(e instanceof Error&&e.message==="QUANTITY_LIMIT"
+    ?"Έχεις ήδη 99 τεμάχια του προϊόντος στη λίστα."
+    :"Δεν αποθηκεύτηκε στη λίστα αγορών.");
+  }finally{setSaving(null);}
  }
  return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.screen}>
   <Text style={styles.kicker}>KONTA MOY · ΑΓΟΡΕΣ</Text>
   <Text style={styles.title}>Βρες αυτό που χρειάζεσαι.</Text>
-  <Text style={styles.lead}>Αναζήτησε πραγματικά προϊόντα KONTA MOY και κράτησέ τα στη wishlist. Οι τιμές, η παράδοση και το απόθεμα επιβεβαιώνονται στον επίσημο κατάλογο.</Text>
+  <Text style={styles.lead}>Αναζήτησε πραγματικά προϊόντα KONTA MOY και πρόσθεσέ τα στη λίστα αγορών ή στη wishlist. Οι τιμές, η παράδοση και το απόθεμα επιβεβαιώνονται στον επίσημο κατάλογο.</Text>
   <View style={styles.searchCard}>
    <TextInput value={query} onChangeText={setQuery} maxLength={72}
      accessibilityLabel="Αναζήτηση προϊόντων"
@@ -86,6 +98,11 @@ export default function NativeStorefront(){
           onPress={()=>void save(product)}>
          <Text style={styles.saveText}>{saved.has(product.variantId)?"✓ Στη wishlist":"♡ Αποθήκευση"}</Text>
        </Pressable>
+       <Pressable accessibilityRole="button" disabled={saving!==null}
+          accessibilityLabel={`Προσθήκη ${product.title} στη λίστα αγορών`}
+          style={styles.shopping} onPress={()=>void addToShopping(product)}>
+         <Text style={styles.shoppingText}>+ Λίστα αγορών</Text>
+       </Pressable>
        <Pressable accessibilityRole="link"
           onPress={()=>void openMarketplace({path:"/product/"+product.variantId})}>
         <Text style={styles.openText}>Δες προϊόν / αγορά ↗</Text>
@@ -107,7 +124,7 @@ export default function NativeStorefront(){
       <Text style={styles.quickButtonText}>Καλάθι & checkout →</Text>
    </Pressable></Link>
   </View>
-  <Text style={styles.footnote}>Τα προϊόντα που προστίθενται εδώ φυλάσσονται στη συσκευή και δεν εισάγονται αυτόματα στο καλάθι αγοράς. Το checkout χρησιμοποιεί το πραγματικό καλάθι της ιστοσελίδας KONTA MOY.</Text>
+  <Text style={styles.footnote}>Τα προϊόντα που προστίθενται στη wishlist ή στη λίστα αγορών φυλάσσονται στη συσκευή και δεν εισάγονται αυτόματα στο καλάθι αγοράς. Το checkout χρησιμοποιεί το πραγματικό καλάθι της ιστοσελίδας KONTA MOY.</Text>
  </ScrollView>;
 }
 const styles=StyleSheet.create({
@@ -139,6 +156,8 @@ const styles=StyleSheet.create({
  save:{paddingVertical:9,paddingHorizontal:10,borderRadius:10,backgroundColor:theme.green},
  saved:{backgroundColor:"#497263"},
  saveText:{fontWeight:"800",color:theme.white,fontSize:12},
+ shopping:{paddingVertical:9,paddingHorizontal:10,borderRadius:10,backgroundColor:theme.cream,borderWidth:1,borderColor:theme.border},
+ shoppingText:{fontWeight:"800",color:theme.green,fontSize:12},
  openText:{fontWeight:"700",color:theme.green,fontSize:12},
  quick:{borderRadius:17,borderWidth:1,borderColor:theme.border,
     backgroundColor:theme.white,padding:18,gap:11},
