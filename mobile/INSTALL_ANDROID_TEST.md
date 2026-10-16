@@ -26,6 +26,8 @@ Use the **standalone internal-test APK**, not the older `app-debug.apk`.
 - List: add a free-text item, set quantity, mark complete, reopen after force-stop, delete individual item
 - Catalogue-to-list: search and add an exact canonical variant to the shopping list, add the same variant a second time (quantity +1), add to wishlist without duplicate, move between lists and confirm safe quantity merge
 - Completed-item cleanup: hide/show checked entries, confirm bulk deletion, restart and verify unchecked entries were kept
+- Bulk paste: choose shopping list and expand **Προσθήκη ολόκληρης λίστας**, enter `2x Γάλα` and `Γάλα`, verify one 3-item-count row, then try a 99+ overflow import and verify **none** of the batch was committed
+- Restart offline and verify pasted notes remain local; no account, FCM, location or merchant data access is required
 - Wishlist: add entry, switch tabs and verify separation, test local reset
 - Offline: disable network; existing local list still works and account errors are non-destructive
 - Background: lock phone or swipe away app; **no ongoing foreground location monitor remains**
