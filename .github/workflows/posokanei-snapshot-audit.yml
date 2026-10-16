@@ -1,5 +1,9 @@
 name: PosoKanei Private Snapshot Audit
 on:
+  pull_request:
+    paths:
+      - 'scripts/posokanei/**'
+      - '.github/workflows/posokanei-snapshot-audit.yml'
   workflow_dispatch:
   schedule:
     - cron: "19 4 * * *"
