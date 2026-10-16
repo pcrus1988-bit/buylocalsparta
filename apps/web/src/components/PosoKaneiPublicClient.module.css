@@ -115,3 +115,26 @@
 .comparisonOption strong{font-size:18px;letter-spacing:-.04em;overflow-wrap:anywhere}
 .comparisonOption span{font-size:11px;color:#5d7562;line-height:1.4}
 @media(max-width:580px){.comparisonColumns{grid-template-columns:1fr}.classicComparison h3{font-size:20px}.comparisonOption{padding:12px}}
+
+
+/* The coverage-first comparison always uses matching SKUs and package counts. */
+.matchedIntro{border-left:3px solid #b88e44;padding:9px 12px;background:#fbf6e9;color:#365d47;font-size:12px;line-height:1.65;border-radius:0 10px 10px 0}
+.matchedDetails{border:1px solid #dbe7db;border-radius:12px;background:#fffefa;margin:14px 0;overflow:hidden}
+.matchedDetails>summary{padding:13px;background:#ebf3e9;font-size:13px;font-weight:800;cursor:pointer;color:#1b523a}
+.matchedHead,.matchedProductRow{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,.8fr) minmax(0,.8fr);gap:10px;align-items:start}
+.matchedHead{padding:12px;border-bottom:1px solid #dae6d9;color:#50745b;font-size:11px;font-weight:800}
+.matchedHead span:not(:first-child){text-align:right}
+.matchedProductRow{padding:12px;border-bottom:1px solid #edf0e9}
+.matchedProductRow:last-child{border-bottom:0}
+.matchedName{min-width:0;overflow-wrap:anywhere}
+.matchedName strong{display:block;color:#153e2c;font-weight:650;font-size:12px;line-height:1.4}
+.matchedName small,.matchedPrice small{display:block;color:#748574;font-size:10px;margin-top:5px;line-height:1.4}
+.matchedPrice{text-align:right;min-width:0;overflow-wrap:anywhere}
+.matchedPrice strong{display:block;color:#143a2b;font-size:13px}
+.matchedPrice em{display:inline-block;margin-top:5px;font-style:normal;background:#e4f2e6;color:#19623e;border-radius:7px;padding:3px 6px;font-size:10px;font-weight:800}
+@media(max-width:540px){
+  .matchedHead,.matchedProductRow{grid-template-columns:minmax(0,1.4fr) minmax(0,.8fr) minmax(0,.8fr);gap:7px}
+  .matchedHead,.matchedProductRow{padding:10px 8px}
+  .matchedHead{font-size:10px}.matchedName strong{font-size:11px}.matchedPrice strong{font-size:12px}
+  .matchedName small,.matchedPrice small{font-size:9px}
+}
