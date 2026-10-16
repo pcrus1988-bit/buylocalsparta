@@ -5,7 +5,8 @@ const CUSTOMER_MOBILE_COMMERCE_EXCLUDED_PREFIXES = [
   "/delivery/manage",
   "/daily",
   "/choose-location",
-  "/research"
+  "/research",
+  "/posokanei"
 ] as const;
 
 export function isCustomerMobileCommercePath(pathname: string): boolean {

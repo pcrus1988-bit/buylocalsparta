@@ -13,6 +13,9 @@ type Retailer={id:string;name:string};
 type Listing={status:string;snapshotDate?:string;source?:string;count?:number;page?:number;hasMore?:boolean;products:Product[];categories:string[];categoryGroups?:string[];groups:Group[];retailers:Retailer[]};
 type Cheaper={id:string;name:string;brand:string;priceEur:number;unitPriceEur:number;retailerName:string;retailerId:string;savingPercent:number;packageQuantity:number;unit:string;packageCount:number;originalTotalEur:number;candidateTotalEur:number;savingsEur:number;confidence:"reviewed_equivalent"|"unverified_match";approvalMethod?:"automatic_commodity"|"manual_or_unverified"};
 type Mode="single"|"limited";
+type AccountStatus="checking"|"guest"|"customer"|"error";
+type SavedList={lines:BasketLine[];labels:Record<string,string>;excluded:string[];maxStores:number;progress:{key:string;completed:string[]}};
+const PENDING_LIST_KEY="posokanei-pending-account-save-v1";
 const money=(n:number|null|undefined)=>typeof n==="number"&&Number.isFinite(n)?new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(n):"—";
 const empty:Listing={status:"unavailable",products:[],categories:[],groups:[],retailers:[]};
 function pricePerUnit(product:Product,price:number){
@@ -52,30 +55,63 @@ export function PosoKaneiPublicClient(){
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
   const [progress,setProgress]=useState<{key:string;completed:string[]}>({key:"",completed:[]});
+  const [mobileListOpen,setMobileListOpen]=useState(false);
+  const [accountStatus,setAccountStatus]=useState<AccountStatus>("checking");
+  const [csrfToken,setCsrfToken]=useState("");
+  const [savedAt,setSavedAt]=useState<string|null>(null);
+  const [savingList,setSavingList]=useState(false);
   useEffect(()=>{
     try{
-      const saved=JSON.parse(localStorage.getItem("posokanei-shopping-v2")||"{}") as {excluded?:string[];maxStores?:number;lines?:BasketLine[];labels?:Record<string,string>};
+      const saved=JSON.parse(sessionStorage.getItem(PENDING_LIST_KEY)||localStorage.getItem("posokanei-shopping-v2")||"{}") as {excluded?:string[];maxStores?:number;lines?:BasketLine[];labels?:Record<string,string>;progress?:{key:string;completed:string[]}};
       if(Array.isArray(saved.excluded))setExcluded(saved.excluded.filter(x=>typeof x==="string"&&/^[A-Za-z0-9_-]{1,100}$/.test(x)).slice(0,24));
       if(typeof saved.maxStores==="number"&&Number.isSafeInteger(saved.maxStores)&&saved.maxStores>=1&&saved.maxStores<=5)setStoreLimit(saved.maxStores);
       if(Array.isArray(saved.lines)&&saved.lines.length<=20&&saved.lines.every(x=>x&&typeof x.id==="string"&&["exact","group"].includes(x.kind)))setLines(saved.lines);
       if(saved.labels&&typeof saved.labels==="object")setLabels(saved.labels);
+      if(saved.progress&&typeof saved.progress.key==="string"&&Array.isArray(saved.progress.completed))setProgress(saved.progress);
+      // Previously automatic anonymous storage becomes a one-time in-tab draft.
+      localStorage.removeItem("posokanei-shopping-v2");
+      localStorage.removeItem("posokanei-checklist-v1");
     }catch{}
     setPreferencesLoaded(true);
   },[]);
   useEffect(()=>{
     if(!preferencesLoaded)return;
-    try{localStorage.setItem("posokanei-shopping-v2",JSON.stringify({excluded,maxStores:storeLimit,lines,labels}));}catch{}
-  },[preferencesLoaded,excluded,storeLimit,lines,labels]);
+    try{localStorage.setItem("posokanei-shopping-v2",JSON.stringify({excluded,maxStores:storeLimit}));}catch{}
+  },[preferencesLoaded,excluded,storeLimit]);
   useEffect(()=>{
-    try{
-      const saved=JSON.parse(localStorage.getItem("posokanei-checklist-v1")||"{}") as {key?:unknown;completed?:unknown};
-      if(typeof saved.key==="string"&&saved.key.length<=3000&&Array.isArray(saved.completed)&&saved.completed.length<=20&&
-         saved.completed.every(x=>typeof x==="string"&&/^[A-Za-z0-9_-]{1,100}$/.test(x)))setProgress({key:saved.key,completed:saved.completed as string[]});
-    }catch{}
-  },[]);
-  useEffect(()=>{
-    try{localStorage.setItem("posokanei-checklist-v1",JSON.stringify(progress));}catch{}
-  },[progress]);
+    if(!preferencesLoaded)return;
+    const abort=new AbortController();
+    void (async()=>{
+      try{
+        const r=await fetch("/api/posokanei/saved-list",{cache:"no-store",signal:abort.signal});
+        if(abort.signal.aborted)return;
+        if(r.status===401){setAccountStatus("guest");return;}
+        if(!r.ok)throw Error("account_lists_unavailable");
+        const data=await r.json() as {authenticated:boolean;csrfToken:string;saved:SavedList|null;updatedAt:string|null};
+        if(abort.signal.aborted)return;
+        setAccountStatus("customer");setCsrfToken(data.csrfToken);setSavedAt(data.updatedAt);
+        const pending=sessionStorage.getItem(PENDING_LIST_KEY);
+        if(pending&&new URLSearchParams(window.location.search).get("save")==="1"){
+          const draft=JSON.parse(pending) as SavedList;
+          const response=await fetch("/api/posokanei/saved-list",{method:"POST",headers:{"Content-Type":"application/json","x-csrf-token":data.csrfToken},body:JSON.stringify(draft),signal:abort.signal});
+          if(abort.signal.aborted)return;
+          if(!response.ok)throw Error("pending_save_failed");
+          const confirmation=await response.json() as {updatedAt:string};
+          setSavedAt(confirmation.updatedAt);sessionStorage.removeItem(PENDING_LIST_KEY);
+          window.history.replaceState(window.history.state,"","/posokanei");
+          setNotice("✓ Η λίστα αποθηκεύτηκε στον λογαριασμό KONTA MOY.");
+        }else if(data.saved&&!lines.length){
+          setLines(data.saved.lines);setLabels(data.saved.labels);setExcluded(data.saved.excluded);
+          setStoreLimit(data.saved.maxStores);setProgress(data.saved.progress);
+        }
+      }catch{
+        if(!abort.signal.aborted){setAccountStatus("error");setNotice("Δεν είναι διαθέσιμη η αποθήκευση αυτή τη στιγμή. Η λίστα παραμένει ανοιχτή.");}
+      }
+    })();
+    return()=>abort.abort();
+    // Run only at initial draft restore: do not replace a list while the shopper is editing it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[preferencesLoaded]);
   useEffect(()=>{
     const abort=new AbortController();
     if(!preferencesLoaded)return ()=>abort.abort();
@@ -95,7 +131,7 @@ export function PosoKaneiPublicClient(){
     },180);
     return ()=>{clearTimeout(timer);abort.abort();};
   },[q,category,page,excluded,preferencesLoaded]);
-  const update=useCallback((next:BasketLine[])=>{calculationId.current++;setLines(next);setResult(null);setError("");},[]);
+  const update=useCallback((next:BasketLine[])=>{calculationId.current++;setLines(next);setResult(null);setError("");setSavedAt(null);},[]);
   useEffect(()=>{calculationId.current++;setResult(null);},[excluded,storeLimit]);
   // One race-safe, quantity-aware request refreshes ALL existing basket SKUs.
   // A store exclusion or line edit automatically invalidates older alerts.
@@ -166,8 +202,7 @@ export function PosoKaneiPublicClient(){
       setNotice("Η νέα συσκευασία δεν επαρκεί για την ίδια ποσότητα.");
       return;
     }
-    // Preserve the first original brand ONLY for snapshot-approved equivalents.
-    // Unverified candidates remain opt-in and never count as verified savings.
+    // Preserve original cost only for reviewed comparable products, not for uncertain candidates.
     const replacedFrom=next.confidence==="reviewed_equivalent"&&original?.kind==="exact"?
       (original.replacedFrom||{sourceProductId:original.sourceProductId,packageCount:original.packageCount}):undefined;
     const revised=lines.map(line=>line.id===lineId?
@@ -176,13 +211,41 @@ export function PosoKaneiPublicClient(){
     update(revised);
     setLabels(current=>({...current,[lineId]:next.name}));
     void calculate(revised);
-    setNotice("Η εναλλακτική επιλέχθηκε. Η ποσότητα διατηρήθηκε με "+packages+" συσκευασίες. "+
+    setNotice("Η εναλλακτική επιλέχθηκε με "+packages+" συσκευασίες. "+
       (replacedFrom?"Υπολογίζονται οι συνολικές οικονομίες.":"Η ισοδυναμία δεν έχει ελεγχθεί και δεν δηλώνουμε εξοικονόμηση από αλλαγή μάρκας."));
   }
   function changeLine(key:string,patch:Partial<BasketLine>){
-    // Manually editing quantity establishes a new basket requirement.
     update(lines.map(line=>line.id===key?
       ({...line,...patch,...(line.kind==="exact"&&"packageCount" in patch?{replacedFrom:undefined}:{})} as BasketLine):line));
+  }
+  useEffect(()=>{
+    if(!mobileListOpen)return;
+    const onKey=(e:KeyboardEvent)=>{if(e.key==="Escape")setMobileListOpen(false);};
+    window.addEventListener("keydown",onKey);
+    const narrow=window.matchMedia("(max-width:1120px)").matches;
+    const original=document.body.style.overflow;
+    if(narrow)document.body.style.overflow="hidden";
+    return()=>{window.removeEventListener("keydown",onKey);if(narrow)document.body.style.overflow=original;};
+  },[mobileListOpen]);
+  async function saveList(){
+    if(!lines.length||savingList||accountStatus==="checking")return;
+    const draft:SavedList={lines,labels,excluded,maxStores:storeLimit,progress};
+    if(accountStatus==="guest"){
+      try{sessionStorage.setItem(PENDING_LIST_KEY,JSON.stringify(draft));}
+      catch{setNotice("Δεν μπορεί να διατηρηθεί προσωρινά η λίστα μέχρι τη σύνδεση.");return;}
+      window.location.assign("/login?next="+encodeURIComponent("/posokanei?save=1"));
+      return;
+    }
+    if(accountStatus!=="customer"||!csrfToken){setNotice("Η υπηρεσία αποθήκευσης δεν είναι διαθέσιμη. Δοκίμασε ξανά.");return;}
+    setSavingList(true);
+    try{
+      const r=await fetch("/api/posokanei/saved-list",{method:"POST",headers:{"Content-Type":"application/json","x-csrf-token":csrfToken},body:JSON.stringify(draft)});
+      if(!r.ok)throw Error("save_failed");
+      const data=await r.json() as {updatedAt:string};
+      setSavedAt(data.updatedAt);sessionStorage.removeItem(PENDING_LIST_KEY);
+      setNotice("✓ Η λίστα αποθηκεύτηκε στον λογαριασμό σου.");
+    }catch{setNotice("Δεν αποθηκεύτηκε η λίστα. Δοκίμασε ξανά.");}
+    finally{setSavingList(false);}
   }
   async function calculate(basketLines:BasketLine[]=lines){
     const run=++calculationId.current;
@@ -205,6 +268,7 @@ export function PosoKaneiPublicClient(){
   const savingsWithBrands=savingsIncludingBrands(result,plan);
   function toggleLineDone(lineId:string){
     if(!plan?.complete)return;
+    setSavedAt(null);
     setProgress(previous=>{
       const current=previous.key===planKey?previous.completed:[];
       return {key:planKey,completed:current.includes(lineId)?current.filter(id=>id!==lineId):[...current,lineId]};
@@ -226,7 +290,7 @@ export function PosoKaneiPublicClient(){
         <div>
           <p className={styles.eyebrow}>ΚΟΝΤΑ ΜΟΥ · ΑΝΕΞΑΡΤΗΤΗ ΣΥΓΚΡΙΣΗ</p>
           <h1>KONTA MOY <span>× PosoKanei</span></h1>
-          <p className={styles.lead}>Σύγκρινε τιμές στα σούπερ μάρκετ, διάλεξε τη μάρκα που προτιμάς και υπολόγισε το πραγματικά οικονομικότερο <em>καταγεγραμμένο</em> καλάθι σου.</p>
+          <p className={styles.lead}>Διάλεξε προϊόντα, βρες φθηνότερες μάρκες και δες σε ποια σούπερ μάρκετ συμφέρει να ψωνίσεις.</p>
           <div className={styles.tags}><span>Τιμές ανά αλυσίδα</span><span>Ισοδύναμες μάρκες</span><span>Έως 5 σούπερ μάρκετ</span></div>
         </div>
         <div className={styles.heroBox}>
@@ -249,7 +313,7 @@ export function PosoKaneiPublicClient(){
           <label className={styles.maxStores}>Μέγιστος αριθμός σούπερ μάρκετ <select value={storeLimit} onChange={e=>{setStoreLimit(Number(e.target.value));setResult(null);}}>{[1,2,3,4,5].map(n=><option key={n} value={n}>{n===1?"1 αλυσίδα":"Έως "+n+" αλυσίδες"}</option>)}</select></label>
         </div>}
       </section>
-      <div className={styles.disclaimer} role="note"><strong>Σημαντικό:</strong> Οι τιμές είναι ενδεικτικές καταγραφές, όχι απόδειξη διαθεσιμότητας ή ίδιας τιμής στο τοπικό κατάστημα. Δεν πραγματοποιούνται αγορές ή παραγγελίες μέσω της σύγκρισης.</div>
+      <div className={styles.disclaimer} role="note">Οι τιμές είναι ενδεικτικές. <details><summary>Τι πρέπει να γνωρίζω;</summary>Οι τιμές και η διαθεσιμότητα μπορεί να διαφέρουν ανά κατάστημα. Δεν πραγματοποιούνται αγορές από αυτή τη σελίδα.</details></div>
       {listing.status!=="ready"&&!loading?<section className={styles.pending} role="status">
         <h2>Η σύγκριση τιμών ετοιμάζεται.</h2>
         <p>Ο ανεξάρτητος κατάλογος θα ενεργοποιηθεί μόλις ολοκληρωθεί η επαλήθευση της πηγής και η δημοσίευση των ενημερωμένων δεδομένων. Δεν εμφανίζουμε δοκιμαστικές τιμές ως πραγματικές.</p>
@@ -301,12 +365,18 @@ export function PosoKaneiPublicClient(){
           </div>
           {listing.status==="ready"&&(page>1||listing.hasMore)&&<nav className={styles.pagination} aria-label="Σελίδες προϊόντων"><button type="button" disabled={page===1} onClick={()=>setPage(p=>p-1)}>← Προηγούμενη</button><span>Σελίδα {page}</span><button type="button" disabled={!listing.hasMore} onClick={()=>setPage(p=>p+1)}>Επόμενη →</button></nav>}
         </section>
-        <aside className={styles.sidebar} aria-label="Λίστα και εξοικονόμηση"><div className={styles.basket} id="posokanei-basket">
+        {mobileListOpen&&<button type="button" className={styles.mobileListBackdrop} aria-label="Κλείσιμο λίστας αγορών" onClick={()=>setMobileListOpen(false)}/>}
+        <aside className={`${styles.sidebar} ${mobileListOpen?styles.mobileBasketOpen:""}`} aria-label="Λίστα και εξοικονόμηση" role={mobileListOpen?"dialog":undefined} aria-modal={mobileListOpen?true:undefined}><div className={styles.basket} id="posokanei-basket">
+          <div className={styles.drawerHeader}><strong>Η λίστα σου</strong><button type="button" onClick={()=>setMobileListOpen(false)} aria-label="Κλείσιμο λίστας">✕</button></div>
           <div className={styles.heading}><div><span className={styles.eyebrow}>02 · ΤΟ ΚΑΛΑΘΙ ΣΟΥ</span><h2>Η λίστα αγορών</h2></div><span className={styles.count}>{lines.length}</span></div>
-          {!lines.length?<p className={styles.message}>Πρόσθεσε προϊόντα για να υπολογίσουμε το συνολικό κόστος στα σούπερ μάρκετ.</p>:<details className={styles.listDetails}><summary>Προϊόντα στη λίστα ({lines.length}) · Προβολή / επεξεργασία</summary><div className={styles.lines}>{lines.map(l=><div className={styles.line} key={l.id}>
+          <div className={styles.saveBar}>
+            <button className={styles.saveButton} type="button" disabled={!lines.length||savingList||accountStatus==="checking"} onClick={()=>{void saveList();}}>{savingList?"Αποθήκευση…":accountStatus==="guest"?"🔒 Σύνδεση / εγγραφή & αποθήκευση":"💾 Αποθήκευση λίστας"}</button>
+            <small>{accountStatus==="guest"?"Σύγκρινε χωρίς λογαριασμό. Για να κρατήσεις τη λίστα σου, συνδέσου ή κάνε εγγραφή.":savedAt?"Αποθηκευμένη στον λογαριασμό σου":accountStatus==="checking"?"Έλεγχος λογαριασμού…":"Οι αλλαγές αποθηκεύονται όταν πατήσεις Αποθήκευση."}</small>
+          </div>
+          {!lines.length?<p className={styles.message}>Πρόσθεσε προϊόντα για να βρεις το οικονομικότερο καλάθι.</p>:<details className={styles.listDetails}><summary>Προϊόντα στη λίστα ({lines.length}) · Προβολή / επεξεργασία</summary><div className={styles.lines}>{lines.map(l=><div className={styles.line} key={l.id}>
             <div className={styles.lineTop}><strong>{labels[l.id]||"Προϊόν"}</strong><button type="button" onClick={()=>update(lines.filter(x=>x.id!==l.id))} aria-label="Αφαίρεση από τη λίστα">✕</button></div>
             <label>{l.kind==="exact"?"Συσκευασίες":"Ποσότητα ("+(listing.groups.find(g=>g.id===l.groupId)?.basis||"kg")+")"}<input type="number" min="1" max="100" step={l.kind==="exact"?"1":"0.1"} value={l.kind==="exact"?l.packageCount:l.requiredBaseQuantity} onChange={e=>changeLine(l.id,l.kind==="exact"?{packageCount:Number(e.target.value)}:{requiredBaseQuantity:Number(e.target.value)})}/></label>
-            {l.kind==="exact"&&<small className={styles.brandStatus}>{checkingBrands?"Αναζήτηση εναλλακτικών…":brandResults[l.id]&&(brandResults[l.id].alternatives.length+brandResults[l.id].candidates.length)>0?"Διαθέσιμες εναλλακτικές: "+(brandResults[l.id].alternatives.length+brandResults[l.id].candidates.length):brandResults[l.id]?.reason==="unknown_quantity"?"Λείπουν στοιχεία ποσότητας":brandResults[l.id]?.reason==="no_source_price"?"Δεν υπάρχει τιμή στις επιλεγμένες αλυσίδες":"Δεν βρέθηκαν συγκρίσιμα προϊόντα"}</small>}
+            {l.kind==="exact"&&(checkingBrands||((brandResults[l.id]?.alternatives.length||0)+(brandResults[l.id]?.candidates.length||0))>0)&&<small className={styles.brandStatus}>{checkingBrands?"Έλεγχος εναλλακτικών…":"💡 Δες συγκρίσιμες μάρκες παρακάτω"}</small>}
 
           </div>)}</div></details>}
           {notice&&<p className={styles.notice} role="status">{notice}</p>}
@@ -318,29 +388,28 @@ export function PosoKaneiPublicClient(){
             <span>Βρήκαμε φθηνότερες εναλλακτικές για <strong>{savingsOpportunities.productCount} {savingsOpportunities.productCount===1?"προϊόν":"προϊόντα"}</strong> της λίστας σου.</span>
             <strong>Εξοικονόμησε έως {money(savingsOpportunities.potentialSavingEur)}</strong>
             <span className={styles.savingsOpportunityAction}>Δες τις εναλλακτικές <span aria-hidden="true">→</span></span>
-            <small>Εκτίμηση ανά προϊόν από καταγεγραμμένες τιμές· το τελικό όφελος του καλαθιού υπολογίζεται ξεχωριστά.</small>
+            <small>Εκτίμηση από καταγεγραμμένες τιμές ανά προϊόν· το τελικό όφελος υπολογίζεται ξεχωριστά.</small>
           </button>}
           {lines.some(l=>l.kind==="exact")&&<button type="button" className={styles.textButton} onClick={()=>setBrandRefresh(n=>n+1)} disabled={checkingBrands}>{checkingBrands?"Αναζήτηση εναλλακτικών…":"Ανανέωση εναλλακτικών ↻"}</button>}
           {Object.values(brandResults).filter(entry=>entry.alternatives.length>0||entry.candidates.length>0).map(entry=>
-            <section className={styles.suggestion} key={entry.lineId} id={"posokanei-alternative-"+entry.lineId}
-              aria-label={"Εναλλακτικές για "+(labels[entry.lineId]||"προϊόν")}>
-              <button type="button" className={styles.suggestionToggle}
-                aria-expanded={expandedAlternatives.includes(entry.lineId)}
-                onClick={()=>setExpandedAlternatives(current=>current.includes(entry.lineId)?
-                  current.filter(id=>id!==entry.lineId):[...current,entry.lineId])}>
-                <span>Εναλλακτικές για {labels[entry.lineId]||"προϊόν"} ({entry.alternatives.length+entry.candidates.length})</span>
-                <span aria-hidden="true">{expandedAlternatives.includes(entry.lineId)?"−":"+"}</span>
-              </button>
-              {expandedAlternatives.includes(entry.lineId)&&
-                [...entry.alternatives,...entry.candidates].map(option=><div className={styles.suggestionLine} key={option.confidence+":"+option.id}>
-                  <span>
-                    <strong>{option.name}</strong>
-                    <small>{option.retailerName} · {option.packageCount} συσκ. × {money(option.priceEur)} = {money(option.candidateTotalEur)}</small>
-                    <small>{option.savingsEur>0?"Φθηνότερο κατά "+money(option.savingsEur):option.savingsEur<0?"Ακριβότερο κατά "+money(-option.savingsEur):"Ίδια καταγεγραμμένη τιμή"}</small>
-                    <small>{option.confidence==="unverified_match"?"Πιθανή εναλλακτική · μη ελεγμένη":option.approvalMethod==="automatic_commodity"?"Αυτόματα εγκεκριμένος τύπος":"Ελεγμένος συγκρίσιμος τύπος"}</small>
-                  </span>
-                  <button type="button" className={styles.secondary} onClick={()=>chooseAlternative(entry.lineId,option)}>Επιλογή</button>
-                </div>)}
+            <section className={styles.suggestion} key={entry.lineId} id={"posokanei-alternative-"+entry.lineId} aria-label={"Εναλλακτικές για "+(labels[entry.lineId]||"προϊόν")}>
+              <div className={styles.suggestionDisclosure}>
+                <button type="button" className={styles.suggestionToggle}
+                  aria-expanded={expandedAlternatives.includes(entry.lineId)}
+                  onClick={()=>setExpandedAlternatives(current=>current.includes(entry.lineId)?current.filter(id=>id!==entry.lineId):[...current,entry.lineId])}>
+                  <span>💡 Εναλλακτικές για {labels[entry.lineId]||"προϊόν"} ({entry.alternatives.length+entry.candidates.length})</span>
+                  <span aria-hidden="true">{expandedAlternatives.includes(entry.lineId)?"−":"+"}</span>
+                </button>
+              {expandedAlternatives.includes(entry.lineId)&&[...entry.alternatives,...entry.candidates].map(option=><div className={styles.suggestionLine} key={option.confidence+":"+option.id}>
+                <span>
+                  <strong>{option.name}</strong>
+                  <small>{option.retailerName} · {option.packageCount} συσκ. × {money(option.priceEur)} = {money(option.candidateTotalEur)}</small>
+                  <small>{option.savingsEur>0?"Φθηνότερο κατά "+money(option.savingsEur):option.savingsEur<0?"Ακριβότερο κατά "+money(-option.savingsEur):"Ίδια καταγεγραμμένη τιμή"}</small>
+                  <small>{option.confidence==="unverified_match"?"Πιθανή εναλλακτική · μη ελεγμένη":option.approvalMethod==="automatic_commodity"?"Αυτόματα εγκεκριμένος τύπος":"Ελεγμένος συγκρίσιμος τύπος"}</small>
+                </span>
+                <button type="button" className={styles.secondary} onClick={()=>chooseAlternative(entry.lineId,option)}>Επιλογή</button>
+              </div>)}
+              </div>
             </section>
           )}
           <p className={styles.basketPreset}>Αυτόματη επιλογή οικονομικότερων αλυσίδων · έως {storeLimit} από τις επιλεγμένες <button type="button" onClick={()=>{setSettingsOpen(true);window.scrollTo({top:0,behavior:"smooth"});}}>Αλλαγή</button></p>
@@ -365,10 +434,11 @@ export function PosoKaneiPublicClient(){
             </>:<p className={styles.error}>Δεν υπάρχει πλήρης λίστα με καταγεγραμμένες τιμές. Τα προϊόντα που λείπουν δεν υπολογίζονται ως δωρεάν.</p>}
             {mode!=="single"&&actualSavings!==null&&<p className={styles.saving}>Εξοικονόμηση από επιλογή σούπερ μάρκετ για <strong>τις τωρινές μάρκες</strong>: <strong>{money(actualSavings)}</strong></p>}
             {!!result.reviewedBrandSwitchCount&&plan?.complete&&<>
-              {result.brandSwitchSavingsEur!==null&&<p className={styles.saving}>Από τις {result.reviewedBrandSwitchCount} εγκεκριμένες αλλαγές μάρκας, σε σύγκριση με την αρχική λίστα σε μία αλυσίδα: <strong>{result.brandSwitchSavingsEur>=0?money(result.brandSwitchSavingsEur):"επιπλέον κόστος "+money(-result.brandSwitchSavingsEur)}</strong></p>}
-              {savingsWithBrands!==null&&<p className={styles.saving}><strong>{savingsWithBrands>=0?"Συνολική εξοικονόμηση":"Επιπλέον συνολικό κόστος"} με τις επιλεγμένες ελεγμένες μάρκες:</strong> <strong>{money(Math.abs(savingsWithBrands))}</strong> <small>Έναντι της αρχικής λίστας {result.originalBasketBenchmarkMode==="single"?"σε μία αλυσίδα":"με έως "+storeLimit+" αλυσίδες"}, με τις ίδιες καταγεγραμμένες τιμές και επιλεγμένες αλυσίδες. Δεν προστίθενται διπλά οι εξοικονομήσεις.</small></p>}
-              {savingsWithBrands===null&&<p className={styles.methodNote}>Δεν υπάρχει πλήρης αρχική λίστα για συγκρίσιμη συνολική εξοικονόμηση. Καμία ελλείπουσα τιμή δεν μετρά ως μηδέν.</p>}
+              {result.brandSwitchSavingsEur!==null&&<p className={styles.saving}>Από τις {result.reviewedBrandSwitchCount} εγκεκριμένες αλλαγές μάρκας, έναντι της αρχικής λίστας σε μία αλυσίδα: <strong>{result.brandSwitchSavingsEur>=0?money(result.brandSwitchSavingsEur):"επιπλέον κόστος "+money(-result.brandSwitchSavingsEur)}</strong></p>}
+              {savingsWithBrands!==null&&<p className={styles.saving}><strong>{savingsWithBrands>=0?"Συνολική εξοικονόμηση":"Επιπλέον συνολικό κόστος"} με τις επιλεγμένες ελεγμένες μάρκες:</strong> <strong>{money(Math.abs(savingsWithBrands))}</strong> <small>Έναντι της αρχικής λίστας {result.originalBasketBenchmarkMode==="single"?"σε μία αλυσίδα":"με έως "+storeLimit+" αλυσίδες"}, στις ίδιες τιμές. Δεν υπολογίζονται δύο φορές οι ίδιες οικονομίες.</small></p>}
+              {savingsWithBrands===null&&<p className={styles.methodNote}>Δεν υπάρχει πλήρης αρχική λίστα για σύγκριση συνολικής εξοικονόμησης.</p>}
             </>}
+            <details className={styles.classicComparisonDetails}><summary>Σύγκριση με αγορά από ένα σούπερ μάρκετ <span>Λεπτομέρειες ↓</span></summary>
             <section className={styles.classicComparison} aria-label="Σύγκριση με σενάριο επιλογής μίας αλυσίδας βάσει κάλυψης">
               <span className={styles.eyebrow}>ΣΥΓΚΡΙΣΗ ΣΤΡΑΤΗΓΙΚΩΝ</span>
               <h3>Πόσα εξοικονομείς με τη μοιρασμένη λίστα;</h3>
@@ -410,13 +480,13 @@ export function PosoKaneiPublicClient(){
                   <p className={styles.methodNote}>Οι τιμές του KONTA MOY εδώ αφορούν ανεξάρτητη βελτιστοποίηση <strong>ακριβώς των ίδιων προϊόντων και ποσοτήτων</strong>, όχι άλλες μάρκες και όχι τη συνολική λίστα. Συνεπώς οι αλυσίδες μπορεί να διαφέρουν από το πλάνο ολόκληρου του καλαθιού.</p>
                 </>
                 :<p className={styles.methodNote}>Δεν υπάρχουν κοινά προϊόντα με καταγεγραμμένη τιμή για να γίνει ισότιμη σύγκριση.</p>}
-            </section>
+            </section></details>
             {result.missingItems.length>0&&<p>Χωρίς τιμή: {result.missingItems.map(item=>labels[item.lineId]||item.lineId).join(", ")}</p>}
             <small>Δεν περιλαμβάνεται κόστος μετακίνησης, διανομή ή προγράμματα επιβράβευσης.</small>
           </div>}
         </div></aside>
       </div>
-      {!!lines.length&&<button type="button" className={styles.mobileBasketShortcut} onClick={()=>document.getElementById("posokanei-basket")?.scrollIntoView({behavior:"smooth",block:"start"})}>{Object.values(brandResults).some(x=>x.alternatives.length>0||x.candidates?.length>0)?"🔎 Εναλλακτικές · Δες →":`🛒 Λίστα ${lines.length} · Υπολογισμός →`}</button>}
+      <button type="button" className={styles.mobileBasketShortcut} aria-expanded={mobileListOpen} aria-controls="posokanei-basket" onClick={()=>setMobileListOpen(true)}><span>🛒 Λίστα αγορών <b>{lines.length}</b></span><strong>{plan?.complete?money(plan.totalEur):"Άνοιγμα ↑"}</strong></button>
       <p className={styles.footerNote}>KONTA MOY × PosoKanei · Ανεξάρτητη υπηρεσία αναφοράς τιμών. Χωρίς πραγματική αγορά, απόθεμα ή σύνδεση με το checkout του ΚΟΝΤΑ ΜΟΥ.</p><p className={styles.footerNote}>Πηγή τιμών: <a href="https://posokanei.gov.gr/" target="_blank" rel="noopener noreferrer">posokanei.gov.gr</a> · Δημόσιο ημερήσιο αρχείο: <a href="https://github.com/spyrosavl/posokanei" target="_blank" rel="noopener noreferrer">spyrosavl/posokanei</a> · Νομική βάση περαιτέρω χρήσης: ν. 4727/2020, άρθρο 61 (με επιφύλαξη άρθρου 59). Δεν αποτελεί επίσημη κυβερνητική υπηρεσία.</p>
     </div>
   </div>;

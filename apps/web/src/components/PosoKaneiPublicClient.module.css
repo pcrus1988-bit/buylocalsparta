@@ -72,6 +72,7 @@
 .suggestionHeader button{border:0;background:transparent;font-size:16px}
 .suggestion p{font-size:12px;color:#355e45;line-height:1.5}
 .suggestionLine{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #c6dcc6}
+.suggestion>h3{font-size:14px;line-height:1.45;font-weight:750;color:#22593e;margin:0 0 10px;overflow-wrap:anywhere}
 .suggestionLine button{flex-shrink:0}
 .suggestionLine>span{flex:1;min-width:0;font-size:13px}
 .suggestionLine small{display:block;font-size:11px;color:#436d4c;margin-top:4px}
@@ -180,16 +181,56 @@ details.suggestion[open]>summary{margin-bottom:10px}
 .comparableRow .comparableBenefit{font-weight:800;color:#237046}
 @media(max-width:640px){.comparableRow{flex-direction:column;align-items:stretch}.comparableRow button{width:100%}}
 
-/* A single, opt-in savings overview; never presented as the final basket total. */
-.savingsOpportunity{width:100%;margin:16px 0 10px;padding:19px 18px;display:flex;align-items:flex-start;flex-direction:column;gap:11px;text-align:left;border:1px solid #215c40;border-radius:17px;background:linear-gradient(145deg,#16482f,#246946);color:#fff;box-shadow:0 9px 22px #133d2c24}
-.savingsOpportunity>span:first-child{font-size:14px;line-height:1.45;font-weight:500}
-.savingsOpportunity>strong{font-size:clamp(20px,2.5vw,25px);line-height:1.2;letter-spacing:-.03em}
-.savingsOpportunityAction{display:inline-flex;align-items:center;gap:10px;border-radius:11px;padding:11px 14px;background:#fff;color:#16482f;font-size:13px;font-weight:800}
-.savingsOpportunity small{font-size:11px;color:#dcefe0;line-height:1.45;font-weight:400}
-.savingsOpportunity:hover .savingsOpportunityAction{background:#eef7ed}
+/* PosoKanei is a dedicated shopping-list tool: its own compact action replaces site-wide bottom navigation. */
+.drawerHeader,.mobileListBackdrop{display:none}
+.disclaimer{font-size:12px;padding:11px 14px;margin-bottom:12px}
+.disclaimer details{display:inline;margin-left:8px}
+.disclaimer summary{display:inline;cursor:pointer;font-weight:700;text-decoration:underline;text-underline-offset:2px}
+.suggestion{background:#fafcf8;border:1px solid #dce8d9;padding:0;margin-top:9px;overflow:hidden}
+.suggestionDisclosure>summary{display:flex;flex-direction:column;gap:4px;cursor:pointer;padding:12px 13px;list-style-position:inside;overflow-wrap:anywhere}
+.suggestionDisclosure>summary strong{color:#20573c;font-size:13px;font-weight:750}
+.suggestionDisclosure>summary small{font-size:11px;color:#597d61;font-weight:500}
+.suggestionLine{padding:11px 14px;border-top:1px solid #e2ece0;align-items:center}
+.suggestionLine>span strong{font-size:13px;line-height:1.4}
+.suggestionLine small{font-size:11px;line-height:1.35}
+.suggestionLine button{min-width:85px}
+.saveBar{display:flex;flex-direction:column;gap:6px;padding:12px;background:#f0f5ed;border:1px solid #d9e6d6;border-radius:12px;margin:10px 0}
+.saveButton{border:0;border-radius:10px;background:#1a563b;color:white;min-height:44px;padding:10px 12px}
+.saveBar small{color:#576f5d;font-size:11px;line-height:1.45}
+@media(max-width:1120px){
+  .sidebar:not(.mobileBasketOpen){display:none}
+  .sidebar.mobileBasketOpen{display:block;position:fixed;inset:auto 0 0;z-index:1003;margin:auto;width:min(100%,650px);height:min(92dvh,920px);max-height:92dvh;min-width:0;background:#fffefa;border-radius:23px 23px 0 0;box-shadow:0 -18px 70px #071d1855;overflow:hidden}
+  .mobileBasketOpen .basket{height:100%;max-height:100%;overflow-y:auto;overscroll-behavior:contain;padding:12px 16px max(26px,env(safe-area-inset-bottom))}
+  .mobileListBackdrop{display:block;position:fixed;inset:0;border:0;background:#071d1866;z-index:1002;width:100%;height:100%;cursor:pointer}
+  .drawerHeader{display:flex;position:sticky;top:-12px;z-index:3;align-items:center;justify-content:space-between;gap:10px;background:#fffefa;border-bottom:1px solid #e0e9db;padding:10px 1px 13px;margin-bottom:10px;font-size:15px}
+  .drawerHeader button{border:1px solid #d9e6d6;background:#edf3ea;border-radius:50%;width:38px;height:38px;font-size:17px}
+  .mobileBasketShortcut{display:flex;align-items:center;justify-content:space-between;gap:12px;position:fixed;bottom:max(14px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:1001;width:min(calc(100% - 26px),600px);min-height:58px;padding:12px 19px;border-radius:18px;border:0;background:#185439;color:#fff;box-shadow:0 10px 35px #153f2a55;text-align:left;font-size:14px}
+  .mobileBasketShortcut span{display:flex;align-items:center;gap:9px}
+  .mobileBasketShortcut b{background:#f1f8ee2b;border-radius:30px;padding:3px 9px}
+  .mobileBasketShortcut strong{white-space:nowrap;font-size:12px}
+  .mobileBasketOpen ~ .mobileBasketShortcut{display:none}
+}
+@media(max-width:700px){
+  .suggestionLine{flex-direction:row;gap:8px;align-items:center}
+  .suggestionLine button{width:auto;min-width:78px;padding:9px}
+  .suggestionLine>span{min-width:0}
+  .basket .heading h2{font-size:24px}
+}
+
+.classicComparisonDetails{margin:14px 0;border:1px solid #d6e5d6;border-radius:12px;overflow:hidden;background:#f7faf5}
+.classicComparisonDetails>summary{padding:14px 13px;cursor:pointer;font-size:12px;font-weight:800;color:#1f5d40;list-style-position:inside}
+.classicComparisonDetails>summary span{font-size:11px;font-weight:500;margin-left:5px;color:#5c8063}
+.classicComparisonDetails .classicComparison{border-top:1px solid #dae7da;margin:0;padding:14px 12px}
+
+/* Savings opportunity preview from #1580: opt-in, never the final basket total. */
+.savingsOpportunity{width:100%;margin:14px 0 10px;padding:16px;display:flex;align-items:flex-start;flex-direction:column;gap:9px;text-align:left;border:1px solid #276249;border-radius:15px;background:#19583d;color:#fff}
+.savingsOpportunity>span:first-child{font-size:13px;line-height:1.4}
+.savingsOpportunity>strong{font-size:21px;line-height:1.2}
+.savingsOpportunityAction{display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:9px;padding:9px 12px;background:#fff;color:#16482f;font-size:12px;font-weight:800}
+.savingsOpportunity small{color:#e0eee1;line-height:1.4;font-size:10px}
 .suggestion{scroll-margin-top:22px}
-.suggestionToggle{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;text-align:left;padding:0;border:0;background:transparent;color:#22593e;line-height:1.45;font-size:14px;overflow-wrap:anywhere}
+.suggestionToggle{display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px;text-align:left;padding:12px;border:0;background:transparent;color:#20573c;line-height:1.4;font-size:13px}
 .suggestionToggle span:first-child{min-width:0}
-.suggestionToggle span:last-child{display:grid;place-items:center;flex-shrink:0;font-size:22px;width:28px;height:28px;border-radius:50%;background:#d4e8d6}
-.suggestionToggle[aria-expanded="true"]{margin-bottom:11px}
-@media(max-width:700px){.savingsOpportunity{padding:16px 14px}.savingsOpportunityAction{width:100%;justify-content:space-between}}
+.suggestionToggle span:last-child{display:grid;place-items:center;flex-shrink:0;font-size:20px;width:28px;height:28px;border-radius:50%;background:#dbe9d9}
+.suggestionToggle[aria-expanded="true"]{border-bottom:1px solid #dfebdf}
+@media(max-width:700px){.savingsOpportunity{padding:14px}.savingsOpportunityAction{width:100%}}
