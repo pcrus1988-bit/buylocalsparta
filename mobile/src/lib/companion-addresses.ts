@@ -32,3 +32,15 @@ export async function createAccountAddress(draft:AddressDraft):Promise<AddressPr
  const payload=prepareNewAddress(draft);
  return validatedResponse(await companionAuthorizedRequest<unknown>("/addresses","POST",payload));
 }
+
+function addressId(id:string):string{
+ if(!/^[A-Za-z0-9_-]{6,128}$/.test(id))throw Error("INVALID_ADDRESS_ID");
+ return id;
+}
+export async function updateAccountAddress(id:string,draft:AddressDraft):Promise<AddressProfile>{
+ const payload={id:addressId(id),...prepareNewAddress(draft)};
+ return validatedResponse(await companionAuthorizedRequest<unknown>("/addresses","PUT",payload));
+}
+export async function removeAccountAddress(id:string):Promise<AddressProfile>{
+ return validatedResponse(await companionAuthorizedRequest<unknown>("/addresses","DELETE",{id:addressId(id)}));
+}
