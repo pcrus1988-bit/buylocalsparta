@@ -41,5 +41,5 @@ test("All-price shopping-list suggestions are opt-in; other API callers retain c
   const route=readFileSync(new URL("../../apps/web/src/app/api/posokanei/alternatives/route.ts",import.meta.url),"utf8");
   assert.match(route,/includeNonCheaper:input\.includeNonCheaper===true/);
   assert.match(route,/typeof input\.includeNonCheaper!=="boolean"/);
-  assert.match(route,/includeNonCheaper=allBrands/);
+  assert.match(route,/includeNonCheaper:allBrands/);
 });
