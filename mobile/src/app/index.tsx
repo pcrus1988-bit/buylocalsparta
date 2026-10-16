@@ -32,6 +32,7 @@ export default function Home() {
     <Link href="/nearby" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Τι υπάρχει κοντά μου; →</Text></Pressable></Link>
     <Link href="/diagnostics" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Έλεγχος λειτουργίας συσκευής →</Text></Pressable></Link>
     <Link href="/notifications" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Ειδοποιήσεις Android →</Text></Pressable></Link>
+    <Link href="/orders" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Παραγγελίες · παρακολούθηση & ιστορικό →</Text></Pressable></Link>
     <Link href="/pickups" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Παραλαβές & QR παραγγελίας →</Text></Pressable></Link>
     <View style={styles.row}>
       <View style={styles.tile}>
