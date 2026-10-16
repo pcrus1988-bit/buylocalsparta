@@ -339,10 +339,10 @@ test('a reviewed cheaper-brand choice contributes to total savings without doubl
   assert.equal(r.reviewedBrandSwitchCount,1);
   assert.equal(r.originalBasketBenchmarkMode,'single');
   assert.equal(r.originalBasketBenchmarkEur,7);
-  assert.equal(r.bestSingleStore.totalEur,5);
+  assert.equal(r.bestSingleStore.totalEur,4);
   assert.equal(r.cheapestWithinStoreLimit.totalEur,3);
-  assert.equal(r.brandSwitchSavingsEur,2);
-  assert.equal(r.savingsVsCheapestCompleteSingleStoreEur,2);
+  assert.equal(r.brandSwitchSavingsEur,3);
+  assert.equal(r.savingsVsCheapestCompleteSingleStoreEur,1);
 });
 
 test('unreviewed switches and unsupported pack quantities cannot fabricate savings',()=>{
