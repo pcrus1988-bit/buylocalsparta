@@ -11,6 +11,7 @@ export async function scanVerifiedNearbyStock(coords:Pick<LocationObjectCoords,"
   const response=await fetch(API,{
     method:"POST",
     headers:{"Content-Type":"application/json"},
+    signal:AbortSignal.timeout(8000),
     body:JSON.stringify({latitude:coords.latitude,longitude:coords.longitude,accuracy}),
   });
   if(!response.ok)throw new Error(response.status===429?"RATE_LIMITED":"NEARBY_UNAVAILABLE");
