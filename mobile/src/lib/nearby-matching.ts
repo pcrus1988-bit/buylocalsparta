@@ -23,7 +23,9 @@ export function matchLocalItems(items:readonly WantedItem[],products:readonly Pr
      const tokens=query.split(" ").filter(Boolean);
      const normalizedWords=` ${title} `;
      const tokenMatch=tokens.length>0&&tokens.every(token=>token.length>=3&&normalizedWords.includes(` ${token} `));
-     // Selected canonical variants must only match that exact item, never\n     // a similarly named different brand, package, size or color.\n     if(item.variantId ? exactVariant : tokenMatch){
+     // Selected canonical variants must only match that exact item, never
+     // a similarly named different brand, package, size or color.
+     if(item.variantId ? exactVariant : tokenMatch){
        matches.push({...product,itemId:item.id,itemTitle:item.title});
      }
    }
