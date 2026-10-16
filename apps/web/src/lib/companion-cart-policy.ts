@@ -9,7 +9,9 @@ export type CompanionCartSnapshot={updatedAt:number;id:string;items:readonly {
  * This is an optimistic guard, not a transactional compare-and-swap.
  */
 export function companionCartRevision(cart:CompanionCartSnapshot):string{
- // The existing commerce service returns Date.now() for a not-yet-created cart.\n // Treat that empty sentinel consistently so the first add does not always conflict.\n const stable={id:cart.id,updatedAt:cart.id?cart.updatedAt:0,
+ // The commerce runtime returns Date.now() for an unsaved empty cart.
+ // Ignore that volatile timestamp until a persisted cart ID exists.
+ const stable={id:cart.id,updatedAt:cart.id?cart.updatedAt:0,
   items:cart.items.map(({canonicalVariantId,quantity,priceMinor,available})=>
    ({canonicalVariantId,quantity,priceMinor,available})).sort((a,b)=>a.canonicalVariantId.localeCompare(b.canonicalVariantId))};
  return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
