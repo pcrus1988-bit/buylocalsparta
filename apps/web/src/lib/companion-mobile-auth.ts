@@ -5,6 +5,7 @@ export {COMPANION_CLIENT_ID,COMPANION_REDIRECT_URI,validChallenge,validState,val
   challengeForVerifier,sessionToken} from "./companion-pkce";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import {validCompanionCanonicalId} from "./companion-catalog-policy";
 
 const ACCESS_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TTL_MS = 30 * 86400 * 1000;
@@ -239,7 +240,7 @@ export async function customerRevokeCompanionSession(principal:SessionPrincipal,
 export async function companionAddSavedProducts(userId:string,variantIds:unknown){
  if(!companionEnabled())throw new Error("NOT_ENABLED");
  if(!Array.isArray(variantIds)||variantIds.length>50 || variantIds.length===0
-   ||variantIds.some(id=>typeof id!=="string"||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))))
+   ||variantIds.some(id=>!validCompanionCanonicalId(id)))
    throw new Error("INVALID_VARIANTS");
  const ids=Array.from(new Set(variantIds as string[]));
  return unit().withTransaction(scope("wishlist-add"),async tx=>{
