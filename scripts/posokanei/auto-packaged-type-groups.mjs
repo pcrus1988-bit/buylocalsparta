@@ -163,6 +163,27 @@ const specs=new Map([
 // category metadata alone does not show carbonation/sugar/fruit percentage.
 const dangerous=/\b(?:bio|organic|vegan|gluten|lactose|free|zero|light|diet|protein|instant|ready|precooked|mix|special|infant|kids|reduced|fortified)\b|(?:βιολογ|χωρις|γλουτεν|λακτοζ|υποαλλεργ|ετοιμ|μαγειρεμ|βρασμεν|κονσερβ|μιγμα|παιδικ|βρεφ|πρωτεϊν|εμπλουτισμ|μειωμεν|επεξεργασμ|ολικης)/u;
 
+// Claimed specialty variants remain strict; only a few *explicit, complete*
+// source-described strings may be compared within their OWN variant, never
+// assumed equivalent to a conventional product or certified allergen-safe.
+const safeWholeGrainCategories=new Set([
+  "ταχινι","λιγκουινι","κριτσινια","κριστινια","βρωμη","παξιμαδι"
+]);
+const safeLabelledGlutenFreeCategories=new Set(["κετσαπ","μουσταρδα"]);
+function hasForbiddenClaim(category,title){
+  if(!dangerous.test(title))return false;
+  let withoutApprovedVariant=title;
+  if(safeWholeGrainCategories.has(category) &&
+     /ολικης\s+αλεσης/u.test(title))
+    withoutApprovedVariant=withoutApprovedVariant.replace(/ολικης\s+αλεσης/gu," ");
+  if(safeLabelledGlutenFreeCategories.has(category) &&
+     /χωρις\s+γλουτενη/u.test(title))
+    withoutApprovedVariant=withoutApprovedVariant.replace(/χωρις\s+γλουτενη/gu," ");
+  // Unexpected extra claims (organic, other allergies, children's lines,
+  // protein fortification, sugar reduction, etc.) retain the veto.
+  return dangerous.test(withoutApprovedVariant);
+}
+
 function titleQuantity(title){
   // Entire-labelled multi-pack price basis: "6x1,5lt" means 9L,
   // "3x250g" means 0.75kg. Never use partial/ambiguous counts.
@@ -185,7 +206,7 @@ function accepted(p){
   const config=specs.get(category);
   if(!config)return false;
   const title=norm(p.name);
-  if(!config[1].test(title)||dangerous.test(title))return false;
+  if(!config[1].test(title)||hasForbiddenClaim(category,title))return false;
   // Raw/plain staples do not permit identically worded *processed* variants.
   // Exact cross-brand family matching is necessary, but not sufficient.
   if(["πουλερικα","πατατες"].includes(category)&&
