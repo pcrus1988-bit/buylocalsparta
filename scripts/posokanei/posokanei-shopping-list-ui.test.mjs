@@ -25,7 +25,7 @@ test("catalogue brand comparison renders only for actually priced, reviewed alte
 test("PosoKanei always shows compact shopping-list alternatives with explicit manual choice",()=>{
   assert.match(source,/id="posokanei-basket"/);
   assert.match(source,/fetch\("\/api\/posokanei\/alternatives",\{\s*method:"POST"/);
-  assert.match(source,/includeNonCheaper:true/);
+  assert.match(source,/includeNonCheaper:false/);
   assert.match(source,/entry\.alternatives\.length>0\|\|entry\.candidates\.length>0/);
   assert.match(source,/<section className=\{styles\.suggestion\} key=\{entry\.lineId\}/);
   assert.match(source,/Εναλλακτικές για/);
