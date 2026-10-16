@@ -1,6 +1,7 @@
 import {Linking} from "react-native";
 
 const ORIGIN="https://kontamou.site";
+const PRODUCT_PATH=/^\/product\/[a-zA-Z0-9-]{6,180}$/;
 const ROUTES=new Set([
  "/shop","/shops","/brands","/bazaar","/cart","/checkout",
  "/account","/account/orders","/account/security",
@@ -13,7 +14,7 @@ export type MarketplaceDestination={
   query?:Readonly<Record<string,string>>;
 };
 export function marketplaceUrl(destination:MarketplaceDestination):string{
- if(!ROUTES.has(destination.path))throw new Error("UNAPPROVED_MARKETPLACE_DESTINATION");
+ if(!ROUTES.has(destination.path)&&!PRODUCT_PATH.test(destination.path))throw new Error("UNAPPROVED_MARKETPLACE_DESTINATION");
  const url=new URL(destination.path,ORIGIN);
  if(destination.query){
   const keys=Object.keys(destination.query);
