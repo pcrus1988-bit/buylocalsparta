@@ -230,3 +230,31 @@ export async function customerRevokeCompanionSession(principal:SessionPrincipal,
    `,[principal.userId,id]);
  });
 }
+
+/**
+ * Explicit add-only Android wishlist synchronization.
+ * The customer principal comes from a validated mobile bearer, not the body.
+ * No deletes: offline lists cannot accidentally erase the marketplace wishlist.
+ */
+export async function companionAddSavedProducts(userId:string,variantIds:unknown){
+ if(!companionEnabled())throw new Error("NOT_ENABLED");
+ if(!Array.isArray(variantIds)||variantIds.length>50 || variantIds.length===0
+   ||variantIds.some(id=>typeof id!=="string"||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))))
+   throw new Error("INVALID_VARIANTS");
+ const ids=Array.from(new Set(variantIds as string[]));
+ return unit().withTransaction(scope("wishlist-add"),async tx=>{
+  const result=await tx.query<SqlRow>(`
+    INSERT INTO public.saved_products(user_id,canonical_variant_id)
+    SELECT $1::uuid,v.id
+    FROM public.canonical_variants v
+    JOIN public.product_families f ON f.id=v.family_id
+    WHERE v.public_id=ANY($2::text[])
+      AND v.active=true AND v.suppressed=false AND v.recalled=false
+      AND f.active=true
+    ON CONFLICT (user_id,canonical_variant_id) DO NOTHING
+    RETURNING canonical_variant_id
+  `,[userId,ids]);
+  return {added:result.rows.length,submitted:ids.length,
+    skipped:ids.length-result.rows.length};
+ });
+}
