@@ -25,6 +25,7 @@ export default function Home() {
       </Link>
     </View>
     <Link href="/lists" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Λίστα αγορών & Wishlist →</Text></Pressable></Link>
+    <Link href="/diagnostics" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Έλεγχος λειτουργίας συσκευής →</Text></Pressable></Link>
     <Link href="/notifications" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Ειδοποιήσεις Android →</Text></Pressable></Link>
     <Link href="/pickups" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Παραλαβές & QR παραγγελίας →</Text></Pressable></Link>
     <View style={styles.row}>
