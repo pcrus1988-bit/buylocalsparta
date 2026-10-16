@@ -92,7 +92,7 @@ export function findBrandAlternatives({
   if(!quantity)return {reason:"unknown_quantity",basis:null,sourceAmount:null,alternatives:[],candidates:[]};
   const base={basis:quantity.unit,sourceAmount:quantity.amount,alternatives:[],candidates:[]};
   const family=productFamily(source);
-  if(!family||!source.brand)return {...base,reason:"no_comparable_brands"};
+  if(!source.brand)return {...base,reason:"no_comparable_brands"};
   const forbidden=new Set(excludedRetailerIds);
   const bestOffer=id=>(offersByProduct.get(id)||[])
     .filter(o=>!forbidden.has(o.retailer_id)&&validPrice(o.price_eur))
@@ -102,12 +102,21 @@ export function findBrandAlternatives({
   const sourceCents=Math.round(original.price_eur*100)*packages;
   if(!Number.isSafeInteger(sourceCents)||sourceCents<=0)return {...base,reason:"no_source_price"};
   const demand=quantity.amount*packages;
-  const pool=brandIndex.get(family+"|"+quantity.unit)||[];
-  // Inferred similarity is not reviewed product equivalence. Require shared
-  // human-approved group membership before authorizing a substitution.
+  // Approved groups can contain equivalent product labels with different
+  // wording; those explicitly-reviewed members MUST be considered even when
+  // the loose title-token family fails to match.
   const approvedForSource=new Set(approvedGroups
     .filter(g=>g?.status==="approved"&&Array.isArray(g.memberIds)&&g.memberIds.includes(sourceId))
     .flatMap(g=>g.memberIds));
+  const candidatesById=new Map();
+  if(family)for(const p of brandIndex.get(family+"|"+quantity.unit)||[])
+    candidatesById.set(p.source_product_id,p);
+  for(const id of approvedForSource){
+    const reviewed=productIndex(products).get(id);
+    if(reviewed)candidatesById.set(id,reviewed);
+  }
+  const pool=[...candidatesById.values()];
+  if(!pool.length)return {...base,reason:"no_comparable_brands"};
   const byBrand=new Map();
   for(const candidate of pool) {
     if(candidate.source_product_id===sourceId||normalize(candidate.brand)===normalize(source.brand))continue;
