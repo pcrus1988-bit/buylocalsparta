@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {groupShoppingPlan,savingsForPlan,planFingerprint,shoppingPlanText} from "./shopping-plan.mjs";
+import {groupShoppingPlan,savingsForPlan,planFingerprint,shoppingPlanText,packagesForEquivalent} from "./shopping-plan.mjs";
 
 const item=(lineId,retailerId,retailerName,total)=>({
   lineId,retailerId,retailerName,sourceProductId:lineId,productName:"Προϊόν "+lineId,
@@ -58,4 +58,14 @@ test("exports actionable lists with dated per-chain subtotals and limitations",(
   assert.match(txt,/posokanei.gov.gr/);
   assert.match(txt,/κόστος μετακίνησης/);
   assert.equal(shoppingPlanText(result,null,"limited"),"");
+});
+
+test("preserves quantity during cross-brand substitution with different package sizes",()=>{
+  assert.equal(packagesForEquivalent(0.5,2,0.4),3);
+  assert.equal(packagesForEquivalent(0.4,2,0.5),2);
+  assert.equal(packagesForEquivalent(1,1,0.25),4);
+  assert.equal(packagesForEquivalent(1,2,0.01),null);
+  assert.equal(packagesForEquivalent(0,2,0.4),null);
+  assert.equal(packagesForEquivalent(0.5,1,0),null);
+  assert.equal(packagesForEquivalent(0.5,1,Number.NaN),null);
 });
