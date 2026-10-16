@@ -38,3 +38,56 @@ export async function GET(req:Request){
     return NextResponse.json({status:"unavailable",alternatives:[]},{status:503,headers});
   }
 }
+
+
+/** One consistent snapshot and whitelist for the entire shopping list (max 20). */
+export async function POST(request:Request){
+  try{
+    if(Number(request.headers.get("content-length")||0)>7000)
+      return NextResponse.json({error:"Η λίστα είναι πολύ μεγάλη."},{status:413,headers});
+    const body=await request.text();
+    if(body.length>7000)
+      return NextResponse.json({error:"Η λίστα είναι πολύ μεγάλη."},{status:413,headers});
+    const data:unknown=JSON.parse(body);
+    if(!data||typeof data!=="object"||Array.isArray(data))
+      return NextResponse.json({error:"Μη έγκυρη λίστα."},{status:400,headers});
+    const input=data as {lines?:unknown;excludedRetailerIds?:unknown};
+    const validId=(v:unknown)=>typeof v==="string"&&/^[A-Za-z0-9_-]{1,100}$/.test(v);
+    if(!Array.isArray(input.lines)||input.lines.length<1||input.lines.length>20||
+       input.lines.some(x=>{
+         if(!x||typeof x!=="object"||Array.isArray(x))return true;
+         const line=x as Record<string,unknown>;
+         return !validId(line.id)||!validId(line.sourceProductId)||
+           !Number.isSafeInteger(line.packageCount)||typeof line.packageCount!=="number"||
+           line.packageCount<1||line.packageCount>100;
+       })||!Array.isArray(input.excludedRetailerIds)||
+       input.excludedRetailerIds.length>24||
+       input.excludedRetailerIds.some(x=>!validId(x)))
+       return NextResponse.json({error:"Μη έγκυρα στοιχεία σύγκρισης."},{status:400,headers});
+    const requested=input.lines as Array<{id:string;sourceProductId:string;packageCount:number}>;
+    if(new Set(requested.map(x=>x.id)).size!==requested.length)
+      return NextResponse.json({error:"Διπλά προϊόντα."},{status:400,headers});
+    const snapshot=await loadPublishedReference();
+    if(!snapshot)return NextResponse.json({status:"unavailable",lines:[]},{status:503,headers});
+    let index=indexes.get(snapshot);
+    if(!index){index=createBrandIndex(snapshot.products);indexes.set(snapshot,index);}
+    const catalogue=pricedCatalog(snapshot);
+    const results=requested.map(line=>({
+      lineId:line.id,sourceProductId:line.sourceProductId,
+      ...findBrandAlternatives({
+        sourceId:line.sourceProductId,packages:line.packageCount,
+        products:snapshot.products,offersByProduct:catalogue.byProduct,
+        brandIndex:index,
+        excludedRetailerIds:input.excludedRetailerIds as string[]
+      })
+    }));
+    return NextResponse.json({
+      status:"ready",snapshotDate:snapshot.snapshot_date,lines:results
+    },{headers});
+  }catch(error){
+    if(error instanceof SyntaxError)
+      return NextResponse.json({error:"Μη έγκυρο αίτημα."},{status:400,headers});
+    console.error("PosoKanei basket alternatives unavailable",error instanceof Error?error.message:"unknown");
+    return NextResponse.json({status:"unavailable",lines:[]},{status:503,headers});
+  }
+}
