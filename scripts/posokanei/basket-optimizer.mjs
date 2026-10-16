@@ -12,7 +12,7 @@ import { packageQuantity } from './comparison-engine.mjs';
 
 const MAX_LINES = 60;
 const MAX_RETAILERS = 24;
-const MAX_STORES = 4;
+const MAX_STORES = 5;
 const identifier = x => typeof x === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(x);
 const amount = x => typeof x === 'number' && Number.isFinite(x) && x > 0 && x <= 10000;
 const toEuros = cents => cents == null ? null : Number((cents / 100).toFixed(2));
@@ -135,7 +135,7 @@ function displayPlan(plan) {
 
 export function optimizeReferenceBasket({
   lines, products, observations, approvedGroups = [], snapshotDate,
-  country = 'GR', retailerIds, storeLimit = 3
+  country = 'GR', retailerIds, storeLimit = 5
 }) {
   if(!/^\d{4}-\d{2}-\d{2}$/.test(snapshotDate??'') || Number.isNaN(Date.parse(snapshotDate))) {
     throw new Error('A valid and explicit snapshotDate is required');
@@ -148,7 +148,7 @@ export function optimizeReferenceBasket({
     throw new Error('Products, observations and groups must be arrays');
   }
   if(!Number.isSafeInteger(storeLimit) || storeLimit<1 || storeLimit>MAX_STORES) {
-    throw new Error('storeLimit must be an integer 1–4');
+    throw new Error('storeLimit must be an integer 1–5');
   }
   if(!/^[A-Z]{2}$/.test(country)) throw new Error('Invalid country');
   if(retailerIds!=null && (!Array.isArray(retailerIds)||retailerIds.some(x=>!identifier(x)))) {
