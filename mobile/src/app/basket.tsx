@@ -125,6 +125,9 @@ export default function Basket(){
     disabled={!canCheckout||busy||loading} onPress={()=>void checkout()}>
     <Text style={styles.primaryText}>Συνέχεια στο ασφαλές checkout ↗</Text>
   </Pressable>
+  <Link href="/addresses" asChild><Pressable accessibilityRole="button" style={styles.outline}>
+    <Text style={styles.outlineText}>Οι διευθύνσεις μου →</Text>
+  </Pressable></Link>
   <Pressable accessibilityRole="link" style={styles.outline} onPress={()=>void browserCart()}>
    <Text style={styles.outlineText}>Άνοιγμα καλαθιού στον ιστότοπο ↗</Text>
   </Pressable>
