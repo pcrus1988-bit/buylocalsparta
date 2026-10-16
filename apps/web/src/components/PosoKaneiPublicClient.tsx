@@ -202,7 +202,8 @@ export function PosoKaneiPublicClient(){
       setNotice("Η νέα συσκευασία δεν επαρκεί για την ίδια ποσότητα.");
       return;
     }
-    // Preserve original cost only for reviewed comparable products, not for uncertain candidates.
+    // Preserve original cost only for reviewed comparable products.
+    // Unverified candidates remain opt-in and never count as verified savings.
     const replacedFrom=next.confidence==="reviewed_equivalent"&&original?.kind==="exact"?
       (original.replacedFrom||{sourceProductId:original.sourceProductId,packageCount:original.packageCount}):undefined;
     const revised=lines.map(line=>line.id===lineId?
