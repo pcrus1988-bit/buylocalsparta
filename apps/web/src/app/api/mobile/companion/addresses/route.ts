@@ -1,4 +1,5 @@
 import {PostgresCustomerAddressService} from "@buy-local-sparta/postgres-runtime/customer-addresses";
+import {PostgresFixedWindowRateLimiter} from "@buy-local-sparta/postgres-runtime";
 import {requireMobileBearer,companionEnabled} from "../../../../../lib/companion-mobile-auth";
 import {parseCompanionNewAddress} from "../../../../../lib/companion-address-policy";
 import {customerBrowserAddressProfile} from "../../../../../lib/customer-account-browser-view";
@@ -37,6 +38,14 @@ export async function POST(request:Request){
   return Response.json({error:"INVALID_ADDRESS"},{status:400,headers:HEADERS});
  }
  try{
+  // Rate-limit address creation per authenticated account; avoid abuse or
+  // accidental rapid repeats. No location, billing or payment data in the key.
+  const limit=await new PostgresFixedWindowRateLimiter(
+   getProductionPostgresRuntime().sqlPool
+  ).consume({route:"companion-address-create",key:customerId,limit:5,
+   windowMs:60000,now:Date.now()});
+  if(!limit.allowed)return Response.json({error:"RATE_LIMITED"},
+   {status:429,headers:HEADERS});
   // Solely creates a saved address for the authenticated user, through the same
   // account-owned service used by the existing web checkout. No order side effects.
   const result=await service().upsert(customerId,address,Date.now());
