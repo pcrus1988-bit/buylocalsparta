@@ -1,14 +1,16 @@
 import {useFocusEffect,Link} from "expo-router";
 import {useCallback,useRef,useState} from "react";
-import {ActivityIndicator,Pressable,ScrollView,StyleSheet,Switch,Text,TextInput,View} from "react-native";
-import {createAccountAddress,loadAddressProfile,type AddressProfile} from "../lib/companion-addresses";
-import {EMPTY_ADDRESS,type AddressDraft} from "../lib/address-rules";
+import {ActivityIndicator,Alert,Pressable,ScrollView,StyleSheet,Switch,Text,TextInput,View} from "react-native";
+import {createAccountAddress,loadAddressProfile,updateAccountAddress,removeAccountAddress,type AddressProfile,type SavedAddress} from "../lib/companion-addresses";
+import {EMPTY_ADDRESS,draftFromSavedAddress,type AddressDraft} from "../lib/address-rules";
 import {openMarketplace} from "../lib/marketplace-navigation";
 import {theme} from "../theme";
 type TextField=Exclude<keyof AddressDraft,"isDefaultBilling"|"isDefaultDelivery">;
 const FIELDS:readonly {key:TextField;label:string;placeholder:string;keyboard?: "phone-pad"|"number-pad"}[]=[
  {key:"label",label:"Ονομασία",placeholder:"π.χ. Σπίτι"},
  {key:"fullName",label:"Ονοματεπώνυμο",placeholder:"Όνομα και επώνυμο"},
+ {key:"companyName",label:"Επωνυμία (προαιρετικό)",placeholder:"Επωνυμία επιχείρησης"},
+ {key:"vatNumber",label:"ΑΦΜ (προαιρετικό)",placeholder:"ΑΦΜ"},
  {key:"line1",label:"Οδός και αριθμός",placeholder:"π.χ. Λυκούργου 12"},
  {key:"line2",label:"Όροφος / διαμέρισμα (προαιρετικό)",placeholder:"π.χ. 2ος όροφος"},
  {key:"locality",label:"Πόλη",placeholder:"π.χ. Σπάρτη"},
@@ -17,7 +19,7 @@ const FIELDS:readonly {key:TextField;label:string;placeholder:string;keyboard?: 
  {key:"phone",label:"Τηλέφωνο (προαιρετικό)",placeholder:"π.χ. 69XXXXXXXX",keyboard:"phone-pad"}
 ];
 const LIMITS:Record<TextField,number>={
- label:80,fullName:160,line1:240,line2:240,locality:120,region:120,postcode:5,phone:40
+ label:80,fullName:160,companyName:200,vatNumber:40,line1:240,line2:240,locality:120,region:120,postcode:5,phone:40
 };
 function message(error:unknown){
  const code=error instanceof Error?error.message:"";
@@ -36,6 +38,7 @@ export default function CompanionAddresses(){
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
  const [formOpen,setFormOpen]=useState(false);
+ const [editingId,setEditingId]=useState<string|null>(null);
  const [notice,setNotice]=useState("");
  const version=useRef(0);
  const refresh=useCallback(async()=>{
