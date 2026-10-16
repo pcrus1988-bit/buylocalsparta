@@ -3,7 +3,7 @@ import {getProductionPostgresRuntime} from "./postgres-runtime";
 import {companionDispatchGate,classifyFcmResponse,type FcmSendOutcome} from "./companion-fcm-status";
 import {pushRegistrationEnabled,sendCompanionEventToDevice} from "./companion-push-service";
 
-const BATCH=5;
+const BATCH=2;
 const scope=(name:string)=>({platformAccess:true as const,requestId:"companion-dispatch:"+name});
 const unit=()=>new PostgresUnitOfWork(getProductionPostgresRuntime().sqlPool,{
  statementTimeoutMs:5000,lockTimeoutMs:800
