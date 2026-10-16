@@ -71,6 +71,17 @@ export async function setItemCompleted(id:string,completed:boolean){
   const db=await database();
   await db.runAsync("UPDATE companion_items SET completed=? WHERE id=?",completed?1:0,id);
 }
+/** Local-only item updates. No remote customer data is touched. */
+export async function setItemQuantity(id:string,quantity:number){
+ if(!Number.isSafeInteger(quantity)||quantity<1||quantity>99)throw new Error("INVALID_QUANTITY");
+ const db=await database();
+ await db.runAsync("UPDATE companion_items SET quantity=? WHERE id=?",quantity,id);
+}
+export async function moveItem(id:string,kind:ListKind){
+ if(kind!=="shopping"&&kind!=="wishlist")throw new Error("INVALID_KIND");
+ const db=await database();
+ await db.runAsync("UPDATE companion_items SET kind=? WHERE id=?",kind,id);
+}
 export async function removeItem(id:string){
   const db=await database();
   await db.runAsync("DELETE FROM companion_items WHERE id=?",id);
