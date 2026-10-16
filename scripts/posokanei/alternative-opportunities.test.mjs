@@ -33,3 +33,12 @@ test("sums monetary values in integer cents and ignores malformed amounts",()=>{
   ]);
   assert.deepEqual(x,{lineIds:["a","b"],productCount:2,potentialSavingEur:.3});
 });
+
+test("full candidate summary wins over truncated visible suggestion list",()=>{
+  const x=summarizeCheaperAlternatives([
+    {lineId:"line-a",alternatives:[approved(.25)],bestCheaperSavingEur:1.25,cheaperAlternativeCount:6},
+    {lineId:"line-b",alternatives:[],bestCheaperSavingEur:2.02,cheaperAlternativeCount:7},
+    {lineId:"line-c",alternatives:[approved(5)],bestCheaperSavingEur:0,cheaperAlternativeCount:0}
+  ]);
+  assert.deepEqual(x,{lineIds:["line-a","line-b"],productCount:2,potentialSavingEur:3.27});
+});
