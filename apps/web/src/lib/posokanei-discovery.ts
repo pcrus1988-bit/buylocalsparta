@@ -17,7 +17,9 @@ const RULES:[string,RegExp][]=[
 ];
 export const BROAD_CATEGORIES=[...RULES.map(([s])=>s),"Άλλα προϊόντα"];
 export function broadCategory(label:string|null|undefined):string{
- const s=norm(label||"");return RULES.find(([,re])=>re.test(s))?.[0]||"Άλλα προϊόντα";
+ const s=norm(label||"");
+ if(/σοκολατ|γκοφρετ|μπισκοτ|καραμελ/.test(s))return "Γλυκά & σνακ";
+ return RULES.find(([,re])=>re.test(s))?.[0]||"Άλλα προϊόντα";
 }
 export type ComparableProduct={source_product_id:string;name:string;brand:string|null;category:string|null;unit:string|null;unit_quantity:number|null};
 export function baseQuantity(p:ComparableProduct):{unit:"kg"|"l"|"piece";amount:number}|null{
