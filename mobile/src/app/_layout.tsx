@@ -1,7 +1,8 @@
 import { Stack } from "expo-router";
 import {useEffect} from "react";
 import * as Notifications from "expo-notifications";
-import {Linking} from "react-native";
+import {Linking,View} from "react-native";
+import {CompanionDock} from "../components/CompanionDock";
 import {companionPushStatus} from "../lib/companion-push";
 import {companionAuthorizedRequest} from "../lib/companion-session";
 import { StatusBar } from "expo-status-bar";
@@ -45,6 +46,7 @@ export default function RootLayout() {
   return <>
     <CompanionForegroundWatcher />
     <StatusBar style="dark" />
+    <View style={{flex:1}}>
     <Stack screenOptions={{
       headerStyle:{backgroundColor:theme.cream},
       headerTintColor:theme.green,
@@ -52,6 +54,10 @@ export default function RootLayout() {
       contentStyle:{backgroundColor:theme.cream},
     }}>
       <Stack.Screen name="index" options={{title:"KONTA MOY"}} />
+      <Stack.Screen name="shop" options={{title:"Αγορές"}} />
+      <Stack.Screen name="stores" options={{title:"Καταστήματα"}} />
+      <Stack.Screen name="basket" options={{title:"Καλάθι"}} />
+      <Stack.Screen name="services" options={{title:"Όλες οι υπηρεσίες"}} />
       <Stack.Screen name="nearby" options={{title:"Κοντά μου"}} />
       <Stack.Screen name="account" options={{title:"Ο λογαριασμός μου"}} />
       <Stack.Screen name="lists" options={{title:"Οι λίστες μου"}} />
@@ -59,5 +65,7 @@ export default function RootLayout() {
       <Stack.Screen name="notifications" options={{title:"Ειδοποιήσεις Android"}} />
       <Stack.Screen name="diagnostics" options={{title:"Έλεγχος λειτουργίας"}} />
     </Stack>
+    <CompanionDock />
+    </View>
   </>;
 }
