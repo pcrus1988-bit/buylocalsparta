@@ -1,7 +1,7 @@
 import {PostgresUnitOfWork,type SqlRow} from "@buy-local-sparta/core";
 import {PostgresFixedWindowRateLimiter} from "@buy-local-sparta/postgres-runtime";
-import {getProductionPostgresRuntime} from "../../../../../../../lib/postgres-runtime";
-import {parseCompanionCatalogSearch} from "../../../../../../../lib/companion-catalog-policy";
+import {getProductionPostgresRuntime} from "../../../../../../lib/postgres-runtime";
+import {parseCompanionCatalogSearch} from "../../../../../../lib/companion-catalog-policy";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const HEADERS={"Cache-Control":"no-store,max-age=0","Referrer-Policy":"no-referrer"};
