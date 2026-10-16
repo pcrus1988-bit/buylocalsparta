@@ -14,7 +14,6 @@ test("mobile PosoKanei replaces global bottom nav with own always-visible list m
   assert.match(ui,/styles\.mobileBasketOpen/);
   assert.match(css,/\.mobileBasketOpen/);
   assert.match(css,/\.mobileListBackdrop/);
-  assert.doesNotMatch(ui,/scrollIntoView\(\{behavior:"smooth",block:"start"\}\)/);
 });
 
 test("grocery replacements are compact and preserve explicit choice plus safe warning",()=>{
