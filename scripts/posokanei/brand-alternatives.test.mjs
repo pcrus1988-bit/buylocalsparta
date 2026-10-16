@@ -137,3 +137,103 @@ test("unreviewed lookalikes never become approved suggestions or auto-substituti
   const pending=run("a",{approvedGroups:[{status:"pending",memberIds:["a","b"]}]});
   assert.deepEqual(pending.alternatives,[]);
 });
+
+
+test("bilingual Greek/English grocery families are candidates, never auto-approved",()=>{
+  const items=[
+    p("tom-el","ALFA Ντομάτες ψιλοκομμένες 400γρ","ALFA","ΚΟΝΣΕΡΒΑ ΝΤΟΜΑΤΑΣ","g",400),
+    p("tom-en","BETA diced tomatoes 500g","BETA","ΚΟΝΣΕΡΒΑ ΝΤΟΜΑΤΑΣ","g",500),
+    p("passata","GAMMA tomato passata 500g","GAMMA","ΚΟΝΣΕΡΒΑ ΝΤΟΜΑΤΑΣ","g",500)
+  ];
+  assert.equal(productFamily(items[0]),productFamily(items[1]));
+  assert.notEqual(productFamily(items[0]),productFamily(items[2]));
+  const prices=new Map([
+    ["tom-el",[o("tom-el","chain1",2.2)]],
+    ["tom-en",[o("tom-en","chain2",.9)]],
+    ["passata",[o("passata","chain2",.1)]]
+  ]);
+  const input={sourceId:"tom-el",products:items,offersByProduct:prices};
+  const unreviewed=findBrandAlternatives(input);
+  assert.deepEqual(unreviewed.alternatives,[]);
+  assert.deepEqual(unreviewed.candidates.map(x=>x.id),["tom-en"]);
+  assert.equal(unreviewed.candidates[0].confidence,"unverified_match");
+  const approved=findBrandAlternatives({...input,approvedGroups:[{status:"approved",memberIds:["tom-el","tom-en"]}]});
+  assert.deepEqual(approved.alternatives.map(x=>x.id),["tom-en"]);
+  assert.deepEqual(approved.candidates,[]);
+});
+
+test("size-correlated piece counts permit comparison without erasing product type",()=>{
+  const items=[
+    p("pads12","EVERYDAY Σερβιέτες Maxi Night 12τεμ","EVERY DAY","ΣΕΡΒΙΕΤΕΣ","pcs",12),
+    p("pads16","ALFA Σερβιέτες Maxi Night 16τεμ","ALFA","ΣΕΡΒΙΕΤΕΣ","pcs",16),
+    p("padsDay","BETA Σερβιέτες Maxi Day 16τεμ","BETA","ΣΕΡΒΙΕΤΕΣ","pcs",16),
+    p("wrongSize","GAMMA Σερβιέτες Maxi Night 18τεμ","GAMMA","ΣΕΡΒΙΕΤΕΣ","pcs",16)
+  ];
+  assert.equal(productFamily(items[0]),productFamily(items[1]));
+  assert.notEqual(productFamily(items[0]),productFamily(items[2]));
+  assert.notEqual(productFamily(items[0]),productFamily(items[3]));
+  const prices=new Map([
+    ["pads12",[o("pads12","x",3)]],["pads16",[o("pads16","y",2)]],
+    ["padsDay",[o("padsDay","y",.5)]],["wrongSize",[o("wrongSize","y",.5)]]
+  ]);
+  const match=findBrandAlternatives({sourceId:"pads12",products:items,offersByProduct:prices,
+    approvedGroups:[{status:"approved",memberIds:["pads12","pads16"]}]});
+  assert.deepEqual(match.alternatives.map(x=>x.id),["pads16"]);
+  assert.equal(match.alternatives[0].packageCount,1);
+});
+
+test("explicit brand aliases and Greek romanization preserve only product-type evidence",()=>{
+  const greek=p("greek","DODONI γιαούρτι στραγγιστό 500g","ΔΩΔΩΝΗ","ΓΙΑΟΥΡΤΙΑ","g",500);
+  const latin=p("latin","ALFA yogurt στραγγιστό 750g","ALFA","ΓΙΑΟΥΡΤΙΑ","g",750);
+  assert.equal(productFamily(greek),productFamily(latin));
+  const store=p("store","ΑΒ Γιαούρτι Στραγγιστό 2% 1kg","ΑΒ Βασιλόπουλος","ΓΙΑΟΥΡΤΙΑ","kg",1);
+  const other=p("other","ALFA γιαούρτι στραγγιστό 2% 500g","ALFA","ΓΙΑΟΥΡΤΙΑ","g",500);
+  assert.equal(productFamily(store),productFamily(other));
+  assert.notEqual(productFamily(store),productFamily(p("fat","ALFA γιαούρτι στραγγιστό 5% 500g","ALFA","ΓΙΑΟΥΡΤΙΑ","g",500)));
+  assert.notEqual(productFamily(store),productFamily(p("bio","ALFA γιαούρτι στραγγιστό βιολογικό 2% 500g","ALFA","ΓΙΑΟΥΡΤΙΑ","g",500)));
+});
+
+test("placeholder registry brands can never be trusted as brand substitutions",()=>{
+  const items=[
+    p("real","ALFA Τσιπούρα Ελληνική 400g","ALFA","ΨΑΡΙΑ","kg",.4),
+    p("fake","Τσιπούρα Ελληνική 400g","ΔΙΑΦΟΡΑ - [ΧΩΡΙΣ BRAND]","ΨΑΡΙΑ","kg",.4),
+    p("ean","Τσιπούρα Ελληνική 400g","EAN 29.05.26","ΨΑΡΙΑ","kg",.4)
+  ];
+  const prices=new Map([
+    ["real",[o("real","a",4)]],["fake",[o("fake","b",1)]],["ean",[o("ean","b",1)]]
+  ]);
+  const result=findBrandAlternatives({sourceId:"real",products:items,offersByProduct:prices,includeNonCheaper:true});
+  assert.deepEqual(result.alternatives,[]);
+  assert.deepEqual(result.candidates,[]);
+});
+
+test("catalogue comparisons include equal/higher prices, preserving approved and unverified separation",()=>{
+  const items=[
+    p("src","ALFA γάλα πλήρες 3,5% 1L","ALFA","ΓΑΛΑ","L",1),
+    p("equal","BETA Milk πλήρες 3,5% 1L","BETA","ΓΑΛΑ","L",1),
+    p("higher","GAMMA Milk πλήρες 3,5% 1L","GAMMA","ΓΑΛΑ","L",1),
+    p("cheap","DELTA Milk πλήρες 3,5% 1L","DELTA","ΓΑΛΑ","L",1),
+    p("light","EPSILON Milk πλήρες 1,5% 1L","EPSILON","ΓΑΛΑ","L",1)
+  ];
+  const prices=new Map([
+    ["src",[o("src","a",1.30)]],["equal",[o("equal","b",1.30)]],
+    ["higher",[o("higher","b",1.60)]],["cheap",[o("cheap","b",.5)]],
+    ["light",[o("light","b",.1)]]
+  ]);
+  const input={sourceId:"src",products:items,offersByProduct:prices,
+    approvedGroups:[{status:"approved",memberIds:["src","equal","higher"]}]};
+  const cheaper=findBrandAlternatives(input);
+  assert.equal(cheaper.alternatives.length,0);
+  assert.deepEqual(cheaper.candidates.map(x=>x.id),["cheap"]);
+  const all=findBrandAlternatives({...input,includeNonCheaper:true});
+  assert.equal(all.reason,"comparable_found");
+  assert.deepEqual(all.alternatives.map(x=>x.id),["equal","higher"]);
+  assert.deepEqual(all.candidates.map(x=>x.id),["cheap"]);
+  assert.equal(all.alternatives[0].savingsEur,0);
+  assert.equal(all.alternatives[1].savingsEur,-.3);
+  assert.ok(!all.alternatives.some(x=>x.id==="light"));
+  assert.ok(!all.candidates.some(x=>x.id==="light"));
+  const selected=findBrandAlternatives({...input,includeNonCheaper:true,excludedRetailerIds:["b"]});
+  assert.deepEqual(selected.alternatives,[]);
+  assert.deepEqual(selected.candidates,[]);
+});
