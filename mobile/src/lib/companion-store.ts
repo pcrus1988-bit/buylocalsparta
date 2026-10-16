@@ -90,14 +90,16 @@ export async function setPreference(kind:keyof CompanionPreferences,value:boolea
 export async function mayNotify(alertKey:string, now=Date.now()):Promise<boolean>{
   // Atomically claim before attempting notification; fails closed if delivery is uncertain.
   const db=await database();
-  return db.withExclusiveTransactionAsync(async tx=>{
+  let allowed=false;
+  await db.withExclusiveTransactionAsync(async tx=>{
     await tx.runAsync("DELETE FROM companion_alerts WHERE sent_at<?",now-30*86400000);
     const count=await tx.getFirstAsync<{n:number}>("SELECT COUNT(*) AS n FROM companion_alerts WHERE sent_at>?",now-86400000);
-    if((count?.n??0)>=2)return false;
+    if((count?.n??0)>=2)return;
     const earlier=await tx.getFirstAsync<{sent_at:number}>("SELECT sent_at FROM companion_alerts WHERE alert_key=?",alertKey);
-    if(earlier && earlier.sent_at>now-86400000)return false;
+    if(earlier && earlier.sent_at>now-86400000)return;
     await tx.runAsync("INSERT INTO companion_alerts(alert_key,sent_at) VALUES(?,?) ON CONFLICT(alert_key) DO UPDATE SET sent_at=excluded.sent_at",
       alertKey,now);
-    return true;
+    allowed=true;
   });
+  return allowed;
 }
