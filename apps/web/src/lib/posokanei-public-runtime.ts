@@ -14,6 +14,7 @@ import "server-only";
 import {transformSnapshot,sha256} from "../../../../scripts/posokanei/snapshot-adapter.mjs";
 import approvedCatalogue from "../../../../scripts/posokanei/approved-equivalence-groups.json";
 import {buildApprovedReferenceGroups} from "../../../../scripts/posokanei/reviewed-groups.mjs";
+import {deriveAutoCommodityGroups} from "../../../../scripts/posokanei/auto-commodity-groups.mjs";
 
 const MIRROR_BASE="https://raw.githubusercontent.com/spyrosavl/posokanei/main/";
 const MIRROR_TTL_MS=15*60*1000;
@@ -103,7 +104,10 @@ async function readGovernmentMirror():Promise<PublishedReferenceSnapshot|null>{
     // Only individually reviewed, snapshot-pinned source SKU memberships.
     // A drifted title, brand, unit, category or missing member deactivates
     // its entire group until human re-review; never infer from title alone.
-    approvedGroups:buildApprovedReferenceGroups(transformed.references,approvedCatalogue)
+    approvedGroups:(()=>{
+      const reviewed=buildApprovedReferenceGroups(transformed.references,approvedCatalogue);
+      return [...reviewed,...deriveAutoCommodityGroups(transformed.references,reviewed)];
+    })()
   };
 }
 async function cachedGovernmentMirror():Promise<PublishedReferenceSnapshot|null>{
@@ -135,7 +139,7 @@ export type ReferenceOffer = {
   retailer_id:string; retailer_name:string; price_eur:number;
   source_price_updated_at:string|null; is_discount?:boolean;
 };
-export type ReferenceGroup = {id:string;label:string;status:"approved";basis:"kg"|"l"|"piece";memberIds:string[]};
+export type ReferenceGroup = {id:string;label:string;status:"approved";basis:"kg"|"l"|"piece";memberIds:string[];approvalMethod?:"automatic_commodity"};
 export type PublishedReferenceSnapshot = {
   schema_version:1; source:string; snapshot_date:string; snapshot_sha256:string;
   permission_reference:string; source_total:number;

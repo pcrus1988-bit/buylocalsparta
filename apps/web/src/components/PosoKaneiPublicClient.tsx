@@ -7,10 +7,10 @@ import styles from "./PosoKaneiPublicClient.module.css";
 
 type Offer={retailerId:string;retailerName:string;priceEur:number;observedAt:string|null;discount:boolean};
 type Product={id:string;name:string;brand:string|null;category:string|null;unit:string|null;unitQuantity:number|null;imageUrl?:string|null;groupId:string|null;offers:Offer[]};
-type Group={id:string;label:string;basis:"kg"|"l"|"piece"};
+type Group={id:string;label:string;basis:"kg"|"l"|"piece";approvalMethod?:"automatic_commodity"|"manual_review"};
 type Retailer={id:string;name:string};
 type Listing={status:string;snapshotDate?:string;source?:string;count?:number;page?:number;hasMore?:boolean;products:Product[];categories:string[];categoryGroups?:string[];groups:Group[];retailers:Retailer[]};
-type Cheaper={id:string;name:string;brand:string;priceEur:number;unitPriceEur:number;retailerName:string;retailerId:string;savingPercent:number;packageQuantity:number;unit:string;packageCount:number;originalTotalEur:number;candidateTotalEur:number;savingsEur:number;confidence:"reviewed_equivalent"|"unverified_match"};
+type Cheaper={id:string;name:string;brand:string;priceEur:number;unitPriceEur:number;retailerName:string;retailerId:string;savingPercent:number;packageQuantity:number;unit:string;packageCount:number;originalTotalEur:number;candidateTotalEur:number;savingsEur:number;confidence:"reviewed_equivalent"|"unverified_match";approvalMethod?:"automatic_commodity"|"manual_or_unverified"};
 type Mode="single"|"limited";
 const money=(n:number|null|undefined)=>typeof n==="number"&&Number.isFinite(n)?new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(n):"—";
 const empty:Listing={status:"unavailable",products:[],categories:[],groups:[],retailers:[]};
@@ -204,7 +204,7 @@ export function PosoKaneiPublicClient(){
     const key=id();
     setLabels(current=>({...current,[key]:option.name}));
     update([...lines,{id:key,kind:"exact",sourceProductId:option.id,packageCount:option.packageCount}]);
-    setNotice("Προστέθηκε ελεγμένη ισοδύναμη μάρκα με "+option.packageCount+" συσκευασία/ες.");
+    setNotice("Προστέθηκε συγκρίσιμη μάρκα με "+option.packageCount+" συσκευασία/ες.");
   }
   function chooseCheaper(lineId:string,next:Cheaper){
     const selected=brandResults[lineId];
@@ -306,8 +306,8 @@ export function PosoKaneiPublicClient(){
             <label>Κατηγορία<select value={category} onChange={e=>{setCategory(e.target.value);setPage(1);}}><option value="">Όλες οι κατηγορίες</option>{(listing.categoryGroups||[]).map(c=><option key={c} value={c}>{c}</option>)}</select></label>
           </div>
           {listing.groups.length>0&&<details className={styles.reviewedBrowser}>
-            <summary>Ελεγμένες συγκρίσεις μαρκών · {listing.groups.length} είδη προϊόντων</summary>
-            <p>Διάλεξε ένα είδος για σύγκριση τιμής ανά μάρκα, συσκευασία ή κιλό. Η ελεγμένη αντιστοίχιση αφορά τον τύπο του προϊόντος, όχι εγγύηση ίδιων συστατικών, αλλεργιογόνων ή προέλευσης.</p>
+            <summary>Συγκρίσεις εγκεκριμένων τύπων · {listing.groups.length} είδη προϊόντων</summary>
+            <p>Διάλεξε ένα είδος για σύγκριση τιμής ανά μάρκα, συσκευασία ή κιλό. Η χειροκίνητη ή αυτόματη αντιστοίχιση αφορά τον περιγραφόμενο τύπο του προϊόντος, όχι εγγύηση ίδιων συστατικών, αλλεργιογόνων ή προέλευσης.</p>
             <div className={styles.reviewedChips}>
               {listing.groups.map(g=><button key={g.id} type="button" className={styles.secondary} onClick={()=>{setGroup(g.id);setSorting("unit");}}>{g.label} ↗</button>)}
             </div>
@@ -330,17 +330,18 @@ export function PosoKaneiPublicClient(){
                     onClick={()=>setComparedProduct(current=>current===p.id?null:p.id)}>
                     Σύγκρινε άλλες μάρκες {comparedProduct===p.id?"−":"↗"}
                   </button>
-                  {p.groupId&&<button className={styles.textButton} type="button" onClick={()=>{setGroup(p.groupId);setSorting("unit");}}>Ελεγμένη ομάδα ↗</button>}
+                  {p.groupId&&<button className={styles.textButton} type="button" onClick={()=>{setGroup(p.groupId);setSorting("unit");}}>Ομάδα συγκρίσιμων ↗</button>}
                 </div>
                 {comparedProduct===p.id&&<div className={styles.comparablePanel} aria-label={"Συγκρίσιμες μάρκες για "+p.name}>
                   <h4>Σύγκριση άλλων μαρκών</h4>
-                  <p>Η αναζήτηση χρησιμοποιεί ονομασία, κατηγορία και ολόκληρες συσκευασίες για την ποσότητα του αρχικού προϊόντος. Ελεγμένη ισοδυναμία και πιθανή ομοιότητα διαχωρίζονται ρητά.</p>
+                  <p>Η αναζήτηση χρησιμοποιεί ονομασία, κατηγορία και ολόκληρες συσκευασίες για την ποσότητα του αρχικού προϊόντος. Αυτόματα εγκεκριμένη, χειροκίνητα ελεγμένη και ανεπιβεβαίωτη ομοιότητα διαχωρίζονται ρητά.</p>
                   {comparisonLoading?<p role="status">Αναζήτηση συγκρίσιμων προϊόντων…</p>:
                     comparison?.status==="unavailable"?<p role="status">Δεν ολοκληρώθηκε η σύγκριση τιμών.</p>:
                     comparison&&comparison.alternatives.length+comparison.candidates.length>0?<>
-                      {comparison.alternatives.length>0&&<><h5>Ελεγμένες ισοδύναμες μάρκες</h5>
+                      {comparison.alternatives.length>0&&<><h5>Εγκεκριμένες συγκρίσιμες μάρκες</h5>
                         {comparison.alternatives.map(a=><div className={styles.comparableRow} key={a.id}>
                           <div><strong>{a.name}</strong><small>{a.retailerName} · {a.packageCount} × {money(a.priceEur)} = {money(a.candidateTotalEur)}</small>
+                            <small>{a.approvalMethod==="automatic_commodity"?"Αυτόματη έγκριση τύπου · έλεγξε την ετικέτα":"Χειροκίνητα ελεγμένος τύπος"}</small>
                             <small className={a.savingsEur>0?styles.comparableBenefit:undefined}>{a.savingsEur>0?"Φθηνότερο κατά "+money(a.savingsEur):a.savingsEur===0?"Ίδια τιμή":"Ακριβότερο κατά "+money(Math.abs(a.savingsEur))}</small></div>
                           <button type="button" className={styles.secondary} onClick={()=>addReviewedComparable(a)}>+ Στη λίστα</button>
                         </div>)}</>}
@@ -364,8 +365,8 @@ export function PosoKaneiPublicClient(){
           </div>
           {listing.status==="ready"&&(page>1||listing.hasMore)&&<nav className={styles.pagination} aria-label="Σελίδες προϊόντων"><button type="button" disabled={page===1} onClick={()=>setPage(p=>p-1)}>← Προηγούμενη</button><span>Σελίδα {page}</span><button type="button" disabled={!listing.hasMore} onClick={()=>setPage(p=>p+1)}>Επόμενη →</button></nav>}
           {groupInfo&&<section id="posokanei-reviewed-comparisons" className={styles.alternative} aria-label="Σύγκριση ισοδύναμων προϊόντων">
-            <div className={styles.heading}><div><span className={styles.eyebrow}>02 · ΕΛΕΓΜΕΝΕΣ ΕΝΑΛΛΑΚΤΙΚΕΣ</span><h2>{groupInfo.label}</h2></div><button type="button" className={styles.close} onClick={()=>setGroup(null)} aria-label="Κλείσιμο εναλλακτικών">✕</button></div>
-            <p className={styles.methodNote}>Προϊόντα ελεγμένου ίδιου τύπου και ποσότητας. Έλεγξε τα συστατικά, αλλεργιογόνα και την προέλευση προτού επιλέξεις εναλλακτική μάρκα.</p>
+            <div className={styles.heading}><div><span className={styles.eyebrow}>02 · ΕΓΚΕΚΡΙΜΕΝΟΙ ΤΥΠΟΙ ΠΡΟΪΟΝΤΩΝ</span><h2>{groupInfo.label}</h2></div><button type="button" className={styles.close} onClick={()=>setGroup(null)} aria-label="Κλείσιμο εναλλακτικών">✕</button></div>
+            <p className={styles.methodNote}>Προϊόντα με χειροκίνητη ή αυτόματη έγκριση του περιγραφόμενου τύπου και της ποσότητας. Έλεγξε τα συστατικά, αλλεργιογόνα και την προέλευση προτού επιλέξεις εναλλακτική μάρκα.</p>
             <div className={styles.buttons}><button className={sorting==="unit"?styles.primary:styles.secondary} onClick={()=>setSorting("unit")} type="button">Ανά {groupInfo.basis}</button><button className={sorting==="package"?styles.primary:styles.secondary} onClick={()=>setSorting("package")} type="button">Ανά συσκευασία</button></div>
             {ranked.map(p=><div className={styles.offer} key={p.id}><span><strong>{p.brand||p.name}</strong><small> {p.name} · {p.offers[0]?.retailerName||""}</small></span><span><strong>{money(p.offers[0]?.priceEur)}</strong><small> {money(pricePerUnit(p,p.offers[0]?.priceEur??0)?.price)}/{groupInfo.basis}</small></span><button type="button" onClick={()=>addProduct(p)}>+ Στη λίστα</button></div>)}
             <button className={styles.primary} type="button" onClick={()=>addGroup(groupInfo)}>+ Η οικονομικότερη ισοδύναμη μάρκα</button>
@@ -376,7 +377,7 @@ export function PosoKaneiPublicClient(){
           {!lines.length?<p className={styles.message}>Πρόσθεσε προϊόντα για να υπολογίσουμε το συνολικό κόστος στα σούπερ μάρκετ.</p>:<details className={styles.listDetails}><summary>Προϊόντα στη λίστα ({lines.length}) · Προβολή / επεξεργασία</summary><div className={styles.lines}>{lines.map(l=><div className={styles.line} key={l.id}>
             <div className={styles.lineTop}><strong>{labels[l.id]||"Προϊόν"}</strong><button type="button" onClick={()=>update(lines.filter(x=>x.id!==l.id))} aria-label="Αφαίρεση από τη λίστα">✕</button></div>
             <label>{l.kind==="exact"?"Συσκευασίες":"Ποσότητα ("+(listing.groups.find(g=>g.id===l.groupId)?.basis||"kg")+")"}<input type="number" min="1" max="100" step={l.kind==="exact"?"1":"0.1"} value={l.kind==="exact"?l.packageCount:l.requiredBaseQuantity} onChange={e=>changeLine(l.id,l.kind==="exact"?{packageCount:Number(e.target.value)}:{requiredBaseQuantity:Number(e.target.value)})}/></label>
-            {l.kind==="exact"&&<small className={styles.brandStatus}>{checkingBrands?"Έλεγχος συγκρίσιμων μαρκών…":brandResults[l.id]?.alternatives.length?`✅ ${brandResults[l.id].alternatives.length} ελεγμένη/ες φθηνότερη/ες μάρκα/ες`:brandResults[l.id]?.candidates?.length?`🔎 ${brandResults[l.id].candidates.length} πιθανές οικονομικότερες επιλογές (μη ελεγμένη ισοδυναμία)`:brandResults[l.id]?.reason==="unknown_quantity"?"Δεν υπάρχουν επαρκή στοιχεία ποσότητας":brandResults[l.id]?.reason==="no_source_price"?"Δεν υπάρχει τιμή στις επιλεγμένες αλυσίδες":"Δεν βρέθηκε φθηνότερη συγκρίσιμη μάρκα"}</small>}
+            {l.kind==="exact"&&<small className={styles.brandStatus}>{checkingBrands?"Έλεγχος συγκρίσιμων μαρκών…":brandResults[l.id]?.alternatives.length?`✅ ${brandResults[l.id].alternatives.length} εγκεκριμένη/ες συγκρίσιμη/ες μάρκα/ες`:brandResults[l.id]?.candidates?.length?`🔎 ${brandResults[l.id].candidates.length} πιθανές οικονομικότερες επιλογές (μη ελεγμένη ισοδυναμία)`:brandResults[l.id]?.reason==="unknown_quantity"?"Δεν υπάρχουν επαρκή στοιχεία ποσότητας":brandResults[l.id]?.reason==="no_source_price"?"Δεν υπάρχει τιμή στις επιλεγμένες αλυσίδες":"Δεν βρέθηκε φθηνότερη συγκρίσιμη μάρκα"}</small>}
 
           </div>)}</div></details>}
           {notice&&<p className={styles.notice} role="status">{notice}</p>}
@@ -385,7 +386,7 @@ export function PosoKaneiPublicClient(){
             <summary>💡 Φθηνότερες μάρκες για {labels[result.lineId]||"προϊόν"} ({result.alternatives.length})</summary>
             <p>Ίδια λεπτομερής κατηγορία και περιγραφή προϊόντος. Σύγκριση του κόστους για τη ζητούμενη ποσότητα, με ολόκληρες συσκευασίες και μόνο τις επιλεγμένες αλυσίδες. Έλεγξε τα χαρακτηριστικά πριν αντικαταστήσεις.</p>
             {result.alternatives.map(a=><div className={styles.suggestionLine} key={a.id}>
-              <span><strong>{a.name}</strong><small>{a.retailerName} · {a.packageCount} συσκ. × {money(a.priceEur)} = {money(a.candidateTotalEur)}</small><small>Έναντι {money(a.originalTotalEur)} · λιγότερα {money(a.savingsEur)} ({a.savingPercent}%)</small></span>
+              <span><strong>{a.name}</strong><small>{a.retailerName} · {a.packageCount} συσκ. × {money(a.priceEur)} = {money(a.candidateTotalEur)}</small><small>Έναντι {money(a.originalTotalEur)} · λιγότερα {money(a.savingsEur)} ({a.savingPercent}%)</small><small>{a.approvalMethod==="automatic_commodity"?"Αυτόματη έγκριση τύπου · έλεγξε συστατικά / αλλεργιογόνα":"Χειροκίνητα ελεγμένος τύπος"}</small></span>
               <button type="button" className={styles.secondary} onClick={()=>chooseCheaper(result.lineId,a)}>Αντικατάσταση μάρκας</button>
             </div>)}
             <small>Ενδεικτικές καταγεγραμμένες τιμές αλυσίδων · η τελική εξοικονόμηση εξαρτάται από το συνολικό σχέδιο αγορών.</small>
