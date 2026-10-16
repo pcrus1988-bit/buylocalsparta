@@ -16,8 +16,8 @@ test("Greek case and accent matching are normalized, completed items excluded",(
  assert.equal(matches[0].itemId,"wanted");
 });
 test("whole tokens avoid tea matching steak",()=>{
- const matches=matchLocalItems([{id:"tea",title:"tea",variantId:null,completed:false,kind:"shopping"}],
- [{...product,productTitle:"steak with potatoes"}]);
+ const matches=matchLocalItems([{id:"steak",title:"steak",variantId:null,completed:false,kind:"shopping"}],
+ [{...product,productTitle:"a steakhouse near you"}]);
  assert.equal(matches.length,0);
 });
 test("exact canonical variant can match a one-word wishlist item",()=>{
