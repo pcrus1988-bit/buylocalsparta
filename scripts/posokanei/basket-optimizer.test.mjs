@@ -135,3 +135,23 @@ test('rejects duplicate retailer-product prices, invalid lines and incompatible 
   assert.ok(x.cheapestAcrossAnyStores);
   assert.equal(x.cheapestAcrossAnyStores.items[0].sourceProductId,'chopped-b');
 });
+
+
+test('retailer selections are hard locks per list line, including approved alternatives',()=>{
+  const locked=run({lines:[
+    {id:'rice',kind:'exact',sourceProductId:'rice',packageCount:1,lockedRetailerId:'alpha'},
+    {id:'tom',kind:'group',groupId:'chopped',requiredBaseQuantity:0.8,lockedRetailerId:'beta'}
+  ]});
+  assert.equal(locked.cheapestAcrossAnyStores.items.find(i=>i.lineId==='rice').retailerId,'alpha');
+  assert.equal(locked.cheapestAcrossAnyStores.items.find(i=>i.lineId==='tom').retailerId,'beta');
+  assert.equal(locked.cheapestAcrossAnyStores.storeCount,2);
+  assert.equal(locked.bestSingleStore,null);
+  const onlyWrongRetailer=run({lines:[
+    {id:'rice',kind:'exact',sourceProductId:'rice',packageCount:1,lockedRetailerId:'does-not-exist'}
+  ]});
+  assert.equal(onlyWrongRetailer.cheapestAcrossAnyStores,null);
+  assert.equal(onlyWrongRetailer.missingItems[0].lineId,'rice');
+  assert.throws(()=>run({lines:[
+    {id:'rice',kind:'exact',sourceProductId:'rice',packageCount:1,lockedRetailerId:'INVALID SPACE'}
+  ]}),/lockedRetailerId/);
+});
