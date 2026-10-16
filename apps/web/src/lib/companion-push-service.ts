@@ -35,14 +35,6 @@ export function pushRegistrationEnabled(){
  return allowCompanionPush(process.env) && Boolean(process.env.COMPANION_FCM_TOKEN_ENCRYPTION_KEY);
 }
 function requirePush(){if(!pushRegistrationEnabled())throw Error("PUSH_NOT_ENABLED");}
-async function writeConsent(tx:{query:<T extends SqlRow=SqlRow>(sql:string,params?:unknown[])=>Promise<{rows:T[]}>},
-  p:CompanionDevicePrincipal,purposes:CompanionPushConsent,action:"register"|"update"|"disable"){
- await tx.query(`
-   INSERT INTO public.companion_push_consent_events
-     (user_id,session_id,order_updates_enabled,saved_items_enabled,vendor_offers_enabled,action,consent_version)
-   VALUES($1::uuid,$2::uuid,$3,$4,false,$5,$6)
- `,[p.userId,p.sessionId,purposes.orderUpdates,purposes.savedItems,action,PUSH_CONSENT_VERSION]);
-}
 export async function enrollCompanionDevice(p:CompanionDevicePrincipal,token:unknown,input:unknown){
  requirePush();
  if(!validFcmToken(token))throw Error("INVALID_DEVICE_TOKEN");
@@ -83,7 +75,12 @@ export async function enrollCompanionDevice(p:CompanionDevicePrincipal,token:unk
   `,[p.userId,p.sessionId,fingerprint,ciphertext,purposes.orderUpdates,
     purposes.savedItems,PUSH_CONSENT_VERSION]);
   if(!result.rows[0])throw Error("UNAUTHORIZED");
-  await writeConsent(tx,p,purposes,old.rows.length?"update":"register");
+  await tx.query(`
+    INSERT INTO public.companion_push_consent_events
+      (user_id,session_id,order_updates_enabled,saved_items_enabled,vendor_offers_enabled,action,consent_version)
+    VALUES($1::uuid,$2::uuid,$3,$4,false,$5,$6)
+  `,[p.userId,p.sessionId,purposes.orderUpdates,purposes.savedItems,
+    old.rows.length?"update":"register",PUSH_CONSENT_VERSION]);
   return {enabled:true,orderUpdates:purposes.orderUpdates,savedItems:purposes.savedItems,
     vendorOffers:false};
  });
@@ -111,8 +108,11 @@ export async function disableCompanionDevice(p:CompanionDevicePrincipal){
    WHERE session_id=$1::uuid AND user_id=$2::uuid AND disabled_at IS NULL
    RETURNING id
   `,[p.sessionId,p.userId]);
-  if(existing.rows.length)await writeConsent(tx,p,{
-    orderUpdates:false,savedItems:false,vendorOffers:false},"disable");
+  if(existing.rows.length)await tx.query(`
+    INSERT INTO public.companion_push_consent_events
+      (user_id,session_id,order_updates_enabled,saved_items_enabled,vendor_offers_enabled,action,consent_version)
+    VALUES($1::uuid,$2::uuid,false,false,false,'disable',$3)
+  `,[p.userId,p.sessionId,PUSH_CONSENT_VERSION]);
   return {enabled:false,orderUpdates:false,savedItems:false,vendorOffers:false};
  });
 }
