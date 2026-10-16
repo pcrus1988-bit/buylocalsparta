@@ -16,6 +16,15 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  // Dated 2026-10-15 source audit: exact same detailed family across real brands.
+  ["κεφιρ",["l",/κεφιρ|kefir/u]],
+  ["εβαπορε",["kg",/γαλα|milk|εβαπορε/u]],
+  ["σοκολατα κακαο",["kg",/κακαο|cocoa/u]],
+  ["χυμος bυσσινο",["l",/βυσσιν|bυσσιν|cherry/u]],
+  ["αλλαντικα γαλοπουλας",["kg",/γαλοπουλ|turkey/u]],
+  ["λευκο τυρι",["kg",/λευκ.*τυρ|mozzarella|μοτσαρελα/u]],
+  ["υγρα πιατων",["l",/υγρ.*πιατων|πιατων.*υγρ|απορρυπαντικ.*πιατων|dishwashing/u]],
+
   ["ξυδι",["l",/ξιδ|vinegar/u]],
   ["κατεψυγμενες μπαμιες",["kg",/μπαμι|okra/u]],
   ["κοφτο μακαρονι",["kg",/κοφτ.*μακαρον|μακαρον.*κοφτ|short pasta/u]],
