@@ -181,8 +181,8 @@ export default function CompanionAccountScreen(){
        "Να διαγραφούν οι λίστες και οι προτιμήσεις μόνο από το Android Companion;",
        [{text:"Ακύρωση",style:"cancel"},
         {text:"Διαγραφή",style:"destructive",onPress:()=>void clearCompanionLocalData()
-           .then(()=>setImportNotice("Τα τοπικά δεδομένα διαγράφηκαν."))
-           .catch(()=>setError("Η διαγραφή τοπικών δεδομένων απέτυχε."))}])}>
+           .then(()=>Alert.alert("Ολοκληρώθηκε","Τα τοπικά δεδομένα διαγράφηκαν."))
+           .catch(()=>Alert.alert("Σφάλμα","Η διαγραφή τοπικών δεδομένων απέτυχε."))}])}>
       <Text style={styles.logout}>Διαγραφή τοπικών λιστών και ρυθμίσεων</Text>
     </Pressable>
   </View>
