@@ -155,3 +155,19 @@ test('retailer selections are hard locks per list line, including approved alter
     {id:'rice',kind:'exact',sourceProductId:'rice',packageCount:1,lockedRetailerId:'INVALID SPACE'}
   ]}),/lockedRetailerId/);
 });
+
+test('five-store split respects the global retailer whitelist and beats a four-store cap',()=>{
+ const ids=['a','b','c','d','e','excluded'];
+ const goods=['one','two','three','four','five'].map(x=>({source_product_id:x,name:x,snapshot_date:date}));
+ const obs=goods.flatMap((g,i)=>ids.map((id,j)=>price(g.source_product_id,id,id==='excluded'?0.01:i===j?1:10)));
+ const b=goods.map(p=>({id:p.source_product_id,kind:'exact',sourceProductId:p.source_product_id,packageCount:1}));
+ const five=run({products:goods,observations:obs,lines:b,storeLimit:5,retailerIds:ids.slice(0,5)});
+ assert.equal(five.cheapestWithinStoreLimit.storeCount,5);
+ assert.equal(five.cheapestWithinStoreLimit.totalEur,5);
+ assert.deepEqual(five.includedRetailerIds,['a','b','c','d','e']);
+ const four=run({products:goods,observations:obs,lines:b,storeLimit:4,retailerIds:ids.slice(0,5)});
+ assert.equal(four.cheapestWithinStoreLimit.totalEur,14);
+ const filtered=run({products:goods,observations:obs,lines:b,storeLimit:5,retailerIds:['a','b','c']});
+ assert.ok(filtered.cheapestWithinStoreLimit.totalEur>five.cheapestWithinStoreLimit.totalEur);
+ assert.throws(()=>run({storeLimit:6}),/1–5/);
+});
