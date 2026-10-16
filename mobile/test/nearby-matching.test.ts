@@ -34,3 +34,8 @@ test("invalid GPS, stale precision and out of world positions fail closed",()=>{
  assert.equal(validNearbyPosition(NaN,22.43,50),false);
  assert.equal(validNearbyPosition(99,22.43,50),false);
 });
+
+test("selected canonical variant never suggests similar text for a different variant",()=>{
+ const matches=matchLocalItems([{id:"selected",title:"Παπούτσια για Τρέξιμο",variantId:"other-variant",completed:false,kind:"wishlist"}],[product]);
+ assert.equal(matches.length,0);
+});
