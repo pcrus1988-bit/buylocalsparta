@@ -224,3 +224,8 @@ Additional allowlist predicates cover exactly described crème dessert varieties
 ### Second precision batch from remaining dated 2026-10-16 source families
 
 New narrow families considered in audit: frozen artichokes, frozen mixed vegetables, cornstarch, rice pudding, sweet paprika, rigatoni, small lasagne, trivellaki, apple juice, lemon fruit drink, soda water, flavored filter coffee, decaf ground espresso, grated Regato and butter popcorn. They are source-described comparable *types only* with exact normalized subtypes, complete verified declared packs, known distinct brands, and customer-controlled strictly-cheaper substitutions. Flavors, pasta shape, ingredients, formulation claims, preparation type and units are not merged across families. Always re-audit counts on the latest complete dated snapshot; never force an approval on source-title or quantity drift.
+
+
+### Final review hardening for Pollock and raw/plain comparables
+
+Pollock fillet approvals explicitly require both the Pollock species marker and the fillet marker. Generic Μπακαλιάρος Φιλέτο is never auto-approved as Pollock. Raw chicken thigh fillets and plain frozen potato approvals reject identically described breaded, marinated, seasoned, pre-fried or prepared products; an exact title-family match by itself cannot waive the unprocessed-intended-use restriction. These guardrails are enforced before grouping and covered by negative regression tests.
