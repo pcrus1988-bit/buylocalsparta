@@ -353,3 +353,61 @@ test("cola zero remains excluded from plain cola and different chip flavors rema
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["chip-a","chip-b"],["cola-a","cola-b"]]);
 });
+
+test("vanilla dairy dessert versus caramel custard: only the same named type matches",()=>{
+ const list=[
+ p("v-a","ΝΩΜΑ","ΝΩΜΑ Παραδοσιακή Κρέμα Βανίλια 180g","Επιδόρπιο Κρέμας","kg",.18),
+ p("v-b","MY GUSTO","MY GUSTO Παραδοσιακή Κρέμα Βανίλια 180g","Επιδόρπιο Κρέμας","kg",.18),
+ p("c-a","ΣΤΑΜΟΥ","ΣΤΑΜΟΥ Κρέμα Καραμελέ 150g","Επιδόρπιο Κρέμας","kg",.15),
+ p("c-b","ΜΕΒΓΑΛ","ΜΕΒΓΑΛ Κρέμα Καραμελέ 150g","Επιδόρπιο Κρέμας","kg",.15),
+ p("other","OTHER","OTHER Κρέμα Σοκολάτα 180g","Επιδόρπιο Κρέμας","kg",.18)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["c-a","c-b"],["v-a","v-b"]]);
+});
+test("frozen spinach-rice is comparable by exact meal type, never interchangeable with oily peas",()=>{
+ const list=[
+ p("s-a","ΕΠΙΛΟΓΗ ΜΟΥ","ΕΠΙΛΟΓΗ ΜΟΥ Σπανακόρυζο Κατεψυγμένο 1kg","Γεύματα","kg",1),
+ p("s-b","VEGETERRA","VEGETERRA Σπανακόρυζο Κατεψυγμένο 1kg","Γεύματα","kg",1),
+ p("p-a","ΑΒ","ΑΒ Αρακάς Λαδερός 1kg","Γεύματα","kg",1),
+ p("p-b","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Αρακάς Λαδερός 1kg","Γεύματα","kg",1),
+ p("p-ready","OTHER","OTHER Αρακάς Λαδερός Έτοιμο Γεύμα 1kg","Γεύματα","kg",1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["p-a","p-b"],["s-a","s-b"]]);
+});
+test("raw Pollock fillets do not conflate with breaded or processed fish alternatives",()=>{
+ const list=[
+ p("f-a","ΑΒ","ΑΒ Μπακαλιάρος Pollock Φιλέτο 850g","Θαλασσινά και Ψάρια","kg",.85),
+ p("f-b","7 ΘΑΛΑΣΣΕΣ","7 ΘΑΛΑΣΣΕΣ Μπακαλιάρος Pollock Φιλέτο 600g","Θαλασσινά και Ψάρια","kg",.6),
+ p("bread","IGLO","IGLO Ψαροκροκέτες 15τεμ 420g","Θαλασσινά και Ψάρια","kg",.42),
+ p("different","OTHER","OTHER Φιλέτο Σολομού 850g","Θαλασσινά και Ψάρια","kg",.85)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["f-a","f-b"]]);
+});
+test("plain frozen potatoes and raw chicken thigh fillets have independently guarded families",()=>{
+ const list=[
+ p("p-a","LUTOSA","LUTOSA Κατεψυγμένες Πατάτες 2.5kg","Πατάτες","kg",2.5),
+ p("p-b","ECOFROST","ECOFROST Κατεψυγμένες Πατάτες 1kg","Πατάτες","kg",1),
+ p("p-type","MCCAIN","MCCAIN Πατάτες Tradition 1kg","Πατάτες","kg",1),
+ p("c-a","ΝΙΤΣΙΑΚΟΣ","ΝΙΤΣΙΑΚΟΣ Κοτόπουλο Μπούτι Φιλέτο 700g","Πουλερικά","kg",.7),
+ p("c-b","MIMIKOS","MIMIKOS Κοτόπουλο Μπούτι Φιλέτο 650g","Πουλερικά","kg",.65),
+ p("c-bread","OTHER","OTHER Κοτόπουλο Μπούτι Φιλέτο Πανέ 650g","Πουλερικά","kg",.65)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["c-a","c-b"],["p-a","p-b"]]);
+});
+test("only explicitly labelled classic margarine, not cholesterol-lowering special spreads",()=>{
+ const list=[
+ p("m-a","ΦΑΣΤ","ΦΑΣΤ Classic Μαργαρίνη 225g","Μαργαρίνη","kg",.225),
+ p("m-b","ΑΒ","ΑΒ Μαργαρίνη Classic 250g","Μαργαρίνη","kg",.25),
+ p("m-generic","MR GRAND","MR GRAND Μαργαρίνη 250g","Μαργαρίνη","kg",.25),
+ p("m-function","BENECOL","BENECOL Μαργαρίνη 450g","Μαργαρίνη","kg",.45)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["m-a","m-b"]]);
+});
+test("Choco Balls child cereals keep the named product type, not a generic chocolate cereal label",()=>{
+ const list=[
+ p("c-a","BONORA","BONORA Choco Balls Δημητριακά 375g","Παιδικά Δημητριακά","kg",.375),
+ p("c-b","ECONOMY","ECONOMY Δημητριακά Choco Balls 500g","Παιδικά Δημητριακά","kg",.5),
+ p("other","COOKIE CRISP","COOKIE CRISP Δημητριακά 375g","Παιδικά Δημητριακά","kg",.375)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["c-a","c-b"]]);
+});
