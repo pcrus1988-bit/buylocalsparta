@@ -8,13 +8,26 @@ import {
 export const dynamic="force-dynamic";
 export const runtime="nodejs";
 const headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
-// Reuse the immutable match index for the lifetime of a published snapshot.
-const indexes=new WeakMap<PublishedReferenceSnapshot,BrandIndex>();
-const catalogues=new WeakMap<PublishedReferenceSnapshot,ReturnType<typeof pricedCatalog>>();
+// Cache by the *verified snapshot identity*, not JS object identity: the
+// alternative HTTPS-publication loader parses a new object per request.
+// Bounded to the most recent two snapshots so long-running instances stay small.
+const cachedIndexes=new Map<string,BrandIndex>();
+const cachedCatalogues=new Map<string,ReturnType<typeof pricedCatalog>>();
+function snapshotKey(snapshot:PublishedReferenceSnapshot){
+  return snapshot.snapshot_sha256+":"+snapshot.snapshot_date+":"+JSON.stringify(snapshot.approvedGroups);
+}
+function remember<T>(cache:Map<string,T>,key:string,value:T):T{
+  if(cache.size>=2)cache.delete(cache.keys().next().value!);
+  cache.set(key,value);
+  return value;
+}
+function indexFor(snapshot:PublishedReferenceSnapshot){
+  const key=snapshotKey(snapshot);
+  return cachedIndexes.get(key)??remember(cachedIndexes,key,createBrandIndex(snapshot.products));
+}
 function catalogFor(snapshot:PublishedReferenceSnapshot){
-  let catalogue=catalogues.get(snapshot);
-  if(!catalogue){catalogue=pricedCatalog(snapshot);catalogues.set(snapshot,catalogue);}
-  return catalogue;
+  const key=snapshotKey(snapshot);
+  return cachedCatalogues.get(key)??remember(cachedCatalogues,key,pricedCatalog(snapshot));
 }
 export async function GET(req:Request){
   try{
@@ -29,8 +42,7 @@ export async function GET(req:Request){
       .filter(x=>/^[a-zA-Z0-9_-]{1,100}$/.test(x)).slice(0,24);
     const snap=await loadPublishedReference();
     if(!snap)return NextResponse.json({status:"unavailable",alternatives:[]},{status:503,headers});
-    let index=indexes.get(snap);
-    if(!index){index=createBrandIndex(snap.products);indexes.set(snap,index);}
+    const index=indexFor(snap);
     const matches=findBrandAlternatives({
       sourceId:id,packages,products:snap.products,
       offersByProduct:catalogFor(snap).byProduct,brandIndex:index,
@@ -76,8 +88,7 @@ export async function POST(request:Request){
       return NextResponse.json({error:"Διπλά προϊόντα."},{status:400,headers});
     const snapshot=await loadPublishedReference();
     if(!snapshot)return NextResponse.json({status:"unavailable",lines:[]},{status:503,headers});
-    let index=indexes.get(snapshot);
-    if(!index){index=createBrandIndex(snapshot.products);indexes.set(snapshot,index);}
+    const index=indexFor(snapshot);
     const catalogue=catalogFor(snapshot);
     const results=requested.map(line=>({
       lineId:line.id,sourceProductId:line.sourceProductId,
