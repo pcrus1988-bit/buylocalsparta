@@ -25,7 +25,7 @@ const specs=new Map([
   ["λευκο τυρι",["kg",/λευκ.*τυρ|mozzarella|μοτσαρελα/u]],
   ["υγρα πιατων",["l",/υγρ.*πιατων|πιατων.*υγρ|απορρυπαντικ.*πιατων|dishwashing/u]],
 
-  ["ξυδι",["l",/ξιδ|vinegar/u]],
+  ["ξυδι",["l",/ξιδ|ξυδ|vinegar/u]],
   ["κατεψυγμενες μπαμιες",["kg",/μπαμι|okra/u]],
   ["κοφτο μακαρονι",["kg",/κοφτ.*μακαρον|μακαρον.*κοφτ|short pasta/u]],
   ["kοφτο mακαρονι",["kg",/κοφτ.*μακαρον|μακαρον.*κοφτ|short pasta/u]],
@@ -125,11 +125,13 @@ function accepted(p){
      size.amount<.02||size.amount>40||Math.abs(size.amount-label.quantity)>1e-6)return false;
   const fam=productFamily(p);
   const bits=fam?.split("|")[1]?.split(" ").filter(Boolean)||[];
-  if(bits.length<2 && !["αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη"].includes(category))return false;
+  if(bits.length<2 && !["αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη","κατεψυγμενος αρακας"].includes(category))return false;
   // Dairy requires fat information, otherwise packaging titles alone do not
   // distinguish normal, low fat, lactose-free and fermented variants.
+  const listedFatPercent=/\b\d+(?:[.,]\d+)?\s*%/u.test(title);
+  const explicitMilkType=category==="φρεσκο γαλα" && /(?:^|\s)(?:πληρες|ελαφρυ)(?=\s|$)/u.test(title);
   if(["φρεσκο γαλα","στραγγιστο γιαουρτι","αγγελαδινο γιαουρτι","κρεμα γαλακτος"].includes(category) &&
-    !/\b\d+(?:[.,]\d+)?\s*%/u.test(title))return false;
+    !listedFatPercent&&!explicitMilkType)return false;
   return true;
 }
 export function deriveAutoPackagedTypeGroups(products,previous=[]){
