@@ -200,3 +200,40 @@ export async function testCompanionPush(p:CompanionDevicePrincipal){
    [reserved.id,p.userId,providerId]));
  return {submitted:true};
 }
+
+/** Internal event-only FCM sender. No vendor text or client-supplied recipients. */
+export async function sendCompanionEventToDevice(
+ encryptedToken:string,category:"order_status"|"pickup_ready",
+ orderId:string
+):Promise<{status:number;body:unknown;messageId?:string}>{
+ const token=decrypt(encryptedToken);
+ const credentials=serviceAccount();
+ const oauth=await firebaseAccessToken(credentials);
+ // Only generic lock-screen text: order references and pickup codes do not appear.
+ const title="KONTA MOY Companion";
+ const body=category==="pickup_ready"
+   ?"Η παραγγελία σου είναι έτοιμη για παραλαβή."
+   :"Υπάρχει νέα ενημέρωση για μια παραγγελία σου.";
+ const destination="https://kontamou.site/account/orders/"+encodeURIComponent(orderId);
+ const response=await fetch(
+  `https://fcm.googleapis.com/v1/projects/${credentials.project_id}/messages:send`,{
+   method:"POST",
+   headers:{"Authorization":`Bearer ${oauth}`,"Content-Type":"application/json"},
+   body:JSON.stringify({message:{
+     token,notification:{title,body},
+     android:{
+       priority:"NORMAL",
+       collapse_key:"companion-order-"+orderId,
+       notification:{channel_id:"companion-updates",tag:"companion-order-"+orderId}
+     },
+     data:{kind:category,orderUrl:destination}
+   }}),
+   signal:AbortSignal.timeout(8000)
+  }
+ );
+ // Firebase errors can include token fragments; do not log or echo their body.
+ const payload=await response.json().catch(()=>({}));
+ return {status:response.status,body:response.ok?{}:payload,
+   ...(response.ok && typeof payload?.name==="string"
+     ?{messageId:payload.name.slice(0,512)}:{})};
+}
