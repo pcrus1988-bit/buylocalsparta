@@ -1,0 +1,54 @@
+#!/usr/bin/env node
+/**
+ * Catalogue-wide public-reference audit: exercise all SKUs with a dated price
+ * and report aggregate coverage only. Never prints product names or SKUs.
+ */
+import {readFile} from "node:fs/promises";
+import {join,resolve} from "node:path";
+import {
+  createBrandIndex,findBrandAlternatives,productFamily,referenceQuantity
+} from "./brand-alternatives.mjs";
+
+const dir=process.argv[2];
+if(!dir){console.error("Usage: node brand-coverage-audit.mjs IMPORT_DIR");process.exit(2);}
+const readJsonl=async name=>(await readFile(join(resolve(dir),name),"utf8"))
+  .split("\n").filter(Boolean).map(line=>JSON.parse(line));
+const [products,prices]=await Promise.all([
+  readJsonl("reference-products.jsonl"),readJsonl("reference-prices.jsonl")
+]);
+const offers=new Map();
+for(const observation of prices){
+  if(observation.country!=="GR"||observation.price_eur<=0)continue;
+  const list=offers.get(observation.source_product_id)||[];
+  list.push(observation);
+  offers.set(observation.source_product_id,list);
+}
+const index=createBrandIndex(products);
+const count={
+  products:products.length,pricedProducts:0,productsWithKnownSize:0,
+  productsWithBrandAndFamily:0,productsWithOtherBrandInFamily:0,
+  productsWithCheaperComparableBrand:0,comparablyPricedOffers:0,
+  unknownQuantity:0
+};
+for(const product of products){
+  if(!offers.has(product.source_product_id))continue;
+  count.pricedProducts++;
+  const size=referenceQuantity(product);
+  if(!size){count.unknownQuantity++;continue;}
+  count.productsWithKnownSize++;
+  const family=productFamily(product);
+  if(!family||!product.brand)continue;
+  count.productsWithBrandAndFamily++;
+  const group=index.get(family+"|"+size.unit)||[];
+  if(!group.some(p=>p.source_product_id!==product.source_product_id&&p.brand!==product.brand))continue;
+  count.productsWithOtherBrandInFamily++;
+  const res=findBrandAlternatives({
+    sourceId:product.source_product_id,products,offersByProduct:offers,brandIndex:index
+  });
+  if(res.alternatives.length) {
+    count.productsWithCheaperComparableBrand++;
+    count.comparablyPricedOffers+=res.alternatives.length;
+  }
+}
+if(count.products<1||count.pricedProducts<1)throw Error("No valid public reference products");
+console.log(JSON.stringify({brandComparisonAudit:count},null,2));
