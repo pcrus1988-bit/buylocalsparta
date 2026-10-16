@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {pickupBadge,pickupOrders,pickupCounts,pickupOrderPath} from "../src/lib/pickup-model.ts";
+import {pickupBadge,pickupOrders,pickupCounts,pickupOrderPath,orderStatusText,filterOrders} from "../src/lib/pickup-model.ts";
 import type {CompanionOrder} from "../src/lib/companion-session.ts";
 
 const a=(id:string,hasPickup:boolean,pickupReady:boolean,status="confirmed"):CompanionOrder=>({
@@ -28,4 +28,27 @@ test("browser order links stay on a safely checked local account path",()=>{
 });
 test("empty account snapshot results in no false pickup status",()=>{
  assert.deepEqual(pickupCounts([]),{total:0,ready:0});
+});
+
+test("cancelled and refunded orders cannot appear ready on either Android screen",()=>{
+ for(const status of ["cancelled","canceled","refunded","returned","failed","expired","picked_up"]){
+  const order=a("order-c",true,true,status);
+  assert.equal(pickupBadge(order),"closed",status);
+  assert.equal(orderStatusText(order),status);
+  assert.deepEqual(filterOrders([order],"ready"),[]);
+  assert.equal(filterOrders([order],"closed").length,1);
+ }
+});
+test("delivery-only order ignores a corrupted pickupReady flag",()=>{
+ const delivery=a("ship-only",false,true);
+ assert.equal(orderStatusText(delivery),"confirmed");
+ assert.deepEqual(filterOrders([delivery],"ready"),[]);
+ assert.deepEqual(filterOrders([delivery],"delivery"),[delivery]);
+});
+test("native order filters never erase other orders or mutate server snapshot",()=>{
+ const orders=[a("pending",true,false),a("ready",true,true),a("ship",false,false),a("refund",true,true,"refunded")];
+ assert.deepEqual(filterOrders(orders,"pickup").map(x=>x.id),["pending","ready","refund"]);
+ assert.deepEqual(filterOrders(orders,"ready").map(x=>x.id),["ready"]);
+ assert.deepEqual(filterOrders(orders,"all"),orders);
+ assert.equal(orders.length,4);
 });
