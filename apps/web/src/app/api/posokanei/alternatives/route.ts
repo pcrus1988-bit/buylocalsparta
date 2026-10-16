@@ -35,7 +35,6 @@ export async function GET(req:Request){
     const id=params.get("productId")||"";
     if(!/^[A-Za-z0-9_-]{1,100}$/.test(id))
       return NextResponse.json({status:"invalid",alternatives:[]},{status:400,headers});
-    const allBrands=params.get("show")==="all";
     const packages=Number(params.get("packages")||"1");
     if(!Number.isSafeInteger(packages)||packages<1||packages>100)
       return NextResponse.json({status:"invalid",alternatives:[],reason:"invalid_packages"},{status:400,headers});
@@ -49,7 +48,7 @@ export async function GET(req:Request){
       offersByProduct:catalogFor(snap).byProduct,brandIndex:index,
       approvedGroups:snap.approvedGroups,
       excludedRetailerIds:excluded,
-      includeNonCheaper:allBrands,maxResults:allBrands?10:5
+      includeNonCheaper:false,maxResults:5
     });
     if(matches.reason==="not_found")
       return NextResponse.json({status:"not_found",alternatives:[]},{status:404,headers});
@@ -84,7 +83,7 @@ export async function POST(request:Request){
        })||!Array.isArray(input.excludedRetailerIds)||
        input.excludedRetailerIds.length>24||
        input.excludedRetailerIds.some(x=>!validId(x))||
-       (input.includeNonCheaper!==undefined&&typeof input.includeNonCheaper!=="boolean"))
+       input.includeNonCheaper===true)
        return NextResponse.json({error:"Μη έγκυρα στοιχεία σύγκρισης."},{status:400,headers});
     const requested=input.lines as Array<{id:string;sourceProductId:string;packageCount:number}>;
     if(new Set(requested.map(x=>x.id)).size!==requested.length)
@@ -100,7 +99,7 @@ export async function POST(request:Request){
         products:snapshot.products,offersByProduct:catalogue.byProduct,
         brandIndex:index,approvedGroups:snapshot.approvedGroups,
         excludedRetailerIds:input.excludedRetailerIds as string[],
-        includeNonCheaper:input.includeNonCheaper===true
+        includeNonCheaper:false
       })
     }));
     return NextResponse.json({
