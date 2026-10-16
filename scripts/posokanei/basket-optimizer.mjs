@@ -9,6 +9,7 @@
  * Costs use integer EUR cents. No incomplete basket is advertised as having a total.
  */
 import { packageQuantity } from './comparison-engine.mjs';
+import { isAutomaticBrandEquivalent } from './brand-alternatives.mjs';
 
 const MAX_LINES = 60;
 const MAX_RETAILERS = 24;
@@ -249,7 +250,7 @@ export function optimizeReferenceBasket({
     priceByProduct.set(observation.source_product_id,existing);
   }
   const definedLines = lines.map(line=>basketLineOptions(line,productById,groupById,priceByProduct,snapshotDate));
-  // Preserve the customer's ORIGINAL selected products after an explicit reviewed
+  // Preserve the customer's ORIGINAL selected products after an explicit validated
   // brand replacement. Never trust claimed savings or prices supplied by the client.
   // An old/new pair only counts if the current approved snapshot still verifies the
   // same product type AND the current pack count fulfils the original quantity.
@@ -264,9 +265,10 @@ export function optimizeReferenceBasket({
     const originalPack=before&&packageQuantity(before);
     const chosenPack=after&&packageQuantity(after);
     if(!originalPack||!chosenPack||originalPack.unit!==chosenPack.unit||
-      !approvedGroups.some(g=>g.status==='approved'&&g.basis===originalPack.unit&&
+      !(approvedGroups.some(g=>g.status==='approved'&&g.basis===originalPack.unit&&
         Array.isArray(g.memberIds)&&g.memberIds.includes(previous.sourceProductId)&&
-        g.memberIds.includes(line.sourceProductId)))return line;
+        g.memberIds.includes(line.sourceProductId))||
+        isAutomaticBrandEquivalent(before,after)))return line;
     const required=Math.ceil(originalPack.amount*previous.packageCount/chosenPack.amount-1e-9);
     if(required!==line.packageCount)return line;
     return {...line,sourceProductId:previous.sourceProductId,packageCount:previous.packageCount,
