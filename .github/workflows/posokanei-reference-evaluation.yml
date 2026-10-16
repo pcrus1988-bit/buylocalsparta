@@ -26,11 +26,13 @@ jobs:
         run: node --test scripts/posokanei/*.test.mjs
       - name: Privately audit latest full public snapshot
         run: node scripts/posokanei/import-snapshot.mjs --latest --out "$RUNNER_TEMP/posokanei"
+      - name: Evaluate conservative automatic commodity approvals
+        run: node scripts/posokanei/export-auto-commodity-groups.mjs "$RUNNER_TEMP/posokanei" scripts/posokanei/approved-equivalence-groups.json "$RUNNER_TEMP/posokanei/approval-evidence.json"
       - name: Audit full-catalogue cheaper-brand matching coverage
-        run: node scripts/posokanei/brand-coverage-audit.mjs "$RUNNER_TEMP/posokanei" scripts/posokanei/approved-equivalence-groups.json
+        run: node scripts/posokanei/brand-coverage-audit.mjs "$RUNNER_TEMP/posokanei" "$RUNNER_TEMP/posokanei/approval-evidence.json"
       - name: Rank unverified comparable families for manual review
         run: |
-          node scripts/posokanei/build-comparable-review-queue.mjs "$RUNNER_TEMP/posokanei" --out "$RUNNER_TEMP/posokanei/candidate-queue.json" --approved scripts/posokanei/approved-equivalence-groups.json --limit 100
+          node scripts/posokanei/build-comparable-review-queue.mjs "$RUNNER_TEMP/posokanei" --out "$RUNNER_TEMP/posokanei/candidate-queue.json" --approved "$RUNNER_TEMP/posokanei/approval-evidence.json" --limit 100
           # The complete queue is ephemeral on the runner and never published.
       - name: Report non-identifying import counts
         run: |
