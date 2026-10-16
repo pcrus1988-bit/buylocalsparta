@@ -1,5 +1,6 @@
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
+import Constants from "expo-constants";
 import {Link} from "expo-router";
 import {useCallback,useEffect,useRef,useState} from "react";
 import {Alert,Linking,Pressable,ScrollView,StyleSheet,Text,View} from "react-native";
@@ -14,6 +15,7 @@ WebBrowser.maybeCompleteAuthSession();
 const REDIRECT="kontamoucompanion://auth";
 const discovery={authorizationEndpoint:"https://kontamou.site/account/companion-connect"};
 const WEBSITE="https://kontamou.site";
+const PREVIEW=Constants.expoConfig?.extra?.companionPreview===true;
 
 function money(minor:number,currency:string){
  try{return new Intl.NumberFormat("el-GR",{style:"currency",currency:currency||"EUR"}).format(minor/100);}
@@ -107,9 +109,9 @@ export default function CompanionAccountScreen(){
     <View style={styles.card}>
       <Text style={styles.heading}>Σύνδεση στον λογαριασμό σου</Text>
       <Text style={styles.help}>Άνοιξε την ασφαλή σελίδα σύνδεσης KONTA MOY. Δεν εισάγεις κωδικό στην εφαρμογή: μετά την έγκρισή σου επιστρέφεις εδώ.</Text>
-      <Pressable accessibilityRole="button" disabled={!request||busy}
+      <Pressable accessibilityRole="button" disabled={!request||busy||PREVIEW}
         onPress={()=>void promptAsync()} style={[styles.primary,(!request||busy)&&styles.disabled]}>
-        <Text style={styles.primaryLabel}>{busy?"Σύνδεση…":"Σύνδεση KONTA MOY"}</Text>
+        <Text style={styles.primaryLabel}>{PREVIEW?"Σύνδεση μέσω browser στην πιλοτική έκδοση":busy?"Σύνδεση…":"Σύνδεση KONTA MOY"}</Text>
       </Pressable>
       <Pressable accessibilityRole="link" style={styles.outline}
         onPress={()=>void Linking.openURL(WEBSITE+"/account")}>
