@@ -1,0 +1,30 @@
+name: PosoKanei Private Snapshot Audit
+on:
+  pull_request:
+    paths:
+      - 'scripts/posokanei/**'
+      - '.github/workflows/posokanei-snapshot-audit.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: "19 4 * * *"
+permissions:
+  contents: read
+jobs:
+  private-archive-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run offline evaluation tests
+        run: node --test scripts/posokanei/*.test.mjs
+      - name: Import latest public-mirror snapshot to private runner storage
+        run: node scripts/posokanei/import-snapshot.mjs --latest --out "$RUNNER_TEMP/posokanei"
+      - name: Emit counts and audit metadata only
+        env:
+          STAGE_DIR: ${{ runner.temp }}/posokanei
+        run: |
+          node -e 'const fs=require("node:fs");const p=process.env.STAGE_DIR+"/manifest.json";const m=JSON.parse(fs.readFileSync(p,"utf8"));console.log(JSON.stringify({snapshot:m.snapshot_date,total:m.source_total,collected:m.source_collected,prices:m.reference_price_observations,sha256:m.snapshot_sha256,warnings:m.warnings}));'
+      # Never upload or publish the imported third-party dataset from this workflow.
