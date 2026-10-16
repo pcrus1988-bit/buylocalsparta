@@ -27,7 +27,7 @@ test("PosoKanei always shows compact shopping-list alternatives with explicit ma
   assert.match(source,/fetch\("\/api\/posokanei\/alternatives",\{\s*method:"POST"/);
   assert.match(source,/includeNonCheaper:true/);
   assert.match(source,/entry\.alternatives\.length>0\|\|entry\.candidates\.length>0/);
-  assert.match(source,/<section className=\{styles\.suggestion\}/);
+  assert.match(source,/<section className=\{styles\.suggestion\} key=\{entry\.lineId\}/);
   assert.match(source,/Εναλλακτικές για/);
   assert.match(source,/Πιθανή εναλλακτική · μη ελεγμένη/);
   assert.match(source,/Ελεγμένος συγκρίσιμος τύπος/);
@@ -52,4 +52,17 @@ test("a chosen reviewed alternative preserves original prices and refreshes tota
   assert.match(source,/Εξοικονόμηση από επιλογή σούπερ μάρκετ/);
   assert.match(source,/Unverified candidates remain opt-in/);
   assert.match(source,/Εναλλακτικές για/);
+});
+
+test("basket savings prompt expands verified cheaper options and selected alternatives collapse",()=>{
+  assert.match(source,/summarizeCheaperAlternatives\(Object\.values\(brandResults\)\)/);
+  assert.match(source,/savingsOpportunities\.productCount>0&&<button/);
+  assert.match(source,/Εξοικονόμησε έως/);
+  assert.match(source,/savingsOpportunities\.potentialSavingEur/);
+  assert.match(source,/setExpandedAlternatives\(current=>\[\.\.\.new Set\(\[\.\.\.current,\.\.\.savingsOpportunities\.lineIds\]\)\]\)/);
+  assert.match(source,/scrollIntoView\(\{behavior:"smooth",block:"start"\}\)/);
+  assert.match(source,/aria-expanded=\{expandedAlternatives\.includes\(entry\.lineId\)\}/);
+  assert.match(source,/expandedAlternatives\.includes\(entry\.lineId\)&&[\s\S]*?entry\.alternatives/);
+  assert.match(source,/setExpandedAlternatives\(current=>current\.filter\(id=>id!==lineId\)\)/);
+  assert.match(source,/void calculate\(revised\)/);
 });
