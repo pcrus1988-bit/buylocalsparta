@@ -48,7 +48,7 @@ export function PosoKaneiPublicClient(){
     try{
       const saved=JSON.parse(localStorage.getItem("posokanei-shopping-v2")||"{}") as {excluded?:string[];maxStores?:number;lines?:BasketLine[];labels?:Record<string,string>};
       if(Array.isArray(saved.excluded))setExcluded(saved.excluded.filter(x=>typeof x==="string"&&/^[A-Za-z0-9_-]{1,100}$/.test(x)).slice(0,24));
-      if(Number.isSafeInteger(saved.maxStores)&&saved.maxStores!>=1&&saved.maxStores!<=5)setStoreLimit(saved.maxStores!);
+      if(typeof saved.maxStores==="number"&&Number.isSafeInteger(saved.maxStores)&&saved.maxStores>=1&&saved.maxStores<=5)setStoreLimit(saved.maxStores);
       if(Array.isArray(saved.lines)&&saved.lines.length<=20&&saved.lines.every(x=>x&&typeof x.id==="string"&&["exact","group"].includes(x.kind)))setLines(saved.lines);
       if(saved.labels&&typeof saved.labels==="object")setLabels(saved.labels);
     }catch{}
