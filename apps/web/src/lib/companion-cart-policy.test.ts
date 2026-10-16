@@ -27,3 +27,8 @@ test("server cart revision changes on quantities, prices and available stock",()
  assert.notEqual(companionCartRevision({...base,items:[{...item,available:false}]}),hash);
  assert.equal(companionCartRevision({...base,items:[item]}),hash);
 });
+
+test("first add uses stable revision for an as-yet unsaved empty marketplace cart",()=>{
+ const empty={id:"",updatedAt:Date.now(),items:[]};
+ assert.equal(companionCartRevision(empty),companionCartRevision({...empty,updatedAt:Date.now()+10000}));
+});
