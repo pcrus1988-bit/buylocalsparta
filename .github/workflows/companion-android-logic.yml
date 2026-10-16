@@ -5,8 +5,11 @@ on:
       - "mobile/**"
       - "apps/web/src/lib/companion-*.ts"
       - "apps/web/src/app/api/mobile/companion/**"
+      - "apps/web/src/app/api/internal/companion/**"
+      - "supabase/migrations/*companion*.sql"
       - "apps/web/test/companion-pkce.test.ts"
       - "apps/web/test/companion-push-policy.test.ts"
+      - "apps/web/test/companion-fcm-status.test.ts"
       - ".github/workflows/companion-android-logic.yml"
   push:
     branches: [main]
@@ -14,8 +17,11 @@ on:
       - "mobile/**"
       - "apps/web/src/lib/companion-*.ts"
       - "apps/web/src/app/api/mobile/companion/**"
+      - "apps/web/src/app/api/internal/companion/**"
+      - "supabase/migrations/*companion*.sql"
       - "apps/web/test/companion-pkce.test.ts"
       - "apps/web/test/companion-push-policy.test.ts"
+      - "apps/web/test/companion-fcm-status.test.ts"
       - ".github/workflows/companion-android-logic.yml"
 jobs:
   matching:
@@ -27,7 +33,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - run: node --experimental-strip-types --test mobile/test/nearby-matching.test.ts apps/web/test/companion-pkce.test.ts apps/web/test/companion-push-policy.test.ts
+      - run: node --experimental-strip-types --test mobile/test/nearby-matching.test.ts apps/web/test/companion-pkce.test.ts apps/web/test/companion-push-policy.test.ts apps/web/test/companion-fcm-status.test.ts
   android-types:
     name: Android Expo dependency and typecheck
     runs-on: ubuntu-latest
