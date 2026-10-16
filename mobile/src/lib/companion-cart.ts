@@ -1,27 +1,12 @@
 import {validCanonicalPublicId} from "./canonical-id";
+import {cartItemsAfterChange,nextCartQuantity} from "./companion-cart-rules";
+export {cartItemsAfterChange,nextCartQuantity} from "./companion-cart-rules";
 import {companionAuthorizedRequest} from "./companion-session";
 
 export type NativeCartItem={canonicalVariantId:string;title:string;quantity:number;priceMinor:number;available:boolean};
 export type NativeCart={revision:string;currency:"EUR";priceFinal:false;availabilityFinal:false;items:NativeCartItem[]};
 type NativeCartEnvelope={cart:NativeCart};
 
-export function cartItemsAfterChange(
- current:readonly NativeCartItem[],variantId:string,quantity:number
-):{canonicalVariantId:string;quantity:number}[]{
- if(!validCanonicalPublicId(variantId)||!Number.isSafeInteger(quantity)||quantity<0||quantity>99)
-   throw Error("INVALID_CART_CHANGE");
- const items=current.map(x=>({canonicalVariantId:x.canonicalVariantId,quantity:x.quantity}))
-   .filter(x=>x.canonicalVariantId!==variantId);
- if(quantity>0)items.push({canonicalVariantId:variantId,quantity});
- if(items.length>100)throw Error("CART_LIMIT");
- return items;
-}
-export function nextCartQuantity(current:readonly NativeCartItem[],variantId:string,delta:number):number{
- const item=current.find(x=>x.canonicalVariantId===variantId);
- const quantity=(item?.quantity??0)+delta;
- if(!Number.isSafeInteger(delta)||quantity<0||quantity>99)throw Error("INVALID_QUANTITY");
- return quantity;
-}
 function validateCart(data:NativeCartEnvelope):NativeCart{
  const cart=data?.cart;
  if(!cart||typeof cart.revision!=="string"||!/^[a-f0-9]{64}$/.test(cart.revision)
