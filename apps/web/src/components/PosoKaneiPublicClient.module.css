@@ -125,3 +125,9 @@
 .listDetails .line>.textButton:disabled{opacity:.55}
 .suggestion>small{display:block;color:#56735c;font-size:11px;line-height:1.5;margin-top:10px}
 .suggestionLine small+small{margin-top:2px;color:#265a3b;font-weight:700}
+
+
+.brandStatus{grid-column:1/-1;color:#527b60;line-height:1.4;font-size:11px}
+details.suggestion{display:block;padding:12px;margin:10px 0;border-radius:12px}
+details.suggestion>summary{font-size:13px;line-height:1.45;font-weight:750;cursor:pointer;color:#22593e}
+details.suggestion[open]>summary{margin-bottom:10px}
