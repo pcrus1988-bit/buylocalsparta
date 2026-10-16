@@ -211,3 +211,24 @@ test("unbranded, registry placeholders and recycled EAN labels are NOT distinct 
   assert.equal(findBrandAlternatives({sourceId:"f",products:[fake,real,ean],offersByProduct:prices}).alternatives.length,0);
   assert.equal(findBrandAlternatives({sourceId:"r",products:[fake,real,ean],offersByProduct:prices}).alternatives.length,0);
 });
+
+
+test("catalogue mode includes equal and more expensive comparable brands without triggering basket alerts",()=>{
+  const a=p("a","ALFA Γάλα Πλήρες 3,5% 1lt","ALFA","ΓΑΛΑ","L",1);
+  const b=p("b","BETA Milk Πλήρες 3,5% 1lt","BETA","ΓΑΛΑ","L",1);
+  const c=p("c","GAMMA Milk Πλήρες 3,5% 1lt","GAMMA","ΓΑΛΑ","L",1);
+  const d=p("d","DELTA Milk Πλήρες 1,5% 1lt","DELTA","ΓΑΛΑ","L",1);
+  const prices=new Map([
+    ["a",[o("a","x",1.30)]],["b",[o("b","y",1.30)]],
+    ["c",[o("c","y",1.60)]],["d",[o("d","y",.20)]]
+  ]);
+  const input={sourceId:"a",products:[a,b,c,d],offersByProduct:prices};
+  const cheaper=findBrandAlternatives(input);
+  assert.equal(cheaper.alternatives.length,0);
+  const all=findBrandAlternatives({...input,includeNonCheaper:true});
+  assert.equal(all.reason,"comparable_found");
+  assert.deepEqual(all.alternatives.map(x=>x.id),["b","c"]);
+  assert.equal(all.alternatives[0].savingsEur,0);
+  assert.equal(all.alternatives[1].savingsEur,-.3);
+  assert.ok(!all.alternatives.some(x=>x.id==="d"));
+});
