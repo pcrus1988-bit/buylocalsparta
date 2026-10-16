@@ -8,7 +8,8 @@ import { CompanionForegroundWatcher } from "../components/CompanionForegroundWat
 
 export default function RootLayout() {
   useEffect(()=>{
-    const open=(data:Record<string,unknown>)=>{
+    const open=(data:Record<string,unknown>|undefined)=>{
+      if(!data)return;
       const url=data.productUrl;
       if(typeof url==="string"&&url.startsWith("https://kontamou.site/shop?")){
         void Linking.openURL(url);
