@@ -1,7 +1,7 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback,useState } from "react";
-import { Alert, Pressable,ScrollView,StyleSheet,Text,TextInput,View } from "react-native";
-import {addItem,getItems,removeItem,setItemCompleted,importAccountWishlist,type ListItem,type ListKind} from "../lib/companion-store";
+import { Alert, Pressable,ScrollView,Share,StyleSheet,Text,TextInput,View } from "react-native";
+import {addItem,getItems,removeItem,setItemCompleted,setItemQuantity,moveItem,importAccountWishlist,type ListItem,type ListKind} from "../lib/companion-store";
 import {theme} from "../theme";
 import {openMarketplace} from "../lib/marketplace-navigation";
 import {searchCompanionCatalog,type CompanionCatalogProduct} from "../lib/companion-catalog";
@@ -55,6 +55,28 @@ export default function CompanionListsScreen(){
    setCatalogNotice(added?"Το προϊόν προστέθηκε στη wishlist με το ακριβές αναγνωριστικό καταλόγου.":"Αυτό το προϊόν υπάρχει ήδη στη wishlist.");
   }catch{setCatalogNotice("Δεν έγινε η αποθήκευση στη συσκευή.");}
   finally{setBusy(false);}
+ }
+ async function adjust(item:ListItem,amount:number){
+  const target=item.quantity+amount;
+  if(target<1||target>99)return;
+  try{await setItemQuantity(item.id,target);await refresh();}
+  catch{setError("Δεν ενημερώθηκε η ποσότητα.");}
+ }
+ async function move(item:ListItem){
+  try{
+   await moveItem(item.id,item.kind==="shopping"?"wishlist":"shopping");
+   await refresh();
+  }catch{setError("Δεν ολοκληρώθηκε η μεταφορά.");}
+ }
+ async function share(){
+  const pending=visible.filter(i=>!i.completed);
+  if(!pending.length){setError("Η ενεργή λίστα είναι άδεια.");return;}
+  try{
+   await Share.share({
+    message:"KONTA MOY · "+(kind==="shopping"?"Λίστα αγορών":"Wishlist")+"\n"+
+      pending.map(i=>i.quantity+" × "+i.title).join("\n")
+   });
+  }catch{setError("Η κοινοποίηση δεν ολοκληρώθηκε.");}
  }
  function confirmRemove(item:ListItem){
   Alert.alert("Αφαίρεση",`Να αφαιρεθεί το «${item.title}»;`,[
@@ -111,19 +133,52 @@ export default function CompanionListsScreen(){
   </View>}
   {error?<Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>:null}
   <Text style={styles.count}>{visible.filter(i=>!i.completed).length} εκκρεμή · {visible.length} συνολικά</Text>
+  <Pressable accessibilityRole="button" onPress={()=>void share()}
+    disabled={!visible.some(i=>!i.completed)}
+    style={[styles.shareButton,!visible.some(i=>!i.completed)&&{opacity:.5}]}>
+    <Text style={styles.shareText}>↗ Κοινοποίηση ενεργής λίστας</Text>
+  </Pressable>
   <View style={styles.list}>
-   {visible.length===0?<View style={styles.empty}><Text style={styles.emptyTitle}>Η λίστα είναι ακόμη άδεια.</Text><Text style={styles.sub}>Πρόσθεσε το πρώτο σου προϊόν.</Text></View>:
+   {visible.length===0?<View style={styles.empty}>
+     <Text style={styles.emptyTitle}>Η λίστα είναι ακόμη άδεια.</Text>
+     <Text style={styles.sub}>Πρόσθεσε το πρώτο σου προϊόν.</Text>
+    </View>:
     visible.map(item=><View key={item.id} style={styles.item}>
-     <Pressable accessibilityRole="checkbox" accessibilityState={{checked:item.completed}} style={styles.itemPrimary} onPress={()=>void toggle(item)}>
-      <Text style={styles.check}>{item.completed?"☑":"☐"}</Text>
-      <View style={{flex:1}}><Text style={[styles.itemTitle,item.completed&&styles.completed]}>{item.title}</Text>
-        <Text style={styles.itemMeta}>Ποσότητα: {item.quantity}</Text>
-      {item.variantId&&<Pressable accessibilityRole="link"
-        onPress={()=>void openMarketplace({path:"/product/"+item.variantId})}>
-        <Text style={styles.catalogLink}>Δες το ακριβές προϊόν ↗</Text>
-      </Pressable>}</View>
-     </Pressable>
-     <Pressable accessibilityRole="button" accessibilityLabel={`Αφαίρεση ${item.title}`} onPress={()=>confirmRemove(item)} style={styles.delete}><Text style={styles.deleteText}>×</Text></Pressable>
+     <View style={styles.itemRow}>
+      <Pressable accessibilityRole="checkbox"
+        accessibilityState={{checked:item.completed}}
+        accessibilityLabel={`Σήμανση ${item.title} ως ${item.completed?"εκκρεμές":"ολοκληρωμένο"}`}
+        style={styles.itemCheck} onPress={()=>void toggle(item)}>
+       <Text style={styles.check}>{item.completed?"☑":"☐"}</Text>
+      </Pressable>
+      <View style={{flex:1,gap:4}}>
+       <Text style={[styles.itemTitle,item.completed&&styles.completed]}>{item.title}</Text>
+       {item.variantId&&<Pressable accessibilityRole="link"
+          onPress={()=>void openMarketplace({path:"/product/"+item.variantId})}>
+        <Text style={styles.catalogLink}>Ακριβές προϊόν και αγορά ↗</Text>
+       </Pressable>}
+      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Αφαίρεση ${item.title}`}
+        onPress={()=>confirmRemove(item)} style={styles.delete}>
+       <Text style={styles.deleteText}>×</Text>
+      </Pressable>
+     </View>
+     <View style={styles.itemControls}>
+      <View style={styles.quantityStepper}>
+       <Pressable accessibilityRole="button" accessibilityLabel={`Μείωση ποσότητας ${item.title}`}
+         disabled={item.quantity<=1} onPress={()=>void adjust(item,-1)} style={styles.stepperButton}>
+        <Text style={styles.stepperLabel}>−</Text>
+       </Pressable>
+       <Text style={styles.stepperValue}>{item.quantity} τεμ.</Text>
+       <Pressable accessibilityRole="button" accessibilityLabel={`Αύξηση ποσότητας ${item.title}`}
+         disabled={item.quantity>=99} onPress={()=>void adjust(item,1)} style={styles.stepperButton}>
+        <Text style={styles.stepperLabel}>+</Text>
+       </Pressable>
+      </View>
+      <Pressable accessibilityRole="button" onPress={()=>void move(item)} style={styles.move}>
+       <Text style={styles.moveText}>{kind==="shopping"?"→ Wishlist":"→ Λίστα αγορών"}</Text>
+      </Pressable>
+     </View>
     </View>)
    }
   </View>
@@ -149,7 +204,18 @@ const styles=StyleSheet.create({
  addText:{color:theme.white,fontWeight:"800"},
  count:{fontSize:14,color:theme.muted,fontWeight:"700"},
  list:{gap:10},
- item:{backgroundColor:theme.white,borderRadius:15,borderWidth:1,borderColor:theme.border,flexDirection:"row",alignItems:"center"},
+ item:{backgroundColor:theme.white,borderRadius:15,borderWidth:1,borderColor:theme.border,paddingBottom:10},
+ itemRow:{flexDirection:"row",alignItems:"center",gap:7,paddingHorizontal:11,paddingTop:9},
+ itemCheck:{padding:8},
+ itemControls:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8,paddingHorizontal:13},
+ quantityStepper:{flexDirection:"row",alignItems:"center",borderRadius:11,borderWidth:1,borderColor:theme.border},
+ stepperButton:{minHeight:38,minWidth:38,alignItems:"center",justifyContent:"center"},
+ stepperLabel:{fontSize:22,color:theme.green,fontWeight:"800"},
+ stepperValue:{fontSize:12,color:theme.ink,fontWeight:"700",paddingHorizontal:6},
+ move:{padding:10,borderRadius:10,backgroundColor:"#EDF2E9"},
+ moveText:{color:theme.green,fontWeight:"800",fontSize:12},
+ shareButton:{padding:12,borderRadius:12,borderWidth:1,borderColor:theme.border,backgroundColor:theme.white,alignItems:"center"},
+ shareText:{fontSize:13,color:theme.green,fontWeight:"800"},
  itemPrimary:{flex:1,flexDirection:"row",alignItems:"center",gap:13,padding:15},
  check:{fontSize:28,color:theme.green},
  itemTitle:{fontSize:16,fontWeight:"700",color:theme.ink},
