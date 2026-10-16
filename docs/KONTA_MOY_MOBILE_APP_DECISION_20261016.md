@@ -1,58 +1,53 @@
-# KONTA MOY customer mobile — native-first decision (16 October 2026)
+# KONTA MOY Companion — Android-only development decision
 
-## Decision
+Updated 16 October 2026 to reflect the specific product goal and platform choice.
 
-Build one customer-facing iOS/Android app using React Native + Expo SDK 57 and Expo Router. Keep the existing Next.js website, checkout, vendor and admin portals as the source of truth; connect through a secure mobile API boundary. **No new marketplace, stock database or duplicate vendor catalogue.** Stage 0 native app foundation in `mobile/`; no production activation.
+## Product mandate
 
-The prior opted-in foreground web implementation is in draft PR #1551. Treat it as a **backend domain/API exploration**, not as a production-grade native mobile API. It currently relies on authenticated web cookies/CSRF and is not to be called from native without a designed mobile authentication contract.
+KONTA MOY Companion is a dedicated **Android customer companion** to the existing KONTA MOY marketplace, not a secondary storefront or vendor dashboard. It should connect saved shopping needs with nearby, verified local stock and proactively support the real-world journey: search → choose vendor → buy → local pickup QR → reminders and follow-up.
 
-## User experience
+iOS is explicitly out of scope. The Android app name is `KONTA MOY Companion`, Android application ID `site.kontamou.companion`.
 
-- Home: local discovery, recommended nearby merchants/products, search.
-- Nearby: map/list of **verified** shops and truly additional exclusive offers; user chooses one-time/while-in-use location.
-- Shop: canonical product family → variants → seller offers → basket → checkout/QR pickup.
-- Account: existing identity, orders, wishlist, return progress and contact support.
-- Notifications: opted-in saved-store alerts, wishlist price/stock alerts, order status, near-me content **only while using the app** in initial release.
-- Vendor/admin stay on the web app; do not bundle vendor permissions in the customer client.
+## Current implementation
 
-## Core technical boundaries
+See `mobile/README.md` and draft PR #1553. Native shopping/wishlist lists persist in SQLite. Foreground location discovery uses a bounded HTTPS marketplace endpoint, performs wishlist matching on-device, and uses opted-in on-device Android notifications. The customer can open existing account and pickup screens securely via system browser. Neither a native signed APK nor store publication nor native account/pickup sync is complete.
 
-| Concern | Choice |
-| --- | --- |
-| Mobile frontend | React Native / Expo SDK 57, TypeScript, native screens |
-| Identity | First-party OIDC/OAuth PKCE or audited mobile token exchange against existing customer auth; server-side rotating refresh and revocation |
-| Authorization | Backend token scopes, vendor isolation & account ownership, no service-role secrets on device |
-| Catalogue / checkout | Reuse existing KONTA MOY services, product variant IDs, stock and checkout business rules |
-| Store geodata | Approved vendor location coordinates only; verify manually and handle missing/inaccurate GPS |
-| Foreground location | One-shot Android/iOS foreground permission on user action; no GPS history in backend |
-| Push | APNs/FCM tokens, separately opt-in; not a surrogate for background GPS |
-| Native alert tap | Deep-link to exact campaign/vendor/product; confirm campaign expiry, stock and user eligibility before redemption |
-| Analytics | Aggregate redemption/conversion without maintaining customer routes or exact coordinates |
-| Native build | Expo Development Build + EAS, real-device testing, official branding and store policies |
+The separate web/Vendor Nearby Offers backend and campaign UI remain in draft PR #1551; that code does not create an Android mobile authentication contract, and must not be used to send unsolicited messages. No existing production location processing was enabled.
 
-## Release sequence and acceptance criteria
+## Notification classes and trust boundaries
 
-1. **Native foundation:** branded navigation and simple foreground location, no backend dependency. Complete once device build and typecheck verified (this PR adds sources; build/test still pending).
-2. **Mobile identity:** end-to-end login, token rotation, logout, revocation, device/keychain tests and audit.
-3. **Read-native discovery:** verified shops and canonical offers + map/list, offline and poor-GPS fallbacks.
-4. **Commerce:** cart checkout handoff/complete flow, order status, QR pickup, wishlist; no split-brain pricing or stock.
-5. **Notifications:** platform push, device consent, suppressions, replay/dedupe and fine-grained user preferences.
-6. **Proximity pilot:** ONLY foreground GPS-triggered nearby discounts, reserved to verified active vendors with accurate coordinates and a real extra benefit; cap alerts, protect consent, stop immediately on opt-out.
-7. **Closed-app geofence research:** separately assess iOS/Android platform policy, purpose limitation and approval. Do not ship Android background location just for promotional offers. Reject unsupported behavior rather than misleading app users.
-8. **Sparta beta and publishing:** live device trials, legal review, release readiness, app store ownership, app privacy declarations.
+| Notification category | Whose request? | Eligibility rule | Current status |
+| --- | --- | --- | --- |
+| User shopping-list reminder | Customer explicitly added an item & opted into reminder | Verified physical shop, true pickup inventory, canonical match, <=500 m, foreground permission | Local Android notification coded; device QA pending |
+| Wishlist price/stock change | Customer opted in to monitor specific canonical variant | Server evaluates only owned saved products and live stock | Pending mobile auth and FCM |
+| Pickup/order | Transactional event on customer's own order | Authorized order/pickup token, idempotent delivery | Existing website; mobile FCM pending |
+| Vendor exclusive nearby offer | Separate marketing opt-in | Approved vendor campaign, explicit audience eligibility, geo consent, time/stock and cooldown | Preference-only scaffold, no live mobile vendor push |
+| Closed-app location-driven alert | Separate OS policy and consent review | Only if Google Play allows a truly core benefit, with foreground alternative | Not implemented; no Android background location permission |
 
-## Important policy and OS constraints (checked October 2026)
+## Non-negotiable security
 
-- Google Play's Background Location policy: advertising/promotional-only use of background location is not acceptable, and qualifying features require strong core benefit; background ads-only requests are denied: https://support.google.com/googleplay/android-developer/answer/9799150
-- Apple Core Location geofencing: 20 simultaneous monitored regions max, OS events not instantaneous: https://developer.apple.com/documentation/CoreLocation/monitoring-the-user-s-proximity-to-geographic-regions
-- Expo Location: native background geofencing needs appropriate permissions & development builds; 20 iOS / 100 Android region limit; Android app termination can stop detection: https://docs.expo.dev/versions/latest/sdk/location/
-- Apple's App Review Guidelines 4.2 require an actual useful app, not merely a website wrapper: https://developer.apple.com/app-store/review/guidelines/
-- Location and notification consent are independent, separate from general marketing or analytics consent.
+- No merchant access to live customer GPS, personal shopping lists or identity from nearby discovery.
+- No raw GPS coordinate retention in device history/database, HTTP analytics or notification payloads.
+- Do not embed web login cookies, user password storage or Supabase service-role keys inside Android.
+- Use reviewed first-party auth, secure local token storage, refresh-token rotation and logout revocation before syncing account/wishlist/orders.
+- Never present a fabricated pickup QR, reserve stock or imply availability without real live inventory.
+- Allow immediate opt-out of each marketing/reminder category; permission revocation must stop monitoring even if the application is in memory.
+- The product must remain useful with location and notification permissions denied.
+- Avoid background tracking for marketing: Google Play may reject background location requested solely for advertisements. Any user-started shopping trip foreground service is a **separate** future design requiring explicit review, an ongoing Android notification and real device tests, not a workaround to permission policy.
 
-## Verified launch blocker
+## Engineering milestones
 
-Earlier direct inspection of production project reported two currently active, publicly visible vendors whose verified physical locations **lack coordinates**. Do not invent or geocode these silently for campaign eligibility. Request manual verification before first real proximity pilot.
+1. Android-only signed development build; verify dependency pins & generated `mobile/package-lock.json`; build + unit test + real GPS and notification QA.
+2. First-party Android PKCE-based sign in and server session bridge; secure token storage and authorized mobile APIs.
+3. Merge offline lists with existing customer saved products and saved searches only after identity is secure; maintain variant-level match and user ownership.
+4. Native order/QR pickup screens with dedicated one-time tokens, no personal data leaking to merchant until redemption.
+5. FCM authenticated device registration, per-user consent and suppression (no token registration until signed in).
+6. Merchant promotions from reviewed campaign source with correct marketing consent, no broad vendor push without verified consent and eligibility.
+7. Validate physical store GPS for active vendors; currently zero active vendor locations satisfy approved GPS requirements.
+8. Sparta closed beta then Play release review. Keep web marketplace and vendor admin untouched.
 
-## Out of scope of Stage 0
+## Platform references
 
-No live auth, campaigns, backend location submission, remote push, persistent OS background location permission or app store publication has been completed. It is a source scaffold/architecture foundation only.
+- Expo SDK 57 location: https://docs.expo.dev/versions/v57.0.0/sdk/location/
+- Expo SDK 57 notifications: https://docs.expo.dev/versions/v57.0.0/sdk/notifications/
+- Google Play background location requirements: https://support.google.com/googleplay/android-developer/answer/9799150
