@@ -1,4 +1,5 @@
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Link } from "expo-router";
 import { theme } from "../theme";
 
 const accountPages=[
@@ -13,6 +14,7 @@ export default function Account() {
  return <ScrollView contentContainerStyle={styles.screen}>
    <Text style={styles.title}>KONTA MOY Companion · Ο λογαριασμός σου</Text>
    <Text style={styles.lead}>Παρακολούθησε τις παραγγελίες και άνοιξε τον ασφαλή κωδικό QR παραλαβής όταν είναι έτοιμη.</Text>
+   <Link href="/pickups" asChild><Pressable style={styles.link} accessibilityRole="button"><Text style={styles.linkText}>Παραλαβές & QR →</Text></Pressable></Link>
    <View style={styles.card}>
      {accountPages.map(p=><Pressable accessibilityRole="button" key={p.path} style={styles.link} onPress={()=>void Linking.openURL("https://kontamou.site"+p.path)}>
        <Text style={styles.linkText}>{p.label} ↗</Text>
