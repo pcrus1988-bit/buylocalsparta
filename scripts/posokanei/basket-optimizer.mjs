@@ -175,6 +175,25 @@ function prefer(a,b) {
   const ai = a.stores.map(s=>s.id).join(','),bi=b.stores.map(s=>s.id).join(',');
   return ai <= bi ? a : b;
 }
+// Compare only SKUs that the coverage-first single supermarket actually lists.
+// Optimize precisely that shared subset under the user's chosen store cap and
+// chain exclusions. No price for an unavailable line is ever treated as zero.
+function optimizeMatchedSubset(matchedLines,storeLimit){
+  if(!matchedLines.length)return null;
+  const retailerIds=[...new Set(matchedLines.flatMap(l=>l.options.map(o=>o.retailerId)))].sort(compareIds);
+  let best=null;
+  function scan(chosen,start){
+    if(chosen.length){
+      const plan=candidatePlan(matchedLines,new Set(chosen));
+      if(plan.complete)best=prefer(best,plan);
+    }
+    if(chosen.length>=storeLimit)return;
+    for(let i=start;i<retailerIds.length;i++)scan([...chosen,retailerIds[i]],i+1);
+  }
+  scan([],0);
+  return best;
+}
+
 function displayPlan(plan) {
   if(!plan) return null;
   const {_cents,...display}=plan;
@@ -280,6 +299,52 @@ export function optimizeReferenceBasket({
     totalEur:coverageFirstPlan.totalEur,
     coveredSubtotalEur:coverageFirstPlan.coveredSubtotalEur
   }:null;
+  // Apples-to-apples comparison: prices for ONLY the exact products carried
+  // by the simulated coverage-first single chain. Group choices are pinned to
+  // its SKU and pack count, so a cheaper different brand cannot fake savings.
+  const coverageMatchedProductsComparison=(()=>{
+    if(!coverageFirstPlan||!coverageFirstCandidate||!coverageFirstPlan.items.length)return null;
+    const baseById=new Map(definedLines.map(line=>[line.id,line]));
+    const matchedLines=coverageFirstPlan.items.map(item=>{
+      const original=baseById.get(item.lineId);
+      return {...original,options:original.options.filter(o=>
+        o.sourceProductId===item.sourceProductId&&o.packages===item.packages)};
+    });
+    const matchingPlan=optimizeMatchedSubset(matchedLines,storeLimit);
+    if(!matchingPlan?.complete)return null;
+    const chosenById=new Map(matchingPlan.items.map(item=>[item.lineId,item]));
+    const products=coverageFirstPlan.items.map(original=>{
+      const split=chosenById.get(original.lineId);
+      return {
+        lineId:original.lineId,sourceProductId:original.sourceProductId,
+        name:original.productName,packages:original.packages,
+        benchmarkRetailerId:original.retailerId,benchmarkRetailerName:original.retailerName,
+        benchmarkUnitPriceEur:original.pricePerPackageEur,
+        benchmarkLineTotalEur:original.lineTotalEur,
+        optimizedRetailerId:split.retailerId,optimizedRetailerName:split.retailerName,
+        optimizedUnitPriceEur:split.pricePerPackageEur,
+        optimizedLineTotalEur:split.lineTotalEur,
+        savingEur:toEuros(original.totalCents-split.totalCents)
+      };
+    });
+    const benchmarkCents=coverageFirstPlan.items.reduce((n,p)=>n+p.totalCents,0);
+    const matchedCents=matchingPlan.items.reduce((n,p)=>n+p.totalCents,0);
+    if(benchmarkCents<=0)return null;
+    return {
+      benchmarkRetailerId:coverageFirstCandidate.retailerId,
+      benchmarkRetailerName:retailers.get(coverageFirstCandidate.retailerId)||coverageFirstCandidate.retailerId,
+      matchedItemCount:products.length,originalItemCount:lines.length,
+      unmatchedItemCount:lines.length-products.length,
+      unmatchedLineIds:coverageFirstPlan.missingItems.map(item=>item.lineId),
+      benchmarkSubtotalEur:toEuros(benchmarkCents),
+      optimizedSubtotalEur:toEuros(matchedCents),
+      savingsEur:toEuros(benchmarkCents-matchedCents),
+      savingsPercent:Number((100*(benchmarkCents-matchedCents)/benchmarkCents).toFixed(1)),
+      optimizedStoreCount:matchingPlan.storeCount,
+      optimizedStores:matchingPlan.stores,
+      products
+    };
+  })();
   const savingsVsCoverageFirstSingleStoreEur=
     coverageFirstPlan?.complete&&bestDistributed?.complete
       ?toEuros(Math.max(0,coverageFirstPlan._cents-bestDistributed._cents)):null;
@@ -300,7 +365,7 @@ export function optimizeReferenceBasket({
     cheapestAcrossAnyStores:displayPlan(bestAny),
     cheapestWithinStoreLimit:displayPlan(bestDistributed),
     byStoreLimit:candidatesByLimit.map((plan,index)=>({maxStores:index+1,plan:displayPlan(plan)})),
-    singleStoreCandidates,coverageFirstSingleStore,
+    singleStoreCandidates,coverageFirstSingleStore,coverageMatchedProductsComparison,
     savingsVsCoverageFirstSingleStoreEur,savingsVsCoverageFirstSingleStorePercent,
     savingsVsCheapestCompleteSingleStoreEur:savings,
     limitation:'Reference-only supermarket chain snapshots; not branch prices, stock, buyable checkout, delivery or travel-cost totals'
