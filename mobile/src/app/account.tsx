@@ -2,13 +2,13 @@ import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import {Link} from "expo-router";
 import {useCallback,useEffect,useRef,useState} from "react";
-import {Linking,Pressable,ScrollView,StyleSheet,Text,View} from "react-native";
+import {Alert,Linking,Pressable,ScrollView,StyleSheet,Text,View} from "react-native";
 import {
   connectCompanion,disconnectCompanion,loadCompanionAccount,companionAuthorizedRequest,
   type CompanionAccount,type CompanionOrder
 } from "../lib/companion-session";
 import {theme} from "../theme";
-import {importAccountWishlist,getItems} from "../lib/companion-store";
+import {clearCompanionLocalData,importAccountWishlist,getItems} from "../lib/companion-store";
 
 WebBrowser.maybeCompleteAuthSession();
 const REDIRECT="kontamoucompanion://auth";
@@ -173,6 +173,19 @@ export default function CompanionAccountScreen(){
       <Text style={styles.note}>Οι δύο ενέργειες αντιγράφουν μόνο επιβεβαιωμένα προϊόντα χωρίς διαγραφές. Ελεύθερες σημειώσεις λίστας παραμένουν ιδιωτικές στη συσκευή.</Text>
     </View>
   </>}
+  <View style={styles.card}>
+    <Text style={styles.heading}>Δεδομένα αποθηκευμένα σε αυτό το τηλέφωνο</Text>
+    <Text style={styles.help}>Διαγράφει μόνο τις offline λίστες, τις τοπικές υπενθυμίσεις και τις προτιμήσεις αυτής της συσκευής. Τα αγαπημένα, οι παραγγελίες και ο λογαριασμός σου στον ιστότοπο δεν επηρεάζονται.</Text>
+    <Pressable accessibilityRole="button" disabled={busy} style={styles.outline}
+      onPress={()=>Alert.alert("Διαγραφή τοπικών δεδομένων",
+       "Να διαγραφούν οι λίστες και οι προτιμήσεις μόνο από το Android Companion;",
+       [{text:"Ακύρωση",style:"cancel"},
+        {text:"Διαγραφή",style:"destructive",onPress:()=>void clearCompanionLocalData()
+           .then(()=>setImportNotice("Τα τοπικά δεδομένα διαγράφηκαν."))
+           .catch(()=>setError("Η διαγραφή τοπικών δεδομένων απέτυχε."))}])}>
+      <Text style={styles.logout}>Διαγραφή τοπικών λιστών και ρυθμίσεων</Text>
+    </Pressable>
+  </View>
   <View style={styles.card}>
     <Text style={styles.heading}>Και μέσω ιστότοπου</Text>
     <Pressable accessibilityRole="link" onPress={()=>void Linking.openURL(WEBSITE+"/account")}>
