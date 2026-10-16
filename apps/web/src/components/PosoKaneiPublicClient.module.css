@@ -72,7 +72,6 @@
 .suggestionHeader button{border:0;background:transparent;font-size:16px}
 .suggestion p{font-size:12px;color:#355e45;line-height:1.5}
 .suggestionLine{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #c6dcc6}
-.suggestion>h3{font-size:14px;line-height:1.45;font-weight:750;color:#22593e;margin:0 0 10px;overflow-wrap:anywhere}
 .suggestionLine button{flex-shrink:0}
 .suggestionLine>span{flex:1;min-width:0;font-size:13px}
 .suggestionLine small{display:block;font-size:11px;color:#436d4c;margin-top:4px}
@@ -180,3 +179,17 @@ details.suggestion[open]>summary{margin-bottom:10px}
 .comparableRow small{display:block;font-size:11px;color:#526d57;margin-top:4px}
 .comparableRow .comparableBenefit{font-weight:800;color:#237046}
 @media(max-width:640px){.comparableRow{flex-direction:column;align-items:stretch}.comparableRow button{width:100%}}
+
+/* A single, opt-in savings overview; never presented as the final basket total. */
+.savingsOpportunity{width:100%;margin:16px 0 10px;padding:19px 18px;display:flex;align-items:flex-start;flex-direction:column;gap:11px;text-align:left;border:1px solid #215c40;border-radius:17px;background:linear-gradient(145deg,#16482f,#246946);color:#fff;box-shadow:0 9px 22px #133d2c24}
+.savingsOpportunity>span:first-child{font-size:14px;line-height:1.45;font-weight:500}
+.savingsOpportunity>strong{font-size:clamp(20px,2.5vw,25px);line-height:1.2;letter-spacing:-.03em}
+.savingsOpportunityAction{display:inline-flex;align-items:center;gap:10px;border-radius:11px;padding:11px 14px;background:#fff;color:#16482f;font-size:13px;font-weight:800}
+.savingsOpportunity small{font-size:11px;color:#dcefe0;line-height:1.45;font-weight:400}
+.savingsOpportunity:hover .savingsOpportunityAction{background:#eef7ed}
+.suggestion{scroll-margin-top:22px}
+.suggestionToggle{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;text-align:left;padding:0;border:0;background:transparent;color:#22593e;line-height:1.45;font-size:14px;overflow-wrap:anywhere}
+.suggestionToggle span:first-child{min-width:0}
+.suggestionToggle span:last-child{display:grid;place-items:center;flex-shrink:0;font-size:22px;width:28px;height:28px;border-radius:50%;background:#d4e8d6}
+.suggestionToggle[aria-expanded="true"]{margin-bottom:11px}
+@media(max-width:700px){.savingsOpportunity{padding:16px 14px}.savingsOpportunityAction{width:100%;justify-content:space-between}}

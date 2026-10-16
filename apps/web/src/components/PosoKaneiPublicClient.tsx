@@ -3,6 +3,7 @@
 import {useCallback,useEffect,useRef,useState} from "react";
 import type {BasketLine,BasketPlan,BasketResult} from "../../../../scripts/posokanei/basket-optimizer.mjs";
 import {groupShoppingPlan,planFingerprint,savingsForPlan,savingsIncludingBrands,shoppingPlanText,packagesForEquivalent} from "../../../../scripts/posokanei/shopping-plan.mjs";
+import {summarizeCheaperAlternatives} from "../../../../scripts/posokanei/alternative-opportunities.mjs";
 import styles from "./PosoKaneiPublicClient.module.css";
 
 type Offer={retailerId:string;retailerName:string;priceEur:number;observedAt:string|null;discount:boolean};
@@ -41,6 +42,7 @@ export function PosoKaneiPublicClient(){
     lineId:string;sourceProductId:string;basis:string|null;sourceAmount:number|null;
     reason:string;alternatives:Cheaper[];candidates:Cheaper[];
   }>>({});
+  const [expandedAlternatives,setExpandedAlternatives]=useState<string[]>([]);
   const [checkingBrands,setCheckingBrands]=useState(false);
   const [brandRefresh,setBrandRefresh]=useState(0);
   const [mode,setMode]=useState<Mode>("limited");
@@ -170,6 +172,7 @@ export function PosoKaneiPublicClient(){
       (original.replacedFrom||{sourceProductId:original.sourceProductId,packageCount:original.packageCount}):undefined;
     const revised=lines.map(line=>line.id===lineId?
       ({...line,sourceProductId:next.id,packageCount:packages,replacedFrom} as BasketLine):line);
+    setExpandedAlternatives(current=>current.filter(id=>id!==lineId));
     update(revised);
     setLabels(current=>({...current,[lineId]:next.name}));
     void calculate(revised);
@@ -192,6 +195,7 @@ export function PosoKaneiPublicClient(){
     }catch(e){if(calculationId.current===run)setError(e instanceof Error?e.message:"Σφάλμα υπολογισμού.");}
     finally{if(calculationId.current===run)setWorking(false);}
   }
+  const savingsOpportunities=summarizeCheaperAlternatives(Object.values(brandResults));
   const plan=result?planOf(result,mode):null;
   const storeSections=groupShoppingPlan(plan);
   const planKey=planFingerprint(result?.snapshotDate||"",mode,plan);
@@ -306,19 +310,37 @@ export function PosoKaneiPublicClient(){
 
           </div>)}</div></details>}
           {notice&&<p className={styles.notice} role="status">{notice}</p>}
+          {savingsOpportunities.productCount>0&&<button type="button" className={styles.savingsOpportunity}
+            onClick={()=>{
+              setExpandedAlternatives(current=>[...new Set([...current,...savingsOpportunities.lineIds])]);
+              document.getElementById("posokanei-alternative-"+savingsOpportunities.lineIds[0])?.scrollIntoView({behavior:"smooth",block:"start"});
+            }}>
+            <span>Βρήκαμε φθηνότερες εναλλακτικές για <strong>{savingsOpportunities.productCount} {savingsOpportunities.productCount===1?"προϊόν":"προϊόντα"}</strong> της λίστας σου.</span>
+            <strong>Εξοικονόμησε έως {money(savingsOpportunities.potentialSavingEur)}</strong>
+            <span className={styles.savingsOpportunityAction}>Δες τις εναλλακτικές <span aria-hidden="true">→</span></span>
+            <small>Εκτίμηση ανά προϊόν από καταγεγραμμένες τιμές· το τελικό όφελος του καλαθιού υπολογίζεται ξεχωριστά.</small>
+          </button>}
           {lines.some(l=>l.kind==="exact")&&<button type="button" className={styles.textButton} onClick={()=>setBrandRefresh(n=>n+1)} disabled={checkingBrands}>{checkingBrands?"Αναζήτηση εναλλακτικών…":"Ανανέωση εναλλακτικών ↻"}</button>}
           {Object.values(brandResults).filter(entry=>entry.alternatives.length>0||entry.candidates.length>0).map(entry=>
-            <section className={styles.suggestion} key={entry.lineId} aria-label={"Εναλλακτικές για "+(labels[entry.lineId]||"προϊόν")}>
-              <h3>Εναλλακτικές για {labels[entry.lineId]||"προϊόν"} ({entry.alternatives.length+entry.candidates.length})</h3>
-              {[...entry.alternatives,...entry.candidates].map(option=><div className={styles.suggestionLine} key={option.confidence+":"+option.id}>
-                <span>
-                  <strong>{option.name}</strong>
-                  <small>{option.retailerName} · {option.packageCount} συσκ. × {money(option.priceEur)} = {money(option.candidateTotalEur)}</small>
-                  <small>{option.savingsEur>0?"Φθηνότερο κατά "+money(option.savingsEur):option.savingsEur<0?"Ακριβότερο κατά "+money(-option.savingsEur):"Ίδια καταγεγραμμένη τιμή"}</small>
-                  <small>{option.confidence==="unverified_match"?"Πιθανή εναλλακτική · μη ελεγμένη":option.approvalMethod==="automatic_commodity"?"Αυτόματα εγκεκριμένος τύπος":"Ελεγμένος συγκρίσιμος τύπος"}</small>
-                </span>
-                <button type="button" className={styles.secondary} onClick={()=>chooseAlternative(entry.lineId,option)}>Επιλογή</button>
-              </div>)}
+            <section className={styles.suggestion} key={entry.lineId} id={"posokanei-alternative-"+entry.lineId}
+              aria-label={"Εναλλακτικές για "+(labels[entry.lineId]||"προϊόν")}>
+              <button type="button" className={styles.suggestionToggle}
+                aria-expanded={expandedAlternatives.includes(entry.lineId)}
+                onClick={()=>setExpandedAlternatives(current=>current.includes(entry.lineId)?
+                  current.filter(id=>id!==entry.lineId):[...current,entry.lineId])}>
+                <span>Εναλλακτικές για {labels[entry.lineId]||"προϊόν"} ({entry.alternatives.length+entry.candidates.length})</span>
+                <span aria-hidden="true">{expandedAlternatives.includes(entry.lineId)?"−":"+"}</span>
+              </button>
+              {expandedAlternatives.includes(entry.lineId)&&
+                [...entry.alternatives,...entry.candidates].map(option=><div className={styles.suggestionLine} key={option.confidence+":"+option.id}>
+                  <span>
+                    <strong>{option.name}</strong>
+                    <small>{option.retailerName} · {option.packageCount} συσκ. × {money(option.priceEur)} = {money(option.candidateTotalEur)}</small>
+                    <small>{option.savingsEur>0?"Φθηνότερο κατά "+money(option.savingsEur):option.savingsEur<0?"Ακριβότερο κατά "+money(-option.savingsEur):"Ίδια καταγεγραμμένη τιμή"}</small>
+                    <small>{option.confidence==="unverified_match"?"Πιθανή εναλλακτική · μη ελεγμένη":option.approvalMethod==="automatic_commodity"?"Αυτόματα εγκεκριμένος τύπος":"Ελεγμένος συγκρίσιμος τύπος"}</small>
+                  </span>
+                  <button type="button" className={styles.secondary} onClick={()=>chooseAlternative(entry.lineId,option)}>Επιλογή</button>
+                </div>)}
             </section>
           )}
           <p className={styles.basketPreset}>Αυτόματη επιλογή οικονομικότερων αλυσίδων · έως {storeLimit} από τις επιλεγμένες <button type="button" onClick={()=>{setSettingsOpen(true);window.scrollTo({top:0,behavior:"smooth"});}}>Αλλαγή</button></p>
