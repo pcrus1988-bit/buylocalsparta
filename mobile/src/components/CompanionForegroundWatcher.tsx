@@ -15,15 +15,21 @@ export function CompanionForegroundWatcher(){
   let locationSubscription:Location.LocationSubscription|undefined;
   let running=false;
   let lastScan=0;
+  let generation=0;
+  let starting=false;
   async function stop(){
+    generation++;
     locationSubscription?.remove();locationSubscription=undefined;
   }
   async function start(){
-    if(disposed||locationSubscription||AppState.currentState!=="active")return;
+    if(disposed||locationSubscription||starting||AppState.currentState!=="active")return;
+    starting=true;
+    const attempt=generation;
+    try {
     const pref=await getPreferences().catch(()=>({shoppingReminders:false,vendorOffers:false}));
-    if(disposed||!pref.shoppingReminders)return;
+    if(disposed||attempt!==generation||!pref.shoppingReminders)return;
     const permission=await Location.getForegroundPermissionsAsync();
-    if(disposed||permission.status!=="granted")return;
+    if(disposed||attempt!==generation||permission.status!=="granted")return;
     const sub=await Location.watchPositionAsync(
       {accuracy:Location.Accuracy.Balanced,distanceInterval:100,timeInterval:120000},
       position=>void (async()=>{
@@ -44,8 +50,9 @@ export function CompanionForegroundWatcher(){
         finally{running=false;}
       })()
     );
-    if(disposed||AppState.currentState!=="active")sub.remove();
+    if(disposed||attempt!==generation||AppState.currentState!=="active")sub.remove();
     else locationSubscription=sub;
+    } finally {starting=false;}
   }
   const preferenceChanged=DeviceEventEmitter.addListener("companion-preferences-changed",()=>{
     void stop().then(()=>start());
