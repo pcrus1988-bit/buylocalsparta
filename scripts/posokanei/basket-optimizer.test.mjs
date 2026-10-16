@@ -248,3 +248,80 @@ test('coverage first benchmark and tie consolidation honor allowed retailer excl
   assert.equal(result.coverageFirstSingleStore.totalEur,2);
   assert.equal(result.savingsVsCoverageFirstSingleStoreEur,0);
 });
+
+
+test('compare only the coverage-first supermarket available products, line by line',()=>{
+  const goods=['a-product','b-product','c-product'].map(id=>({source_product_id:id,name:id,snapshot_date:date}));
+  const prices=[
+    price('a-product','alpha',5),price('b-product','alpha',5),
+    price('b-product','beta',1),price('c-product','beta',3)
+  ];
+  const basket=goods.map(p=>({id:p.source_product_id,kind:'exact',sourceProductId:p.source_product_id,packageCount:1}));
+  const result=run({products:goods,observations:prices,lines:basket,storeLimit:2,retailerIds:['alpha','beta']});
+  assert.equal(result.cheapestWithinStoreLimit.totalEur,9);
+  assert.equal(result.coverageFirstSingleStore.retailerId,'alpha');
+  assert.equal(result.coverageFirstSingleStore.complete,false);
+  assert.equal(result.coverageFirstSingleStore.totalEur,null);
+  const overlap=result.coverageMatchedProductsComparison;
+  assert.equal(overlap.matchedItemCount,2);
+  assert.equal(overlap.originalItemCount,3);
+  assert.equal(overlap.unmatchedItemCount,1);
+  assert.deepEqual(overlap.unmatchedLineIds,['c-product']);
+  assert.equal(overlap.benchmarkSubtotalEur,10);
+  assert.equal(overlap.optimizedSubtotalEur,6);
+  assert.equal(overlap.savingsEur,4);
+  assert.equal(overlap.savingsPercent,40);
+  assert.deepEqual(overlap.products.map(p=>[p.lineId,p.benchmarkLineTotalEur,p.optimizedLineTotalEur,p.savingEur]),[
+    ['a-product',5,5,0],['b-product',5,1,4]
+  ]);
+  assert.equal(result.savingsVsCoverageFirstSingleStoreEur,null);
+});
+
+test('shared-product comparison keeps quantity and is constrained by selected chains',()=>{
+  const goods=['one','two','three'].map(id=>({source_product_id:id,name:id,snapshot_date:date}));
+  const prices=[
+    price('one','alpha',3),price('one','beta',1),
+    price('two','alpha',4),price('two','beta',2),
+    price('three','beta',1)
+  ];
+  const basket=[
+    {id:'one',kind:'exact',sourceProductId:'one',packageCount:2},
+    {id:'two',kind:'exact',sourceProductId:'two',packageCount:3},
+    {id:'three',kind:'exact',sourceProductId:'three',packageCount:1}
+  ];
+  const r=run({products:goods,observations:prices,lines:basket,storeLimit:1,retailerIds:['alpha','beta']});
+  const c=r.coverageMatchedProductsComparison;
+  assert.equal(c.benchmarkRetailerId,'beta');
+  assert.equal(c.matchedItemCount,3);
+  assert.equal(c.benchmarkSubtotalEur,9);
+  assert.equal(c.optimizedSubtotalEur,9);
+  assert.equal(c.savingsEur,0);
+  assert.equal(c.products.find(p=>p.lineId==='one').packages,2);
+  const chosen=run({products:goods,observations:prices,lines:basket,storeLimit:2,retailerIds:['alpha']});
+  assert.equal(chosen.coverageMatchedProductsComparison.matchedItemCount,2);
+  assert.equal(chosen.coverageMatchedProductsComparison.unmatchedItemCount,1);
+  assert.equal(chosen.coverageMatchedProductsComparison.optimizedStoreCount,1);
+  assert.equal(chosen.coverageMatchedProductsComparison.savingsEur,0);
+});
+
+test('fair comparator pins approved group to exact baseline SKU and package count',()=>{
+  const obs=[
+    price('chopped-a','alpha',1.5),
+    price('chopped-a','beta',1.3),
+    price('chopped-b','beta',0.4),
+    price('rice','beta',1),
+  ];
+  const basket=[
+    {id:'tomato',kind:'group',groupId:'chopped',requiredBaseQuantity:0.8},
+    {id:'rice',kind:'exact',sourceProductId:'rice',packageCount:1}
+  ];
+  const r=run({lines:basket,observations:obs,storeLimit:2,retailerIds:['alpha','beta']});
+  assert.equal(r.coverageFirstSingleStore.retailerId,'beta');
+  const overlap=r.coverageMatchedProductsComparison;
+  const tomato=overlap.products.find(p=>p.lineId==='tomato');
+  assert.equal(tomato.sourceProductId,'chopped-b');
+  assert.equal(tomato.packages,2);
+  assert.equal(tomato.benchmarkLineTotalEur,0.8);
+  assert.equal(tomato.optimizedLineTotalEur,0.8);
+  assert.equal(overlap.savingsEur,0);
+});

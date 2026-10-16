@@ -241,23 +241,43 @@ export function PosoKaneiPublicClient(){
               <span className={styles.eyebrow}>ΣΥΓΚΡΙΣΗ ΣΤΡΑΤΗΓΙΚΩΝ</span>
               <h3>Πόσα εξοικονομείς με τη μοιρασμένη λίστα;</h3>
               <p className={styles.methodNote}>Προσομοίωση παραδοσιακής επιλογής: διαλέγουμε <strong>μία</strong> από τις επιτρεπόμενες αλυσίδες που διαθέτει τα περισσότερα διαφορετικά προϊόντα της λίστας, <strong>χωρίς να βελτιστοποιούμε το συνολικό κόστος</strong>. Σε ισοβαθμία εφαρμόζεται σταθερή σειρά αλυσίδων, όχι η τιμή. Πρόκειται για ενδεικτικό σενάριο σύγκρισης, όχι επαληθευμένη αναπαραγωγή του αλγορίθμου του επίσημου PosoKanei.</p>
-              <div className={styles.comparisonColumns}>
-                <div className={styles.comparisonOption}>
-                  <small>Μία αλυσίδα · προτεραιότητα κάλυψης</small>
-                  <strong>{result.coverageFirstSingleStore?.complete?money(result.coverageFirstSingleStore.totalEur):"Μη πλήρες καλάθι"}</strong>
-                  <span>{result.coverageFirstSingleStore?.retailerName||"Χωρίς διαθέσιμη αλυσίδα"}</span>
-                  <span>{result.coverageFirstSingleStore?.coveredItemCount??0}/{result.lineCount} προϊόντα με καταγεγραμμένη τιμή</span>
-                </div>
-                <div className={styles.comparisonOption}>
-                  <small>KONTA MOY · έως {storeLimit} αλυσίδες</small>
-                  <strong>{result.cheapestWithinStoreLimit?.complete?money(result.cheapestWithinStoreLimit.totalEur):"Μη πλήρες καλάθι"}</strong>
-                  <span>{result.cheapestWithinStoreLimit?.complete?result.cheapestWithinStoreLimit.storeCount+" πραγματικές στάσεις":"Δεν έχει βρεθεί πλήρης συνδυασμός"}</span>
-                  <span>{result.cheapestWithinStoreLimit?.complete?result.lineCount+"/"+result.lineCount+" προϊόντα με τιμή":"Απαιτούνται τιμές για όλη τη λίστα"}</span>
-                </div>
-              </div>
-              {result.savingsVsCoverageFirstSingleStoreEur!==null
-                ?<p className={styles.saving}>Εξοικονόμηση έναντι της επιλογής βάσει κάλυψης: <strong>{money(result.savingsVsCoverageFirstSingleStoreEur)}</strong> {result.savingsVsCoverageFirstSingleStorePercent!==null?"("+result.savingsVsCoverageFirstSingleStorePercent.toLocaleString("el-GR")+"%)":""}</p>
-                :<p className={styles.methodNote}>Δεν εμφανίζουμε παραπλανητική εξοικονόμηση: η επιλογή μίας αλυσίδας δεν καλύπτει όλα τα προϊόντα, ή δεν υπάρχει πλήρης εναλλακτική λίστα. Το κόστος των προϊόντων που λείπουν παραμένει άγνωστο.</p>}
+              {result.coverageMatchedProductsComparison?
+                <>
+                  <p className={styles.matchedIntro}>
+                    <strong>Δίκαιη σύγκριση μόνο για {result.coverageMatchedProductsComparison.matchedItemCount} από τα {result.lineCount} προϊόντα</strong> που έχουν καταγεγραμμένη τιμή στο {result.coverageMatchedProductsComparison.benchmarkRetailerName}.
+                    {result.coverageMatchedProductsComparison.unmatchedItemCount>0?" Τα υπόλοιπα "+result.coverageMatchedProductsComparison.unmatchedItemCount+" προϊόντα δεν συμμετέχουν σε αυτή τη σύγκριση.":""}
+                  </p>
+                  <div className={styles.comparisonColumns}>
+                    <div className={styles.comparisonOption}>
+                      <small>Μία αλυσίδα · {result.coverageMatchedProductsComparison.benchmarkRetailerName}</small>
+                      <strong>{money(result.coverageMatchedProductsComparison.benchmarkSubtotalEur)}</strong>
+                      <span>Κόστος των {result.coverageMatchedProductsComparison.matchedItemCount} διαθέσιμων προϊόντων</span>
+                    </div>
+                    <div className={styles.comparisonOption}>
+                      <small>KONTA MOY · μοίρασμα των ίδιων προϊόντων</small>
+                      <strong>{money(result.coverageMatchedProductsComparison.optimizedSubtotalEur)}</strong>
+                      <span>{result.coverageMatchedProductsComparison.optimizedStoreCount} {result.coverageMatchedProductsComparison.optimizedStoreCount===1?"στάση":"στάσεις"} · έως {storeLimit} αλυσίδες</span>
+                    </div>
+                  </div>
+                  <p className={styles.saving}>Εξοικονόμηση για <strong>τα ίδια {result.coverageMatchedProductsComparison.matchedItemCount} προϊόντα</strong>: <strong>{money(result.coverageMatchedProductsComparison.savingsEur)} ({result.coverageMatchedProductsComparison.savingsPercent.toLocaleString("el-GR")}%)</strong></p>
+                  <details className={styles.matchedDetails} open>
+                    <summary>Αναλυτικές τιμές ανά προϊόν ({result.coverageMatchedProductsComparison.matchedItemCount})</summary>
+                    <div className={styles.matchedHead}><span>Προϊόν</span><span>{result.coverageMatchedProductsComparison.benchmarkRetailerName}</span><span>KONTA MOY</span></div>
+                    {result.coverageMatchedProductsComparison.products.map(item=>
+                      <div className={styles.matchedProductRow} key={item.lineId}>
+                        <div className={styles.matchedName}><strong>{item.name}</strong><small>{item.packages} {item.packages===1?"συσκευασία":"συσκευασίες"}</small></div>
+                        <div className={styles.matchedPrice}><strong>{money(item.benchmarkLineTotalEur)}</strong><small>{money(item.benchmarkUnitPriceEur)}/συσκ.</small></div>
+                        <div className={styles.matchedPrice}><strong>{money(item.optimizedLineTotalEur)}</strong><small>{item.optimizedRetailerName}</small><small>{money(item.optimizedUnitPriceEur)}/συσκ.</small>
+                          {item.savingEur>0&&<em>−{money(item.savingEur)}</em>}
+                        </div>
+                      </div>
+                    )}
+                  </details>
+                  {result.coverageMatchedProductsComparison.unmatchedItemCount>0&&
+                    <p className={styles.methodNote}>Εκτός σύγκρισης — χωρίς καταγεγραμμένη τιμή στο {result.coverageMatchedProductsComparison.benchmarkRetailerName}: {result.coverageMatchedProductsComparison.unmatchedLineIds.map(id=>labels[id]||"Προϊόν λίστας").join(", ")}. Το πλήρες κόστος της λίστας εμφανίζεται ξεχωριστά πιο πάνω.</p>}
+                  <p className={styles.methodNote}>Οι τιμές του KONTA MOY εδώ αφορούν ανεξάρτητη βελτιστοποίηση <strong>ακριβώς των ίδιων προϊόντων και ποσοτήτων</strong>, όχι άλλες μάρκες και όχι τη συνολική λίστα. Συνεπώς οι αλυσίδες μπορεί να διαφέρουν από το πλάνο ολόκληρου του καλαθιού.</p>
+                </>
+                :<p className={styles.methodNote}>Δεν υπάρχουν κοινά προϊόντα με καταγεγραμμένη τιμή για να γίνει ισότιμη σύγκριση.</p>}
             </section>
             {result.missingItems.length>0&&<p>Χωρίς τιμή: {result.missingItems.map(item=>labels[item.lineId]||item.lineId).join(", ")}</p>}
             <small>Δεν περιλαμβάνεται κόστος μετακίνησης, διανομή ή προγράμματα επιβράβευσης.</small>

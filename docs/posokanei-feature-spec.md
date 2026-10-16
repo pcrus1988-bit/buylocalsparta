@@ -149,3 +149,9 @@ Production controls: `POSOKANEI_PUBLIC_RELEASE_ENABLED=true`, `POSOKANEI_DATA_RE
 **Savings:** Compare the complete availability-first one-chain basket with the complete user-limited (up-to-five) optimized KONTA MOY plan, always applying global exclusions and required quantities. Otherwise state the missing coverage and suppress savings rather than valuing unpriced items at zero.
 
 **Presentation:** Plans group items by the actual supermarkets needed, prominently disclose the tie rule and distinction between observed chain reference prices, on-shelf stock, travel costs and buyable checkout.
+
+## Like-for-like partial coverage comparison
+
+When the simulated availability-first supermarket covers only 15 of 20 selected lines, show that supermarket's observed per-package and line prices for those 15 products, and compare them against KONTA MOY's best price-split across the same 15 *exact SKUs, package counts and quantities* within the user's allowed chains and maximum 1–5 stores. This subset optimization is independent of the full 20-line optimization; the actual supermarkets required may consequently differ. Never silently change brands or product sizes for this comparison, even for approved substitute groups.
+
+Present both matched-subset totals and every product-level pair of prices, supermarket chosen for the split, savings per line, total EUR savings and percentage against the coverage-first partial subtotal. Clearly label the remaining 5 items as excluded from this comparison, and retain the full 20-product result elsewhere. The single-store partial subtotal is *not* the cost of a full basket. If no matched lines exist, show no savings. Keep previously defined full-basket savings null where a complete one-store comparison is impossible. Apply all global supermarket exclusions to both price lists.
