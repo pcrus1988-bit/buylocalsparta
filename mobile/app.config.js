@@ -1,12 +1,22 @@
-// EAS / physical Android build only: Firebase client configuration is supplied
-// via the configured build environment. No service-account key belongs here.
-module.exports = ({config}) => {
+// Firebase Android client config is injected only through the build environment.
+// Standalone PREVIEW builds get a different application ID so they can coexist
+// with the user's previously installed debug-key signed Companion APK.
+module.exports=({config})=>{
  const path=process.env.COMPANION_GOOGLE_SERVICES_FILE;
+ const preview=process.env.COMPANION_PREVIEW_APK==="true";
  return {
-   ...config,
-   android:{
-     ...config.android,
-     ...(path?{googleServicesFile:path}:{})
-   }
+  ...config,
+  ...(preview?{
+   name:"KONTA MOY Companion Preview",
+   scheme:"kontamoucompanionpreview",
+  }:{}),
+  android:{
+   ...config.android,
+   ...(preview?{
+    package:"site.kontamou.companion.preview",
+    versionCode:1,
+   }:{}),
+   ...(path&&!preview?{googleServicesFile:path}:{})
+  }
  };
 };
