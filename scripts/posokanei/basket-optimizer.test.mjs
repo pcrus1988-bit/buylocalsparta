@@ -371,3 +371,18 @@ test('when no single chain covers originals, compare complete baskets under the 
   assert.equal(r.cheapestWithinStoreLimit.totalEur,5);
   assert.equal(r.brandSwitchSavingsEur,null);
 });
+
+test('automatically validated exact-family swaps retain the original basket for savings',()=>{
+  const arts=[
+    {source_product_id:'art-a',snapshot_date:date,name:'ΑΛΦΑ Αγκινάρες 750g',brand:'ΑΛΦΑ',category:'ΚΑΤΕΨΥΓΜΕΝΑ ΛΑΧΑΝΙΚΑ',unit:'g',unit_quantity:750},
+    {source_product_id:'art-b',snapshot_date:date,name:'ΒΗΤΑ Αγκινάρες 1kg',brand:'ΒΗΤΑ',category:'ΚΑΤΕΨΥΓΜΕΝΑ ΛΑΧΑΝΙΚΑ',unit:'kg',unit_quantity:1}
+  ];
+  const r=run({products:arts,approvedGroups:[],observations:[
+    price('art-a','alpha',3),price('art-b','alpha',2)
+  ],lines:[{id:'art',kind:'exact',sourceProductId:'art-b',packageCount:2,
+    replacedFrom:{sourceProductId:'art-a',packageCount:2}}],storeLimit:1});
+  assert.equal(r.reviewedBrandSwitchCount,1);
+  assert.equal(r.originalBasketBenchmarkEur,6);
+  assert.equal(r.cheapestWithinStoreLimit.totalEur,4);
+  assert.equal(r.brandSwitchSavingsEur,2);
+});
