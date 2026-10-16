@@ -49,3 +49,20 @@ As of 16 October 2026 this is development source in draft PR #1553, **not a live
 - Expo Android Firebase registration: https://docs.expo.dev/push-notifications/fcm-credentials/
 - Direct FCM: https://docs.expo.dev/push-notifications/sending-notifications-custom/
 - Firebase HTTP v1 send: https://firebase.google.com/docs/cloud-messaging/send/v1-api
+
+## Transactional notification outbox — added in this PR
+
+Source:
+- `supabase/migrations/20261016093000_companion_transactional_push_outbox.sql`
+- `apps/web/src/lib/companion-push-dispatch.ts`
+- `apps/web/src/lib/companion-fcm-status.ts`
+- `POST /api/internal/companion/push/dispatch`
+
+*Why an outbox?* A real order status transition or an actually ready pickup must commit to the existing marketplace before the notification is considered. The outbox is appended inside the same PostgreSQL transaction as that state change. It does **not** accept vendor-authored messages. The pickup event is deduplicated by its pickup-group ID, avoiding two notifications if ready status and ready time are updated separately.
+
+**Delivery validation:** only active account owners with a current Android mobile session and an enabled *order updates* consent get deliveries. At dispatch time ownership, consent, session revocation, token age, event expiry and pickup readiness are checked again. The server claims a maximum of **2 FCM requests per invocation**, with a 24-hour event TTL, three delivery attempts, four submitted order alerts per device/day, a short lease, and conservative backoff. Firebase transient failures do not unregister a device. Only a provider-confirmed invalid FCM registration can disable it. The message includes no name, store, price, QR, personal list, exact location or merchant-controlled text.
+
+**Strict feature gate (disabled by default):**
+`COMPANION_ANDROID_PUSH_DISPATCH_ENABLED=true` *and* `COMPANION_PUSH_DISPATCH_SECRET` (>=32 characters), in addition to all previous auth, registration, migration, Firebase and encryption prerequisites. The route requires `Authorization: Bearer <server-only secret>`, and accepts POST only. It has no Vercel cron schedule and no background worker connection; creating the route does **not** start sending. Do not schedule it until signed-device, opt-in, cancellation, revoke and duplicate-prevention tests pass.
+
+**Explicit known boundaries:** self-test can verify FCM submission, but not Android receipt. A failed worker may retry after a claim lease expires, so repeated alerts are possible under rare crash timing, though FCM Android collapse and notification tags reduce duplication. Saved-product stock-change event dispatch is **not** implemented in this outbox, despite saved-item token registration. True background geographic triggers are also not implemented, and vendor offer marketing remains strictly blocked. Both need separate eligibility and legal/policy acceptance.
