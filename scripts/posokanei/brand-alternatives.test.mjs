@@ -27,7 +27,7 @@ const products=[
 const o=(id,retailer_id,price_eur)=>({retailer_id,retailer_name:retailer_id,price_eur});
 const offers=new Map([
   ["a",[o("a","alpha",1.20),o("a","beta",1.40)]],
-  ["b",[o("b","beta",0.55),o("b","alpha",0.95)]],
+  ["b",[o("b","beta",0.55),o("b","alpha",1.25)]],
   ["c",[o("c","alpha",1.13)]],
   ["passata",[o("passata","alpha",0.10)]],
   ["bio",[o("bio","alpha",0.20)]],
@@ -77,7 +77,7 @@ test("compute savings on actual basket quantity and whole candidate packages",()
 });
 test("excluded supermarkets are excluded, including source baseline",()=>{
   const result=run("a",{excludedRetailerIds:["beta"]});
-  assert.equal(result.reason,"no_comparable_brands"===result.reason?"no_comparable_brands":"no_cheaper_brand");
+  assert.equal(result.reason,"no_cheaper_brand");
   assert.equal(result.alternatives.length,0);
   const neither=run("a",{excludedRetailerIds:["alpha","beta"]});
   assert.equal(neither.reason,"no_source_price");
