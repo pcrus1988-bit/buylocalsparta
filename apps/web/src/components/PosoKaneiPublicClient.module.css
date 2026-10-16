@@ -99,3 +99,22 @@
 }
 
 @media(max-width:1120px){.scope{padding-bottom:106px}}
+
+
+/* The optimized result is a real, device-local checklist grouped by chain. */
+.planToolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:12px 0;font-size:12px;color:#466d56}
+.planToolbar button{font-size:11px;padding:9px 11px}
+.storePlans{display:flex;flex-direction:column;gap:13px;margin-top:13px}
+.storePlan{border:1px solid #d7e2d7;border-radius:14px;background:#fff;overflow:hidden}
+.storePlanHeader{display:flex;flex-direction:column;gap:5px;padding:13px 12px;background:#edf3e9;border-bottom:1px solid #d7e2d7}
+.storePlanHeader strong{font-size:15px;color:#184d37}
+.storePlanHeader span{font-size:12px;color:#4c6e57;font-weight:700}
+.storePlanItem{display:grid!important;grid-template-columns:20px minmax(0,1fr) auto;gap:10px!important;align-items:start;padding:12px 11px;border-top:1px solid #e7eee7;cursor:pointer;font-size:12px!important;font-weight:500!important}
+.storePlanItem:first-of-type{border-top:0}
+.storePlanItem input{appearance:auto;width:18px!important;height:18px!important;min-height:18px!important;margin:1px 0 0;padding:0;accent-color:#19513b}
+.storePlanItem>span{min-width:0;overflow-wrap:anywhere;line-height:1.35}
+.storePlanItem small{display:block;font-size:11px;color:#748775;margin-top:4px}
+.storePlanItem>strong{white-space:nowrap;font-size:12px}
+.doneItem{text-decoration:line-through;color:#87988a}
+.planCaution{font-size:11px;color:#667e6d;line-height:1.6}
+@media(max-width:700px){.storePlanHeader{padding:12px}.storePlanItem{padding:13px 9px}.planToolbar button{width:100%}}
