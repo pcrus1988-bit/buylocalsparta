@@ -176,7 +176,7 @@ function productIndex(products){
 
 export function findBrandAlternatives({
   sourceId,packages=1,products,offersByProduct,excludedRetailerIds=[],
-  brandIndex=createBrandIndex(products),maxResults=5
+  brandIndex=createBrandIndex(products),maxResults=5,includeNonCheaper=false
 }) {
   if(!Number.isSafeInteger(packages)||packages<1||packages>100)
     throw new Error("packages must be an integer 1–100");
@@ -207,7 +207,7 @@ export function findBrandAlternatives({
     const offer=bestOffer(candidate.source_product_id);
     if(!offer)continue;
     const cents=count*Math.round(offer.price_eur*100);
-    if(cents>=sourceCents||!Number.isSafeInteger(cents))continue;
+    if(!Number.isSafeInteger(cents)||(!includeNonCheaper&&cents>=sourceCents))continue;
     const entry={
       id:candidate.source_product_id,name:candidate.name,brand:candidate.brand,
       packageQuantity:size.amount,unit:size.unit,packageCount:count,
@@ -229,6 +229,6 @@ export function findBrandAlternatives({
     a.candidateTotalEur-b.candidateTotalEur||b.savingsEur-a.savingsEur||
     a.name.localeCompare(b.name,"el")).slice(0,maxResults);
   return {...base,originalTotalEur:euros(sourceCents),sourcePackages:packages,
-    alternatives,reason:alternatives.length?"cheaper_found":
-      pool.length>1?"no_cheaper_brand":"no_comparable_brands"};
+    alternatives,reason:alternatives.length?(includeNonCheaper?"comparable_found":"cheaper_found"):
+      pool.length>1?(includeNonCheaper?"no_comparable_price":"no_cheaper_brand"):"no_comparable_brands"};
 }
