@@ -21,7 +21,7 @@ export function findBrandAlternatives(input:{
   products:PriceReference[];
   offersByProduct:Map<string,ChainOffer[]>;
   excludedRetailerIds?:string[];
-  brandIndex?:BrandIndex;maxResults?:number
+  brandIndex?:BrandIndex;maxResults?:number;includeNonCheaper?:boolean
 }):{
   reason:string;basis:"kg"|"l"|"piece"|null;sourceAmount:number|null;
   originalTotalEur?:number;sourcePackages?:number;alternatives:BrandSuggestion[]
