@@ -239,3 +239,8 @@ Additional audited source-title predicates now recognize dark chocolate (not mil
 ### Source-declared wholegrain and gluten-free wording (strictly scoped)
 
 Approved-type discovery may consider only exactly identical subtype signatures for source-labelled wholegrain tahini, wholegrain linguine/oats/rusks/breadsticks, and gluten-free ketchup or mustard. The label must explicitly contain the complete claim phrase. Removing the one permitted phrase from the eligibility check must leave no other restricted claims; different-source titles remain separate product families and *the UI must not imply allergen certification, ingredient identity, or user-specific dietary suitability*. Unknown/imprecise labels are excluded. Existing whole-pack price and no-automatic-substitution safeguards remain mandatory.
+
+
+### Audited remaining ordinary families — 2026-10-16, round 5
+
+Source inventory candidates for further safe automatic product-*type* comparisons include exactly worded digestive biscuits, fine fides pasta, chocolate-filled biscuits, astraki pasta, tsoureki flour, frozen sweetcorn, frozen fasolia chantres, corn flour, sliced Edam, plain profiterole, sparkling water six-packs, orange nectar, Pink Grapefruit mixer, iced lemon tea and separately named instant cappuccino beverage powder. This is not blanket approval: exact source category, detailed normalized name/family, true distinct brands, explicitly corroborated package sizes and no competing dangerous formulation/claim remain required. Source family mixed with a conflicting or unreliable record fails closed. Comparison suggests types rather than identical allergens, ingredients, nutrition or availability; savings still require an actual cheaper complete-pack price and explicit shopper substitution.
