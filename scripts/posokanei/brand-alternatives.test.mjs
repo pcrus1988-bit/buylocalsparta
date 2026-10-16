@@ -289,3 +289,27 @@ test("availability-gated catalogue comparisons require a priced, approved differ
   assert.deepEqual(findBrandAlternatives({...input,approvedGroups:[]}).alternatives,[]);
   assert.deepEqual(findBrandAlternatives({...input,offersByProduct:new Map([["chosen",catalogue.get("chosen")]])}).alternatives,[]);
 });
+
+test("potential savings covers every eligible cheaper brand before display truncation",()=>{
+  const items=[
+    p("a","ΑΛΦΑ Ρύζι Μπασμάτι 1kg","ΑΛΦΑ","ΡΥΖΙ","kg",1),
+    p("b","ΒΗΤΑ Ρύζι Μπασμάτι 1kg","ΒΗΤΑ","ΡΥΖΙ","kg",1),
+    p("c","ΓΑΜΜΑ Ρύζι Μπασμάτι 1kg","ΓΑΜΜΑ","ΡΥΖΙ","kg",1),
+    p("d","ΔΕΛΤΑ Ρύζι Μπασμάτι 1kg","ΔΕΛΤΑ","ΡΥΖΙ","kg",1),
+    p("diet","ΕΨΙΛΟΝ Ρύζι Μπασμάτι Βιολογικό 1kg","ΕΨΙΛΟΝ","ΡΥΖΙ","kg",1)
+  ];
+  const prices=new Map([
+    ["a",[o("a","a",4)]],["b",[o("b","b",3)]],
+    ["c",[o("c","b",2.5)]],["d",[o("d","b",2)]],
+    ["diet",[o("diet","b",.1)]]
+  ]);
+  const x=findBrandAlternatives({sourceId:"a",products:items,offersByProduct:prices,maxResults:1});
+  assert.equal(x.alternatives.length,1);
+  assert.equal(x.cheaperAlternativeCount,3);
+  assert.equal(x.bestCheaperSavingEur,2);
+  assert.equal(x.alternatives[0].id,"d");
+  const excluded=findBrandAlternatives({sourceId:"a",products:items,offersByProduct:prices,
+    maxResults:1,excludedRetailerIds:["b"]});
+  assert.equal(excluded.bestCheaperSavingEur,0);
+  assert.equal(excluded.cheaperAlternativeCount,0);
+});
