@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SiteHeader } from "../../components/SiteHeader";
 import { AccountDashboardClient } from "../../components/AccountDashboardClient";
@@ -23,26 +22,10 @@ export default async function AccountPage() {
     <SiteHeader compact />
     <AccountSectionNavigation />
 
-    <section className={`shell ${styles.mainDashboardHero}`}>
-      <div>
-        <div className="eyebrow">Ο λογαριασμός μου</div>
-        <h1 className={styles.heroTitle}>Η τοπική αγορά σου, οργανωμένη απλά.</h1>
-        <p className={styles.heroLead}>Παρακολούθησε τις παραγγελίες σου, ζήτησε κάτι που δεν βρίσκεις με Ask Local και διαχειρίσου όσα χρειάζεσαι χωρίς να ψάχνεις σε μενού.</p>
-      </div>
-      <div className={styles.heroActions} aria-label="Βασικές ενέργειες λογαριασμού">
-        <Link className={`${styles.heroAction} ${styles.askLocalHeroAction}`} href="/account/ask-local">
-          <span className={styles.heroActionKicker}>Ask Local</span>
-          <strong>Δεν το βρίσκεις; Ρώτησε την τοπική αγορά.</strong>
-          <small>Στείλε ένα ιδιωτικό αίτημα και άφησε το ΚΟΝΤΑ ΜΟΥ να σε συνδέσει με την κατάλληλη τοπική επιχείρηση.</small>
-          <span className={styles.heroActionArrow}>Νέο αίτημα →</span>
-        </Link>
-        <Link className={`${styles.heroAction} ${styles.orderHeroAction}`} href="/account/orders">
-          <span className={styles.heroActionKicker}>Order tracking</span>
-          <strong>Δες αμέσως πού βρίσκεται η παραγγελία σου.</strong>
-          <small>Κατάσταση, επόμενο βήμα, παραλαβή ή παράδοση σε μία καθαρή διαδρομή.</small>
-          <span className={styles.heroActionArrow}>Παρακολούθηση παραγγελιών →</span>
-        </Link>
-      </div>
+    <section className={`shell ${styles.compactDashboardIntro}`}>
+      <div className="eyebrow">Ο προσωπικός σου χώρος</div>
+      <h1>Ο λογαριασμός μου</h1>
+      <p>Οι παραγγελίες, τα αγαπημένα και όλες οι υπηρεσίες του ΚΟΝΤΑ ΜΟΥ, τακτοποιημένα για εσένα.</p>
     </section>
 
     <CustomerAccountSetupChecklist setup={setup} />
