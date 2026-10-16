@@ -1,5 +1,7 @@
 import { Stack } from "expo-router";
-import {useEffect} from "react";
+import {useCallback,useEffect,useRef,useState} from "react";
+import * as SplashScreen from "expo-splash-screen";
+import {CompanionBootSplash} from "../components/CompanionBootSplash";
 import * as Notifications from "expo-notifications";
 import {Linking,View} from "react-native";
 import {CompanionDock} from "../components/CompanionDock";
@@ -9,7 +11,20 @@ import { StatusBar } from "expo-status-bar";
 import { theme } from "../theme";
 import { CompanionForegroundWatcher } from "../components/CompanionForegroundWatcher";
 
+// Keep the native white splash until the React logo animation is mounted.
+void SplashScreen.preventAutoHideAsync().catch(()=>undefined);
+
 export default function RootLayout() {
+ const [layoutReady,setLayoutReady]=useState(false);
+ const [bootComplete,setBootComplete]=useState(false);
+ const nativeSplashHidden=useRef(false);
+ const handleRootLayout=useCallback(()=>{
+  if(nativeSplashHidden.current)return;
+  nativeSplashHidden.current=true;
+  setLayoutReady(true);
+  void SplashScreen.hideAsync().catch(()=>undefined);
+ },[]);
+ const onBootComplete=useCallback(()=>setBootComplete(true),[]);
   useEffect(()=>{
     const open=(data:Record<string,unknown>|undefined)=>{
       if(!data)return;
@@ -43,7 +58,7 @@ export default function RootLayout() {
     });
     return()=>{subscription.remove();rotated.remove();};
   },[]);
-  return <>
+  return <View style={{flex:1,backgroundColor:"#FFFFFF"}} onLayout={handleRootLayout}>
     <CompanionForegroundWatcher />
     <StatusBar style="dark" />
     <View style={{flex:1}}>
@@ -69,5 +84,6 @@ export default function RootLayout() {
     </Stack>
     <CompanionDock />
     </View>
-  </>;
+    {!bootComplete&&<CompanionBootSplash ready={layoutReady} onComplete={onBootComplete}/>}
+  </View>;
 }
