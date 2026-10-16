@@ -43,6 +43,8 @@ export default function CompanionAddresses(){
  const version=useRef(0);
  const refresh=useCallback(async()=>{
   const id=++version.current;
+  // Hide old address data while switching account context or refreshing.
+  setProfile(null);
   setLoading(true);
   try{
    const next=await loadAddressProfile();
