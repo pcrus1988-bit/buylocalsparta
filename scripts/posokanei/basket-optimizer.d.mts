@@ -1,5 +1,5 @@
 export type BasketLine =
-  | {id:string;kind:"exact";sourceProductId:string;packageCount:number;lockedRetailerId?:string}
+  | {id:string;kind:"exact";sourceProductId:string;packageCount:number;lockedRetailerId?:string;replacedFrom?:{sourceProductId:string;packageCount:number}}
   | {id:string;kind:"group";groupId:string;requiredBaseQuantity:number;lockedProductId?:string;lockedRetailerId?:string};
 export type BasketProduct = { source_product_id:string;name:string;brand?:string|null;unit?:string|null;unit_quantity?:number|null;snapshot_date?:string };
 export type BasketPrice = {source_product_id:string;snapshot_date:string;country:string;retailer_id:string;retailer_name?:string;price_eur:number;source_price_updated_at?:string|null};
@@ -38,6 +38,9 @@ export type BasketResult = {
     }[];
   }|null;
 
+  reviewedBrandSwitchCount:number;
+  originalBasketBenchmarkEur:number|null;originalBasketBenchmarkMode:"single"|"limited"|null;
+  brandSwitchSavingsEur:number|null;
   savingsVsCheapestCompleteSingleStoreEur:number|null;limitation:string
 };
 export function optimizeReferenceBasket(input:{
