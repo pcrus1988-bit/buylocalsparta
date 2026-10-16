@@ -1,5 +1,5 @@
 /**
- * Non-binding, per-item savings opportunities from reviewed alternatives only.
+ * Non-binding, per-item savings opportunities from validated alternatives.
  * These figures do not replace the basket optimiser or promise combined savings:
  * the final basket may require different supermarkets or incur other constraints.
  */
@@ -9,7 +9,7 @@ export function summarizeCheaperAlternatives(results) {
     if(typeof entry?.lineId!=="string"||!entry.lineId||!Array.isArray(entry.alternatives))continue;
     let bestCents=0;
     for(const candidate of entry.alternatives) {
-      if(candidate?.confidence!=="reviewed_equivalent"||
+      if(!["reviewed_equivalent","automatically_verified"].includes(candidate?.confidence)||
          typeof candidate.savingsEur!=="number"||!Number.isFinite(candidate.savingsEur)||
          candidate.savingsEur<=0||
          typeof candidate.originalTotalEur!=="number"||!Number.isFinite(candidate.originalTotalEur)||
