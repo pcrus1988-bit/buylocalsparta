@@ -32,6 +32,7 @@ test("both alternative API methods enforce cheaper-only even if callers ask for 
   assert.match(alternativesRoute,/includeNonCheaper:false,maxResults:5/);
   assert.match(alternativesRoute,/input\.includeNonCheaper===true/);
   assert.match(alternativesRoute,/includeNonCheaper:false/);
+  assert.match(alternativesRoute,/maxResults:25/);
   assert.doesNotMatch(alternativesRoute,/includeNonCheaper:input\.includeNonCheaper===true|includeNonCheaper:allBrands/);
   assert.doesNotMatch(alternativesRoute,/show\)===\"all\"/);
 });
@@ -42,7 +43,8 @@ test("basket options require positive pack-matched savings in whole cents",()=>{
   assert.match(source,/x\.alternatives\.filter\(isCheaper\),candidates:x\.candidates\.filter\(isCheaper\)/);
   assert.match(source,/availableAlternativeResults\.map\(entry=>/);
   assert.match(source,/onClick=\{\(\)=>chooseAlternative\(entry\.lineId,option\)\}/);
-  assert.match(source,/window\.confirm\(/);
+  assert.doesNotMatch(source,/Η εναλλακτική δεν έχει επιβεβαιωθεί/);
+  assert.match(source,/Αυτόματα ελεγμένη αντιστοίχιση/);
   assert.match(source,/packages===null\|\|packages>100/);
   assert.doesNotMatch(source,/Ίδια καταγεγραμμένη τιμή|Πιθανά οικονομικότερα προϊόντα για/);
 });
@@ -62,6 +64,8 @@ test("the opt-in savings prompt counts only outstanding cheaper alternatives",()
   assert.match(source,/summarizeCheaperAlternatives\(availableAlternativeResults\)/);
   assert.match(source,/savingsOpportunities\.productCount>0&&<button/);
   assert.match(source,/savingsOpportunities\.potentialSavingEur/);
+  assert.match(source,/Πρόσθετη δυνητική εξοικονόμηση/);
+  assert.match(source,/replacedFrom=\["reviewed_equivalent","automatically_verified"\]\.includes\(next\.confidence\)/);
   assert.match(source,/setExpandedAlternatives\(current=>\[\.\.\.new Set\(\[\.\.\.current,\.\.\.savingsOpportunities\.lineIds\]\)\]\)/);
   assert.match(source,/aria-expanded=\{expandedAlternatives\.includes\(entry\.lineId\)\}/);
   assert.match(source,/void calculate\(revised\)/);
