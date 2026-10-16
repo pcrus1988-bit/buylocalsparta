@@ -12,7 +12,7 @@ export type PlanItem = {
 };
 export type BasketPlan = {
   complete:boolean;items:PlanItem[];missingItems:{lineId:string;reason:string}[];
-  totalEur:number|null;coveredItemCount:number;storeCount:number;stores:{id:string;name:string}[]
+  totalEur:number|null;coveredSubtotalEur:number;coveredItemCount:number;storeCount:number;stores:{id:string;name:string}[]
 };
 export type BasketResult = {
   snapshotDate:string;country:string;lineCount:number;retailerCount:number;includedRetailerIds:string[];
@@ -22,6 +22,8 @@ export type BasketResult = {
   cheapestWithinStoreLimit:BasketPlan|null;
   byStoreLimit:{maxStores:number;plan:BasketPlan|null}[];
   singleStoreCandidates:{retailerId:string;complete:boolean;missingItems:{lineId:string;reason:string}[];coveredItemCount:number;totalEur:number|null}[];
+  coverageFirstSingleStore:{retailerId:string;retailerName:string;coveredItemCount:number;totalItemCount:number;complete:boolean;missingItems:{lineId:string;reason:string}[];totalEur:number|null;coveredSubtotalEur:number}|null;
+  savingsVsCoverageFirstSingleStoreEur:number|null;savingsVsCoverageFirstSingleStorePercent:number|null;
   savingsVsCheapestCompleteSingleStoreEur:number|null;limitation:string
 };
 export function optimizeReferenceBasket(input:{
