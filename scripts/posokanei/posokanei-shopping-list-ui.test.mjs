@@ -4,10 +4,22 @@ import {readFileSync} from "node:fs";
 
 const source=readFileSync(new URL("../../apps/web/src/components/PosoKaneiPublicClient.tsx",import.meta.url),"utf8");
 
-test("PosoKanei does not render standalone reviewed-group browsing or catalogue brand comparison",()=>{
+const listingRoute=readFileSync(new URL("../../apps/web/src/app/api/posokanei/route.ts",import.meta.url),"utf8");
+
+test("PosoKanei never renders the standalone approved product type explorer",()=>{
   assert.doesNotMatch(source,/Συγκρίσεις εγκεκριμένων τύπων|Διάλεξε ένα είδος για σύγκριση/);
-  assert.doesNotMatch(source,/reviewedBrowser|posokanei-reviewed-comparisons|comparablePanel/);
-  assert.doesNotMatch(source,/Σύγκρινε άλλες μάρκες|Ομάδα συγκρίσιμων/);
+  assert.doesNotMatch(source,/reviewedBrowser|posokanei-reviewed-comparisons|Ομάδα συγκρίσιμων/);
+});
+
+test("catalogue brand comparison renders only for actually priced, reviewed alternatives",()=>{
+  assert.match(listingRoute,/approvedAlternatives:p\.groupId\?findBrandAlternatives/);
+  assert.match(listingRoute,/brandIndex:approvedOnlyIndex/);
+  assert.match(listingRoute,/excludedRetailerIds:\[\.\.\.excluded\]/);
+  assert.match(listingRoute,/includeNonCheaper:true/);
+  assert.match(source,/!!p\.approvedAlternatives\?\.length&&<button/);
+  assert.match(source,/!!p\.approvedAlternatives\?\.length&&comparedProduct===p\.id&&/);
+  assert.match(source,/Σύγκρινε άλλες μάρκες/);
+  assert.doesNotMatch(source,/Δεν βρέθηκαν άλλα συγκρίσιμα προϊόντα με καταγεγραμμένες τιμές/);
 });
 
 test("PosoKanei still offers approved alternatives and safe substitutions on the shopping list",()=>{

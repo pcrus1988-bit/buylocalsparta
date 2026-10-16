@@ -263,3 +263,29 @@ test("even when showing costly brands, human-approved group membership gates dir
   assert.equal(x.alternatives[0].confidence,"reviewed_equivalent");
   assert.equal(x.candidates[0].confidence,"unverified_match");
 });
+
+test("availability-gated catalogue comparisons require a priced, approved different brand",()=>{
+  const items=[
+    p("chosen","ΑΛΦΑ Ρύζι Καρολίνα 1kg","ΑΛΦΑ","ΡΥΖΙ","kg",1),
+    p("priced","ΒΗΤΑ Ρύζι Καρολίνα 500g","ΒΗΤΑ","ΡΥΖΙ","g",500),
+    p("unreviewed","ΓΑΜΜΑ Ρύζι Καρολίνα 1kg","ΓΑΜΜΑ","ΡΥΖΙ","kg",1)
+  ];
+  const catalogue=new Map([
+    ["chosen",[o("chosen","chain-a",1.40)]],
+    ["priced",[o("priced","chain-b",0.90)]],
+    ["unreviewed",[o("unreviewed","chain-a",0.10)]]
+  ]);
+  const input={
+    sourceId:"chosen",products:items,offersByProduct:catalogue,
+    approvedGroups:[{status:"approved",memberIds:["chosen","priced"]}],
+    brandIndex:new Map(),includeNonCheaper:true,maxResults:10
+  };
+  const available=findBrandAlternatives(input);
+  assert.deepEqual(available.alternatives.map(x=>x.id),["priced"]);
+  assert.equal(available.alternatives[0].packageCount,2);
+  assert.equal(available.alternatives[0].savingsEur,-0.4); // visible despite not cheaper
+  assert.deepEqual(available.candidates,[]); // unreviewed lookalikes never unlock the button
+  assert.deepEqual(findBrandAlternatives({...input,excludedRetailerIds:["chain-b"]}).alternatives,[]);
+  assert.deepEqual(findBrandAlternatives({...input,approvedGroups:[]}).alternatives,[]);
+  assert.deepEqual(findBrandAlternatives({...input,offersByProduct:new Map([["chosen",catalogue.get("chosen")]])}).alternatives,[]);
+});

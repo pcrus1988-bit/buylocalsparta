@@ -1,6 +1,7 @@
 import {NextResponse} from "next/server";
 import {loadPublishedReference,normalizedGreek,pricedCatalog,publicCards} from "../../../lib/posokanei-public-runtime";
 import {broadCategory,BROAD_CATEGORIES} from "../../../lib/posokanei-discovery";
+import {findBrandAlternatives} from "../../../../../../scripts/posokanei/brand-alternatives.mjs";
 export const dynamic="force-dynamic";
 export const runtime="nodejs";
 const headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
@@ -28,11 +29,24 @@ export async function GET(request:Request){
     const eligibleCatalog={...catalog,byProduct:eligibleById};
     const retailers=new Map<string,string>();
     for(const o of snapshot.observations)retailers.set(o.retailer_id,o.retailer_name||o.retailer_id);
+    // A catalogue comparison is offered only when a reviewed alternative
+    // actually has a price in the user's selected supermarket chains.
+    // Do not surface heuristic candidates or fetch 24 separate comparisons.
+    const approvedOnlyIndex=new Map<string,typeof snapshot.products>();
+    const products=publicCards(snapshot,selected.map(p=>p.source_product_id),eligibleCatalog).map(p=>({
+      ...p,
+      approvedAlternatives:p.groupId?findBrandAlternatives({
+        sourceId:p.id,packages:1,products:snapshot.products,
+        offersByProduct:catalog.byProduct,approvedGroups:snapshot.approvedGroups,
+        excludedRetailerIds:[...excluded],brandIndex:approvedOnlyIndex,
+        includeNonCheaper:true,maxResults:10
+      }).alternatives:[]
+    }));
     const categories=[...new Set(snapshot.products.map(p=>p.category).filter((s):s is string=>Boolean(s)))].sort((a,b)=>a.localeCompare(b,"el"));
     return NextResponse.json({
       status:"ready",source:snapshot.source,snapshotDate:snapshot.snapshot_date,
       count,page,pageSize:24,hasMore:page*24<count,
-      products:publicCards(snapshot,selected.map(p=>p.source_product_id),eligibleCatalog),
+      products,
       categories,categoryGroups:BROAD_CATEGORIES,groups:snapshot.approvedGroups.map(g=>({id:g.id,label:g.label,basis:g.basis,approvalMethod:g.approvalMethod||"manual_review"})),
       retailers:[...retailers].map(([id,name])=>({id,name})).sort((a,b)=>a.name.localeCompare(b.name,"el"))
     },{headers});
