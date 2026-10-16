@@ -52,7 +52,7 @@ export function CompanionForegroundWatcher(){
     );
     if(disposed||attempt!==generation||AppState.currentState!=="active")sub.remove();
     else locationSubscription=sub;
-    } finally {starting=false;}
+    } finally {starting=false; if(!disposed && attempt!==generation && AppState.currentState==="active") void start();}
   }
   const preferenceChanged=DeviceEventEmitter.addListener("companion-preferences-changed",()=>{
     void stop().then(()=>start());
