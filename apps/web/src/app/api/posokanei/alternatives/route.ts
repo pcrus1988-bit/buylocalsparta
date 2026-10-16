@@ -72,7 +72,7 @@ export async function POST(request:Request){
     const data:unknown=JSON.parse(body);
     if(!data||typeof data!=="object"||Array.isArray(data))
       return NextResponse.json({error:"Μη έγκυρη λίστα."},{status:400,headers});
-    const input=data as {lines?:unknown;excludedRetailerIds?:unknown};
+    const input=data as {lines?:unknown;excludedRetailerIds?:unknown;includeNonCheaper?:unknown};
     const validId=(v:unknown)=>typeof v==="string"&&/^[A-Za-z0-9_-]{1,100}$/.test(v);
     if(!Array.isArray(input.lines)||input.lines.length<1||input.lines.length>20||
        input.lines.some(x=>{
@@ -83,7 +83,8 @@ export async function POST(request:Request){
            line.packageCount<1||line.packageCount>100;
        })||!Array.isArray(input.excludedRetailerIds)||
        input.excludedRetailerIds.length>24||
-       input.excludedRetailerIds.some(x=>!validId(x)))
+       input.excludedRetailerIds.some(x=>!validId(x))||
+       (input.includeNonCheaper!==undefined&&typeof input.includeNonCheaper!=="boolean"))
        return NextResponse.json({error:"Μη έγκυρα στοιχεία σύγκρισης."},{status:400,headers});
     const requested=input.lines as Array<{id:string;sourceProductId:string;packageCount:number}>;
     if(new Set(requested.map(x=>x.id)).size!==requested.length)
@@ -98,7 +99,8 @@ export async function POST(request:Request){
         sourceId:line.sourceProductId,packages:line.packageCount,
         products:snapshot.products,offersByProduct:catalogue.byProduct,
         brandIndex:index,approvedGroups:snapshot.approvedGroups,
-        excludedRetailerIds:input.excludedRetailerIds as string[]
+        excludedRetailerIds:input.excludedRetailerIds as string[],
+         includeNonCheaper:input.includeNonCheaper===true
       })
     }));
     return NextResponse.json({
