@@ -210,3 +210,87 @@ test("vinegar spelling variation unifies balsamic type without merging wine vine
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["v-a","v-b"]]);
 });
+
+test("exact traditional sheep and goat yogurt are independent type comparisons",()=>{
+ const list=[
+  p("s-a","Η ΘΕΡΜΗ","Η ΘΕΡΜΗ Γιαούρτι Πρόβειο Παραδοσιακό 220g","Πρόβειο Γιαούρτι","kg",.22),
+  p("s-b","ΓΑΛΠΟ","ΓΑΛΠΟ Πρόβειο Παραδοσιακό Γιαούρτι 240g","Πρόβειο Γιαούρτι","kg",.24),
+  p("s-light","OTHER","OTHER Πρόβειο Ελαφρύ Παραδοσιακό Γιαούρτι 200g","Πρόβειο Γιαούρτι","kg",.2),
+  p("g-a","ΓΑΛΠΟ","ΓΑΛΠΟ Κατσικίσιο Γιαούρτι Παραδοσιακό 240g","Κατσικίσιο Γιαούρτι","kg",.24),
+  p("g-b","ΡΟΔΟΠΗ","ΡΟΔΟΠΗ Γιαούρτι Κατσικίσιο Παραδοσιακό 200g","Κατσικίσιο Γιαούρτι","kg",.2)
+ ];
+ const matches=deriveAutoPackagedTypeGroups(list);
+ assert.deepEqual(matches.map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["g-a","g-b"],["s-a","s-b"]]);
+});
+test("plain ayran and spinach leaves match only exact source type, not altered preparations",()=>{
+ const list=[
+  p("a-a","ΟΛΥΜΠΟΣ","ΟΛΥΜΠΟΣ Αριάνι 500ml","Αριάνι","l",.5),
+  p("a-b","ΕΒΡΟΦΑΡΜΑ","ΕΒΡΟΦΑΡΜΑ Αριάνι 1lt","Αριάνι","l",1),
+  p("spin-a","ΑΙΝΟΣ","ΑΙΝΟΣ Σπανάκι Φύλλα 1kg","Κατεψυγμένο Σπανάκι","kg",1),
+  p("spin-b","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Σπανάκι σε Φύλλα 1kg","Κατεψυγμένο Σπανάκι","kg",1),
+  p("spin-chopped","BETA","BETA Σπανάκι Ψιλοκομμένο 1kg","Κατεψυγμένο Σπανάκι","kg",1)
+ ];
+ const matches=deriveAutoPackagedTypeGroups(list);
+ assert.deepEqual(matches.map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["a-a","a-b"],["spin-a","spin-b"]]);
+});
+test("semolina grades, exact pasta shapes and cocoa type remain independently comparable",()=>{
+ const list=[
+  p("sem-a","MELISSA","MELISSA Σιμιγδάλι Χονδρό 500gr","Σιμιγδάλι","kg",.5),
+  p("sem-b","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Σιμιγδάλι Χονδρό 500g","Σιμιγδάλι","kg",.5),
+  p("sem-fine","BETA","BETA Σιμιγδάλι Ψιλό 500g","Σιμιγδάλι","kg",.5),
+  p("p-a","MISKO","MISKO Μακαρόνια Τρυπητά Νο3 500gr","Ζίτι","kg",.5),
+  p("p-b","MELISSA","MELISSA Μακαρόνια Τρυπητά Νο3 500gr","Ζίτι","kg",.5),
+  p("p2","BETA","BETA Παστίτσιο Νο2 500g","Ζίτι","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["p-a","p-b"],["sem-a","sem-b"]]);
+});
+test("white and dark couverture, plain petit beurre and coral pasta are not cross-types",()=>{
+ const list=[
+  p("w-a","FIN CARRE","FIN CARRE Κουβερτούρα Λευκή 200g","Κουβερτούρα Αρτοποιίας","kg",.2),
+  p("w-b","ΙΟΝ","ΙΟΝ Κουβερτούρα Λευκή 125g","Κουβερτούρα Αρτοποιίας","kg",.125),
+  p("dark","BETA","BETA Κουβερτούρα Κλασική 125g","Κουβερτούρα Αρτοποιίας","kg",.125),
+  p("pb-a","ECONOMY","ECONOMY Μπισκότα Πτι Μπερ 200γρ","Πτι Μπερ","kg",.2),
+  p("pb-b","KITBIS","KITBIS Μπισκότα Πτι Μπερ 225g","Πτι Μπερ","kg",.225),
+  p("cor-a","COMBINO","COMBINO Κοράλλι 500g","Κοράλλια","kg",.5),
+  p("cor-b","MELISSA","MELISSA Κοράλλι 500gr","Κοράλλια","kg",.5)
+ ];
+ const ids=deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0]));
+ assert.deepEqual(ids,[["cor-a","cor-b"],["pb-a","pb-b"],["w-a","w-b"]]);
+});
+test("dishwasher salt excludes dishwasher chemicals, glass cleaner keeps blue versus clear",()=>{
+ const list=[
+  p("salt-a","MR GRAND","MR GRAND Αλάτι Πλυντηρίου Πιάτων 2kg","Προϊόντα Πλυντηρίου Πιάτων","kg",2),
+  p("salt-b","CLEAN HOME","CLEAN HOME Αλάτι Πλυντηρίου Πιάτων 2kg","Προϊόντα Πλυντηρίου Πιάτων","kg",2),
+  p("tabs","BETA","BETA Ταμπλέτες Πλυντηρίου Πιάτων 2kg","Προϊόντα Πλυντηρίου Πιάτων","kg",2),
+  p("glass-a","MY HOME","MY HOME Υγρό Τζαμιών Blue Ανταλλακτικό 750ml","Καθαρισμός Τζαμιών","l",.75),
+  p("glass-b","DROLIO","DROLIO Υγρό Τζαμιών Blue Ανταλλακτικό 1lt","Καθαρισμός Τζαμιών","l",1),
+  p("clear","W5","W5 Υγρό Τζαμιών Clear Ανταλλακτικό 1l","Καθαρισμός Τζαμιών","l",1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["glass-a","glass-b"],["salt-a","salt-b"]]);
+});
+test("plain tahini, whole-chickpea size, ground garlic and grated mozzarella retain exact subtypes",()=>{
+ const list=[
+  p("t-a","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Ταχίνι 900g","Ταχίνι","kg",.9),
+  p("t-b","ΓΑΛΑΞΙΑΣ","ΓΑΛΑΞΙΑΣ Ταχίνι 900g","Ταχίνι","kg",.9),
+  p("t-whole","BETA","BETA Ταχίνι Ολικής Άλεσης 900g","Ταχίνι","kg",.9),
+  p("ch-a","MY KOUZINA","MY KOUZINA Ρεβίθια Χονδρά 500g","Ρεβύθια","kg",.5),
+  p("ch-b","MR GRAND","MR GRAND Ρεβίθια Χονδρά 500γρ","Ρεβύθια","kg",.5),
+  p("gar-a","ΗΛΙΟΣ","ΗΛΙΟΣ Σκόρδο Τριμμένο 50g","Σκόρδο σε Σκόνη","kg",.05),
+  p("gar-b","KANIA","KANIA Σκόρδο Τριμμένο 40g","Σκόρδο σε Σκόνη","kg",.04),
+  p("mo-a","ARLA","ARLA Μοτσαρέλα Τριμμένη 200g","Μοτσαρέλα","kg",.2),
+  p("mo-b","MILBONA","MILBONA Μοτσαρέλα Τριμμένη 250g","Μοτσαρέλα","kg",.25)
+ ];
+ const matches=deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0]));
+ assert.deepEqual(matches,[["ch-a","ch-b"],["gar-a","gar-b"],["mo-a","mo-b"],["t-a","t-b"]]);
+});
+test("pasta celery and rice-shape products, and spaghetti number, require same detailed type",()=>{
+ const list=[
+  p("se-a","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Σέλινο 500g","Άλλα Ζυμαρικά","kg",.5),
+  p("se-b","MISKO","MISKO Σέλινο 500g","Άλλα Ζυμαρικά","kg",.5),
+  p("ri-a","MELISSA","MELISSA Ρυζάκι 500g","Άλλα Ζυμαρικά","kg",.5),
+  p("spa-a","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Σπαγγέτι Νο7 500g","Σπαγγέτι","kg",.5),
+  p("spa-b","MISKO","MISKO Σπαγγέτι Νο7 500g","Σπαγγέτι","kg",.5),
+  p("spa-other","BETA","BETA Σπαγγέτι Νο5 500g","Σπαγγέτι","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["se-a","se-b"],["spa-a","spa-b"]]);
+});
