@@ -12,6 +12,8 @@ import "server-only";
  * re-downloading of the 20+ MB snapshot.
  */
 import {transformSnapshot,sha256} from "../../../../scripts/posokanei/snapshot-adapter.mjs";
+import approvedCatalogue from "../../../../scripts/posokanei/approved-equivalence-groups.json";
+import {buildApprovedReferenceGroups} from "../../../../scripts/posokanei/reviewed-groups.mjs";
 
 const MIRROR_BASE="https://raw.githubusercontent.com/spyrosavl/posokanei/main/";
 const MIRROR_TTL_MS=15*60*1000;
@@ -98,8 +100,10 @@ async function readGovernmentMirror():Promise<PublishedReferenceSnapshot|null>{
       source_price_updated_at:p.source_price_updated_at,
       is_discount:p.is_discount
     })),
-    // Unlike title/brand similarity, cross-brand equivalence is never guessed.
-    approvedGroups:[]
+    // Only individually reviewed, snapshot-pinned source SKU memberships.
+    // A drifted title, brand, unit, category or missing member deactivates
+    // its entire group until human re-review; never infer from title alone.
+    approvedGroups:buildApprovedReferenceGroups(transformed.references,approvedCatalogue)
   };
 }
 async function cachedGovernmentMirror():Promise<PublishedReferenceSnapshot|null>{

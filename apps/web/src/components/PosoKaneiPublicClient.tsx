@@ -137,6 +137,10 @@ export function PosoKaneiPublicClient(){
     return()=>controller.abort();
   },[comparedProduct,excluded,q,category,page]);
   const groupInfo=listing.groups.find(g=>g.id===group);
+  useEffect(()=>{
+    if(group&&alternatives.length)
+      document.getElementById("posokanei-reviewed-comparisons")?.scrollIntoView({behavior:"smooth",block:"start"});
+  },[group,alternatives]);
   const ranked=useMemo(()=>[...alternatives].sort((a,b)=>{
     const aPrice=a.offers[0]?.priceEur??Infinity,bPrice=b.offers[0]?.priceEur??Infinity;
     if(sorting==="unit"){
@@ -301,6 +305,13 @@ export function PosoKaneiPublicClient(){
             <label>Αναζήτηση προϊόντος<input type="search" value={q} onChange={e=>{setQ(e.target.value);setPage(1);setActive(null);}} placeholder="π.χ. ρύζι, γάλα, ντομάτα ψιλοκομμένη" /></label>
             <label>Κατηγορία<select value={category} onChange={e=>{setCategory(e.target.value);setPage(1);}}><option value="">Όλες οι κατηγορίες</option>{(listing.categoryGroups||[]).map(c=><option key={c} value={c}>{c}</option>)}</select></label>
           </div>
+          {listing.groups.length>0&&<details className={styles.reviewedBrowser}>
+            <summary>Ελεγμένες συγκρίσεις μαρκών · {listing.groups.length} είδη προϊόντων</summary>
+            <p>Διάλεξε ένα είδος για σύγκριση τιμής ανά μάρκα, συσκευασία ή κιλό. Η ελεγμένη αντιστοίχιση αφορά τον τύπο του προϊόντος, όχι εγγύηση ίδιων συστατικών, αλλεργιογόνων ή προέλευσης.</p>
+            <div className={styles.reviewedChips}>
+              {listing.groups.map(g=><button key={g.id} type="button" className={styles.secondary} onClick={()=>{setGroup(g.id);setSorting("unit");}}>{g.label} ↗</button>)}
+            </div>
+          </details>}
           {loading&&<p className={styles.message} role="status">Φόρτωση καταλόγου…</p>}
           {listing.status==="ready"&&!loading&&listing.products.length===0&&<p className={styles.message}>Δεν βρέθηκαν καταγεγραμμένες τιμές με αυτά τα κριτήρια.</p>}
           <div className={styles.cards}>
@@ -352,8 +363,9 @@ export function PosoKaneiPublicClient(){
             })}
           </div>
           {listing.status==="ready"&&(page>1||listing.hasMore)&&<nav className={styles.pagination} aria-label="Σελίδες προϊόντων"><button type="button" disabled={page===1} onClick={()=>setPage(p=>p-1)}>← Προηγούμενη</button><span>Σελίδα {page}</span><button type="button" disabled={!listing.hasMore} onClick={()=>setPage(p=>p+1)}>Επόμενη →</button></nav>}
-          {groupInfo&&<section className={styles.alternative} aria-label="Σύγκριση ισοδύναμων προϊόντων">
+          {groupInfo&&<section id="posokanei-reviewed-comparisons" className={styles.alternative} aria-label="Σύγκριση ισοδύναμων προϊόντων">
             <div className={styles.heading}><div><span className={styles.eyebrow}>02 · ΕΛΕΓΜΕΝΕΣ ΕΝΑΛΛΑΚΤΙΚΕΣ</span><h2>{groupInfo.label}</h2></div><button type="button" className={styles.close} onClick={()=>setGroup(null)} aria-label="Κλείσιμο εναλλακτικών">✕</button></div>
+            <p className={styles.methodNote}>Προϊόντα ελεγμένου ίδιου τύπου και ποσότητας. Έλεγξε τα συστατικά, αλλεργιογόνα και την προέλευση προτού επιλέξεις εναλλακτική μάρκα.</p>
             <div className={styles.buttons}><button className={sorting==="unit"?styles.primary:styles.secondary} onClick={()=>setSorting("unit")} type="button">Ανά {groupInfo.basis}</button><button className={sorting==="package"?styles.primary:styles.secondary} onClick={()=>setSorting("package")} type="button">Ανά συσκευασία</button></div>
             {ranked.map(p=><div className={styles.offer} key={p.id}><span><strong>{p.brand||p.name}</strong><small> {p.name} · {p.offers[0]?.retailerName||""}</small></span><span><strong>{money(p.offers[0]?.priceEur)}</strong><small> {money(pricePerUnit(p,p.offers[0]?.priceEur??0)?.price)}/{groupInfo.basis}</small></span><button type="button" onClick={()=>addProduct(p)}>+ Στη λίστα</button></div>)}
             <button className={styles.primary} type="button" onClick={()=>addGroup(groupInfo)}>+ Η οικονομικότερη ισοδύναμη μάρκα</button>
