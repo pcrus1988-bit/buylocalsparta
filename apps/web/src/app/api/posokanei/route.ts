@@ -33,7 +33,7 @@ export async function GET(request:Request){
       status:"ready",source:snapshot.source,snapshotDate:snapshot.snapshot_date,
       count,page,pageSize:24,hasMore:page*24<count,
       products:publicCards(snapshot,selected.map(p=>p.source_product_id),eligibleCatalog),
-      categories,categoryGroups:BROAD_CATEGORIES,groups:snapshot.approvedGroups.map(g=>({id:g.id,label:g.label,basis:g.basis})),
+      categories,categoryGroups:BROAD_CATEGORIES,groups:snapshot.approvedGroups.map(g=>({id:g.id,label:g.label,basis:g.basis,approvalMethod:g.approvalMethod||"manual_review"})),
       retailers:[...retailers].map(([id,name])=>({id,name})).sort((a,b)=>a.name.localeCompare(b.name,"el"))
     },{headers});
   }catch(error){
