@@ -30,6 +30,9 @@ export function PosoKaneiPublicClient(){
   const [listing,setListing]=useState<Listing>(empty);
   const [loading,setLoading]=useState(true);
   const [active,setActive]=useState<string|null>(null);
+  const [comparedProduct,setComparedProduct]=useState<string|null>(null);
+  const [comparison,setComparison]=useState<{status:string;reason?:string;alternatives:Cheaper[];candidates:Cheaper[]}|null>(null);
+  const [comparisonLoading,setComparisonLoading]=useState(false);
   const [group,setGroup]=useState<string|null>(null);
   const [alternatives,setAlternatives]=useState<Product[]>([]);
   const [sorting,setSorting]=useState<"unit"|"package">("unit");
@@ -106,6 +109,28 @@ export function PosoKaneiPublicClient(){
     })();
     return ()=>abort.abort();
   },[group,excluded]);
+  // Product-card comparisons are opt-in per SKU and cancel on pagination,
+  // category/filter changes or retailer exclusions.
+  useEffect(()=>{
+    if(!comparedProduct){setComparison(null);setComparisonLoading(false);return;}
+    const controller=new AbortController();
+    setComparison(null);setComparisonLoading(true);
+    void (async()=>{
+      try{
+        const url="/api/posokanei/alternatives?productId="+encodeURIComponent(comparedProduct)+
+          "&packages=1&show=all"+(excluded.length?"&exclude="+encodeURIComponent(excluded.join(",")):"");
+        const response=await fetch(url,{signal:controller.signal,cache:"no-store"});
+        if(!response.ok)throw Error("brand comparison not available");
+        const json=await response.json() as {status:string;reason?:string;alternatives?:Cheaper[];candidates?:Cheaper[]};
+        if(!controller.signal.aborted)setComparison({status:json.status,reason:json.reason,alternatives:json.alternatives||[],candidates:json.candidates||[]});
+      }catch{
+        if(!controller.signal.aborted)setComparison({status:"unavailable",alternatives:[],candidates:[]});
+      }finally{
+        if(!controller.signal.aborted)setComparisonLoading(false);
+      }
+    })();
+    return()=>controller.abort();
+  },[comparedProduct,excluded,q,category,page]);
   const groupInfo=listing.groups.find(g=>g.id===group);
   const ranked=useMemo(()=>[...alternatives].sort((a,b)=>{
     const aPrice=a.offers[0]?.priceEur??Infinity,bPrice=b.offers[0]?.priceEur??Infinity;
@@ -162,6 +187,14 @@ export function PosoKaneiPublicClient(){
     setLabels(current=>({...current,[key]:p.name}));
     update([...lines,{id:key,kind:"exact",sourceProductId:p.id,packageCount:1}]);
     setNotice("Προστέθηκε στη λίστα: "+p.name+" · ελέγχονται όλες οι μάρκες της λίστας.");
+  }
+  function addComparable(option:Cheaper){
+    if(option.confidence!=="reviewed_equivalent")return;
+    if(lines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα.");return;}
+    const key=id();
+    setLabels(current=>({...current,[key]:option.name}));
+    update([...lines,{id:key,kind:"exact",sourceProductId:option.id,packageCount:option.packageCount}]);
+    setNotice("Προστέθηκε στη λίστα συγκρίσιμη μάρκα με "+option.packageCount+" συσκευασία/ες για την ίδια ποσότητα.");
   }
   function chooseCheaper(lineId:string,next:Cheaper){
     const selected=brandResults[lineId];
@@ -276,7 +309,31 @@ export function PosoKaneiPublicClient(){
                 <div className={styles.buttons}>
                   <button className={styles.primary} type="button" disabled={!best} onClick={()=>addProduct(p)}>+ Στη λίστα · καλύτερη τιμή</button>
                   <button className={styles.secondary} type="button" onClick={()=>setActive(expanded?null:p.id)} aria-expanded={expanded}>Τιμές στις αλυσίδες {expanded?"−":"+"}</button>
-                  {p.groupId&&<button className={styles.textButton} type="button" onClick={()=>{setGroup(p.groupId);setSorting("unit");}}>Άλλες μάρκες ↗</button>}
+                                    <button className={styles.textButton} type="button" onClick={()=>setComparedProduct(current=>current===p.id?null:p.id)} aria-expanded={comparedProduct===p.id}>Σύγκριση άλλων μαρκών {comparedProduct===p.id?"−":"↗"}</button>
+                  {p.groupId&&<button className={styles.textButton} type="button" onClick={()=>{setGroup(p.groupId);setSorting("unit");}}>Ελεγμένη ομάδα ↗</button>}
+                </div>
+                {comparedProduct===p.id&&<div className={styles.comparablePanel} aria-label={"Συγκρίσιμες μάρκες για "+p.name}>
+                  <h4>Σύγκριση μαρκών για την ίδια ποσότητα</h4>
+                  <p>Συγκρίνουμε την ποσότητα μίας αρχικής συσκευασίας στις επιλεγμένες αλυσίδες. Η ίδια λεπτομερής κατηγορία δεν αποδεικνύει πανομοιότυπα συστατικά — έλεγξε τα χαρακτηριστικά.</p>
+                  {comparisonLoading?<p role="status">Αναζήτηση άλλων μαρκών…</p>:
+                    comparison?.alternatives.length?comparison.alternatives.map(a=><div className={styles.comparableRow} key={a.id}>
+                      <div><strong>{a.name}</strong><small>{a.retailerName} · {a.packageCount} × {money(a.priceEur)} = {money(a.candidateTotalEur)}</small>
+                        <small className={a.savingsEur>0?styles.comparableBenefit:undefined}>{a.savingsEur>0?"Φθηνότερο κατά "+money(a.savingsEur):a.savingsEur===0?"Ίδια τιμή":"Ακριβότερο κατά "+money(Math.abs(a.savingsEur))}</small>
+                      </div>
+                      <button type="button" className={styles.secondary} onClick={()=>addComparable(a)}>+ Στη λίστα</button>
+                    </div>):
+                    <p role="status">{comparison?.status==="unavailable"?"Δεν ολοκληρώθηκε ο έλεγχος.":comparison?.reason==="unknown_quantity"?"Δεν υπάρχουν συγκρίσιμα στοιχεία ποσότητας.":comparison?.candidates?.length?"Δεν υπάρχουν ακόμη εγκεκριμένες εναλλακτικές για άμεση προσθήκη.":"Δεν βρέθηκαν επαρκώς συγκρίσιμες μάρκες με τιμές στις επιλεγμένες αλυσίδες."}</p>}
+
+                  {!!comparison?.candidates?.length&&<div className={styles.possibleComparables}>
+                    <h4>Πιθανώς σχετικά προϊόντα · μη επαληθευμένα</h4>
+                    <p>Οι ονομασίες, η κατηγορία και οι μονάδες μοιάζουν, αλλά δεν έχει εγκριθεί ότι τα προϊόντα είναι εναλλάξιμα. Η διαφορά τιμής είναι ενδεικτική, όχι εγγυημένη εξοικονόμηση. Έλεγξε σύσταση, χρήση και χαρακτηριστικά προτού τα επιλέξεις από την αναζήτηση.</p>
+                    {comparison.candidates.map(a=><div className={styles.comparableRow} key={a.id}>
+                      <div><strong>{a.name}</strong><small>{a.retailerName} · {a.packageCount} × {money(a.priceEur)} = {money(a.candidateTotalEur)}</small>
+                        <small>{a.savingsEur>0?"Ενδεικτικά "+money(a.savingsEur)+" λιγότερα":a.savingsEur===0?"Ίδια καταγεγραμμένη τιμή":"Ενδεικτικά "+money(Math.abs(a.savingsEur))+" περισσότερα"}</small>
+                      </div><small>Απαιτείται επιβεβαίωση ισοδυναμίας</small>
+                    </div>)}
+                  </div>}
+                </div>}
                 </div>
                 {expanded&&<div className={styles.offers}><h4>Καταγεγραμμένες τιμές · μόνο από τις επιλεγμένες αλυσίδες</h4>
                   {p.offers.map((o,i)=><div key={o.retailerId} className={styles.offer}><span>{o.retailerName}{i===0&&<small className={styles.lowest}> Χαμηλότερη καταγραφή</small>}{o.discount&&<small> · Σήμανση έκπτωσης</small>}</span><strong>{money(o.priceEur)}</strong></div>)}
