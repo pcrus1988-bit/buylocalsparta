@@ -8,6 +8,7 @@ import {join,resolve} from "node:path";
 import {
   createBrandIndex,findBrandAlternatives,productFamily,referenceQuantity
 } from "./brand-alternatives.mjs";
+import {buildApprovedReferenceGroups} from "./reviewed-groups.mjs";
 
 const dir=process.argv[2];
 if(!dir){console.error("Usage: node brand-coverage-audit.mjs IMPORT_DIR");process.exit(2);}
@@ -22,10 +23,15 @@ const [products,prices]=await Promise.all([
 // rather than misleadingly reported as zero.
 const reviewedFile=process.argv[3];
 const published=reviewedFile?JSON.parse(await readFile(resolve(reviewedFile),"utf8")):null;
-const approvedGroups=published===null?null:Array.isArray(published)?published:published?.approvedGroups;
+const approvedGroups=published===null?null:
+  published?.schema_version===1&&Array.isArray(published.groups)?
+    buildApprovedReferenceGroups(products,published):
+    Array.isArray(published)?published:published?.approvedGroups;
 if(approvedGroups!==null && (!Array.isArray(approvedGroups)||
     approvedGroups.some(g=>g?.status!=="approved"||!Array.isArray(g.memberIds))))
   throw new Error("Expected a validated set of human-approved groups");
+if(published?.groups?.length && !approvedGroups?.length)
+  throw new Error("All approved product groups drifted or became unavailable");
 
 const offers=new Map();
 for(const observation of prices){
@@ -39,6 +45,8 @@ const count={
   products:products.length,pricedProducts:0,productsWithKnownSize:0,
   productsWithBrandAndFamily:0,productsWithOtherBrandInFamily:0,
   approvedCoverageAudited:approvedGroups!==null,
+  publishedApprovedGroups:approvedGroups?.length??null,
+  publishedApprovedMembers:approvedGroups?.reduce((n,g)=>n+g.memberIds.length,0)??null,
   productsWithCheaperApprovedBrand:approvedGroups===null?null:0,
   approvedOffers:approvedGroups===null?null:0,
   productsWithCheaperUnreviewedCandidate:0,unreviewedOffers:0,
