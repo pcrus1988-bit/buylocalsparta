@@ -197,3 +197,10 @@ An additional allowlist-based engine for source-described grocery products expan
 The controlled categories focus on clearly named ordinary packaged grocery types, including detailed pasta/flour/grain derivatives, selected condiments and spreads, oil types, water, coffee, select dairy with explicit fat %, and individually declared flavored products. Alcohol, infant, medicine, pesticide, generic grab-bag categories, unknown-count paper goods and poor-quantity evidence are never automatically approved. A source that says **virgin olive oil** despite an **extra-virgin** category is explicitly rejected from extra-virgin approval.
 
 These are **approved comparisons of source-described product type**, not guarantees of ingredient, allergy, recipe, origin, nutrition or brand equivalence. Every shopper must expressly accept a replacement. Unapproved and ambiguous products remain displayed as price-labelled, unverified suggestions rather than disappearing or acquiring false certification. CI reports exact aggregate approved/remaining counts from the dated complete source catalogue; it never claims that all 2,000 loosely similar products are interchangeable.
+
+
+## Comparison-regression recovery (16 October 2026)
+
+The strict egg-carton and package-labelled vinegar, frozen okra and short-pasta comparisons were merged in PR #1577 but unintentionally removed in the subsequent savings refactor. They are restored while retaining the explicit customer selection and supermarket price sorting. Eggs must have matching published package counts, size grade, rearing method and distinct trustworthy brands; ambiguous or inaccurate labels fail closed. Product-type compatibility is not proof of identical ingredients, allergens, nutrition or local stock.
+
+Both the source audit and approval export include restored egg groups. Run the full PosoKanei tests and complete dated-snapshot coverage report before release, and count new approved source memberships only from the real source snapshot.

@@ -16,6 +16,7 @@ import approvedCatalogue from "../../../../scripts/posokanei/approved-equivalenc
 import {buildApprovedReferenceGroups} from "../../../../scripts/posokanei/reviewed-groups.mjs";
 import {deriveAutoCommodityGroups} from "../../../../scripts/posokanei/auto-commodity-groups.mjs";
 import {deriveAutoPackagedTypeGroups} from "../../../../scripts/posokanei/auto-packaged-type-groups.mjs";
+import {deriveAutoEggGroups} from "../../../../scripts/posokanei/auto-egg-groups.mjs";
 
 const MIRROR_BASE="https://raw.githubusercontent.com/spyrosavl/posokanei/main/";
 const MIRROR_TTL_MS=15*60*1000;
@@ -109,7 +110,8 @@ async function readGovernmentMirror():Promise<PublishedReferenceSnapshot|null>{
       const reviewed=buildApprovedReferenceGroups(transformed.references,approvedCatalogue);
       const strict=deriveAutoCommodityGroups(transformed.references,reviewed);
       const more=deriveAutoPackagedTypeGroups(transformed.references,[...reviewed,...strict]);
-      return [...reviewed,...strict,...more];
+      const eggs=deriveAutoEggGroups(transformed.references,[...reviewed,...strict,...more]);
+      return [...reviewed,...strict,...more,...eggs];
     })()
   };
 }
