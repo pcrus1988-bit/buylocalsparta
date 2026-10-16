@@ -42,7 +42,8 @@ const offers=new Map([
   ["unbranded",[o("unbranded","alpha",0.20)]]
 ]);
 const run=(id="a",options={})=>findBrandAlternatives({
-  sourceId:id,products,offersByProduct:offers,brandIndex:createBrandIndex(products),...options
+  sourceId:id,products,offersByProduct:offers,brandIndex:createBrandIndex(products),
+  approvedGroups:[{status:"approved",memberIds:["a","b","c","milk1","milk2","shampA","shampB"]}],...options
 });
 
 test("all product families participate, not just named food signatures",()=>{
@@ -90,7 +91,7 @@ test("small unit-price improvements are not called savings when pack rounding co
   const prices=new Map(offers);
   prices.set("big",[o("big","alpha",5)]);
   prices.set("little",[o("little","alpha",1.45)]);
-  const res=findBrandAlternatives({sourceId:"big",products:small,offersByProduct:prices});
+  const res=findBrandAlternatives({sourceId:"big",products:small,offersByProduct:prices,approvedGroups:[{status:"approved",memberIds:["big","little"]}]});
   assert.equal(res.originalTotalEur,5);
   assert.equal(res.alternatives.length,0); // 4 x €1.45 > €5
 });
@@ -119,7 +120,20 @@ test("a genuine one-cent cheaper alternative is still shown",()=>{
   const prices=new Map([
     ["base",[o("base","alpha",1.00)]],["alt",[o("alt","beta",0.99)]]
   ]);
-  const match=findBrandAlternatives({sourceId:"base",products:duo,offersByProduct:prices});
+  const match=findBrandAlternatives({sourceId:"base",products:duo,offersByProduct:prices,approvedGroups:[{status:"approved",memberIds:["base","alt"]}]});
   assert.equal(match.alternatives.length,1);
   assert.equal(match.alternatives[0].savingsEur,0.01);
+});
+
+test("unreviewed lookalikes never become approved suggestions or auto-substitutions",()=>{
+  const result=run("a",{approvedGroups:[]});
+  assert.equal(result.reason,"unreviewed_candidates");
+  assert.deepEqual(result.alternatives,[]);
+  assert.equal(result.candidates[0].id,"b");
+  assert.equal(result.candidates[0].confidence,"unverified_match");
+  const wrongGroup=run("a",{approvedGroups:[{status:"approved",memberIds:["b","c"]}]});
+  assert.deepEqual(wrongGroup.alternatives,[]);
+  assert.equal(wrongGroup.candidates[0].id,"b");
+  const pending=run("a",{approvedGroups:[{status:"pending",memberIds:["a","b"]}]});
+  assert.deepEqual(pending.alternatives,[]);
 });

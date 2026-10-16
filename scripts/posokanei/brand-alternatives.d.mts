@@ -10,7 +10,7 @@ export type BrandSuggestion = {
   packageQuantity:number;unit:"kg"|"l"|"piece";packageCount:number;
   priceEur:number;unitPriceEur:number;retailerId:string;retailerName:string;
   originalTotalEur:number;candidateTotalEur:number;
-  savingsEur:number;savingPercent:number;confidence:"matched_details"
+  savingsEur:number;savingPercent:number;confidence:"reviewed_equivalent"|"unverified_match"
 };
 export type BrandIndex = Map<string,PriceReference[]>;
 export function referenceQuantity(product:PriceReference):{unit:"kg"|"l"|"piece";amount:number}|null;
@@ -21,8 +21,8 @@ export function findBrandAlternatives(input:{
   products:PriceReference[];
   offersByProduct:Map<string,ChainOffer[]>;
   excludedRetailerIds?:string[];
-  brandIndex?:BrandIndex;maxResults?:number
+  brandIndex?:BrandIndex;approvedGroups?:Array<{status:string;memberIds:string[]}>;maxResults?:number
 }):{
   reason:string;basis:"kg"|"l"|"piece"|null;sourceAmount:number|null;
-  originalTotalEur?:number;sourcePackages?:number;alternatives:BrandSuggestion[]
+  originalTotalEur?:number;sourcePackages?:number;alternatives:BrandSuggestion[];candidates:BrandSuggestion[]
 };
