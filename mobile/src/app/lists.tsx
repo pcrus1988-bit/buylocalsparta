@@ -3,6 +3,7 @@ import { useCallback,useState } from "react";
 import { Alert, Pressable,ScrollView,StyleSheet,Text,TextInput,View } from "react-native";
 import {addItem,getItems,removeItem,setItemCompleted,importAccountWishlist,type ListItem,type ListKind} from "../lib/companion-store";
 import {theme} from "../theme";
+import {openMarketplace} from "../lib/marketplace-navigation";
 import {searchCompanionCatalog,type CompanionCatalogProduct} from "../lib/companion-catalog";
 
 export default function CompanionListsScreen(){
@@ -116,7 +117,11 @@ export default function CompanionListsScreen(){
      <Pressable accessibilityRole="checkbox" accessibilityState={{checked:item.completed}} style={styles.itemPrimary} onPress={()=>void toggle(item)}>
       <Text style={styles.check}>{item.completed?"☑":"☐"}</Text>
       <View style={{flex:1}}><Text style={[styles.itemTitle,item.completed&&styles.completed]}>{item.title}</Text>
-        <Text style={styles.itemMeta}>Ποσότητα: {item.quantity}</Text></View>
+        <Text style={styles.itemMeta}>Ποσότητα: {item.quantity}</Text>
+      {item.variantId&&<Pressable accessibilityRole="link"
+        onPress={()=>void openMarketplace({path:"/product/"+item.variantId})}>
+        <Text style={styles.catalogLink}>Δες το ακριβές προϊόν ↗</Text>
+      </Pressable>}</View>
      </Pressable>
      <Pressable accessibilityRole="button" accessibilityLabel={`Αφαίρεση ${item.title}`} onPress={()=>confirmRemove(item)} style={styles.delete}><Text style={styles.deleteText}>×</Text></Pressable>
     </View>)
@@ -157,6 +162,7 @@ const styles=StyleSheet.create({
  catalogProduct:{flexDirection:"row",alignItems:"center",paddingVertical:10,gap:9,borderTopWidth:1,borderTopColor:theme.border},
  catalogSave:{borderRadius:10,paddingVertical:11,paddingHorizontal:12,backgroundColor:theme.green},
  catalogSaveText:{color:theme.white,fontWeight:"800",fontSize:12},
+ catalogLink:{fontSize:12,color:theme.green,fontWeight:"700",marginTop:6},
  note:{fontSize:12,lineHeight:19,color:theme.muted},
  error:{color:"#A54536"}
 });
