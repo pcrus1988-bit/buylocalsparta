@@ -95,26 +95,74 @@ function basketLineOptions(line, productById, groupById, priceByProduct, snapsho
       !hasCompatiblePack ? 'unit_or_pack_not_comparable' : 'no_valid_price_at_allowed_retailers'};
 }
 
-function candidatePlan(lines, retailerSet) {
-  const choices = [], missing = [];
-  const used = new Map();
-  let cents = 0;
-  for(const line of lines) {
-    const chosen = line.options.find(item => retailerSet.has(item.retailerId));
-    if(!chosen) {
-      missing.push({lineId:line.id,reason:line.missingReason??'not_listed_at_selected_retailers'});
-      continue;
+// Price is the primary objective. Once every line's lowest attainable price is
+// fixed, consolidate equally-priced choices onto the fewest supermarket chains.
+// This is an exact secondary optimization for selected plans of up to five stores.
+function preferredTieRetailers(tieSets, retailerIds) {
+  const ids=[...retailerIds].sort(compareIds);
+  if(!ids.length)return new Set();
+  if(ids.length<=12) {
+    const masks=tieSets.map(options=>options.reduce((mask,o)=>{
+      const idx=ids.indexOf(o.retailerId);
+      return idx<0?mask:(mask|(1<<idx));
+    },0));
+    let winner=null,winnerCount=Infinity;
+    for(let mask=1;mask<(1<<ids.length);mask++){
+      let count=0;
+      for(let n=mask;n;n&=n-1)count++;
+      if(count>=winnerCount)continue;
+      if(masks.every(m=>(m&mask)!==0)){winner=mask;winnerCount=count;}
     }
+    return new Set(ids.filter((_,i)=>winner!==null&&(winner&(1<<i))!==0));
+  }
+  // For large unrestricted comparisons, prices remain exactly minimal while
+  // the secondary stop consolidation uses deterministic greedy set coverage.
+  const remaining=new Set(tieSets.map((_,i)=>i));
+  const selected=new Set();
+  for(const choices of tieSets)if(choices.length===1)selected.add(choices[0].retailerId);
+  for(const i of remaining)if(tieSets[i].some(x=>selected.has(x.retailerId)))remaining.delete(i);
+  while(remaining.size){
+    let best=null,bestCoverage=-1;
+    for(const id of ids){
+      const coverage=[...remaining].filter(i=>tieSets[i].some(o=>o.retailerId===id)).length;
+      if(coverage>bestCoverage){best=id;bestCoverage=coverage;}
+    }
+    if(!best||bestCoverage<=0)break;
+    selected.add(best);
+    for(const i of remaining)if(tieSets[i].some(x=>x.retailerId===best))remaining.delete(i);
+  }
+  for(const id of [...selected]){
+    if(tieSets.every(opts=>opts.some(o=>selected.has(o.retailerId)&&o.retailerId!==id)))selected.delete(id);
+  }
+  return selected;
+}
+
+function candidatePlan(lines, retailerSet) {
+  const missing=[],available=[];
+  for(const line of lines){
+    const eligible=line.options.filter(o=>retailerSet.has(o.retailerId));
+    if(!eligible.length){
+      missing.push({lineId:line.id,reason:line.missingReason??'not_listed_at_selected_retailers'});
+    }else{
+      const cheapest=eligible[0].totalCents;
+      available.push(eligible.filter(o=>o.totalCents===cheapest));
+    }
+  }
+  const chosenRetailers=preferredTieRetailers(available,retailerSet);
+  const choices=[],used=new Map();
+  let cents=0;
+  for(const options of available){
+    const chosen=options.find(o=>chosenRetailers.has(o.retailerId))??options[0];
     choices.push(chosen);
     used.set(chosen.retailerId,chosen.retailerName);
-    cents += chosen.totalCents;
+    cents+=chosen.totalCents;
   }
-  const complete = missing.length === 0;
-  return {complete, items:choices, missingItems:missing,
-    totalEur:complete ? toEuros(cents) : null,
-    // The partial subtotal is intentionally not reported as a total.
-    coveredItemCount:choices.length,
-    storeCount:used.size,
+  const complete=missing.length===0;
+  return {complete,items:choices,missingItems:missing,
+    totalEur:complete?toEuros(cents):null,
+    // Expose a subtotal only with an explicit partial-coverage label.
+    coveredSubtotalEur:toEuros(cents),
+    coveredItemCount:choices.length,storeCount:used.size,
     stores:[...used].sort(([a],[b])=>compareIds(a,b)).map(([id,name])=>({id,name})),
     _cents:complete?cents:null};
 }
@@ -218,6 +266,26 @@ export function optimizeReferenceBasket({
   }
   const bestTwoStore = storeLimit>=2 ? candidatesByLimit[1] : null;
   const savings = bestSingle && bestAny ? toEuros(Math.max(0,bestSingle._cents-bestAny._cents)):null;
+  // This deliberately models the user-described availability-first, one-store
+  // heuristic; it is NOT a claim about the official service's source code.
+  const coverageFirstCandidate=[...singleStoreCandidates].sort((a,b)=>
+    b.coveredItemCount-a.coveredItemCount||compareIds(a.retailerId,b.retailerId))[0]??null;
+  const coverageFirstPlan=coverageFirstCandidate
+    ?candidatePlan(definedLines,new Set([coverageFirstCandidate.retailerId])):null;
+  const coverageFirstSingleStore=coverageFirstCandidate&&coverageFirstPlan?{
+    retailerId:coverageFirstCandidate.retailerId,
+    retailerName:retailers.get(coverageFirstCandidate.retailerId)||coverageFirstCandidate.retailerId,
+    coveredItemCount:coverageFirstPlan.coveredItemCount,totalItemCount:lines.length,
+    complete:coverageFirstPlan.complete,missingItems:coverageFirstPlan.missingItems,
+    totalEur:coverageFirstPlan.totalEur,
+    coveredSubtotalEur:coverageFirstPlan.coveredSubtotalEur
+  }:null;
+  const savingsVsCoverageFirstSingleStoreEur=
+    coverageFirstPlan?.complete&&bestDistributed?.complete
+      ?toEuros(Math.max(0,coverageFirstPlan._cents-bestDistributed._cents)):null;
+  const savingsVsCoverageFirstSingleStorePercent=
+    savingsVsCoverageFirstSingleStoreEur!==null&&coverageFirstPlan._cents>0
+      ?Number((100*(coverageFirstPlan._cents-bestDistributed._cents)/coverageFirstPlan._cents).toFixed(1)):null;
   singleStoreCandidates.sort((a,b) => Number(b.complete)-Number(a.complete) ||
     b.coveredItemCount-a.coveredItemCount ||
     (a.totalEur??Infinity)-(b.totalEur??Infinity) ||
@@ -232,7 +300,8 @@ export function optimizeReferenceBasket({
     cheapestAcrossAnyStores:displayPlan(bestAny),
     cheapestWithinStoreLimit:displayPlan(bestDistributed),
     byStoreLimit:candidatesByLimit.map((plan,index)=>({maxStores:index+1,plan:displayPlan(plan)})),
-    singleStoreCandidates,
+    singleStoreCandidates,coverageFirstSingleStore,
+    savingsVsCoverageFirstSingleStoreEur,savingsVsCoverageFirstSingleStorePercent,
     savingsVsCheapestCompleteSingleStoreEur:savings,
     limitation:'Reference-only supermarket chain snapshots; not branch prices, stock, buyable checkout, delivery or travel-cost totals'
   };
