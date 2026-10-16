@@ -155,3 +155,15 @@ Companion now supports authenticated **view, create, edit and delete** of the cu
 - Tests now cover update/delete input contracts, preservation of corporate invoicing fields and native edit round-trips. This is a **draft implementation** only: an APK, actual authenticated physical-device test, production schema/flag review, and full marketplace production CI are still independent release gates.
 
 The final purchase flow, payment authorization, BOX NOW locker choice, shipping price and availability remain **exclusively** in the official checkout. Address changes here do not retrospectively mutate existing orders.
+
+## White logo-assembly startup screen — Android
+
+The Companion startup screen is a functional, **cold-start-only** React Native animation backed by `expo-splash-screen` and the existing official `mobile/assets/icon.png`. It is **not** a pre-rendered video and requires no additional native or third-party animation dependencies.
+
+- The Android-native splash now uses solid `#FFFFFF`. React calls `SplashScreen.preventAutoHideAsync()` at module load, overlays the real animated white startup screen, then hides the native splash after the root layout mounts. This prevents a white-to-cream flash while the JavaScript app becomes interactive.
+- `CompanionBootSplash` clips a single original logo image into a 3×3 grid of independent transparent-looking pieces. Pieces fly in from all four sides using native-driver transforms, then crossfade to the exact, unsliced original image at the center. The overlay fades away after a brief logo hold (~2 seconds total); navigation and account state remain mounted behind it.
+- The animation plays once per process launch, **not** each route visit. If Android has **Reduce motion** enabled, the complete static logo appears briefly and fades without motion. Animation callbacks and timers are cancelled during unmount; no login or API response is needed to finish the splash.
+- All imagery remains bundled with the Android APK; booting needs no network, notifications, location permission or authenticated session. It never delays application initialization beyond the short branding effect.
+- `mobile/test/boot-animation.test.mjs` verifies that the official bundled logo is used, native and JS splash backgrounds are pure white, route mounting is gated correctly, and reduced-motion and cleanup behavior remain present.
+
+**Release note:** The code runs in the development branch until a new Preview APK is compiled and tested on a physical Android phone. Native system splash screens are static until JavaScript starts; the movement begins immediately after the first React layout is mounted. Production, previous APK installs and marketplace backend are unaffected.
