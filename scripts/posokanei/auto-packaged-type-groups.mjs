@@ -39,7 +39,7 @@ const specs=new Map([
   // quantity continue to gate every individual approved comparison.
   ["επιδορπιο κρεμας",["kg",/κρεμα.*(?:βανιλ|καραμελ)|καραμελ.*κρεμα/u]],
   ["γευματα",["kg",/σπανακορυζ|αρακας.*λαδερ|λαδερ.*αρακ/u]],
-  ["θαλασσινα και ψαρια",["kg",/μπακαλιαρ.*(?:pollock|φιλετ)|pollock.*φιλετ/u]],
+  ["θαλασσινα και ψαρια",["kg",/(?=.*pollock)(?=.*(?:φιλετ|fillet))/u]],
   ["πατατες",["kg",/κατεψυγμεν.*πατατ|πατατ.*κατεψυγμεν/u]],
   ["μαργαρινη",["kg",/μαργαριν.*classic|classic.*μαργαριν|μαργαριν.*κλασικ|κλασικ.*μαργαριν/u]],
   ["πουλερικα",["kg",/κοτοπουλ.*μπουτ.*φιλετ|φιλετ.*μπουτ.*κοτοπουλ/u]],
@@ -178,6 +178,10 @@ function accepted(p){
   if(!config)return false;
   const title=norm(p.name);
   if(!config[1].test(title)||dangerous.test(title))return false;
+  // Raw/plain staples do not permit identically worded *processed* variants.
+  // Exact cross-brand family matching is necessary, but not sufficient.
+  if(["πουλερικα","πατατες"].includes(category)&&
+     /πανε|παναρισ|marinat|μαριναρ|seasoned|καρυκευ|μπαχαρ|spiced|προτηγαν|prefried|pre-fried|προψημεν|breaded|battered|wedge|σφην|sticks|τηγανιτ|προετοιμασμεν/u.test(title))return false;
   const size=referenceQuantity(p),label=titleQuantity(p.name);
   if(!size||!label||size.unit!==config[0]||label.unit!==size.unit||
      size.amount<.02||size.amount>40||Math.abs(size.amount-label.quantity)>1e-6)return false;
