@@ -167,7 +167,7 @@ export async function companionAuthorizedRequest<T>(
    throw Error(body?.error==="CART_CHANGED"?"CART_CHANGED":
      body?.error==="PRODUCT_UNAVAILABLE"?"PRODUCT_UNAVAILABLE":"REQUEST_FAILED");
   }
-  throw Error(r.status===503?"NOT_ENABLED":r.status===401?"LOGIN_REQUIRED":"REQUEST_FAILED");
+  throw Error(r.status===429?"RATE_LIMITED":r.status===503?"NOT_ENABLED":r.status===401?"LOGIN_REQUIRED":"REQUEST_FAILED");
  }
  return await r.json() as T;
 }
