@@ -2,6 +2,7 @@
 
 import {useCallback,useEffect,useMemo,useState} from "react";
 import type {BasketLine,BasketPlan,BasketResult} from "../../../../scripts/posokanei/basket-optimizer.mjs";
+import {groupShoppingPlan,planFingerprint,savingsForPlan,shoppingPlanText} from "../../../../scripts/posokanei/shopping-plan.mjs";
 import styles from "./PosoKaneiPublicClient.module.css";
 
 type Offer={retailerId:string;retailerName:string;priceEur:number;observedAt:string|null;discount:boolean};
@@ -44,6 +45,7 @@ export function PosoKaneiPublicClient(){
   const [working,setWorking]=useState(false);
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
+  const [progress,setProgress]=useState<{key:string;completed:string[]}>({key:"",completed:[]});
   useEffect(()=>{
     try{
       const saved=JSON.parse(localStorage.getItem("posokanei-shopping-v2")||"{}") as {excluded?:string[];maxStores?:number;lines?:BasketLine[];labels?:Record<string,string>};
@@ -58,6 +60,16 @@ export function PosoKaneiPublicClient(){
     if(!preferencesLoaded)return;
     try{localStorage.setItem("posokanei-shopping-v2",JSON.stringify({excluded,maxStores:storeLimit,lines,labels}));}catch{}
   },[preferencesLoaded,excluded,storeLimit,lines,labels]);
+  useEffect(()=>{
+    try{
+      const saved=JSON.parse(localStorage.getItem("posokanei-checklist-v1")||"{}") as {key?:unknown;completed?:unknown};
+      if(typeof saved.key==="string"&&saved.key.length<=3000&&Array.isArray(saved.completed)&&saved.completed.length<=20&&
+         saved.completed.every(x=>typeof x==="string"&&/^[A-Za-z0-9_-]{1,100}$/.test(x)))setProgress({key:saved.key,completed:saved.completed as string[]});
+    }catch{}
+  },[]);
+  useEffect(()=>{
+    try{localStorage.setItem("posokanei-checklist-v1",JSON.stringify(progress));}catch{}
+  },[progress]);
   useEffect(()=>{
     const abort=new AbortController();
     if(!preferencesLoaded)return ()=>abort.abort();
@@ -100,6 +112,7 @@ export function PosoKaneiPublicClient(){
   }),[alternatives,sorting]);
   const update=useCallback((next:BasketLine[])=>{setLines(next);setResult(null);setError("");},[]);
   function addProduct(p:Product){
+    if(lines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
     const key=id();
     setLabels(current=>({...current,[key]:p.name}));
     update([...lines,{id:key,kind:"exact",sourceProductId:p.id,packageCount:1}]);
@@ -124,6 +137,7 @@ export function PosoKaneiPublicClient(){
     setSuggestion(null);
   }
   function addGroup(g:Group){
+    if(lines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
     const key=id();
     setLabels(current=>({...current,[key]:g.label}));
     update([...lines,{id:key,kind:"group",groupId:g.id,requiredBaseQuantity:1}]);
@@ -143,6 +157,28 @@ export function PosoKaneiPublicClient(){
     finally{setWorking(false);}
   }
   const plan=result?planOf(result,mode):null;
+  const storeSections=groupShoppingPlan(plan);
+  const planKey=planFingerprint(result?.snapshotDate||"",mode,plan);
+  const completed=new Set(progress.key===planKey?progress.completed:[]);
+  const completedCount=plan?.complete?plan.items.filter(item=>completed.has(item.lineId)).length:0;
+  const actualSavings=savingsForPlan(result,plan);
+  function toggleLineDone(lineId:string){
+    if(!plan?.complete)return;
+    setProgress(previous=>{
+      const current=previous.key===planKey?previous.completed:[];
+      return {key:planKey,completed:current.includes(lineId)?current.filter(id=>id!==lineId):[...current,lineId]};
+    });
+  }
+  async function copyPlan(){
+    const text=shoppingPlanText(result,plan,mode);
+    if(!text)return;
+    try{
+      await navigator.clipboard.writeText(text);
+      setNotice("Η λίστα ανά σούπερ μάρκετ αντιγράφηκε. Μπορείς να τη στείλεις ή να την αποθηκεύσεις.");
+    }catch{
+      setNotice("Δεν επιτράπηκε η αντιγραφή. Δοκίμασε ξανά από ασφαλή σύνδεση.");
+    }
+  }
   return <div className={styles.scope}>
     <div className={styles.wrap}>
       <div className={styles.hero}>
@@ -231,8 +267,22 @@ export function PosoKaneiPublicClient(){
           {error&&<p className={styles.error} role="alert">{error}</p>}
           {result&&<div className={styles.results} aria-live="polite">
             <div className={styles.buttons}><button className={mode==="single"?styles.primary:styles.secondary} onClick={()=>setMode("single")} type="button">1 αλυσίδα</button><button className={mode==="limited"?styles.primary:styles.secondary} onClick={()=>setMode("limited")} type="button">Έως {storeLimit}</button><button className={mode==="all"?styles.primary:styles.secondary} onClick={()=>setMode("all")} type="button">Χωρίς όριο</button></div>
-            {plan?.complete?<><small>Σύνολο πλήρους λίστας</small><div className={styles.bigTotal}>{money(plan.totalEur)}</div><p>{plan.storeCount} αλυσίδα/αλυσίδες</p>{plan.items.map(item=><div className={styles.resultLine} key={item.lineId}><span>{item.productName}<small> {item.retailerName} · {item.packages} τεμ.</small></span><strong>{money(item.lineTotalEur)}</strong></div>)}</>:<p className={styles.error}>Δεν υπάρχει πλήρης λίστα με καταγεγραμμένες τιμές. Τα προϊόντα που λείπουν δεν υπολογίζονται ως δωρεάν.</p>}
-            {mode!=="single"&&result.savingsVsCheapestCompleteSingleStoreEur!==null&&<p className={styles.saving}>Ενδεικτική εξοικονόμηση έναντι μιας αλυσίδας: <strong>{money(result.savingsVsCheapestCompleteSingleStoreEur)}</strong></p>}
+            {plan?.complete?<><small>Σύνολο πλήρους λίστας</small><div className={styles.bigTotal}>{money(plan.totalEur)}</div>
+              <div className={styles.planToolbar}>
+                <span role="status">{completedCount}/{plan.items.length} προϊόντα στη λίστα ολοκληρώθηκαν</span>
+                <button type="button" className={styles.secondary} onClick={()=>{void copyPlan();}}>Αντιγραφή ανά κατάστημα</button>
+              </div>
+              <div className={styles.storePlans}>{storeSections.map(store=><section className={styles.storePlan} key={store.id} aria-label={"Λίστα για "+store.name}>
+                <div className={styles.storePlanHeader}><strong>{store.name}</strong><span>{store.items.length} προϊόντα · {money(store.subtotalEur)}</span></div>
+                {store.items.map(item=><label className={styles.storePlanItem} key={item.lineId}>
+                  <input type="checkbox" checked={completed.has(item.lineId)} onChange={()=>toggleLineDone(item.lineId)} aria-label={"Αγοράστηκε "+item.productName}/>
+                  <span className={completed.has(item.lineId)?styles.doneItem:undefined}>{item.productName}<small>{item.packages} συσκ. · {money(item.pricePerPackageEur)} / συσκ.</small></span>
+                  <strong>{money(item.lineTotalEur)}</strong>
+                </label>)}
+              </section>)}</div>
+              <p className={styles.planCaution}>Μπορείς να τσεκάρεις όσα αγόρασες. Η πρόοδος μένει μόνο σε αυτή τη συσκευή, για το συγκεκριμένο σχέδιο και ημερομηνία τιμών.</p>
+            </>:<p className={styles.error}>Δεν υπάρχει πλήρης λίστα με καταγεγραμμένες τιμές. Τα προϊόντα που λείπουν δεν υπολογίζονται ως δωρεάν.</p>}
+            {mode!=="single"&&actualSavings!==null&&<p className={styles.saving}>Ενδεικτική εξοικονόμηση <strong>αυτού του σχεδίου</strong> έναντι μιας αλυσίδας: <strong>{money(actualSavings)}</strong></p>}
             {result.missingItems.length>0&&<p>Χωρίς τιμή: {result.missingItems.map(item=>labels[item.lineId]||item.lineId).join(", ")}</p>}
             <small>Δεν περιλαμβάνεται κόστος μετακίνησης, διανομή ή προγράμματα επιβράβευσης.</small>
           </div>}
