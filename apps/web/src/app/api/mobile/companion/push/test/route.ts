@@ -1,5 +1,5 @@
-import {requireMobileBearer} from "../../../../../../../lib/companion-mobile-auth";
-import {testCompanionPush} from "../../../../../../../lib/companion-push-service";
+import {requireMobileBearer} from "../../../../../../lib/companion-mobile-auth";
+import {testCompanionPush} from "../../../../../../lib/companion-push-service";
 export const dynamic="force-dynamic";
 export const runtime="nodejs";
 export async function POST(request:Request){
