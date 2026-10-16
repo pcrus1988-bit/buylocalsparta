@@ -607,3 +607,74 @@ test("a generic gluten-free, wholegrain or organic claim never waives restrictio
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(wrong),[]);
 });
+
+test("digestive biscuits, fine vermicelli and filled cocoa biscuits remain specific to their distinct type",()=>{
+ const items=[
+  p("d1","BONORA","BONORA Digestive Μπισκότα 400g","Μπισκότα Digestive","kg",.4),
+  p("d2","SONDEY","SONDEY Μπισκότα Digestive 400g","Μπισκότα Digestive","kg",.4),
+  p("f1","MELISSA","MELISSA Φιδές Ψιλός 250gr","Φιδές","kg",.25),
+  p("f2","MISKO","MISKO Φιδές Ψιλός 250g","Φιδές","kg",.25),
+  p("b1","SONDEY","SONDEY Μπισκότα Γεμιστά με Κακάο 500g","Μπισκότα Γεμιστά, Διάφορες Γεύσεις","kg",.5),
+  p("b2","BONORA","BONORA Μπισκότα Γεμιστά με Κακάο 500g","Μπισκότα Γεμιστά, Διάφορες Γεύσεις","kg",.5),
+  p("other","BETA","BETA Μπισκότα Γεμιστά με Βανίλια 500g","Μπισκότα Γεμιστά, Διάφορες Γεύσεις","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(x=>x.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["b1","b2"],["d1","d2"],["f1","f2"]]);
+});
+test("Greek star-shaped pasta and tsoureki flour compare only inside their named source category",()=>{
+ const items=[
+  p("a1","MELISSA","MELISSA Αστράκι 500gr","Μακαρόνια Αστεράκια","kg",.5),
+  p("a2","MISKO","MISKO Αστράκι 500g","Μακαρόνια Αστεράκια","kg",.5),
+  p("fl1","ΜΥΛΟΙ ΑΓΙΟΥ ΓΕΩΡΓΙΟΥ","ΜΥΛΟΙ ΑΓΙΟΥ ΓΕΩΡΓΙΟΥ Αλεύρι για Τσουρέκι 1kg","Αλεύρι για τσουρέκι","kg",1),
+  p("fl2","ΑΒ ΕΠΙΛΟΓΗ","ΑΒ ΕΠΙΛΟΓΗ Αλεύρι για Τσουρέκι 1kg","Αλεύρι για τσουρέκι","kg",1),
+  p("normal","OTHER","OTHER Αλεύρι για όλες τις χρήσεις 1kg","Αλεύρι για τσουρέκι","kg",1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(x=>x.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["a1","a2"],["fl1","fl2"]]);
+});
+test("frozen sweetcorn and beans-hantres must match exact named frozen ingredient and complete pack",()=>{
+ const items=[
+  p("c1","MR GRAND","MR GRAND Καλαμπόκι Κατεψυγμένο 1kg","Κατεψυγμένο Καλαμπόκι","kg",1),
+  p("c2","ECONOMY","ECONOMY Καλαμπόκι Κατεψυγμένο 750γρ","Κατεψυγμένο Καλαμπόκι","kg",.75),
+  p("h1","ΑΙΝΟΣ","ΑΙΝΟΣ Φασόλια Χάντρες 1kg","Κατεψυγμένα Φασόλια","kg",1),
+  p("h2","ΜΠΑΡΜΠΑ ΣΤΑΘΗΣ","ΜΠΑΡΜΠΑ ΣΤΑΘΗΣ Φασόλια Χάντρες 600g","Κατεψυγμένα Φασόλια","kg",.6),
+  p("other","FARMER","FARMER Φασόλια Γίγαντες 600g","Κατεψυγμένα Φασόλια","kg",.6),
+  p("wrong","WRONG","WRONG Καλαμπόκι Κατεψυγμένο 750g","Κατεψυγμένο Καλαμπόκι","kg",.5)
+ ];
+ // Incorrect label-to-metadata evidence for the same family blocks it.
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(x=>x.memberIds),[["h1","h2"]]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items.filter(x=>x.source_product_id!=="wrong")).map(x=>x.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["c1","c2"],["h1","h2"]]);
+});
+test("corn flour, sliced Edam and plain profiterole each retain a precise comparison family",()=>{
+ const items=[
+  p("co1","ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ","ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ Κορν Φλάουρ 200γρ","Κορν Φλάουερ","kg",.2),
+  p("co2","ΜΥΛΟΙ ΑΓΙΟΥ ΓΕΩΡΓΙΟΥ","ΜΥΛΟΙ ΑΓΙΟΥ ΓΕΩΡΓΙΟΥ Κορν Φλάουρ 200g","Κορν Φλάουερ","kg",.2),
+  p("ed1","MR GRAND","MR GRAND Edam Σε Φέτες 200gr","Ένταμ","kg",.2),
+  p("ed2","PALADIN","PALADIN Edam σε Φέτες 500g","Ένταμ","kg",.5),
+  p("pr1","GLYKAKI","GLYKAKI Προφιτερόλ 200g","Γλυκίσματα Ψυγείου","kg",.2),
+  p("pr2","CONFISERIE FIRENZE","CONFISERIE FIRENZE Προφιτερόλ 180g","Γλυκίσματα Ψυγείου","kg",.18),
+  p("prOther","OTHER","OTHER Προφιτερόλ Χωρίς Ζάχαρη 200g","Γλυκίσματα Ψυγείου","kg",.2)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(x=>x.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["co1","co2"],["ed1","ed2"],["pr1","pr2"]]);
+});
+test("six-pack sparkling water, citrus nectar and exact branded grapefruit mixers use verified whole packs",()=>{
+ const items=[
+  p("w1","AQUA CARPATICA","AQUA CARPATICA Ανθρακούχο Νερό 6x500ml","Ανθρακούχο Νερο","l",3),
+  p("w2","ΜΙΤΣΙΚΕΛΙ","ΜΙΤΣΙΚΕΛΙ Ανθρακούχο Νερό 6x500ml","Ανθρακούχο Νερο","l",3),
+  p("ju1","EVIVA","EVIVA Νέκταρ Πορτοκάλι 1l","Χυμός Πορτοκάλι","l",1),
+  p("ju2","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Νέκταρ Πορτοκάλι 1lt","Χυμός Πορτοκάλι","l",1),
+  p("mi1","ΒΙΚΟΣ","ΒΙΚΟΣ Mixer Pink Grapefruit 6x330ml","Άλλα Αναψυκτικά","l",1.98),
+  p("mi2","SCHWEPPES","SCHWEPPES Mixer Pink Grapefruit 6x330ml","Άλλα Αναψυκτικά","l",1.98),
+  p("different","OTHER","OTHER Mixer Pink Grapefruit Zero 6x330ml","Άλλα Αναψυκτικά","l",1.98)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(x=>x.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["ju1","ju2"],["mi1","mi2"],["w1","w2"]]);
+});
+test("instant cappuccino and lemon iced tea cannot match incompatible preparation or flavours",()=>{
+ const items=[
+  p("cap1","JACOBS","JACOBS Στιγμιαίο Ρόφημα Cappuccino 290g","Καφές Καπουτσίνο","kg",.29),
+  p("cap2","NESCAFE","NESCAFE Στιγμιαίο Ρόφημα Cappuccino 250g","Καφές Καπουτσίνο","kg",.25),
+  p("capCold","HELL","HELL Ice Coffee Cappuccino 250ml","Καφές Καπουτσίνο","l",.25),
+  p("tea1","XIXO","XIXO Κρύο Τσάι Λεμόνι 250ml","Παγωμένο Τσάι","l",.25),
+  p("tea2","LIPTON","LIPTON Κρύο Τσάι Λεμόνι 250ml","Παγωμένο Τσάι","l",.25),
+  p("teaPeach","OTHER","OTHER Κρύο Τσάι Ροδάκινο 250ml","Παγωμένο Τσάι","l",.25)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(x=>x.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["cap1","cap2"],["tea1","tea2"]]);
+});
