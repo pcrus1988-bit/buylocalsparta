@@ -196,7 +196,7 @@ export function findBrandAlternatives({
   if(!source)return {reason:"not_found",basis:null,sourceAmount:null,alternatives:[],candidates:[]};
   const quantity=referenceQuantity(source);
   if(!quantity)return {reason:"unknown_quantity",basis:null,sourceAmount:null,alternatives:[],candidates:[]};
-  const base={basis:quantity.unit,sourceAmount:quantity.amount,alternatives:[],candidates:[]};
+  const base={basis:quantity.unit,sourceAmount:quantity.amount,alternatives:[],candidates:[],bestCheaperSavingEur:0,cheaperAlternativeCount:0};
   const family=productFamily(source);
   if(!reliableBrand(source.brand))return {...base,reason:"no_comparable_brands"};
   const forbidden=new Set(excludedRetailerIds);
@@ -261,9 +261,14 @@ export function findBrandAlternatives({
   const ranked=[...byBrand.values()].sort((a,b)=>
     a.candidateTotalEur-b.candidateTotalEur||b.savingsEur-a.savingsEur||
     a.name.localeCompare(b.name,"el"));
-  // Curated and strictly auto-matched alternatives share a single eligible list.
+  // Derive potential savings from EVERY validated priced brand before the UI cap.
+  // The shopper can replace a line only once: take the best option, never sum brands.
+  const cheaper=ranked.filter(entry=>entry.savingsEur>0);
+  const bestCheaperSavingEur=cheaper.reduce((best,entry)=>
+    Math.max(best,Math.round(entry.savingsEur*100)),0)/100;
   const alternatives=ranked.slice(0,maxResults);
   return {...base,originalTotalEur:euros(sourceCents),sourcePackages:packages,
-    alternatives,candidates:[],reason:alternatives.length?(includeNonCheaper?"comparable_found":"cheaper_found"):
+    alternatives,candidates:[],bestCheaperSavingEur,cheaperAlternativeCount:cheaper.length,
+    reason:alternatives.length?(includeNonCheaper?"comparable_found":"cheaper_found"):
       pool.length>1?(includeNonCheaper?"no_comparable_price":"no_cheaper_brand"):"no_comparable_brands"};
 }
