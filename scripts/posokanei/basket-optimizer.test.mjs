@@ -171,3 +171,80 @@ test('five-store split respects the global retailer whitelist and beats a four-s
  assert.ok(filtered.cheapestWithinStoreLimit.totalEur>five.cheapestWithinStoreLimit.totalEur);
  assert.throws(()=>run({storeLimit:6}),/1–5/);
 });
+
+test('equal-price item joins an already necessary supermarket instead of adding a stop',()=>{
+  const goods=['shared','anchor'].map(id=>({source_product_id:id,name:id,snapshot_date:date}));
+  const prices=[
+    price('shared','a',1.00),price('shared','b',1.00),
+    price('anchor','b',2.00),price('anchor','a',9.00)
+  ];
+  const lines=goods.map(g=>({id:g.source_product_id,kind:'exact',sourceProductId:g.source_product_id,packageCount:1}));
+  const result=run({products:goods,observations:prices,lines,storeLimit:2});
+  assert.equal(result.cheapestWithinStoreLimit.totalEur,3);
+  assert.equal(result.cheapestWithinStoreLimit.storeCount,1);
+  assert.deepEqual(result.cheapestWithinStoreLimit.items.map(x=>x.retailerId),['b','b']);
+  assert.equal(result.cheapestAcrossAnyStores.storeCount,1);
+});
+
+test('all tied choices are consolidated globally even when the common supermarket sorts later',()=>{
+  const goods=['one','two','three'].map(id=>({source_product_id:id,name:id,snapshot_date:date}));
+  const prices=[
+    price('one','a',1),price('one','z',1),
+    price('two','b',1),price('two','z',1),
+    price('three','c',1),price('three','z',1)
+  ];
+  const lines=goods.map(g=>({id:g.source_product_id,kind:'exact',sourceProductId:g.source_product_id,packageCount:1}));
+  const result=run({products:goods,observations:prices,lines,retailerIds:['a','b','c','z'],storeLimit:4});
+  assert.equal(result.cheapestWithinStoreLimit.totalEur,3);
+  assert.equal(result.cheapestWithinStoreLimit.storeCount,1);
+  assert.deepEqual(result.cheapestWithinStoreLimit.stores.map(x=>x.id),['z']);
+});
+
+test('availability-first simulated one-store comparator ignores total price in chain tie',()=>{
+  const goods=['one','two'].map(id=>({source_product_id:id,name:id,snapshot_date:date}));
+  const prices=[
+    price('one','a',7),price('two','a',8),
+    price('one','b',1),price('two','b',1)
+  ];
+  const lines=goods.map(g=>({id:g.source_product_id,kind:'exact',sourceProductId:g.source_product_id,packageCount:1}));
+  const result=run({products:goods,observations:prices,lines,storeLimit:2});
+  assert.equal(result.coverageFirstSingleStore.retailerId,'a');
+  assert.equal(result.coverageFirstSingleStore.coveredItemCount,2);
+  assert.equal(result.coverageFirstSingleStore.complete,true);
+  assert.equal(result.coverageFirstSingleStore.totalEur,15);
+  assert.equal(result.cheapestWithinStoreLimit.totalEur,2);
+  assert.equal(result.savingsVsCoverageFirstSingleStoreEur,13);
+  assert.equal(result.savingsVsCoverageFirstSingleStorePercent,86.7);
+});
+
+test('incomplete availability-first one-store basket has no comparable total or invented savings',()=>{
+  const goods=['one','two','three'].map(id=>({source_product_id:id,name:id,snapshot_date:date}));
+  const prices=[
+    price('one','a',10),price('two','a',9),
+    price('two','b',1),price('three','b',1)
+  ];
+  const lines=goods.map(g=>({id:g.source_product_id,kind:'exact',sourceProductId:g.source_product_id,packageCount:1}));
+  const result=run({products:goods,observations:prices,lines,storeLimit:2,retailerIds:['a','b']});
+  assert.equal(result.coverageFirstSingleStore.retailerId,'a');
+  assert.equal(result.coverageFirstSingleStore.complete,false);
+  assert.equal(result.coverageFirstSingleStore.coveredItemCount,2);
+  assert.equal(result.coverageFirstSingleStore.totalEur,null);
+  assert.equal(result.coverageFirstSingleStore.coveredSubtotalEur,19);
+  assert.equal(result.coverageFirstSingleStore.missingItems.length,1);
+  assert.equal(result.cheapestWithinStoreLimit.totalEur,12);
+  assert.equal(result.savingsVsCoverageFirstSingleStoreEur,null);
+  assert.equal(result.savingsVsCoverageFirstSingleStorePercent,null);
+});
+
+test('coverage first benchmark and tie consolidation honor allowed retailer exclusions',()=>{
+  const goods=['one','two'].map(id=>({source_product_id:id,name:id,snapshot_date:date}));
+  const prices=[
+    price('one','a',5),price('two','a',5),
+    price('one','b',1),price('two','b',1)
+  ];
+  const lines=goods.map(g=>({id:g.source_product_id,kind:'exact',sourceProductId:g.source_product_id,packageCount:1}));
+  const result=run({products:goods,observations:prices,lines,storeLimit:2,retailerIds:['b']});
+  assert.equal(result.coverageFirstSingleStore.retailerId,'b');
+  assert.equal(result.coverageFirstSingleStore.totalEur,2);
+  assert.equal(result.savingsVsCoverageFirstSingleStoreEur,0);
+});
