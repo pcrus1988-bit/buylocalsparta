@@ -1,8 +1,9 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback,useState } from "react";
 import { Alert, Pressable,ScrollView,StyleSheet,Text,TextInput,View } from "react-native";
-import {addItem,getItems,removeItem,setItemCompleted,type ListItem,type ListKind} from "../lib/companion-store";
+import {addItem,getItems,removeItem,setItemCompleted,importAccountWishlist,type ListItem,type ListKind} from "../lib/companion-store";
 import {theme} from "../theme";
+import {searchCompanionCatalog,type CompanionCatalogProduct} from "../lib/companion-catalog";
 
 export default function CompanionListsScreen(){
  const [kind,setKind]=useState<ListKind>("shopping");
@@ -11,6 +12,10 @@ export default function CompanionListsScreen(){
  const [quantity,setQuantity]=useState("1");
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
+ const [catalogQuery,setCatalogQuery]=useState("");
+ const [catalogResults,setCatalogResults]=useState<CompanionCatalogProduct[]>([]);
+ const [catalogSearching,setCatalogSearching]=useState(false);
+ const [catalogNotice,setCatalogNotice]=useState("");
  const refresh=useCallback(async()=>{try{setItems(await getItems());}catch{setError("Δεν κατέστη δυνατή η φόρτωση των λιστών.");}},[]);
  useFocusEffect(useCallback(()=>{void refresh();},[refresh]));
  const visible=items.filter(i=>i.kind===kind);
@@ -25,6 +30,30 @@ export default function CompanionListsScreen(){
  async function toggle(item:ListItem){
   try{await setItemCompleted(item.id,!item.completed);await refresh();}
   catch{setError("Δεν αποθηκεύτηκε η αλλαγή.");}
+ }
+ async function searchCatalog(){
+  if(catalogSearching||busy)return;
+  setCatalogSearching(true);setCatalogResults([]);setCatalogNotice("");
+  try{
+   const products=await searchCompanionCatalog(catalogQuery);
+   setCatalogResults(products);
+   if(!products.length)setCatalogNotice("Δεν βρέθηκαν προϊόντα. Μπορείς να προσθέσεις μια ελεύθερη σημείωση.");
+  }catch(e){
+   const code=e instanceof Error?e.message:"";
+   setCatalogNotice(code==="RATE_LIMITED"?"Έγιναν πολλοί έλεγχοι. Δοκίμασε σε λίγο.":
+     code==="INVALID_SEARCH"?"Γράψε 2–72 χαρακτήρες για αναζήτηση.":
+     "Η αναζήτηση καταλόγου δεν είναι διαθέσιμη. Η offline λίστα συνεχίζει να λειτουργεί.");
+  }finally{setCatalogSearching(false);}
+ }
+ async function addCatalogProduct(product:CompanionCatalogProduct){
+  if(busy)return;
+  setBusy(true);setCatalogNotice("");
+  try{
+   const added=await importAccountWishlist([{variantId:product.variantId,title:product.title}]);
+   await refresh();
+   setCatalogNotice(added?"Το προϊόν προστέθηκε στη wishlist με το ακριβές αναγνωριστικό καταλόγου.":"Αυτό το προϊόν υπάρχει ήδη στη wishlist.");
+  }catch{setCatalogNotice("Δεν έγινε η αποθήκευση στη συσκευή.");}
+  finally{setBusy(false);}
  }
  function confirmRemove(item:ListItem){
   Alert.alert("Αφαίρεση",`Να αφαιρεθεί το «${item.title}»;`,[
@@ -53,6 +82,32 @@ export default function CompanionListsScreen(){
     </Pressable>
    </View>
   </View>
+  {kind==="wishlist" && <View style={styles.card}>
+    <Text style={styles.heading}>Αναζήτηση πραγματικών προϊόντων KONTA MOY</Text>
+    <Text style={styles.sub}>Διάλεξε συγκεκριμένη παραλλαγή από τον κατάλογο. Η τιμή και η διαθεσιμότητα ελέγχονται χωριστά.</Text>
+    <TextInput placeholder="π.χ. παπούτσια τρεξίματος" value={catalogQuery}
+      onChangeText={setCatalogQuery} style={styles.input} maxLength={72}
+      autoCapitalize="none" returnKeyType="search" onSubmitEditing={()=>void searchCatalog()}
+      accessibilityLabel="Αναζήτηση καταλόγου KONTA MOY"/>
+    <Pressable accessibilityRole="button" disabled={catalogSearching||busy||catalogQuery.trim().length<2}
+      onPress={()=>void searchCatalog()} style={[styles.add,(catalogSearching||busy)&&{opacity:.6}]}>
+      <Text style={styles.addText}>{catalogSearching?"Αναζήτηση…":"Αναζήτηση στον κατάλογο"}</Text>
+    </Pressable>
+    {catalogNotice!==""&&<Text style={styles.sub} accessibilityLiveRegion="polite">{catalogNotice}</Text>}
+    {catalogResults.map(product=><View key={product.variantId} style={styles.catalogProduct}>
+      <View style={{flex:1,gap:4}}>
+        <Text style={styles.itemTitle}>{product.title}</Text>
+        {product.brand!==""&&<Text style={styles.itemMeta}>{product.brand}</Text>}
+        <Text style={styles.itemMeta}>Διαθεσιμότητα: έλεγχος στον ιστότοπο</Text>
+      </View>
+      <Pressable accessibilityRole="button" disabled={busy}
+        accessibilityLabel={`Προσθήκη ${product.title} στη wishlist`}
+        onPress={()=>void addCatalogProduct(product)}
+        style={[styles.catalogSave,busy&&{opacity:.6}]}>
+        <Text style={styles.catalogSaveText}>+ Wishlist</Text>
+      </Pressable>
+    </View>)}
+  </View>}
   {error?<Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>:null}
   <Text style={styles.count}>{visible.filter(i=>!i.completed).length} εκκρεμή · {visible.length} συνολικά</Text>
   <View style={styles.list}>
@@ -99,6 +154,9 @@ const styles=StyleSheet.create({
  deleteText:{fontSize:24,color:"#A54536"},
  empty:{padding:22,backgroundColor:theme.white,borderRadius:15},
  emptyTitle:{color:theme.green,fontWeight:"700",fontSize:17},
+ catalogProduct:{flexDirection:"row",alignItems:"center",paddingVertical:10,gap:9,borderTopWidth:1,borderTopColor:theme.border},
+ catalogSave:{borderRadius:10,paddingVertical:11,paddingHorizontal:12,backgroundColor:theme.green},
+ catalogSaveText:{color:theme.white,fontWeight:"800",fontSize:12},
  note:{fontSize:12,lineHeight:19,color:theme.muted},
  error:{color:"#A54536"}
 });
