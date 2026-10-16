@@ -14,6 +14,11 @@ export default function RootLayout() {
       if(typeof url==="string"&&url.startsWith("https://kontamou.site/shop?")){
         void Linking.openURL(url);
       }
+      const orderUrl=data.orderUrl;
+      if(typeof orderUrl==="string" && orderUrl.length<180 &&
+        /^https:\/\/kontamou\.site\/account\/orders\/[A-Za-z0-9_-]+$/.test(orderUrl)){
+        void Linking.openURL(orderUrl);
+      }
     };
     const subscription=Notifications.addNotificationResponseReceivedListener(response=>{
       open(response.notification.request.content.data);
