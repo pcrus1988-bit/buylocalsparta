@@ -411,3 +411,76 @@ test("Choco Balls child cereals keep the named product type, not a generic choco
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["c-a","c-b"]]);
 });
+
+test("artichokes and frozen mixed vegetables stay in their own quantity-verified food categories",()=>{
+ const list=[
+ p("a1","ΜΠΑΡΜΠΑ ΣΤΑΘΗΣ","ΜΠΑΡΜΠΑ ΣΤΑΘΗΣ Αγκινάρες 750g","Κατεψυγμένες Αγκινάρες","kg",.75),
+ p("a2","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Αγκινάρες 1kg","Κατεψυγμένες Αγκινάρες","kg",1),
+ p("a-bad","OTHER","OTHER Αγκινάρες 500g","Κατεψυγμένες Αγκινάρες","kg",.4),
+ p("v1","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Ανάμικτα Λαχανικά 1kg","Κατεψυγμένο Μιξ Λαχανικών","kg",1),
+ p("v2","MR GRAND","MR GRAND Ανάμικτα Λαχανικά 450γρ","Κατεψυγμένο Μιξ Λαχανικών","kg",.45),
+ p("v-prep","OTHER","OTHER Ανάμικτα Λαχανικά Μαγειρεμένα 1kg","Κατεψυγμένο Μιξ Λαχανικών","kg",1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["v1","v2"]]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups([list[0],list[1]]).map(g=>g.memberIds),[["a1","a2"]]);
+});
+test("cornstarch, rice pudding, paprika and regato stay within exact declared product kind",()=>{
+ const list=[
+ p("n1","ΑΝΘΟΣ","ΑΝΘΟΣ Νισεστές 400g","Νισεστές","kg",.4),
+ p("n2","ΩΜΕΓΑ","ΩΜΕΓΑ Νισεστές 425g","Νισεστές","kg",.425),
+ p("r1","ΡΟΔΟΠΗ","ΡΟΔΟΠΗ Ρυζόγαλο 160g","Ρυζόγαλο","kg",.16),
+ p("r2","ΦΑΡΜΑ ΚΟΥΚΑΚΗ","ΦΑΡΜΑ ΚΟΥΚΑΚΗ Ρυζόγαλο 180g","Ρυζόγαλο","kg",.18),
+ p("p1","ΣΚΛΑΒΕΝΙΤΗΣ","ΣΚΛΑΒΕΝΙΤΗΣ Πάπρικα Γλυκιά 50g","Πάπρικα","kg",.05),
+ p("p2","MR GRAND","MR GRAND Πάπρικα Γλυκιά 50γρ","Πάπρικα","kg",.05),
+ p("p-hot","OTHER","OTHER Πάπρικα Καυτερή 50g","Πάπρικα","kg",.05),
+ p("g1","LEADER","LEADER Regato Τριμμένο 200g","Ρεγκάτο","kg",.2),
+ p("g2","MR GRAND","MR GRAND Regato Τριμμένο 200gr","Ρεγκάτο","kg",.2)
+ ];
+ const result=deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0]));
+ assert.deepEqual(result,[["g1","g2"],["n1","n2"],["p1","p2"],["r1","r2"]]);
+});
+test("rigatoni, pasta spirals and small lasagne do not substitute across pasta shapes",()=>{
+ const list=[
+ p("ri1","MISKO","MISKO Ριγκατόνι 500gr","Ριγκατόνι","kg",.5),
+ p("ri2","MELISSA","MELISSA Ριγκατόνι 500gr","Ριγκατόνι","kg",.5),
+ p("tr1","MISKO","MISKO Τριβελάκι 500g","Στριφτό","kg",.5),
+ p("tr2","MR GRAND","MR GRAND Τριβελάκι 500gr","Στριφτό","kg",.5),
+ p("la1","MY KOUZINA","MY KOUZINA Λαζανάκι 500g","Λαζάνια","kg",.5),
+ p("la2","MELISSA","MELISSA Λαζανάκι 500g","Λαζάνια","kg",.5),
+ p("special","OTHER","OTHER Λαζανάκι Χωρίς Γλουτένη 500g","Λαζάνια","kg",.5)
+ ];
+ const result=deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0]));
+ assert.deepEqual(result,[["la1","la2"],["ri1","ri2"],["tr1","tr2"]]);
+});
+test("apple juice, lemon fruit drink and soda brands compare by separately evidenced liquid kind",()=>{
+ const list=[
+ p("j1","ΑΒ","ΑΒ Χυμός Φυσικός Μήλο 1lt","Χυμός Μήλου","l",1),
+ p("j2","ΟΛΥΜΠΟΣ","ΟΛΥΜΠΟΣ Φυσικός Χυμός Μήλο 1lt","Χυμός Μήλου","l",1),
+ p("j-pear","OTHER","OTHER Φυσικός Χυμός Αχλάδι 1lt","Χυμός Μήλου","l",1),
+ p("le1","AMITA","AMITA Φρουτοποτό Λεμόνι 1lt","Χυμός Εσπεριδοειδών","l",1),
+ p("le2","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Φρουτοποτό Λεμόνι 1lt","Χυμός Εσπεριδοειδών","l",1),
+ p("s1","SCHWEPPES","SCHWEPPES Σόδα 6x330ml","Σόδα","l",1.98),
+ p("s2","TUBORG","TUBORG Σόδα 6x330ml","Σόδα","l",1.98)
+ ];
+ const result=deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0]));
+ assert.deepEqual(result,[["j1","j2"],["le1","le2"],["s1","s2"]]);
+});
+test("coffee roast and preparation style remains anchored to full precise title signature",()=>{
+ const list=[
+ p("f1","COFFEE ISLAND","COFFEE ISLAND Καφές Φίλτρου Φουντούκι 200g","Καφές Φίλτρου","kg",.2),
+ p("f2","MAXWELL HOUSE","MAXWELL HOUSE Καφές Φίλτρου Φουντούκι 225g","Καφές Φίλτρου","kg",.225),
+ p("f-m","OTHER","OTHER Καφές Φίλτρου Βανίλια 225g","Καφές Φίλτρου","kg",.225),
+ p("e1","ILLY","ILLY Καφές Espresso Decaf Αλεσμένος 250g","Εσπρέσσο","kg",.25),
+ p("e2","DIMELLO","DIMELLO Καφές Espresso Decaf Αλεσμένος 250g","Εσπρέσσο","kg",.25),
+ p("e3","OTHER","OTHER Καφές Espresso Αλεσμένος 250g","Εσπρέσσο","kg",.25)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["e1","e2"],["f1","f2"]]);
+});
+test("butter popcorn explicitly matches declared flavor but not plain or cheddar",()=>{
+ const list=[
+ p("p1","POPPERS","POPPERS Ποπ Κορν με Βούτυρο 86g","Ποπ Κορν","kg",.086),
+ p("p2","POPBUSTER","POPBUSTER Ποπ Κορν Βούτυρο 100g","Ποπ Κορν","kg",.1),
+ p("other","OTHER","OTHER Ποπ Κορν Cheddar 100g","Ποπ Κορν","kg",.1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["p1","p2"]]);
+});
