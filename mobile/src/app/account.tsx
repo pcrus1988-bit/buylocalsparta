@@ -1,7 +1,7 @@
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import Constants from "expo-constants";
-import {Link} from "expo-router";
+import {Link,useFocusEffect} from "expo-router";
 import {useCallback,useEffect,useRef,useState} from "react";
 import {Alert,Linking,Pressable,ScrollView,StyleSheet,Text,View} from "react-native";
 import {
@@ -11,6 +11,8 @@ import {
 import {theme} from "../theme";
 import {validCanonicalPublicId} from "../lib/canonical-id";
 import {clearCompanionLocalData,importAccountWishlist,getItems} from "../lib/companion-store";
+import {orderStatusText,pickupBadge,pickupOrderPath} from "../lib/pickup-model";
+import {openMarketplace} from "../lib/marketplace-navigation";
 
 WebBrowser.maybeCompleteAuthSession();
 const REDIRECT="kontamoucompanion://auth";
@@ -22,9 +24,6 @@ function money(minor:number,currency:string){
  try{return new Intl.NumberFormat("el-GR",{style:"currency",currency:currency||"EUR"}).format(minor/100);}
  catch{return (minor/100).toFixed(2)+" €";}
 }
-function orderStatus(order:CompanionOrder){
- return order.pickupReady?"Έτοιμη για παραλαβή":order.status;
-}
 
 export default function CompanionAccountScreen(){
  const [account,setAccount]=useState<CompanionAccount|null>(null);
@@ -33,6 +32,7 @@ export default function CompanionAccountScreen(){
  const [error,setError]=useState("");
  const [importNotice,setImportNotice]=useState("");
  const consumed=useRef("");
+ const requestVersion=useRef(0);
  const [request,response,promptAsync]=AuthSession.useAuthRequest({
    clientId:"kontamou-companion-android",
    redirectUri:REDIRECT,
@@ -41,12 +41,24 @@ export default function CompanionAccountScreen(){
  },discovery);
 
  const refresh=useCallback(async()=>{
+   const version=++requestVersion.current;
    setLoading(true);
-   try{setAccount(await loadCompanionAccount());setError("");}
-   catch{setError("Δεν έγινε ο συγχρονισμός. Έλεγξε τη σύνδεση και προσπάθησε ξανά.");}
-   finally{setLoading(false);}
+   try{
+     const snapshot=await loadCompanionAccount();
+     if(version===requestVersion.current){setAccount(snapshot);setError("");}
+   }catch{
+     if(version===requestVersion.current){
+       setAccount(null);
+       setError("Δεν έγινε ο συγχρονισμός. Έλεγξε τη σύνδεση και προσπάθησε ξανά.");
+     }
+   }finally{
+     if(version===requestVersion.current)setLoading(false);
+   }
  },[]);
- useEffect(()=>{void refresh();},[refresh]);
+ useFocusEffect(useCallback(()=>{
+   void refresh();
+   return()=>{requestVersion.current++;};
+ },[refresh]));
 
  useEffect(()=>{
    if(!response || response.type!=="success" || !request?.codeVerifier)return;
@@ -95,6 +107,7 @@ export default function CompanionAccountScreen(){
    }finally{setBusy(false);}
  }
  async function logout(){
+   requestVersion.current++;
    setBusy(true);setError("");
    try{await disconnectCompanion();setAccount(null);}
    catch{setAccount(null);setError("Η τοπική αποσύνδεση ολοκληρώθηκε· έλεγξε ξανά τη σύνδεσή σου.");}
@@ -141,16 +154,19 @@ export default function CompanionAccountScreen(){
     <View style={styles.card}>
       <Text style={styles.heading}>Οι παραγγελίες μου</Text>
       {account.orders.length===0?<Text style={styles.help}>Δεν υπάρχουν ακόμη παραγγελίες.</Text>:
-       account.orders.map(order=><View style={styles.order} key={order.id}>
+       account.orders.slice(0,5).map(order=><View style={styles.order} key={order.id}>
         <Text style={styles.orderTitle}>{order.reference}</Text>
-        <Text style={styles.info}>{orderStatus(order)} · {money(order.totalMinor,order.currency)}</Text>
+        <Text style={styles.info}>{orderStatusText(order)} · {money(order.totalMinor,order.currency)}</Text>
         {order.hasPickup&&<Text style={styles.pickup}>
-          {order.pickupReady?"Το κατάστημα έχει δηλώσει έτοιμη την παραλαβή σου.":"Περιλαμβάνει παραλαβή από κατάστημα"}
+          {pickupBadge(order)==="ready"?"Το κατάστημα έχει δηλώσει έτοιμη την παραλαβή σου.":"Περιλαμβάνει παραλαβή από κατάστημα"}
         </Text>}
-        <Pressable accessibilityRole="link" onPress={()=>void Linking.openURL(`${WEBSITE}/account/orders/${encodeURIComponent(order.id)}`)}>
+        <Pressable accessibilityRole="link" onPress={()=>void openMarketplace({path:pickupOrderPath(order.id)}).catch(()=>setError("Δεν άνοιξε η ασφαλής παραγγελία."))}>
           <Text style={styles.link}>Λεπτομέρειες / ασφαλές QR ↗</Text>
         </Pressable>
        </View>)}
+      <Link href="/orders" asChild><Pressable accessibilityRole="button" style={styles.outline}>
+       <Text style={styles.outlineText}>Όλες οι παραγγελίες · φίλτρα & καταστάσεις →</Text>
+      </Pressable></Link>
       <Link href="/pickups" asChild><Pressable accessibilityRole="button" style={styles.outline}>
        <Text style={styles.outlineText}>Κέντρο παραλαβών →</Text>
       </Pressable></Link>
