@@ -64,6 +64,16 @@ For privacy and authorization, neither customer IDs nor personal list contents a
 
 The 08:39 UTC Companion Logic and standalone Preview APK runs failed before packaging because `mobile/src/lib/nearby-matching.ts` mistakenly contained literal `\\n` sequences in a line comment. This commented out the exact-variant matching conditional and produced `TS1128` / Metro `'return' outside of function`. The module was corrected at source in the Companion draft branch; matcher behavior remains exact-variant-only for saved catalog products. Nearby matching tests pass in CI; this does not replace the full Expo / Gradle CI run, which must finish on the corrected branch before distributing a new APK.
 
+## Companion vs PosoKanei boundary — 16 October 2026
+
+**KONTA MOY Companion** is the native Android customer companion for the *KONTA MOY marketplace*: real canonical product variants, seller listings, offline per-device wishlists for verified nearby vendor reminders, account orders, local pickups and privacy-controlled notifications. **KONTA MOY × PosoKanei** is an independent supermarket price comparison and optimized multi-supermarket grocery basket tool. The generic bulk grocery-note parser/UI mistakenly placed in Companion was removed. Grocery equivalents, cheapest-brand suggestions, supermarket price splitting and any PosoKanei calculations must remain in the independent PosoKanei feature and are not Android Companion list logic.
+
+## Native pickup status — 16 October 2026
+
+The Android pickup screen now reads the customer's real `GET /api/mobile/companion/account` snapshot **only when authenticated Companion login is enabled**, displays real pickup orders and the `pickupReady` boolean, prioritizes ready-for-collection orders, and provides a validated first-party Custom Tab per order. All QR material remains exclusively on the existing protected website order page; there is no Android QR generation, server mutation, cached customer order record or implied live pickup when disabled. The Preview remains browser-only until production PKCE and its migrations pass the real-device gate.
+
+Tests: `mobile/test/pickup-model.test.ts`, `mobile/test/marketplace-links.test.ts`. Validate signed-in and signed-out presentation, revoked sessions, pending/ready/cancelled/refunded orders and Android Custom Tabs on a physical device.
+
 ## Shopping-list usability increment — 16 October 2026
 
 The Android catalogue search now lets shoppers explicitly add the **exact canonical variant** to either the offline shopping list or offline wishlist. Shopping-list repeats increment quantity instead of silently making duplicate rows (up to 99); wishlist repeats are idempotent and can reopen a completed saved item. Moving a canonical product between lists safely merges its quantity with an existing destination entry, retaining unfinished intent. Generic free-text notes remain independent and private.
