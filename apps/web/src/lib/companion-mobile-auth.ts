@@ -1,14 +1,14 @@
 import { createHash, randomBytes } from "node:crypto";
+import {COMPANION_CLIENT_ID,COMPANION_REDIRECT_URI,
+  validChallenge,challengeForVerifier,sessionToken} from "./companion-pkce";
+export {COMPANION_CLIENT_ID,COMPANION_REDIRECT_URI,validChallenge,validState,validClient,
+  challengeForVerifier,sessionToken} from "./companion-pkce";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
-export const COMPANION_CLIENT_ID = "kontamou-companion-android";
-export const COMPANION_REDIRECT_URI = "kontamoucompanion://auth";
 const ACCESS_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TTL_MS = 30 * 86400 * 1000;
 const ABSOLUTE_TTL_MS = 90 * 86400 * 1000;
-const RE = /^[A-Za-z0-9_-]{43,128}$/;
-
 export type CompanionTokens = {
   accessToken:string;refreshToken:string;tokenType:"Bearer";expiresIn:number;
 };
@@ -30,22 +30,6 @@ function sha(value:string) {
   return createHash("sha256").update(value,"utf8").digest("hex");
 }
 function randomToken() {return randomBytes(32).toString("base64url");}
-export function validChallenge(value:string) {
-  return /^[A-Za-z0-9_-]{43}$/.test(value);
-}
-export function validState(value:string) {
-  return /^[A-Za-z0-9_-]{16,128}$/.test(value);
-}
-export function validClient(client:string,redirect:string) {
-  return client===COMPANION_CLIENT_ID && redirect===COMPANION_REDIRECT_URI;
-}
-export function challengeForVerifier(value:string) {
-  if(!RE.test(value))throw new Error("INVALID_GRANT");
-  return createHash("sha256").update(value,"ascii").digest("base64url");
-}
-export function sessionToken(value:unknown):value is string {
-  return typeof value==="string" && /^[A-Za-z0-9_-]{43}$/.test(value);
-}
 export function bearerFromRequest(request:Request):string {
   const value=request.headers.get("authorization") ?? "";
   const match=/^Bearer ([A-Za-z0-9_-]{43})$/.exec(value);
@@ -73,7 +57,7 @@ export async function issueAuthorizationCode(principal:SessionPrincipal,challeng
 
 export async function exchangeAuthorizationCode(code:string,verifier:string):Promise<CompanionTokens>{
   if(!companionEnabled())throw new Error("NOT_ENABLED");
-  if(!sessionToken(code)||!RE.test(verifier))throw new Error("INVALID_GRANT");
+  if(!sessionToken(code)||!/^[A-Za-z0-9_-]{43,128}$/.test(verifier))throw new Error("INVALID_GRANT");
   const challenge=challengeForVerifier(verifier);
   const accessToken=randomToken(),refreshToken=randomToken();
   const now=Date.now();
