@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - .github/workflows/companion-android-standalone-apk.yml
+  push:
+    branches: [feature/native-customer-app-foundation-20261016]
+    paths:
+      - .github/workflows/companion-android-standalone-apk.yml
 permissions:
   contents: read
 jobs:
@@ -12,7 +16,7 @@ jobs:
     if: >-
       github.repository == 'pcrus1988-bit/buylocalsparta' &&
       ((github.event_name == 'pull_request' && github.event.pull_request.number == 1553) ||
-       (github.event_name == 'workflow_dispatch' && github.ref_name == 'feature/native-customer-app-foundation-20261016'))
+       ((github.event_name == 'workflow_dispatch' || github.event_name == 'push') && github.ref_name == 'feature/native-customer-app-foundation-20261016'))
     runs-on: ubuntu-latest
     timeout-minutes: 55
     env:
