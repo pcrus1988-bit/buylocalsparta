@@ -47,3 +47,37 @@ test("approved egg comparisons preserve whole-carton rounding and user opt-in",(
  assert.equal(match.alternatives[0].savingsEur,.5);
  assert.equal(match.alternatives[0].approvalMethod,"automatic_commodity");
 });
+
+test("conflicting numerical and textual egg grades fail closed even when brands agree",()=>{
+ const bad=[
+  p("contra-a","ALFA","ALFA Αυγά Αχυρώνα Medium 10 Τεμάχια 63-73g"),
+  p("contra-b","BETA","BETA Αυγά Αχυρώνα Medium 10 Τεμάχια 63-73g")
+ ];
+ assert.deepEqual(deriveAutoEggGroups(bad),[]);
+ const mix=p("contra-mix","GAMMA","GAMMA Αυγά Αχυρώνα Large 10 Τεμάχια 53-63g");
+ assert.deepEqual(deriveAutoEggGroups([eggs[0],mix]),[]);
+});
+test("XL grade is recognized before L, including extra-large with matching numeric evidence",()=>{
+ const xl=[
+  p("xl-a","ALFA","ALFA Αυγά Αχυρώνα Extra Large 10 Τεμάχια 73-83g"),
+  p("xl-b","BETA","BETA Αυγά Αχυρώνα XL 10 Τεμάχια 73/83g")
+ ];
+ assert.equal(deriveAutoEggGroups(xl).length,0); // distinct complete descriptions don't share a family
+ assert.deepEqual(deriveAutoEggGroups([
+  p("x1","A","A Αυγά Αχυρώνα Extra Large 10 Τεμάχια 73-83g"),
+  p("x2","B","B Αυγά Αχυρώνα Extra Large 6 Τεμάχια 73-83g",6)
+ ]).map(g=>g.label),["Αυγά barn XL"]);
+ assert.deepEqual(deriveAutoEggGroups([
+  p("x3","A","A Αυγά Αχυρώνα Extra Large 10 Τεμάχια 63-73g"),
+  p("x4","B","B Αυγά Αχυρώνα Extra Large 10 Τεμάχια 63-73g")
+ ]),[]);
+});
+test("Greek gram labels disagreeing with written grade are rejected",()=>{
+ const okay=[
+  p("gr-a","ALFA","ALFA Αυγά Αχυρώνα Μεσαία 10 Τεμάχια 53-63γρ"),
+  p("gr-b","BETA","BETA Αυγά Αχυρώνα Μεσαία 10 Τεμάχια 53-63γρ")
+ ];
+ assert.equal(deriveAutoEggGroups(okay).length,1);
+ const wrong=p("gr-wrong","BETA","BETA Αυγά Αχυρώνα Μεσαία 10 Τεμάχια 63-73γρ");
+ assert.deepEqual(deriveAutoEggGroups([okay[0],wrong]),[]);
+});
