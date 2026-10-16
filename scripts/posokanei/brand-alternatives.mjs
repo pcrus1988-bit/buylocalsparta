@@ -127,6 +127,16 @@ export function productFamily(p) {
   // Discard only physical package volume/weight. Fat %, age, strength,
   // dosage, chemical variants, number of ply, etc. must still match.
   name=name.replace(/(?:^|[^\p{L}\p{N}])\d+(?:[.,]\d+)?\s*(?:kg|gr|g|ml|lt|l|γρ|γραμ|γραμμαρια|κιλ|λιτρα|μλ)(?=$|[^\p{L}])/gu," ");
+  // Piece-count markings are *pack sizes*, not formulation/size attributes.
+  // Only remove a count corroborated by the published package quantity;
+  // retain egg weight classes, roll ply, diaper size, color/shade numbers.
+  const q=referenceQuantity(p);
+  if(q?.unit==="piece"&&Number.isSafeInteger(q.amount)&&q.amount>0){
+    const count=new RegExp("(?:^|[^\\p{L}\\p{N}])"+q.amount+
+      "\\s*(?:τεμ(?:αχια)?|τμχ|pcs?|pieces?|ρολα|rolls?)(?=$|[^\\p{L}\\p{N}])","gu");
+    name=name.replace(count," ");
+  }
+
   const tokens=withoutExplicitBrand(words(name),p.brand)
     .filter(token=>!generic.has(token))
     .map(token=>typeAliases.get(token)||token);
