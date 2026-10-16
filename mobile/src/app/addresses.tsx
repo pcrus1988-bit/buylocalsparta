@@ -55,17 +55,54 @@ export default function CompanionAddresses(){
   }finally{if(id===version.current)setLoading(false);}
  },[]);
  useFocusEffect(useCallback(()=>{void refresh();return()=>{version.current++;};},[refresh]));
+ function closeForm(name=profile?.fullName??""){
+  setEditingId(null);setFormOpen(false);
+  setDraft({...EMPTY_ADDRESS,fullName:name});
+ }
+ function toggleForm(){
+  if(formOpen){closeForm();return;}
+  setEditingId(null);setDraft({...EMPTY_ADDRESS,fullName:profile?.fullName??""});
+  setNotice("");setFormOpen(true);
+ }
+ function editAddress(address:SavedAddress){
+  if(saving)return;
+  if(address.countryCode!=="GR"){
+   setNotice("Η διεύθυνση αυτή μπορεί να τροποποιηθεί μόνο στον ιστότοπο.");return;
+  }
+  setEditingId(address.id);
+  setDraft(draftFromSavedAddress(address));
+  setFormOpen(true);setNotice("");
+ }
  async function save(){
+  if(saving||!profile)return;
+  const updating=editingId;
+  setSaving(true);setNotice("");
+  try{
+   const next=updating?await updateAccountAddress(updating,draft)
+    :await createAccountAddress(draft);
+   setProfile(next);closeForm(next.fullName);
+   setNotice(updating?"Η διεύθυνση ενημερώθηκε.":"Η νέα διεύθυνση αποθηκεύτηκε.");
+  }catch(e){setNotice(message(e));}
+  finally{setSaving(false);}
+ }
+ async function removeAddress(address:SavedAddress){
   if(saving||!profile)return;
   setSaving(true);setNotice("");
   try{
-   const next=await createAccountAddress(draft);
+   const next=await removeAccountAddress(address.id);
    setProfile(next);
-   setFormOpen(false);
-   setDraft({...EMPTY_ADDRESS,fullName:next.fullName});
-   setNotice("Η νέα διεύθυνση αποθηκεύτηκε στον λογαριασμό KONTA MOY.");
+   if(editingId===address.id)closeForm(next.fullName);
+   setNotice("Η διεύθυνση διαγράφηκε. Οι παλιές παραγγελίες δεν αλλάζουν.");
   }catch(e){setNotice(message(e));}
   finally{setSaving(false);}
+ }
+ function confirmRemoval(address:SavedAddress){
+  if(saving)return;
+  Alert.alert("Διαγραφή διεύθυνσης",
+   "Να διαγραφεί αυτή η διεύθυνση από τον λογαριασμό σου; Εάν είναι η τελευταία, θα χρειαστεί νέα πριν το checkout.",[
+    {text:"Άκυρο",style:"cancel"},
+    {text:"Διαγραφή",style:"destructive",onPress:()=>void removeAddress(address)}
+   ]);
  }
  async function manageWeb(){
   try{await openMarketplace({path:"/account"});}
