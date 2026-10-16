@@ -33,7 +33,7 @@ test("PosoKanei still offers approved alternatives and safe substitutions on the
 });
 
 test("a selected cheaper brand preserves a server-verified baseline and recalculates savings",()=>{
-  assert.match(source,/replacedFrom=original\.kind==="exact"/);
+  assert.match(source,/replacedFrom=original\?\.kind==="exact"/);
   assert.match(source,/void calculate\(revised\)/);
   assert.match(source,/savingsIncludingBrands\(result,plan\)/);
   assert.match(source,/Συνολική εξοικονόμηση/);
