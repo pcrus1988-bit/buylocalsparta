@@ -94,6 +94,9 @@ export default function CompanionAccountScreen(){
         <Text style={styles.outlineText}>Ανανέωση παραγγελιών & wishlist</Text>
       </Pressable>
     </View>
+    <Link href="/notifications" asChild><Pressable accessibilityRole="button" style={styles.outline}>
+      <Text style={styles.outlineText}>Ειδοποιήσεις Android · FCM →</Text>
+    </Pressable></Link>
     <View style={styles.card}>
       <Text style={styles.heading}>Οι παραγγελίες μου</Text>
       {account.orders.length===0?<Text style={styles.help}>Δεν υπάρχουν ακόμη παραγγελίες.</Text>:
