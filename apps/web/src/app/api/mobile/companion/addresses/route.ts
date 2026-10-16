@@ -1,7 +1,7 @@
 import {PostgresCustomerAddressService} from "@buy-local-sparta/postgres-runtime/customer-addresses";
 import {PostgresFixedWindowRateLimiter} from "@buy-local-sparta/postgres-runtime";
 import {requireMobileBearer,companionEnabled} from "../../../../../lib/companion-mobile-auth";
-import {parseCompanionNewAddress} from "../../../../../lib/companion-address-policy";
+import {parseCompanionNewAddress,parseCompanionAddressUpdate,parseCompanionAddressRemoval} from "../../../../../lib/companion-address-policy";
 import {customerBrowserAddressProfile} from "../../../../../lib/customer-account-browser-view";
 import {getProductionPostgresRuntime,productionDatabaseConfigured} from "../../../../../lib/postgres-runtime";
 export const runtime="nodejs";
@@ -53,5 +53,58 @@ export async function POST(request:Request){
    {status:201,headers:HEADERS});
  }catch{
   return Response.json({error:"ADDRESS_SAVE_UNAVAILABLE"},{status:503,headers:HEADERS});
+ }
+}
+
+/** Both operations require the customer's validated Android bearer, a bounded
+ * request body, and the EXISTING customer-address service's per-user ownership.
+ * In particular, neither request accepts a user ID or overwrites order snapshots.
+ */
+export async function PUT(request:Request){
+ if(!active())return Response.json({error:"NOT_ENABLED"},{status:503,headers:HEADERS});
+ let customerId:string;
+ try{customerId=(await requireMobileBearer(request)).publicId;}
+ catch{return Response.json({error:"UNAUTHORIZED"},{status:401,headers:HEADERS});}
+ let address:ReturnType<typeof parseCompanionAddressUpdate>;
+ try{
+  const raw=await request.text();
+  if(raw.length>3600)throw Error("INVALID_ADDRESS");
+  address=parseCompanionAddressUpdate(JSON.parse(raw));
+ }catch{return Response.json({error:"INVALID_ADDRESS"},{status:400,headers:HEADERS});}
+ try{
+  const limiter=new PostgresFixedWindowRateLimiter(getProductionPostgresRuntime().sqlPool);
+  const rate=await limiter.consume({route:"companion-address-mutate",
+   key:customerId,limit:6,windowMs:60000,now:Date.now()});
+  if(!rate.allowed)return Response.json({error:"RATE_LIMITED"},{status:429,headers:HEADERS});
+  // The upsert UPDATE is explicitly scoped by user_id and public_id.
+  // A foreign, deleted or stale address ID is never converted into a new insert.
+  const result=await service().upsert(customerId,address,Date.now());
+  return Response.json({profile:customerBrowserAddressProfile(result)},{headers:HEADERS});
+ }catch{
+  return Response.json({error:"ADDRESS_SAVE_UNAVAILABLE"},{status:503,headers:HEADERS});
+ }
+}
+export async function DELETE(request:Request){
+ if(!active())return Response.json({error:"NOT_ENABLED"},{status:503,headers:HEADERS});
+ let customerId:string;
+ try{customerId=(await requireMobileBearer(request)).publicId;}
+ catch{return Response.json({error:"UNAUTHORIZED"},{status:401,headers:HEADERS});}
+ let payload:ReturnType<typeof parseCompanionAddressRemoval>;
+ try{
+  const raw=await request.text();
+  if(raw.length>500)throw Error("INVALID_ADDRESS");
+  payload=parseCompanionAddressRemoval(JSON.parse(raw));
+ }catch{return Response.json({error:"INVALID_ADDRESS"},{status:400,headers:HEADERS});}
+ try{
+  const limiter=new PostgresFixedWindowRateLimiter(getProductionPostgresRuntime().sqlPool);
+  const rate=await limiter.consume({route:"companion-address-mutate",
+   key:customerId,limit:6,windowMs:60000,now:Date.now()});
+  if(!rate.allowed)return Response.json({error:"RATE_LIMITED"},{status:429,headers:HEADERS});
+  // Existing web service safely promotes a replacement default when necessary.
+  // Historical order address snapshots remain immutable.
+  const result=await service().remove(customerId,payload.id,Date.now());
+  return Response.json({profile:customerBrowserAddressProfile(result)},{headers:HEADERS});
+ }catch{
+  return Response.json({error:"ADDRESS_DELETE_UNAVAILABLE"},{status:503,headers:HEADERS});
  }
 }
