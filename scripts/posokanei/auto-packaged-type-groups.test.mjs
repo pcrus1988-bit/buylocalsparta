@@ -507,3 +507,45 @@ test("processed chicken thigh fillets and pre-fried potato variants fail plain r
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["raw-a","raw-b"]]);
 });
+
+test("exact dark chocolate type and mountain-tea leaves compare only within separately named variants",()=>{
+ const list=[
+ p("d-a","BONORA","BONORA Σοκολάτα Μαύρη 100g","Μαύρη Σοκολάτα","kg",.1),
+ p("d-b","ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ","ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ Σοκολάτα Μαύρη 85γρ","Μαύρη Σοκολάτα","kg",.085),
+ p("t-a","ECONOMY","ECONOMY Τσάι Βουνού 50γρ","Τσάι","kg",.05),
+ p("t-b","ΣΚΛΑΒΕΝΙΤΗΣ","ΣΚΛΑΒΕΝΙΤΗΣ Τσάι Βουνού 50g","Τσάι","kg",.05),
+ p("green","BRAVO","BRAVO Πράσινο Τσάι 50g","Τσάι","kg",.05)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["d-a","d-b"],["t-a","t-b"]]);
+});
+test("tomato passata cannot merge with tomato juice or diced tomato despite the source's broad juice category",()=>{
+ const list=[
+ p("pa-a","ΓΚΡΕΚΑ","ΓΚΡΕΚΑ Τομάτα Passata 500g","Χυμός Ντομάτας","kg",.5),
+ p("pa-b","FARMER","FARMER Τομάτα Passata 500gr","Χυμός Ντομάτας","kg",.5),
+ p("pa-c","THE RED FARM","THE RED FARM Τομάτα Passata 500g","Χυμός Ντομάτας","kg",.5),
+ p("juice","OTHER","OTHER Χυμός Τομάτας 500g","Χυμός Ντομάτας","kg",.5),
+ p("diced","OTHER 2","OTHER 2 Τομάτα Ψιλοκομμένη 500g","Χυμός Ντομάτας","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["pa-a","pa-b","pa-c"]]);
+});
+test("semi-hard cheese and grated hard cheese stay independent within the generic cheese category",()=>{
+ const list=[
+ p("sh-a","ΓΑΛΠΟ","ΓΑΛΠΟ Τυρί Ημίσκληρο 500g","Τυριά","kg",.5),
+ p("sh-b","ECONOMY","ECONOMY Τυρί Ημίσκληρο 370gr","Τυριά","kg",.37),
+ p("gr-a","ΓΑΛΠΟ","ΓΑΛΠΟ Σκληρό Τυρί Τριμμένο 250gr","Τυριά","kg",.25),
+ p("gr-b","ΟΛΥΜΠΟΣ","ΟΛΥΜΠΟΣ Σκληρό Τυρί Τριμμένο 250g","Τυριά","kg",.25),
+ p("other","BETA","BETA Τυρί Μαλακό 250g","Τυριά","kg",.25)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["gr-a","gr-b"],["sh-a","sh-b"]]);
+});
+test("exact traditional grape-must cookies and fine domestic lentils compare without a recipe waiver",()=>{
+ const list=[
+ p("mu-a","MY GUSTO","MY GUSTO Μουστοκούλουρα 330g","Βουτήματα","kg",.33),
+ p("mu-b","ΓΛΥΚΑΝΘΗ","ΓΛΥΚΑΝΘΗ Μουστοκούλουρα 200g","Βουτήματα","kg",.2),
+ p("mu-else","OTHER","OTHER Μουστοκούλουρα Σοκολάτα 200g","Βουτήματα","kg",.2),
+ p("le-a","ΣΚΛΑΒΕΝΙΤΗΣ","ΣΚΛΑΒΕΝΙΤΗΣ Φακές Ψιλές Ελληνικές 500g","Φακές","kg",.5),
+ p("le-b","FARMER","FARMER Φακές Ψιλές Ελληνικές 500gr","Φακές","kg",.5),
+ p("le-bio","OLA BIO","OLA BIO Φακές Ψιλές Ελληνικές 500g","Φακές","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["le-a","le-b"],["mu-a","mu-b"]]);
+});
