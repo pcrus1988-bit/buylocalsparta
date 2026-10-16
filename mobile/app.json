@@ -37,7 +37,7 @@
           "image": "./assets/icon.png",
           "imageWidth": 180,
           "resizeMode": "contain",
-          "backgroundColor": "#F8F6ED"
+          "backgroundColor": "#FFFFFF"
         }
       ]
     ],
