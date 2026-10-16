@@ -10,7 +10,7 @@ const products=[
   p("basmati-a","ALFA","ALFA Ρύζι Μπασμάτι 500g"),
   p("basmati-b","BETA","BETA Ρύζι Μπασμάτι 1kg","Ρύζι Μπασμάτι",1),
   p("basmati-special","DELTA","DELTA Ρύζι Μπασμάτι βιολογικό 500g"),
-  p("basmati-bad-size","GAMMA","GAMMA Ρύζι Μπασμάτι 250g"),
+  p("basmati-bad-size","GAMMA","GAMMA Ρύζι Μπασμάτι EXTRA 250g"),
   p("jas-a","ALFA","ALFA Ρύζι Γιασεμί 500g","Ρύζι Γιασεμί"),
   p("jas-b","BETA","BETA Ρύζι Γιασεμί 1kg","Ρύζι Γιασεμί",1),
   p("lentil-a","ALFA","ALFA Φακές Ψιλές 500g","Φακές"),
