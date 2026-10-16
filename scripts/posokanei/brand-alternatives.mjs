@@ -206,7 +206,10 @@ export function findBrandAlternatives({
     poolById.set(p.source_product_id,p);
   for(const id of approvedForSource){
     const reviewed=productIndex(products).get(id);
-    if(reviewed)poolById.set(id,reviewed);
+    // Defense in depth: a malformed "approved" group must never mix distinct
+    // source categories (e.g. milk and shampoo), even in test/stale fixtures.
+    if(reviewed&&normalize(reviewed.category)===normalize(source.category))
+      poolById.set(id,reviewed);
   }
   const pool=[...poolById.values()];
   if(!pool.length)return {...base,reason:"no_comparable_brands"};
