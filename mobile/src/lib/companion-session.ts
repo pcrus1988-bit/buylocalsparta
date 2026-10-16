@@ -143,7 +143,7 @@ export async function disconnectCompanion(){
 
 /** Owned Companion API calls only. Access never leaves this first-party HTTPS origin. */
 export async function companionAuthorizedRequest<T>(
- path:"/push/device"|"/push/test"|"/wishlist/import"|"/cart",method:"GET"|"PUT"|"DELETE"|"POST",payload?:unknown
+ path:"/push/device"|"/push/test"|"/wishlist/import"|"/cart"|"/addresses",method:"GET"|"PUT"|"DELETE"|"POST",payload?:unknown
 ):Promise<T>{
  const call=async(token:string)=>fetch(`${BASE}${path}`,{
    method,headers:{
