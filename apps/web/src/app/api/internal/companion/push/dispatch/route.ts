@@ -1,5 +1,5 @@
 import {timingSafeEqual} from "node:crypto";
-import {companionDispatcherEnabled,runCompanionTransactionalPushBatch} from "../../../../../../../lib/companion-push-dispatch";
+import {companionDispatcherEnabled,runCompanionTransactionalPushBatch} from "../../../../../../lib/companion-push-dispatch";
 
 export const dynamic="force-dynamic";
 export const runtime="nodejs";
