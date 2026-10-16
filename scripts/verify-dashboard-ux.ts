@@ -49,13 +49,23 @@ for (const requirement of ["ADMIN_WORKSPACE_NAVIGATION", "AdminDomainNavigation"
 
 const account = read("apps/web/src/components/AccountDashboardClient.tsx");
 for (const destination of ["/returns-refunds", "/delivery-pickup", "/privacy-controls", "/ask-local"]) if (!account.includes(`href: "${destination}"`) && !account.includes(`href="${destination}"`)) failures.push(`Account dashboard is missing task path ${destination}`);
-for (const requirement of ["account-snapshot", "priorityGrid", "order-tracking", "secondaryDetails", 'role="alert"']) if (!account.includes(requirement)) failures.push(`Account dashboard is missing ${requirement}`);
+for (const requirement of ["AccountHomeHub", "priorityGrid", "order-tracking", "activityDisclosure", "secondaryDetails", 'role="alert"', 'x-csrf-token']) if (!account.includes(requirement)) failures.push(`Account dashboard is missing ${requirement}`);
 const accountPage = read("apps/web/src/app/account/page.tsx");
-for (const requirement of ["AccountSectionNavigation", "/account/ask-local", "/account/orders", "askLocalHeroAction", "orderHeroAction"]) if (!accountPage.includes(requirement)) failures.push(`Account dashboard page is missing ${requirement}`);
+for (const requirement of ["AccountSectionNavigation", "AccountDashboardClient", "CustomerAccountSetupChecklist", "compactDashboardIntro"]) if (!accountPage.includes(requirement)) failures.push(`Account dashboard page is missing ${requirement}`);
+const accountHub = read("apps/web/src/components/AccountHomeHub.tsx");
+for (const route of [
+  "/account/orders", "/account/wishlist", "/account/delivery", "/posokanei", "/account/ask-local",
+  "/account/try-on", "/account/appointments", "/account/documents", "/account/gift-cards",
+  "/account/saved", "/account/profile", "/account/notifications", "/account/security",
+  "/account/privacy", "/account/support"
+]) if (!accountHub.includes(`href: "${route}"`)) failures.push(`Account card navigation is missing ${route}`);
+for (const requirement of ["TileIcon", "aria-label", "activeOrders", "unreadNotifications", "savedProducts", "savedSearches", "Αγορές", "Υπηρεσίες", "Προσωπικά & ρυθμίσεις"]) if (!accountHub.includes(requirement)) failures.push(`Account hub is missing ${requirement}`);
 const accountNav = read("apps/web/src/components/AccountSectionNavigation.tsx");
-for (const requirement of ["Αγορές & παρακολούθηση", "Τοπική βοήθεια", "Προφίλ & ασφάλεια", "/account/ask-local", "/account/orders", "/account/privacy"]) if (!accountNav.includes(requirement)) failures.push(`Customer account navigation is missing ${requirement}`);
+for (const requirement of ["Αγορές & παρακολούθηση", "Τοπική βοήθεια", "Προφίλ & ασφάλεια", "/account/ask-local", "/account/orders", "/account/privacy", "navDisclosure", 'pathname === "/account"']) if (!accountNav.includes(requirement)) failures.push(`Customer account navigation is missing ${requirement}`);
 const accountStyles = read("apps/web/src/components/CustomerAccountExperience.module.css");
-for (const requirement of [".priorityGrid", ".trackerCard", ".askLocalCard", ".secondaryDetails", "@media (max-width: 620px)"]) if (!accountStyles.includes(requirement)) failures.push(`Customer account experience styles are missing ${requirement}`);
+for (const requirement of [".compactDashboardIntro", ".priorityGrid", ".trackerCard", ".secondaryDetails", ".activityDisclosure", ".navDisclosure", "@media (max-width: 620px)"]) if (!accountStyles.includes(requirement)) failures.push(`Customer account experience styles are missing ${requirement}`);
+const accountHubStyles = read("apps/web/src/components/AccountHomeHub.module.css");
+for (const requirement of [".tileGrid", ".tileIcon", ".stats", ".section", "focus-visible", "@media (max-width:740px)", "prefers-reduced-motion"]) if (!accountHubStyles.includes(requirement)) failures.push(`Responsive account hub styles are missing ${requirement}`);
 
 const vendorIaCss = read("apps/web/src/app/vendor-information-architecture.css");
 for (const requirement of [".vendor-settings-grid", ".vendor-subpage-back", ".vendor-app .workspace-page-metrics", ".vendor-app .workspace-form-actions", "@media(max-width:620px)", "Complete vendor mobile workspace pass", "height: 100dvh", "min-height: 52px", "overflow-x: clip", "grid-template-columns: 1fr"]) if (!vendorIaCss.includes(requirement)) failures.push(`Vendor subpage polish is missing ${requirement}`);
