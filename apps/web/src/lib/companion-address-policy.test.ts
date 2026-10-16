@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {parseCompanionNewAddress} from "./companion-address-policy.ts";
+import {parseCompanionNewAddress,parseCompanionAddressUpdate,parseCompanionAddressRemoval} from "./companion-address-policy.ts";
 const address={label:"Σπίτι",fullName:"Μαρία Παπαδοπούλου",line1:"Λυκούργου 12",
  locality:"Σπάρτη",postcode:"23100",countryCode:"GR",
  isDefaultBilling:true,isDefaultDelivery:false};
@@ -24,4 +24,31 @@ test("reject malformed addresses and non-Greek delivery inputs",()=>{
   {...address,countryCode:"US"},{...address,label:"x".repeat(81)},
   {...address,fullName:42},{...address,line1:"Road\nInjected"},null,[],{}
  ]) assert.throws(()=>parseCompanionNewAddress(payload));
+});
+
+test("address editing preserves company billing fields and only accepts one opaque ID",()=>{
+ const id="addr_abc12345678";
+ const edited=parseCompanionAddressUpdate({...address,id,
+  companyName:"KONTA MOY ΕΠΕ",vatNumber:"123456789",isDefaultDelivery:true});
+ assert.equal(edited.id,id);
+ assert.equal(edited.companyName,"KONTA MOY ΕΠΕ");
+ assert.equal(edited.vatNumber,"123456789");
+ assert.equal(edited.isDefaultBilling,true);
+ assert.equal(edited.isDefaultDelivery,true);
+});
+test("foreign identity attributes and update-as-create cannot bypass mobile address policy",()=>{
+ for(const body of [
+  {...address,id:"../admin"},{...address,id:"short"},
+  {...address,id:"addr_abc12345678",userId:"foreign"},
+  {...address,id:"addr_abc12345678",customerId:"another"},
+  {...address,id:"addr_abc12345678",companyName:"x".repeat(201)},
+  {...address}
+ ]) assert.throws(()=>parseCompanionAddressUpdate(body));
+});
+test("delete accepts only the exact address ID, no user/body overrides",()=>{
+ assert.deepEqual(parseCompanionAddressRemoval({id:"addr_abc12345678"}),{id:"addr_abc12345678"});
+ for(const body of [
+  {},{id:123},{id:"../other"},{id:"addr_abc12345678",userId:"other"},
+  {id:"addr_abc12345678",removeAll:true},null,[],{id:"bad id"}
+ ]) assert.throws(()=>parseCompanionAddressRemoval(body));
 });
