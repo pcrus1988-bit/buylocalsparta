@@ -16,11 +16,11 @@ test("mobile PosoKanei replaces global bottom nav with own always-visible list m
   assert.match(css,/\.mobileListBackdrop/);
 });
 
-test("grocery replacements are compact and preserve explicit choice plus safe warning",()=>{
+test("grocery replacements remain compact with direct verified selection",()=>{
   assert.match(ui,/className=\{styles\.suggestionDisclosure\}/);
-  assert.match(ui,/Πιθανή εναλλακτική · μη ελεγμένη/);
+  assert.match(ui,/Αυτόματα ελεγμένη αντιστοίχιση/);
   assert.match(ui,/chooseAlternative\(entry\.lineId,option\)/);
-  assert.match(ui,/window\.confirm\(/);
+  assert.doesNotMatch(ui,/Η εναλλακτική δεν έχει επιβεβαιωθεί/);
 });
 
 test("customer account is mandatory for permanent shopping-list save",()=>{
