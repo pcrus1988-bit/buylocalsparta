@@ -194,6 +194,7 @@ export function PosoKaneiPublicClient(){
     if(option.confidence!=="reviewed_equivalent"||!isCheaper(option))return;
     if(lines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
     const key=id();
+    setDismissedAlternativeLines(current=>[...current,key]);
     setLabels(current=>({...current,[key]:option.name}));
     update([...lines,{id:key,kind:"exact",sourceProductId:option.id,packageCount:option.packageCount}]);
     setComparedProduct(null);
