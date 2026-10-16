@@ -642,3 +642,19 @@
     grid-column: auto;
   }
 }
+
+
+/* Compact, contextual navigation for account sub-pages. */
+.navBar { display:flex; align-items:flex-start; justify-content:space-between; gap:15px; border-radius:17px; border:1px solid var(--line); background:var(--white); padding:10px 13px; position:relative; }
+.navBack { display:inline-flex; align-items:center; min-height:40px; font-size:13px; font-weight:850; color:var(--ink); }
+.navBack:hover { text-decoration:underline; }
+.navDisclosure { min-width:190px; max-width:min(770px,100%); }
+.navToggle { cursor:pointer; list-style:none; min-height:40px; display:flex; align-items:center; justify-content:space-between; gap:10px; border:1px solid var(--line); border-radius:12px; padding:9px 12px; font-size:12px; font-weight:850; background:#f5f7f1; }
+.navToggle::-webkit-details-marker { display:none; }
+.navToggle:focus-visible,.navBack:focus-visible { outline:3px solid #447a62; outline-offset:2px; }
+.navToggle span { transition:transform .15s ease; }
+.navDisclosure[open] .navToggle span { transform:rotate(180deg); }
+.navDisclosure .navGroups { width:min(770px, calc(100vw - 30px)); max-width:none; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); margin-top:10px; gap:9px; }
+.navDisclosure .navGroup { background:#f8f8f3; }
+@media(max-width:960px) { .navDisclosure .navGroups { grid-template-columns:1fr; } }
+@media(max-width:620px) { .navBar { flex-direction:column; align-items:stretch; } .navDisclosure { max-width:100%; width:100%; } .navDisclosure .navGroups { width:100%; } .navDisclosure .navItems { flex-wrap:wrap; overflow:visible; } .navBack { min-height:32px; } }
