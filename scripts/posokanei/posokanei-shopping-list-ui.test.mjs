@@ -24,6 +24,7 @@ test("the catalogue offers only truly cheaper priced reviewed brands",()=>{
   assert.match(source,/cheaperCatalogueOptions\.length>0&&comparedProduct===p\.id&&/);
   assert.match(source,/Φθηνότερες μάρκες/);
   assert.match(source,/setComparedProduct\(null\)/);
+  assert.match(source,/setDismissedAlternativeLines\(current=>\[\.\.\.current,key\]\)/);
   assert.doesNotMatch(source,/Ακριβότερο κατά/);
 });
 
