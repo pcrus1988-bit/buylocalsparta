@@ -103,3 +103,31 @@ export async function mayNotify(alertKey:string, now=Date.now()):Promise<boolean
   });
   return allowed;
 }
+
+/** Explicit one-way import from signed-in account. Never deletes a local item. */
+export async function importAccountWishlist(
+ products:readonly {variantId:string;title:string}[]
+):Promise<number>{
+ const db=await database();
+ let inserted=0;
+ await db.withExclusiveTransactionAsync(async tx=>{
+   const existing=await tx.getAllAsync<{variant_id:string|null}>(
+     "SELECT variant_id FROM companion_items WHERE kind='wishlist' AND variant_id IS NOT NULL"
+   );
+   const known=new Set(existing.map(x=>x.variant_id));
+   for(const product of products.slice(0,80)){
+     const variant=product.variantId?.trim();
+     const name=product.title?.normalize("NFKC").trim().replace(/\s+/g," ");
+     if(!variant || variant.length>128 || !name || name.length<2 || name.length>120
+       || known.has(variant))continue;
+     const id=`companion_${Date.now()}_${Math.random().toString(36).slice(2,12)}`;
+     await tx.runAsync(
+       "INSERT INTO companion_items(id,kind,title,quantity,completed,variant_id,created_at) VALUES(?,'wishlist',?,1,0,?,?)",
+       id,name,variant,Date.now()
+     );
+     known.add(variant);
+     inserted++;
+   }
+ });
+ return inserted;
+}
