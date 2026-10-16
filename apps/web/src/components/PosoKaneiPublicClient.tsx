@@ -71,7 +71,7 @@ export function PosoKaneiPublicClient(){
       if(Array.isArray(saved.lines)&&saved.lines.length<=20&&saved.lines.every(x=>x&&typeof x.id==="string"&&["exact","group"].includes(x.kind)))setLines(saved.lines);
       if(saved.labels&&typeof saved.labels==="object")setLabels(saved.labels);
       if(saved.progress&&typeof saved.progress.key==="string"&&Array.isArray(saved.progress.completed))setProgress(saved.progress);
-      if(Array.isArray(saved.dismissedAlternativeLines))setDismissedAlternativeLines(saved.dismissedAlternativeLines.filter(id=>typeof id==="string"&&/^line_[a-z0-9]{1,30}$/.test(id)).slice(0,20));
+      if(Array.isArray(saved.dismissedAlternativeLines))setDismissedAlternativeLines(saved.dismissedAlternativeLines.filter(id=>typeof id==="string"&&/^line_[a-z0-9]{1,30}$/.test(id)&&saved.lines?.some(line=>line.id===id)).slice(0,20));
       // Previously automatic anonymous storage becomes a one-time in-tab draft.
       localStorage.removeItem("posokanei-shopping-v2");
       localStorage.removeItem("posokanei-checklist-v1");
@@ -136,7 +136,12 @@ export function PosoKaneiPublicClient(){
     },180);
     return ()=>{clearTimeout(timer);abort.abort();};
   },[q,category,page,excluded,preferencesLoaded]);
-  const update=useCallback((next:BasketLine[])=>{calculationId.current++;setLines(next);setResult(null);setError("");setSavedAt(null);},[]);
+  const update=useCallback((next:BasketLine[])=>{
+    calculationId.current++;
+    setLines(next);
+    setDismissedAlternativeLines(current=>current.filter(id=>next.some(line=>line.id===id)));
+    setResult(null);setError("");setSavedAt(null);
+  },[]);
   useEffect(()=>{calculationId.current++;setResult(null);},[excluded,storeLimit]);
   // One race-safe, quantity-aware request refreshes ALL existing basket SKUs.
   // A store exclusion or line edit automatically invalidates older alerts.
