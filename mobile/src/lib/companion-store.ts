@@ -1,4 +1,5 @@
 import * as SQLite from "expo-sqlite";
+import { DeviceEventEmitter } from "react-native";
 
 export type ListKind = "shopping" | "wishlist";
 export type ListItem = {
@@ -15,11 +16,11 @@ export type CompanionPreferences = {
   vendorOffers: boolean;
 };
 
-let pendingDatabase: ReturnType<typeof SQLite.openDatabaseAsync> | undefined;
+let pendingDatabase: Promise<SQLite.SQLiteDatabase> | undefined;
 async function database() {
-  pendingDatabase ??= SQLite.openDatabaseAsync("kontamou-companion-v1.db");
-  const db = await pendingDatabase;
-  await db.execAsync(`
+  pendingDatabase ??= (async()=>{
+   const db=await SQLite.openDatabaseAsync("kontamou-companion-v1.db");
+   await db.execAsync(`
     PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS companion_items (
       id TEXT PRIMARY KEY NOT NULL,
@@ -40,7 +41,9 @@ async function database() {
     );
     CREATE INDEX IF NOT EXISTS companion_alerts_sent_at ON companion_alerts(sent_at);
   `);
-  return db;
+   return db;
+  })().catch(e=>{pendingDatabase=undefined;throw e;});
+  return pendingDatabase;
 }
 export async function getItems(kind?: ListKind): Promise<ListItem[]> {
   const db = await database();
@@ -82,6 +85,7 @@ export async function setPreference(kind:keyof CompanionPreferences,value:boolea
   const db=await database();
   const key=kind==="shoppingReminders"?"shopping_reminders":"vendor_offers";
   await db.runAsync("INSERT INTO companion_preferences(key,enabled) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET enabled=excluded.enabled",key,value?1:0);
+  DeviceEventEmitter.emit("companion-preferences-changed");
 }
 export async function mayNotify(alertKey:string, now=Date.now()):Promise<boolean>{
   // Atomically claim before attempting notification; fails closed if delivery is uncertain.
