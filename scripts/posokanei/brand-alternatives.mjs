@@ -73,13 +73,20 @@ export function createBrandIndex(products) {
   return byFamily;
 }
 
+const sourceIndexes=new WeakMap();
+function productIndex(products){
+  let index=sourceIndexes.get(products);
+  if(!index){index=new Map(products.map(p=>[p.source_product_id,p]));sourceIndexes.set(products,index);}
+  return index;
+}
+
 export function findBrandAlternatives({
   sourceId,packages=1,products,offersByProduct,excludedRetailerIds=[],
   brandIndex=createBrandIndex(products),maxResults=5
 }) {
   if(!Number.isSafeInteger(packages)||packages<1||packages>100)
     throw new Error("packages must be an integer 1–100");
-  const source=products.find(p=>p.source_product_id===sourceId);
+  const source=productIndex(products).get(sourceId);
   if(!source)return {reason:"not_found",basis:null,sourceAmount:null,alternatives:[]};
   const quantity=referenceQuantity(source);
   if(!quantity)return {reason:"unknown_quantity",basis:null,sourceAmount:null,alternatives:[]};
