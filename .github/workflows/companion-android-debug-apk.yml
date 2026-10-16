@@ -1,0 +1,42 @@
+name: Companion Android Debug APK
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    name: Expo Android native compile (debug)
+    if: github.repository == 'pcrus1988-bit/buylocalsparta'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EXPO_NO_TELEMETRY: "1"
+      CI: "1"
+      NODE_ENV: "development"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install pinned Android dependencies
+        working-directory: mobile
+        run: npm ci --no-audit --no-fund
+      - name: Generate native Android project (no FCM production credentials)
+        working-directory: mobile
+        run: npx expo prebuild --platform android --non-interactive --clean
+      - name: Build debug-signed APK
+        working-directory: mobile/android
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+      - name: Upload development-only APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kontamou-companion-android-debug
+          path: mobile/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7

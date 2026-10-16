@@ -1,0 +1,81 @@
+import { Link } from "expo-router";
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { theme } from "../theme";
+
+const WEB = "https://kontamou.site";
+function External({label,href}:{label:string;href:string}) {
+  return <Pressable style={styles.action} accessibilityRole="button" onPress={()=>void Linking.openURL(WEB+href)}>
+    <Text style={styles.actionText}>{label} ↗</Text>
+  </Pressable>;
+}
+export default function Home() {
+  return <ScrollView contentContainerStyle={styles.screen}>
+    <Image source={require("../../assets/icon.png")} style={styles.brandImage} accessibilityLabel="KONTA MOY — επίσημο λογότυπο" />
+    <Text style={styles.kicker}>DEVELOPED IN SPARTA FOR GREECE</Text>
+    <Text style={styles.title}>Όλη η αγορά σου, στην τσέπη σου.</Text>
+    <Text style={styles.lead}>Πραγματικά προϊόντα, τοπικά καταστήματα, λίστες, ένα καλάθι και ασφαλείς αγορές στο ίδιο KONTA MOY.</Text>
+    <View style={styles.hero}>
+      <Text style={styles.heroLabel}>KONTA MOY COMPANION</Text>
+      <Text style={styles.heroTitle}>Από την ανακάλυψη στην αγορά.</Text>
+      <Text style={styles.heroText}>Βρες προϊόντα, φύλαξε τα αγαπημένα σου και συνέχισε στο πραγματικό καλάθι και checkout KONTA MOY.</Text>
+      <Link href="/shop" asChild>
+        <Pressable style={styles.primary} accessibilityRole="button">
+          <Text style={styles.primaryText}>Ανακάλυψε προϊόντα →</Text>
+        </Pressable>
+      </Link>
+    </View>
+    <View style={styles.quickRow}>
+      <Link href="/stores" asChild><Pressable accessibilityRole="button" style={styles.quickButton}><Text style={styles.quickText}>▤ Καταστήματα</Text></Pressable></Link>
+      <Link href="/basket" asChild><Pressable accessibilityRole="button" style={styles.quickButton}><Text style={styles.quickText}>▣ Καλάθι</Text></Pressable></Link>
+    </View>
+    <Link href="/lists" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Λίστα αγορών & Wishlist →</Text></Pressable></Link>
+    <Link href="/nearby" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Τι υπάρχει κοντά μου; →</Text></Pressable></Link>
+    <Link href="/diagnostics" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Έλεγχος λειτουργίας συσκευής →</Text></Pressable></Link>
+    <Link href="/notifications" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Ειδοποιήσεις Android →</Text></Pressable></Link>
+    <Link href="/pickups" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Παραλαβές & QR παραγγελίας →</Text></Pressable></Link>
+    <View style={styles.row}>
+      <View style={styles.tile}>
+        <Text style={styles.tileTitle}>Αγορές</Text>
+        <Text style={styles.tileText}>Προϊόντα και πραγματική διαθεσιμότητα.</Text>
+        <Link href="/shop" asChild><Pressable accessibilityRole="button"><Text style={styles.actionText}>Αναζήτηση στην εφαρμογή →</Text></Pressable></Link>
+      </View>
+      <View style={styles.tile}>
+        <Text style={styles.tileTitle}>Καταστήματα</Text>
+        <Text style={styles.tileText}>Οι άνθρωποι πίσω από τα προϊόντα.</Text>
+        <Link href="/stores" asChild><Pressable accessibilityRole="button"><Text style={styles.actionText}>Άνοιγμα στην εφαρμογή →</Text></Pressable></Link>
+      </View>
+    </View>
+    <Link href="/services" asChild><Pressable accessibilityRole="button" style={styles.secondary}><Text style={styles.secondaryText}>Όλες οι υπηρεσίες KONTA MOY →</Text></Pressable></Link>
+    <Link href="/account" asChild>
+      <Pressable accessibilityRole="button" style={styles.secondary}>
+        <Text style={styles.secondaryText}>Ο λογαριασμός μου →</Text>
+      </Pressable>
+    </Link>
+    <Text style={styles.note}>Η wishlist και οι λίστες είναι διαθέσιμες offline. Το πραγματικό καλάθι, οι συναλλαγές και τα QR παραλαβής χρησιμοποιούν τον επίσημο ασφαλή ιστότοπο. Η πλήρης εγγενής πρόσβαση λογαριασμού ενεργοποιείται μόνο μετά τις απαραίτητες δοκιμές.</Text>
+  </ScrollView>;
+}
+const styles=StyleSheet.create({
+  screen:{padding:24,gap:18,paddingBottom:50},
+  brandImage:{width:160,height:122,resizeMode:"contain"},
+  kicker:{fontSize:11,color:theme.green,letterSpacing:2,fontWeight:"700"},
+  title:{fontSize:35,lineHeight:42,fontWeight:"800",color:theme.ink},
+  lead:{fontSize:16,lineHeight:25,color:theme.muted},
+  hero:{backgroundColor:theme.green,borderRadius:24,padding:24,gap:15},
+  heroLabel:{fontSize:11,color:"#D7C68C",letterSpacing:1.7,fontWeight:"700"},
+  heroTitle:{fontSize:27,lineHeight:34,color:theme.white,fontWeight:"800"},
+  heroText:{fontSize:15,lineHeight:23,color:"#E5EEE8"},
+  primary:{backgroundColor:theme.gold,borderRadius:14,padding:15,alignItems:"center"},
+  primaryText:{color:theme.ink,fontSize:15,fontWeight:"800"},
+  row:{flexDirection:"row",gap:12},
+  quickRow:{flexDirection:"row",gap:10},
+  quickButton:{flex:1,borderRadius:14,padding:15,backgroundColor:theme.white,borderWidth:1,borderColor:theme.border,alignItems:"center"},
+  quickText:{color:theme.green,fontWeight:"800",fontSize:14},
+  tile:{backgroundColor:theme.white,flex:1,borderRadius:18,borderColor:theme.border,borderWidth:1,padding:15,gap:12},
+  tileTitle:{color:theme.green,fontSize:19,fontWeight:"800"},
+  tileText:{color:theme.muted,fontSize:13,lineHeight:19,minHeight:60},
+  action:{paddingVertical:6},
+  actionText:{color:theme.green,fontWeight:"700",fontSize:13},
+  secondary:{borderWidth:1,borderColor:theme.green,padding:16,borderRadius:14,alignItems:"center"},
+  secondaryText:{color:theme.green,fontWeight:"700"},
+  note:{fontSize:12,color:theme.muted,lineHeight:18}
+});

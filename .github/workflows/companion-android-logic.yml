@@ -1,0 +1,60 @@
+name: Companion Android Logic Acceptance
+on:
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "apps/web/src/lib/companion-*.ts"
+      - "apps/web/src/app/api/mobile/companion/**"
+      - "apps/web/src/app/api/internal/companion/**"
+      - "supabase/migrations/*companion*.sql"
+      - "apps/web/test/companion-pkce.test.ts"
+      - "apps/web/test/companion-push-policy.test.ts"
+      - "apps/web/test/companion-fcm-status.test.ts"
+      - "apps/web/test/companion-catalog-policy.test.ts"
+      - "mobile/test/marketplace-links.test.ts"
+      - ".github/workflows/companion-android-logic.yml"
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - "apps/web/src/lib/companion-*.ts"
+      - "apps/web/src/app/api/mobile/companion/**"
+      - "apps/web/src/app/api/internal/companion/**"
+      - "supabase/migrations/*companion*.sql"
+      - "apps/web/test/companion-pkce.test.ts"
+      - "apps/web/test/companion-push-policy.test.ts"
+      - "apps/web/test/companion-fcm-status.test.ts"
+      - "apps/web/test/companion-catalog-policy.test.ts"
+      - "mobile/test/marketplace-links.test.ts"
+      - ".github/workflows/companion-android-logic.yml"
+jobs:
+  matching:
+    name: Offline matching, PKCE and push-consent safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: node --experimental-strip-types --test mobile/test/nearby-matching.test.ts apps/web/test/companion-pkce.test.ts apps/web/test/companion-push-policy.test.ts apps/web/test/companion-fcm-status.test.ts apps/web/test/companion-catalog-policy.test.ts mobile/test/marketplace-links.test.ts mobile/test/navigation-contract.test.mjs
+  android-types:
+    name: Android Expo dependency and typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install pinned SDK 57 dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Strict TypeScript check
+        run: npm run check
+      - name: Expo compatibility check
+        run: npx expo install --check
+      - name: Export Android JavaScript bundle
+        run: npx expo export --platform android --output-dir dist-companion

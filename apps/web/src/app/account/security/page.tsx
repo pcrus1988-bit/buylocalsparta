@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AccountSectionNavigation } from "../../../components/AccountSectionNavigation";
 import { AccountSecurityClient } from "../../../components/AccountSecurityClient";
@@ -33,6 +34,9 @@ export default async function AccountSecurityPage() {
       emailChangeReady={emailChangeReadiness.ready}
       emailChangeMessage={emailChangeReadiness.message}
     />
+    <section className="shell customer-account-page" style={{paddingTop:0,paddingBottom:10}}>
+      <Link className="button button-secondary" href="/account/companion-sessions">Συνδεδεμένες συσκευές KONTA MOY Companion →</Link>
+    </section>
     <AccountSessionsClient
       initialSessions={activeSessions}
       csrfToken={principal.csrfToken}

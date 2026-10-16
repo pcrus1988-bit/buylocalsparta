@@ -1,0 +1,53 @@
+name: Companion Android Emulator Smoke
+on:
+  pull_request:
+    paths:
+      - .github/workflows/companion-android-emulator-smoke.yml
+permissions:
+  contents: read
+  actions: read
+jobs:
+  emulator:
+    name: Install APK and launch Android on API 35
+    if: github.repository == 'pcrus1988-bit/buylocalsparta' && github.event.pull_request.number == 1553
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install pinned Metro tooling
+        working-directory: mobile
+        run: npm ci --no-audit --no-fund
+      - name: Download successful Android debug APK from same repository
+        uses: actions/download-artifact@v4
+        with:
+          name: kontamou-companion-android-debug
+          run-id: 38862420570
+          repository: pcrus1988-bit/buylocalsparta
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/companion-apk
+      - name: Boot Android emulator, install and launch Companion
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: bash mobile/scripts/android_emulator_smoke.sh
+      - name: Upload emulator screenshots and safe logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: companion-android-emulator-evidence
+          path: |
+            /tmp/companion-ui.xml
+            /tmp/companion-screen.png
+            /tmp/companion-error-log.txt
+            /tmp/companion-metro.log
+          if-no-files-found: warn
+          retention-days: 7

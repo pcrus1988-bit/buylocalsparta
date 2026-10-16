@@ -1,0 +1,54 @@
+name: Companion Android Preview Standalone APK
+on:
+  pull_request:
+    paths:
+      - .github/workflows/companion-android-standalone-apk.yml
+permissions:
+  contents: read
+jobs:
+  standalone:
+    name: Build separately installable Companion Preview APK
+    if: github.repository == 'pcrus1988-bit/buylocalsparta' && github.event.pull_request.number == 1553
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      CI: "1"
+      EXPO_NO_TELEMETRY: "1"
+      COMPANION_PREVIEW_APK: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install pinned dependencies
+        working-directory: mobile
+        run: npm ci --no-audit --no-fund
+      - name: Generate native Android project (no Firebase credentials)
+        working-directory: mobile
+        run: npx expo prebuild --platform android --non-interactive --clean
+      - name: Bundle JS and build locally debug-signed release-mode test APK
+        working-directory: mobile/android
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+      - name: Verify APK is signed, has Android application ID, and contains bundled JS
+        run: |
+          set -euo pipefail
+          APK="$(find mobile/android/app/build/outputs/apk/release -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep "package: name='site.kontamou.companion.preview'"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          unzip -l "$APK" | grep -E 'assets/(index.android.bundle|.*\.hbc|.*\.bundle)'
+          echo "Standalone debug-key signed test APK created; not Play-ready"
+      - name: Upload standalone internal test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kontamou-companion-android-preview-standalone
+          path: mobile/android/app/build/outputs/apk/release/*.apk
+          retention-days: 7
+          if-no-files-found: error
