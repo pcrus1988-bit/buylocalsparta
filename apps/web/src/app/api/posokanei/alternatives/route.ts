@@ -100,7 +100,7 @@ export async function POST(request:Request){
         products:snapshot.products,offersByProduct:catalogue.byProduct,
         brandIndex:index,approvedGroups:snapshot.approvedGroups,
         excludedRetailerIds:input.excludedRetailerIds as string[],
-         includeNonCheaper:input.includeNonCheaper===true
+        includeNonCheaper:input.includeNonCheaper===true
       })
     }));
     return NextResponse.json({
