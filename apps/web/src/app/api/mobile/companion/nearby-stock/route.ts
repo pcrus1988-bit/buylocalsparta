@@ -1,4 +1,5 @@
-import { PostgresFixedWindowRateLimiter, PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
+import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
+import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
 import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
 
 export const dynamic="force-dynamic";
