@@ -2,7 +2,7 @@
  * validated but must still be authorized by the account-scoped database service.
  */
 export type CompanionNewAddress={
- label:string;fullName:string;line1:string;line2?:string;locality:string;
+ label:string;fullName:string;companyName?:string;vatNumber?:string;line1:string;line2?:string;locality:string;
  region?:string;postcode:string;countryCode:"GR";phone?:string;
  isDefaultBilling:boolean;isDefaultDelivery:boolean
 };
@@ -23,7 +23,7 @@ function required(value:unknown,max:number):string{
 export function parseCompanionNewAddress(value:unknown):CompanionNewAddress{
  if(!value||typeof value!=="object"||Array.isArray(value))throw Error("INVALID_ADDRESS");
  const x=value as Record<string,unknown>;
- const allowed=new Set(["label","fullName","line1","line2","locality","region",
+ const allowed=new Set(["label","fullName","companyName","vatNumber","line1","line2","locality","region",
   "postcode","countryCode","phone","isDefaultBilling","isDefaultDelivery"]);
  if(Object.keys(x).some(k=>!allowed.has(k)))throw Error("INVALID_ADDRESS");
  const fullName=required(x.fullName,160);
@@ -39,6 +39,8 @@ export function parseCompanionNewAddress(value:unknown):CompanionNewAddress{
  return {
   label:optional(x.label,80)??"Διεύθυνση",
   fullName,
+  ...(optional(x.companyName,200)?{companyName:optional(x.companyName,200)}:{}),
+  ...(optional(x.vatNumber,40)?{vatNumber:optional(x.vatNumber,40)}:{}),
   line1:required(x.line1,240),
   ...(optional(x.line2,240)?{line2:optional(x.line2,240)}:{}),
   locality:required(x.locality,120),
