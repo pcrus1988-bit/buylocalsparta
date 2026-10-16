@@ -509,6 +509,752 @@
           "unit_quantity": 0.5
         }
       ]
+    },
+    {
+      "id": "plain-spaghetti-no6",
+      "label": "Σπαγγέτι Νο 6 · απλό",
+      "status": "approved",
+      "basis": "kg",
+      "review_date": "2026-10-16",
+      "review_basis": "inspected-exact-source-names-brands-categories-units-packages; same-described-type-only",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "035e28f8972241b1bbae73cecaf919bc",
+          "name": "ΜΑΡΑΤΑ Σπαγγέτι Νο6 500g",
+          "brand": "Μαράτα",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "456639d89d1c484482d2187a22165b22",
+          "name": "ΜΕΛΙΣΣΑ Σπαγγέτι Νο6 1kg",
+          "brand": "Melissa",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "4f3553d6d8794a7ba909a8e15425d7c1",
+          "name": "ΜΑΚΒΕΛ Σπαγγέτι Νο6 500gr",
+          "brand": "ΜΑΚΒΕΛ ",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "5a5c0da3e60a42a7a6c1d86ae8f7874f",
+          "name": "WORLD'S MARKET Σπαγγέτι Νο6 500gr",
+          "brand": "WORLD'S MARKET",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "5ec64730e4834a54920a72ae74d0465c",
+          "name": "STELLA Σπαγγέτι Νο6 500g",
+          "brand": "stella",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "62b78947153e4c979fce433d0aa3a662",
+          "name": "MISKO Σπαγγέτι Νο6 1kg",
+          "brand": "MISKO ",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 1
+        },
+        {
+          "id": "684df329a875463799b4dc71f4e68487",
+          "name": "ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ Μακαρόνια Σπαγγέτι N6 500γρ",
+          "brand": "  ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "748311c2a9944796a5efbe37f5aefd65",
+          "name": "ΑΒΕΖ Σπαγγέτι Νο6 500g",
+          "brand": "ΑΒΕΖ ",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "abe51b2f7db44d19af23ac78e1250283",
+          "name": "MISKO Σπαγγέτι Νο6 4x500g",
+          "brand": "MISKO ",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 2
+        },
+        {
+          "id": "b8c2b5e32a7c4449bbf93e52fb174164",
+          "name": "MY KOUZINA Σπαγγέτι No6 500g",
+          "brand": "my kouzina",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "c6f965f39be14f52977fecc8f53ec900",
+          "name": "MELISSA Σπαγγέτι Νο6 500gr",
+          "brand": "Melissa",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "d1830a1020b14d6db171f8822a386e24",
+          "name": "MR GRAND Σπαγγέτι Νο6 500gr",
+          "brand": "Mr. Grand",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "dfef9c14aa8e484182e8a0fe77556801",
+          "name": "MISKO Σπαγγέτι Νο6 500gr",
+          "brand": "MISKO ",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "fd9762090dcd4dccb74e66e3cd4e2b68",
+          "name": "ΓΑΛΑΞΙΑΣ Μακαρόνια No6 500g",
+          "brand": "Γαλαξίας",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        }
+      ]
+    },
+    {
+      "id": "wholegrain-spaghetti-no6",
+      "label": "Σπαγγέτι Νο 6 · ολικής άλεσης",
+      "status": "approved",
+      "basis": "kg",
+      "review_date": "2026-10-16",
+      "review_basis": "inspected-exact-source-names-brands-categories-units-packages; same-described-type-only",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "0066c77941764e288d5e4f49473b6bea",
+          "name": "MELISSA Σπαγγέτι Ολικής Άλεσης No6 500g",
+          "brand": "Melissa",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "2bed19097d5042969d6d0c735472e128",
+          "name": "MISKO Σπαγγέτι Ολικής Άλεσης Νο6 500g",
+          "brand": "MISKO ",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "4def679c673a440d94fcc7051ed7f296",
+          "name": "ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ Μακαρόνια Σπαγγέτι Ολικής Ν6 500γρ",
+          "brand": "  ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "bcf547b6f1f74fe4bc457e244fa37804",
+          "name": "WORLD'S MARKET ΣΠΑΓΓΕΤΙ Ν6 ΟΛΙΚΗΣ 500GR",
+          "brand": "WORLD'S MARKET",
+          "category": "Σπαγγέτι",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        }
+      ]
+    },
+    {
+      "id": "plain-sunflower-oil",
+      "label": "Ηλιέλαιο απλό · φιάλες διαφορετικού μεγέθους",
+      "status": "approved",
+      "basis": "l",
+      "review_date": "2026-10-16",
+      "review_basis": "inspected-exact-source-names-brands-categories-units-packages; same-described-type-only",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "0b654ba442de428488b0853f974c5b26",
+          "name": "ΑΡΕΤΗ Ηλιέλαιο Σε Φιάλη 2 lt",
+          "brand": "Αρετή",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 2
+        },
+        {
+          "id": "0c3afab6fefa4348b7ea89a6001ecff3",
+          "name": "ΓΑΛΑΞΙΑ Ηλιέλαιο 1lt",
+          "brand": "Γαλαξίας",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "22b3597ef64347f2aa8ab30ab18c4674",
+          "name": "ΑΡΕΤΗ Ηλιέλαιο 1000ml",
+          "brand": "Αρετή",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "254b49d3cad64ab4ab8ed0ea42e0c2bb",
+          "name": "MR GRAND Ηλιέλαιο 5lt",
+          "brand": "Mr. Grand",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 5
+        },
+        {
+          "id": "2afa21af895548dcac73eed62669258b",
+          "name": "SOL Ηλιέλαιο 1lt",
+          "brand": "SOL ",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "2d15d8702fa64e48851642c2a3fcdfb8",
+          "name": "MY KOUZINA Ηλιέλαιο 1lt",
+          "brand": "my kouzina",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "33414e2b4032499db7019d90d8bab36c",
+          "name": "ΜΑΡΑΤΑ Ηλιέλαιο 2lt",
+          "brand": "Μαράτα",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 2
+        },
+        {
+          "id": "36add01c2cd64db2a9278281a943a00c",
+          "name": "SOL ηλιέλαιο 2lt",
+          "brand": "SOL ",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 2
+        },
+        {
+          "id": "374ef94130c94692a96abbeb863a0e6b",
+          "name": "ΕΓΝΑΤΙΑ Ηλιέλαιο 5lt",
+          "brand": "ΕΓΝΑΤΙΑ",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 5
+        },
+        {
+          "id": "428d8715fb434c54be6350a08210b4e3",
+          "name": "ΜΑΡΑΤΑ Ηλιέλαιο 1lt",
+          "brand": "Μαράτα",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "5f052f8766c74a20b7b4123c991f7057",
+          "name": "VITA D OR Ηλιέλαιο 3l",
+          "brand": "Vita D'or",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 3
+        },
+        {
+          "id": "651499aed11c4d0ba2c7d217d41fce6f",
+          "name": "ΓΑΛΑΞΙΑ Ηλιέλαιο Σε Φιάλη Pet 1lt",
+          "brand": "Γαλαξίας",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "6874d012b09c476497f958e42ba95f0b",
+          "name": "XENIA Ηλιέλαιο 1lt",
+          "brand": "Xenia",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "6b69f2664639488cb78ce369eefee775",
+          "name": "GUSTONA Ηλιέλαιο 5lt",
+          "brand": "Gustona",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 5
+        },
+        {
+          "id": "7e8f4cfed2084c46b0980977a9d92b06",
+          "name": "SANΟΛΑ Ηλιέλαιο 2lt",
+          "brand": "SANOLA ",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 2
+        },
+        {
+          "id": "856b9cb0194e47fd913095efd1a758a2",
+          "name": "FARMER Ηλιέλαιο 1lt",
+          "brand": "FARMER ",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "8bdbd782828a4a8e8efb78a5739e41fb",
+          "name": "FARMER Ηλιέλαιο 5lt",
+          "brand": "FARMER ",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 5
+        },
+        {
+          "id": "9467ed991b45446aacc8e0c40a2353b0",
+          "name": "SANOLA Ηλιέλαιο 5lt",
+          "brand": "SANOLA ",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 5
+        },
+        {
+          "id": "9cd9c7a8ec494afba2f741a370e5ef52",
+          "name": "ΜΑΡΑΤΑ Ηλιέλαιο 5lt",
+          "brand": "Μαράτα",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 5
+        },
+        {
+          "id": "9d7a28211be04597be003b073998ee63",
+          "name": "MY KOUZINA Ηλιέλαιο 2lt",
+          "brand": "my kouzina",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 2
+        },
+        {
+          "id": "a1c7b877f5254f39a8f67c8245dc1125",
+          "name": "MY KOUZINA Ηλιέλαιο 5lt",
+          "brand": "my kouzina",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 5
+        },
+        {
+          "id": "a4973fb4b0774b198020b882eb675f37",
+          "name": "MR GRAND Ηλιέλαιο 1lt",
+          "brand": "Mr. Grand",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "ac32658fc89944b1a61f883a3432e0da",
+          "name": "MR GRAND Ηλιέλαιο 2lt",
+          "brand": "Mr. Grand",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 2
+        },
+        {
+          "id": "af511e720955442c8334c9523ecc2f48",
+          "name": "ΕΓΝΑΤΙΑ Ηλιέλαιο 1lt",
+          "brand": "ΕΓΝΑΤΙΑ",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "c14599eaa3d14501bf7f5ea1de3c8fe9",
+          "name": "SANOLA Ηλιέλαιο 5lt",
+          "brand": "SANOLA ",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 5
+        },
+        {
+          "id": "c37e6ede8a7547489c0c90109777769e",
+          "name": "FARMER Ηλιέλαιο 10lt",
+          "brand": "FARMER ",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 10
+        },
+        {
+          "id": "c5057b0190d846e391b547212934ff61",
+          "name": "GUSTONA Ηλιέλαιο 2lt",
+          "brand": "Gustona",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 2
+        },
+        {
+          "id": "c748d20e53e440e2bdb9accfa37d94b2",
+          "name": "ΜΙΝΕΡΒΑ Ηλιέλαιο 1lt",
+          "brand": "ΜΙΝΕΡΒΑ",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "c76ce2dffe804a92b453e900e62d8b4e",
+          "name": "VITA D'OR Ηλιέλαιο  1lt",
+          "brand": "Vita D'or",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "c7bace8c2621443fa961303505093c18",
+          "name": " LUX FARM Ηλιέλαιο 1lt",
+          "brand": "LUX FARM",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "ca184777bef14a56a288730ddf12124a",
+          "name": "ΓΑΛΑΞΙΑ Ηλιέλαιο Σε Φιάλη Pet 2lt",
+          "brand": "Γαλαξίας",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 2
+        },
+        {
+          "id": "d542052cb7714aa49acac2c47ee5722f",
+          "name": "EL DION ΗΛΙΕΛΑΙΟ 5L",
+          "brand": "El Dion",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 5
+        },
+        {
+          "id": "d89fe728f6874ff19274350823a6dc67",
+          "name": "ΓΑΛΑΞΙΑ Ηλιέλαιο 2lt",
+          "brand": "Γαλαξίας",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 2
+        },
+        {
+          "id": "e1701521745342348f23d8b3919c4843",
+          "name": "SANΟΛΑ Ηλιέλαιο 1lt",
+          "brand": "SANOLA ",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        },
+        {
+          "id": "e41ed464c45f4278bb11f1b70ff98507",
+          "name": "ΜΙΝΕΡΒΑ Ηλιέλαιο 2lt",
+          "brand": "ΜΙΝΕΡΒΑ",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 2
+        },
+        {
+          "id": "e71a7fe65bdf422b82aa261fb8864407",
+          "name": "ΓΑΛΑΞΙΑ Ηλιέλαιο Σε Φιάλη Pet 5lt",
+          "brand": "Γαλαξίας",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 5
+        },
+        {
+          "id": "f301a7852a8b489c8edce98673a982cb",
+          "name": "EL DION Ηλιέλαιο 1lt",
+          "brand": "El Dion",
+          "category": "Ηλιέλαιο",
+          "unit": "L",
+          "unit_quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "grated-tomatoes",
+      "label": "Ντομάτα τριμμένη / στον τρίφτη · χωρίς πρόσθετη σάλτσα",
+      "status": "approved",
+      "basis": "kg",
+      "review_date": "2026-10-16",
+      "review_basis": "inspected-exact-source-names-brands-categories-units-packages; same-described-type-only",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "1cedd06f2db848508455752986371e45",
+          "name": "MY KOUZINA Τομάτες Στον Τρίφτη 500g",
+          "brand": "my kouzina",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "1f991d248afa4e5794f750e91fdf89af",
+          "name": "ΜΑΡΑΤΑ Ντομάτες Τριμμένες 500g",
+          "brand": "Μαράτα",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "34d5d75a98814218a2bed73dbc9b3af3",
+          "name": "ΧΩΡΙΟ Ντομάτες τριμμένες 500g",
+          "brand": "ΧΩΡΙΟ",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "3c1487fd443540da82461a84d56ce8b4",
+          "name": "GUSTONA Τομάτα στον Τρίφτη 500g",
+          "brand": "Gustona",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "46cbc3243d2d4bc381cf9d241a327f04",
+          "name": "BARESA Τομάτες στον Τρίφτη 500g",
+          "brand": "Baresa",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "6aad00130da84085a9b0ecbdc96f1327",
+          "name": "MR GRAND Τομάτα Τριμμένη 500γρ",
+          "brand": "Mr. Grand",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "6feef2357f204b58a934d88e43170f92",
+          "name": "KYKNOS Ντομάτα τριμμένη 500g",
+          "brand": "KYKNOS ",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "728c8d5f65e243c4986120d0be3b8513",
+          "name": "KYKNOS Ντομάτα τριμμένη 3x250g",
+          "brand": "KYKNOS ",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.75
+        },
+        {
+          "id": "7df6f10570384d46bceb944a6bb9cc2a",
+          "name": "ΟΜΟΣΠΟΝΔΙΑ τομάτα στον τρίφτη 680g",
+          "brand": "ΟΜΟΣΠΟΝΔΙΑ ",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.68
+        },
+        {
+          "id": "82e8eb8fbda44553bb7fc3a989557303",
+          "name": "ECONOMY Τριμμένες Τομάτες 500γρ",
+          "brand": "ECONOMY ",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "8b1aba6f96d94192ae71bd80552dfbc8",
+          "name": "ECONOMY Τομάτες Στον Τρίφτη 400γρ",
+          "brand": "ECONOMY ",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.4
+        },
+        {
+          "id": "ab49b8dd470544468e060ddf8d1c84e1",
+          "name": "ΜΠΑΡΜΠΑ ΣΤΑΘΗΣ Ντομάτα στον τρίφτη 500g",
+          "brand": "Μπάρμπα Στάθης",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "ad19a320dc054deea0198fdce97f5ded",
+          "name": "GUSTONA Τομάτα Στο Τρίφτη 3x250g",
+          "brand": "Gustona",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.75
+        },
+        {
+          "id": "b1ac1f96d3a1415f8423e939da85c76d",
+          "name": "ΜΑΡΑΤΑ Ντομάτες Τριμμένες 680g",
+          "brand": "Μαράτα",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.68
+        },
+        {
+          "id": "c00d7405f6d84d2cb2371eae975f6557",
+          "name": "KYKNOS Ντομάτα τριμμένη 680g",
+          "brand": "KYKNOS ",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.68
+        },
+        {
+          "id": "d7fd599897654cb7a14330eb6bb95ae4",
+          "name": "ΑΓΡΟΚΤΗΜΑ Τομάτες στον Τρίφτη 500g",
+          "brand": "Αγρόκτημα",
+          "category": "Σάλτσα Ντομάτας",
+          "unit": "kg",
+          "unit_quantity": 0.5
+        }
+      ]
+    },
+    {
+      "id": "mineral-water-500ml-single",
+      "label": "Φυσικό μεταλλικό νερό · μονή φιάλη 500ml",
+      "status": "approved",
+      "basis": "l",
+      "review_date": "2026-10-16",
+      "review_basis": "inspected-exact-source-names-brands-categories-units-packages; same-described-type-only",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "0027725ff1534a53ab249754b8b1ed31",
+          "name": "ΖΑΓΟΡΙ Φυσικό Μεταλλικό Νερό 500ml",
+          "brand": "ΖΑΓΟΡΙ",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "23a10687a267430bb57e8e20cb0b05a7",
+          "name": "ΘΕΟΝΗ Φυσικό Μεταλλικό Νερό 500ml",
+          "brand": "ΘΕΟΝΗ",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "87e4316f9f284cb1ba4780d3006d216d",
+          "name": "ΑΥΡΑ  Νερό Φυσικό Μεταλλικό 500ml",
+          "brand": "ΑΥΡΑ",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "8b85513c9fac4629bff5152d3d51c464",
+          "name": "ΔΙΟΣ Φυσικό Μεταλλικό Νερό 500ml",
+          "brand": "Διός",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "b17a259969024cc5a48151b62d2c8b15",
+          "name": "ΚΟΡΠΗ  Νερό Φυσικό Μεταλλικό 500ml",
+          "brand": "ΚΟΡΠΗ ",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "c4bdb17a0bbb4314a537709024b1f80c",
+          "name": "ZARO'S Φυσικό Μεταλλικό Νερό 500 ml",
+          "brand": "ZARO'S ",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 0.5
+        },
+        {
+          "id": "d94711d95f2742e2b4682c8057bc7295",
+          "name": "ΒΙΚΟΣ Φυσικό Μεταλλικό Νερό 500ml",
+          "brand": "ΒΙΚΟΣ",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 0.5
+        }
+      ]
+    },
+    {
+      "id": "mineral-water-1500ml-single",
+      "label": "Φυσικό μεταλλικό νερό · μονή φιάλη 1,5lt",
+      "status": "approved",
+      "basis": "l",
+      "review_date": "2026-10-16",
+      "review_basis": "inspected-exact-source-names-brands-categories-units-packages; same-described-type-only",
+      "snapshot_evidence_date": "2026-10-15",
+      "members": [
+        {
+          "id": "2abff9fd68a64689b202cd004c02a30c",
+          "name": "ΖΑΓΟΡΙ Φυσικό Μεταλλικό Νερό 1,5lt",
+          "brand": "ΖΑΓΟΡΙ",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 1.5
+        },
+        {
+          "id": "50161370d66147458a63c0631b3364cc",
+          "name": "ΑΥΡΑ Φυσικό Μεταλλικό Νερό 1,5lt",
+          "brand": "ΑΥΡΑ",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 1.5
+        },
+        {
+          "id": "56c94d55e3e741209a6c8b24fa4703db",
+          "name": "ΘΕΟΝΗ Φυσικό Μεταλλικό Νερό 1.5lt",
+          "brand": "ΘΕΟΝΗ",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 1.5
+        },
+        {
+          "id": "5b8c34d1d0624f2a818195b849534db3",
+          "name": "ΒΙΚΟΣ Φυσικό Μεταλλικό Νερό 1,5lt",
+          "brand": "ΒΙΚΟΣ",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 1.5
+        },
+        {
+          "id": "a035059b26bc4ef18ee7f35c683b91df",
+          "name": "ΚΟΡΠΗ Νερό Φυσικό Μεταλλικό 1,5lt",
+          "brand": "ΚΟΡΠΗ ",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 1.5
+        },
+        {
+          "id": "a44d122a958e4351ba97e610f09a6107",
+          "name": "ΚΩΣΤΗΛΑΤΑΣ Φυσικό Μεταλλικό Νερό 1.5lt",
+          "brand": "πηγές Κωστηλάτας",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 1.5
+        },
+        {
+          "id": "b34dfaebcba246408fa18d73b5a55349",
+          "name": "ZAROS Νερό Φυσικό Μεταλλικό 1.5lt",
+          "brand": "ZARO'S ",
+          "category": "Φυσικό Μεταλλικό Νερό",
+          "unit": "L",
+          "unit_quantity": 1.5
+        }
+      ]
     }
   ]
 }
