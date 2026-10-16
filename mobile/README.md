@@ -113,3 +113,7 @@ Tokens are random 256-bit values; only their SHA-256 hashes are stored in the ba
 ## Validation status
 
 The Android offline matcher and PKCE vector CI passes. Dedicated Android SDK 57 dependency installation and TypeScript CI is being resolved; a physical Android app build and live OAuth redirect test remain required. A web preview cannot prove Chrome Custom Tabs redirect behavior or Android Keystore storage. Do not publish the app until the complete login/refresh/logout, account ownership, token replay and permission-revocation flow is tested on physical Android devices.
+
+## Android native order history — 16 October 2026
+
+A dedicated `/orders` screen now reads up to 25 recent authenticated marketplace orders when first-party mobile login is activated, with manual refresh, return-to-screen refresh, and filters for all, ready pickup, pickup, delivery and closed orders. It uses only the existing customer-owned account snapshot and validated first-party Custom Tab links. No QR, payment data, order history or location is persisted locally. A cancelled/refunded/returned/failed order, or a non-pickup order, can never be labelled ready by an inconsistent `pickupReady` flag. The account screen uses the same shared status model and protects against older in-flight account responses overwriting a logout/refresh. Preview still has the safe browser fallback; activation, full Android build and real-user testing remain separate release gates.
