@@ -1,3 +1,5 @@
+# Rebuild standalone internal Preview to validate official-logo startup assembly.
+# Native splash stays white; this does not enable customer auth, payments or FCM.
 # Internal Preview rebuild requested after native account-address edit/delete integration.
 # Draft PR only; preview package, no production auth or Firebase credentials.
 name: Companion Android Preview Standalone APK
