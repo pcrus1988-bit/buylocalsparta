@@ -30,6 +30,18 @@ export function savingsForPlan(result,plan) {
   return Number((Math.max(0,cents)/100).toFixed(2));
 }
 
+/** Combined benefit includes verified customer-selected brand substitutions.
+ * Compare the same complete basket, snapshot and retailer restrictions.
+ * A negative result is an increase, never an invented saving.
+ */
+export function savingsIncludingBrands(result,plan) {
+  if(!result?.reviewedBrandSwitchCount||!plan?.complete||
+    typeof result.originalBasketBenchmarkEur!=='number'||
+    typeof plan.totalEur!=='number')return null;
+  return Number(((Math.round(result.originalBasketBenchmarkEur*100)-
+    Math.round(plan.totalEur*100))/100).toFixed(2));
+}
+
 /** Distinguish modes, snapshots and actual placements for checklist progress. */
 export function planFingerprint(snapshotDate,mode,plan) {
   if (!plan?.complete) return "";

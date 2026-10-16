@@ -43,3 +43,13 @@ test("All-price shopping-list suggestions are opt-in; other API callers retain c
   assert.match(route,/typeof input\.includeNonCheaper!=="boolean"/);
   assert.match(route,/includeNonCheaper:allBrands/);
 });
+
+test("a chosen reviewed alternative preserves original prices and refreshes total savings",()=>{
+  assert.match(source,/replacedFrom=next\.confidence==="reviewed_equivalent"/);
+  assert.match(source,/void calculate\(revised\)/);
+  assert.match(source,/savingsIncludingBrands\(result,plan\)/);
+  assert.match(source,/Συνολική εξοικονόμηση/);
+  assert.match(source,/Εξοικονόμηση από επιλογή σούπερ μάρκετ/);
+  assert.match(source,/Unverified candidates remain opt-in/);
+  assert.match(source,/Εναλλακτικές για/);
+});
