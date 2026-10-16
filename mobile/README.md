@@ -1,46 +1,62 @@
-# KONTA MOY customer mobile (development foundation)
+# KONTA MOY Companion — Android
 
-This is the initial independent **Expo SDK 57 / React Native** customer app workspace in the existing KONTA MOY repository. It is deliberately **not** a production mobile app, an app-store submission, a WebView wrapper, or a live backend client yet.
+An Android-only customer companion app (React Native / Expo SDK 57) in the existing KONTA MOY repository. Work-in-progress source code; **not yet built, signed, submitted to Play or deployed to real customers**. This folder stays outside the root npm workspaces to protect existing web production deployment and lockfile until native dependency integration is validated.
 
-## Why under /mobile (not /apps/mobile)?
+## Current implementation (2026-10-16)
 
-The existing root npm workspaces include `apps/*` and have an independent Node 24 Next.js/Supabase deployment graph and locked dependencies. Keeping this first Expo foundation in a separate `mobile/` directory avoids unexpectedly replacing or changing the production npm dependency graph. Once native dependencies and authentication have been integrated and tested, maintainers can decide whether to move it under `apps/` and update the root lockfile intentionally.
+- Android identity: **KONTA MOY Companion**, package `site.kontamou.companion`; Expo platforms `["android"]`, no iOS target.
+- Greek-language native home, nearby, account, pickups, offline shopping list and offline wishlist screens.
+- SQLite lists on the device, with add, check-off, delete, per-item quantity and persistent state.
+- Separate opt-in preferences for customer-requested list reminders and vendor promotions; **both disabled by default**. Vendor promo toggle stores preference only; no vendor promotional messages are sent from this release.
+- Android native **local** shopping reminders: while app is foregrounded, if customer explicitly enabled reminders, granted foreground location and notifications, and an eligible nearby store stocks an item relevant to an unfinished list entry.
+- On-device Greek token normalization, candidate matching and per-day notification cooldown. One item/vendor reminder per 24h; max two reminders/device/24h.
+- `POST /api/mobile/companion/nearby-stock` on existing Next.js API: ephemeral foreground location used for a PostGIS nearest-shop query, only **verified active shops**, **approved local pickup offers**, actual positive inventory with `fresh` stock, live active products with Greek titles. It receives neither wishlists nor shopping-list contents. Uses small response cap, rate limit and never returns customer coordinates.
+- Existing account/orders/QR pickups remain securely within the marketplace website as **temporary external browser handoffs**, not a fake native account or generated pickup token.
 
-## Setup (local developer machine)
+## Installation & QA
 
-1. `cd mobile && npm install` (generates the missing lockfile; commit it before merge).
-2. `npm run check` to run strict TypeScript checks.
-3. `npx expo-doctor` and `npx expo install --check` to validate native package compatibility.
-4. `npm start` and open a development build on a physical Android/iOS device.
-5. Use Apple/Google developer accounts + EAS only after legal and security release gates.
+The native package-lock has not yet been generated because this environment does not have access to the npm registry. The Expo docs were checked for recommended SDK 57 package versions; run on a networked developer environment:
 
-The app opens the web shop and existing account in the system browser, not a privileged embedded WebView. This is transitional and must be replaced with authenticated native commerce screens. No marketplace credentials are requested or stored inside the app.
+```bash
+cd mobile
+npm install
+npx expo install --check
+npm run check
+npm run test:matching
+npx expo-doctor
+npx expo run:android
+```
 
-## Already implemented
+Commit the generated `mobile/package-lock.json` and use `npm ci` for reproducible Android CI afterwards. An independent GitHub workflow runs no-dependency matcher/GPS unit tests now. Real Android GPS, notification permission, app lifecycle and battery optimization behavior must be tested on physical devices.
 
-- Brand-led Greek native customer home and navigation.
-- Native foreground-only one-shot location permission and GPS accuracy check after an explicit user tap.
-- Clear disabled-by-default/never-enabled background location. No service, path logging, tracking, campaign enrollment, location upload or proximity notifications.
-- Existing marketplace commerce paths open securely in external browser.
+## Critical boundaries
 
-## Mandatory before release
+**A locally scheduled notification is not a remote push.** This version shows reminder notifications only when the app is open and a verified item match occurs. A backgrounded or force-closed app will not reliably trigger a geofence or notification. No background location permission or task has been added.
 
-- Native sign-in via authorization code + PKCE or equivalently reviewed first-party token exchange. Never move web session cookies, passwords, CSRF secrets, service-role keys or admin API keys into the client. Store refresh secrets in OS keychain/keystore; rotate and revoke server-side.
-- Mobile read APIs for active verified shops, nearby campaigns, saved searches, notifications and orders. Reuse canonical vendor/product/stock entities and existing policy/authorization; do not create another inventory, vendor or checkout database.
-- Build actual native catalogue, offer cards, cart, checkout handoff, orders and user preferences; launching with only external links will not meet App Store's utility requirements.
-- Push registration for consented **non-location** saved-vendor, wishlist, stock and order alerts via APNs/FCM; store per-device tokens securely, remove at logout/revocation, enforce global cooldown/suppressions.
-- Native proximity matching while visible with app user's separate opt-in. Do not import the browser CSRF/cookie-based account endpoint as an unauthenticated mobile API.
-- Verify shop coordinates for current active vendor locations; they are currently missing.
-- Run privacy impact and ePrivacy/marketing consent review. Display explicit location and notification controls with easy withdrawal; no data sharing with vendors.
-- Apple/Google store account setup, owned bundle identifiers, final official logo/icon assets, screenshots, privacy policy and store descriptions.
-- Native QA on real iOS/Android phones; ensure device permissions and declined permissions do not affect ordinary shopping.
+**Vendor promotional pushes are not implemented.** They require secure mobile login, a device-scoped FCM registration backend, independent marketing consent, live vendor campaigns and eligibility/rate controls. No vendor receives personal location or account data. Do not turn on promotional push on the strength of the local preference alone.
 
-## Background location: hard gate
+**Existing lists are not synced.** The current Android offline wishlist is separate from the website's saved products. Sync requires first-party mobile identity and API authorization before it can safely use the current database's `saved_products` table.
 
-Google Play background location permission is restricted to core, strongly justified functions. **Background location used solely for advertising or promotional offers is not an acceptable default** and is at serious risk of rejection; do not add `ACCESS_BACKGROUND_LOCATION` or enable `expo-location` background mode for this feature. A mobile app enables OS geofencing technically but it is not automatically a permissible production use.
+**Pickup QR is still a web handoff.** Do not generate, cache or expose live QR/pickup codes without authenticated order ownership and short-lived QR-token verification.
 
-Even where geofencing is allowed, iOS manages max ~20 monitored regions per app and Android ~100. Event delivery is delayed/approximate, Android app force-termination behavior varies, and platform policy/OS limitations apply. Never promise an exact instant alert while closed.
+**Verified GPS eligibility currently blocks live matches.** Production checks found zero active vendor locations with both official verification and valid coordinates. Add coordinates through the governed vendor location workflow, not guessing from addresses.
 
-Recommended closed-app alternative for v1: opted-in **remote push** alerts for a customer's manually followed stores, saved products and requested alerts, which do not require tracking location in the background. For nearby exclusive offers, query location only while the app is visibly in use and granted temporary foreground permission.
+## Mobile API contract
 
-See `docs/KONTA_MOY_MOBILE_APP_DECISION_20261016.md` for architectural rollout.
+`POST https://kontamou.site/api/mobile/companion/nearby-stock`
+request body: `{"latitude":37.07,"longitude":22.43,"accuracy":45}`
+response: `{ "verifiedOnly": true, "products": [{ "vendorId": "...", "vendorName": "...", "vendorLocationId": "...", "vendorLocality": "...", "productTitle": "...", "variantId": "...", "distanceM": 160, "productUrl": "https://kontamou.site/shop?q=..." }] }`.
+
+For privacy and authorization, neither customer IDs nor personal list contents are accepted by this endpoint. It does not return campaign-exclusive promotions. Nearby radius hard cap is 500m and accepted GPS uncertainty <=200m. Client matches words/variant IDs and gives a **possible match** notification, with a link to reconfirm live product details before visiting.
+
+## Next release milestones
+
+1. Mobile customer OAuth/PKCE or reviewed first-party token exchange; Android secure token storage, short-lived access + refresh rotation/revocation, logout; authorization contract with existing account.
+2. Secure native account, order status, QR pickups and synchronized saved-products/wishlists/shopping lists. **No anonymous access to user orders/QR.**
+3. Truly native marketplace product and cart browsing, delegated checkout with invariant-preserving existing commerce backend.
+4. Opt-in FCM delivery tokens with user ownership, server-side suppression/consent and device unregistration; push for order updates and followed items even when Companion is backgrounded.
+5. Vendor-targeted nearby offers (see draft PR #1551), separate explicit consent; must never expose user location to vendors; verify campaigns and limits.
+6. Physical Sparta device pilot, production accurate vendor coordinates, test push, stock validity, pickup QR and privacy deletion.
+7. Google Play location use declaration review. Google Play rejects background location used *solely* for ads. Assess any user-initiated shopping companion background use on its own merits. A limited active shopping trip using a user-started foreground service is a possible separately reviewed option, **not implemented** and not guaranteed to be accepted. Android can kill location/geofence execution when the app is terminated.
+
+Official docs: https://docs.expo.dev/versions/v57.0.0/sdk/location/ and https://support.google.com/googleplay/android-developer/answer/9799150.
