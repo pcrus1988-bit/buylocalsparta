@@ -8,7 +8,7 @@
     "android": "expo start --android",
     "check": "tsc --noEmit",
     "doctor": "expo-doctor",
-    "test:matching": "node --experimental-strip-types --test test/nearby-matching.test.ts test/list-rules.test.ts test/pickup-model.test.ts test/marketplace-links.test.ts test/canonical-id.test.ts test/companion-cart.test.ts test/navigation-contract.test.mjs"
+    "test:matching": "node --experimental-strip-types --test test/nearby-matching.test.ts test/list-rules.test.ts test/pickup-model.test.ts test/marketplace-links.test.ts test/canonical-id.test.ts test/companion-cart.test.ts test/address-rules.test.ts test/navigation-contract.test.mjs"
   },
   "dependencies": {
     "expo": "57.0.30",
