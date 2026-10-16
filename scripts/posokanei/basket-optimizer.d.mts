@@ -24,6 +24,20 @@ export type BasketResult = {
   singleStoreCandidates:{retailerId:string;complete:boolean;missingItems:{lineId:string;reason:string}[];coveredItemCount:number;totalEur:number|null}[];
   coverageFirstSingleStore:{retailerId:string;retailerName:string;coveredItemCount:number;totalItemCount:number;complete:boolean;missingItems:{lineId:string;reason:string}[];totalEur:number|null;coveredSubtotalEur:number}|null;
   savingsVsCoverageFirstSingleStoreEur:number|null;savingsVsCoverageFirstSingleStorePercent:number|null;
+  coverageMatchedProductsComparison:{
+    benchmarkRetailerId:string;benchmarkRetailerName:string;
+    matchedItemCount:number;originalItemCount:number;unmatchedItemCount:number;unmatchedLineIds:string[];
+    benchmarkSubtotalEur:number;optimizedSubtotalEur:number;savingsEur:number;savingsPercent:number;
+    optimizedStoreCount:number;optimizedStores:{id:string;name:string}[];
+    products:{
+      lineId:string;sourceProductId:string;name:string;packages:number;
+      benchmarkRetailerId:string;benchmarkRetailerName:string;
+      benchmarkUnitPriceEur:number;benchmarkLineTotalEur:number;
+      optimizedRetailerId:string;optimizedRetailerName:string;
+      optimizedUnitPriceEur:number;optimizedLineTotalEur:number;savingEur:number
+    }[];
+  }|null;
+
   savingsVsCheapestCompleteSingleStoreEur:number|null;limitation:string
 };
 export function optimizeReferenceBasket(input:{
