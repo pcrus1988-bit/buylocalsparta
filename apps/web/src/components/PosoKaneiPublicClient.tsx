@@ -185,20 +185,28 @@ export function PosoKaneiPublicClient(){
     },240);
     return()=>{clearTimeout(timer);controller.abort();};
   },[excluded,lines,dismissedAlternativeLines,preferencesLoaded,brandRefresh]);
-  function addProduct(p:Product){
+  function addProduct(p:Product,chosenOffer?:Offer){
     if(lines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
+    // A locked retailer is an explicit choice from a current, allowed shelf quote.
+    if(chosenOffer&&(!p.offers.some(o=>o.retailerId===chosenOffer.retailerId)||
+       excluded.includes(chosenOffer.retailerId)))return;
     const key=id();
     setLabels(current=>({...current,[key]:p.name}));
-    update([...lines,{id:key,kind:"exact",sourceProductId:p.id,packageCount:1}]);
-    setNotice("Προστέθηκε στη λίστα: "+p.name);
+    update([...lines,{id:key,kind:"exact",sourceProductId:p.id,packageCount:1,
+      ...(chosenOffer?{lockedRetailerId:chosenOffer.retailerId}:{})}]);
+    setNotice(chosenOffer?"✓ Επιλέχθηκε η καταγεγραμμένη τιμή "+money(chosenOffer.priceEur)+
+      " από "+chosenOffer.retailerName+". Μπορείς να ξεκλειδώσεις την αλυσίδα από τη λίστα.":"Προστέθηκε στη λίστα: "+p.name);
   }
-  function addReviewedComparable(option:Cheaper){
-    if(option.confidence!=="reviewed_equivalent"||!isCheaper(option))return;
+  function addReviewedComparable(option:Cheaper,sourceProduct:Product){
+    if(!["reviewed_equivalent","automatically_verified"].includes(option.confidence)||!isCheaper(option))return;
     if(lines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
     const key=id();
     setDismissedAlternativeLines(current=>[...current,key]);
     setLabels(current=>({...current,[key]:option.name}));
-    update([...lines,{id:key,kind:"exact",sourceProductId:option.id,packageCount:option.packageCount}]);
+    // The shopper chose this cheaper brand against the visible original SKU.
+    // Preserve that original so the server can verify real basket savings.
+    update([...lines,{id:key,kind:"exact",sourceProductId:option.id,packageCount:option.packageCount,
+      replacedFrom:{sourceProductId:sourceProduct.id,packageCount:1}}]);
     setComparedProduct(null);
     setNotice("✓ Επιλέχθηκε φθηνότερη μάρκα. Εξοικονόμηση "+money(option.savingsEur)+".");
   }
@@ -221,7 +229,8 @@ export function PosoKaneiPublicClient(){
     const replacedFrom=["reviewed_equivalent","automatically_verified"].includes(next.confidence)&&original?.kind==="exact"?
       (original.replacedFrom||{sourceProductId:original.sourceProductId,packageCount:original.packageCount}):undefined;
     const revised=lines.map(line=>line.id===lineId?
-      ({...line,sourceProductId:next.id,packageCount:packages,replacedFrom} as BasketLine):line);
+      ({...line,sourceProductId:next.id,packageCount:packages,replacedFrom,
+        lockedRetailerId:undefined} as BasketLine):line);
     setDismissedAlternativeLines(current=>current.includes(lineId)?current:[...current,lineId]);
     setExpandedAlternatives(current=>current.filter(id=>id!==lineId));
     update(revised);
@@ -374,11 +383,11 @@ export function PosoKaneiPublicClient(){
                         <small>{a.retailerName} · {a.packageCount} × {money(a.priceEur)} = {money(a.candidateTotalEur)}</small>
                         <small className={styles.comparableBenefit}>Κερδίζεις {money(a.savingsEur)}</small>
                       </div>
-                      <button className={styles.secondary} type="button" onClick={()=>addReviewedComparable(a)}>Επιλογή</button>
+                      <button className={styles.secondary} type="button" onClick={()=>addReviewedComparable(a,p)}>Επιλογή</button>
                     </div>)}
                   </div>}
                 {expanded&&<div className={styles.offers}><h4>Καταγεγραμμένες τιμές · μόνο από τις επιλεγμένες αλυσίδες</h4>
-                  {p.offers.map((o,i)=><div key={o.retailerId} className={styles.offer}><span>{o.retailerName}{i===0&&<small className={styles.lowest}> Χαμηλότερη καταγραφή</small>}{o.discount&&<small> · Σήμανση έκπτωσης</small>}</span><strong>{money(o.priceEur)}</strong></div>)}
+                  {p.offers.map((o,i)=><div key={o.retailerId} className={styles.offer}><span>{o.retailerName}{i===0&&<small className={styles.lowest}> Χαμηλότερη καταγραφή</small>}{o.discount&&<small> · Σήμανση έκπτωσης</small>}</span><strong>{money(o.priceEur)}</strong><button type="button" className={styles.secondary} aria-label={"Επιλογή τιμής "+money(o.priceEur)+" από "+o.retailerName+" για "+p.name} onClick={()=>addProduct(p,o)}>Επιλογή τιμής</button></div>)}
                 </div>}
               </article>;
             })}
@@ -396,6 +405,7 @@ export function PosoKaneiPublicClient(){
           {!lines.length?<p className={styles.message}>Πρόσθεσε προϊόντα για να βρεις το οικονομικότερο καλάθι.</p>:<details className={styles.listDetails} open><summary>Προϊόντα στη λίστα ({lines.length}) · Επεξεργασία</summary><div className={styles.lines}>{lines.map(l=><div className={styles.line} key={l.id}>
             <div className={styles.lineTop}><strong>{labels[l.id]||"Προϊόν"}</strong><button type="button" onClick={()=>update(lines.filter(x=>x.id!==l.id))} aria-label="Αφαίρεση από τη λίστα">✕</button></div>
             <label>{l.kind==="exact"?"Συσκευασίες":"Ποσότητα ("+(listing.groups.find(g=>g.id===l.groupId)?.basis||"kg")+")"}<input type="number" min="1" max="100" step={l.kind==="exact"?"1":"0.1"} value={l.kind==="exact"?l.packageCount:l.requiredBaseQuantity} onChange={e=>changeLine(l.id,l.kind==="exact"?{packageCount:Number(e.target.value)}:{requiredBaseQuantity:Number(e.target.value)})}/></label>
+            {l.lockedRetailerId&&<div className={styles.retailerLock}><span>🔒 Επιλεγμένη αλυσίδα: {listing.retailers.find(r=>r.id===l.lockedRetailerId)?.name||l.lockedRetailerId}{excluded.includes(l.lockedRetailerId)?" · έχει αποκλειστεί στις ρυθμίσεις":""}</span><button type="button" onClick={()=>changeLine(l.id,{lockedRetailerId:undefined})}>Ξεκλείδωμα</button></div>}
             {dismissedAlternativeLines.includes(l.id)?<small className={styles.selectedAlternativeNote}>✓ Επέλεξες φθηνότερη μάρκα</small>:l.kind==="exact"&&(checkingBrands||((brandResults[l.id]?.alternatives.length||0)+(brandResults[l.id]?.candidates.length||0))>0)&&<small className={styles.brandStatus}>{checkingBrands?"Έλεγχος τιμών…":"💡 Φθηνότερες επιλογές παρακάτω"}</small>}
 
           </div>)}</div></details>}
