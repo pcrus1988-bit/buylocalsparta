@@ -22,6 +22,6 @@ test("reject malformed addresses and non-Greek delivery inputs",()=>{
   {...address,locality:""},{...address,postcode:"2310"},
   {...address,postcode:"ABCDE"},{...address,phone:"123"},
   {...address,countryCode:"US"},{...address,label:"x".repeat(81)},
-  {...address,fullName:42},{...address,line1:"Road\\nInjected"},null,[],{}
+  {...address,fullName:42},{...address,line1:"Road\nInjected"},null,[],{}
  ]) assert.throws(()=>parseCompanionNewAddress(payload));
 });
