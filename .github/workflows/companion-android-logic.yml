@@ -17,7 +17,7 @@ on:
       - "mobile/test/shopping-list-import.test.ts"
       - ".github/workflows/companion-android-logic.yml"
   push:
-    branches: [main]
+    branches: [main, feature/native-customer-app-foundation-20261016]
     paths:
       - "mobile/**"
       - "apps/web/src/lib/companion-*.ts"
