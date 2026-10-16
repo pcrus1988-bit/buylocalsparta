@@ -1,3 +1,4 @@
+import {validCanonicalPublicId} from "./canonical-id";
 const API="https://kontamou.site/api/mobile/companion/catalog/search";
 export type CompanionCatalogProduct={variantId:string;title:string;slug:string;brand:string};
 export async function searchCompanionCatalog(input:string):Promise<CompanionCatalogProduct[]>{
@@ -15,7 +16,7 @@ export async function searchCompanionCatalog(input:string):Promise<CompanionCata
   if(!v||typeof v!=="object")return false;
   const p=v as Record<string,unknown>;
   return typeof p.variantId==="string"
-    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.variantId)
+    && validCanonicalPublicId(p.variantId)
     && typeof p.title==="string"&&p.title.trim().length>=2&&p.title.length<=120
     && typeof p.slug==="string"&&typeof p.brand==="string";
  });
