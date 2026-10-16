@@ -5,8 +5,8 @@ const a="c61f2b2a-1397-47b8-8e63-d82cbed75abe";
 const b="cv_12345678";
 test("only exact public canonical IDs and legal quantities can be submitted",()=>{
  const r="a".repeat(64);
- assert.deepEqual(parseCompanionCartPut({revision:r,items:[{canonicalVariantId:a,quantity:2},{canonicalVariantId:b,quantity:1}]}),{
-  revision:r,items:[{canonicalVariantId:a,quantity:2},{canonicalVariantId:b,quantity:1}]
+ assert.deepEqual(parseCompanionCartPut({revision:r,expectedUpdatedAt:null,items:[{canonicalVariantId:a,quantity:2},{canonicalVariantId:b,quantity:1}]}),{
+  revision:r,expectedUpdatedAt:null,items:[{canonicalVariantId:a,quantity:2},{canonicalVariantId:b,quantity:1}]
  });
  for(const items of [
   [{canonicalVariantId:a,quantity:0}], [{canonicalVariantId:a,quantity:100}],
@@ -14,7 +14,7 @@ test("only exact public canonical IDs and legal quantities can be submitted",()=
   [{canonicalVariantId:a,quantity:1},{canonicalVariantId:a,quantity:3}]
  ]) assert.throws(()=>parseCompanionCartPut({revision:r,items}));
  assert.throws(()=>parseCompanionCartPut({revision:"invalid",items:[]}));
- assert.throws(()=>parseCompanionCartPut({revision:r,items:Array.from({length:101},()=>({canonicalVariantId:b,quantity:1}))}));
+ assert.throws(()=>parseCompanionCartPut({revision:r,expectedUpdatedAt:null,items:Array.from({length:101},()=>({canonicalVariantId:b,quantity:1}))}));
 });
 test("server cart revision changes on quantities, prices and available stock",()=>{
  const item={canonicalVariantId:a,quantity:1,priceMinor:250,title:"Product",available:true};
@@ -31,4 +31,11 @@ test("server cart revision changes on quantities, prices and available stock",()
 test("first add uses stable revision for an as-yet unsaved empty marketplace cart",()=>{
  const empty={id:"",updatedAt:Date.now(),items:[]};
  assert.equal(companionCartRevision(empty),companionCartRevision({...empty,updatedAt:Date.now()+10000}));
+});
+
+test("cart write always requires an explicit version, including null for an unsaved cart",()=>{
+ assert.throws(()=>parseCompanionCartPut({revision:"a".repeat(64),items:[]}));
+ assert.throws(()=>parseCompanionCartPut({revision:"a".repeat(64),expectedUpdatedAt:-1,items:[]}));
+ assert.deepEqual(parseCompanionCartPut({revision:"a".repeat(64),expectedUpdatedAt:1700000000000,items:[]}),
+  {revision:"a".repeat(64),expectedUpdatedAt:1700000000000,items:[]});
 });
