@@ -265,3 +265,11 @@
   .scope .card{box-shadow:0 2px 10px #143e290b}
   .scope .card .buttons{margin-top:10px}
 }
+
+/* A customer-selected supermarket quote is a reversible constraint, not stock confirmation. */
+.retailerLock{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;
+  border:1px solid #cfe1ce;background:#fffefa;border-radius:9px;padding:8px 10px;
+  font-size:11px;color:#28583e;line-height:1.4}
+.retailerLock span{min-width:0;overflow-wrap:anywhere;flex:1}
+.retailerLock button{min-height:34px;border:1px solid #a6c7aa;border-radius:8px;
+  background:#edf6ed;color:#17553a;font-size:11px;padding:6px 10px;cursor:pointer}
