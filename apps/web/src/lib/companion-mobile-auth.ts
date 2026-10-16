@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
@@ -212,4 +212,35 @@ export async function mobileAccountSnapshot(userId:string) {
       }))
     };
   },{readOnly:true});
+}
+
+/** Web-account owner can inspect and revoke their Android sessions independently. */
+export async function customerCompanionSessions(principal:SessionPrincipal){
+ if(!companionEnabled())return [];
+ return unit().withTransaction(scope("list-devices"),async tx=>{
+  const q=await tx.query<SqlRow>(`
+    SELECT s.id::text AS id,s.created_at,s.rotated_at,s.refresh_expires_at
+      FROM public.companion_mobile_sessions s
+      JOIN public.users u ON u.id=s.user_id
+      WHERE (u.public_id=$1 OR u.id::text=$1)
+        AND s.revoked_at IS NULL AND s.absolute_expires_at>now()
+        AND s.refresh_expires_at>now() AND u.status='active'
+      ORDER BY s.created_at DESC LIMIT 50
+  `,[principal.userId]);
+  return q.rows.map(r=>({id:String(r.id),createdAt:String(r.created_at),
+    lastUsedAt:String(r.rotated_at),expiresAt:String(r.refresh_expires_at)}));
+ },{readOnly:true});
+}
+export async function customerRevokeCompanionSession(principal:SessionPrincipal,id:string){
+ if(!companionEnabled())throw new Error("NOT_ENABLED");
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+   throw new Error("INVALID_REQUEST");
+ await unit().withTransaction(scope("revoke-device"),async tx=>{
+   await tx.query(`
+      UPDATE public.companion_mobile_sessions s SET revoked_at=now()
+      FROM public.users u
+      WHERE s.id=$2::uuid AND s.user_id=u.id AND (u.public_id=$1 OR u.id::text=$1)
+        AND s.revoked_at IS NULL AND u.status='active'
+   `,[principal.userId,id]);
+ });
 }
