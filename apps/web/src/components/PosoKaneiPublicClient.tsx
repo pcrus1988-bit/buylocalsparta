@@ -14,8 +14,10 @@ type Listing={status:string;snapshotDate?:string;source?:string;count?:number;pa
 type Cheaper={id:string;name:string;brand:string;priceEur:number;unitPriceEur:number;retailerName:string;retailerId:string;savingPercent:number;packageQuantity:number;unit:string;packageCount:number;originalTotalEur:number;candidateTotalEur:number;savingsEur:number;confidence:"reviewed_equivalent"|"unverified_match";approvalMethod?:"automatic_commodity"|"manual_or_unverified"};
 type Mode="single"|"limited";
 type AccountStatus="checking"|"guest"|"customer"|"error";
-type SavedList={lines:BasketLine[];labels:Record<string,string>;excluded:string[];maxStores:number;progress:{key:string;completed:string[]}};
+type SavedList={lines:BasketLine[];labels:Record<string,string>;excluded:string[];maxStores:number;progress:{key:string;completed:string[]};dismissedAlternativeLines?:string[]};
 const PENDING_LIST_KEY="posokanei-pending-account-save-v1";
+const isCheaper=(option:Cheaper)=>Number.isFinite(option.originalTotalEur)&&Number.isFinite(option.candidateTotalEur)&&
+  Math.round(option.originalTotalEur*100)>Math.round(option.candidateTotalEur*100)&&option.savingsEur>0;
 const money=(n:number|null|undefined)=>typeof n==="number"&&Number.isFinite(n)?new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(n):"—";
 const empty:Listing={status:"unavailable",products:[],categories:[],groups:[],retailers:[]};
 function pricePerUnit(product:Product,price:number){
@@ -46,6 +48,7 @@ export function PosoKaneiPublicClient(){
     reason:string;alternatives:Cheaper[];candidates:Cheaper[];
   }>>({});
   const [expandedAlternatives,setExpandedAlternatives]=useState<string[]>([]);
+  const [dismissedAlternativeLines,setDismissedAlternativeLines]=useState<string[]>([]);
   const [checkingBrands,setCheckingBrands]=useState(false);
   const [brandRefresh,setBrandRefresh]=useState(0);
   const [mode,setMode]=useState<Mode>("limited");
@@ -62,12 +65,13 @@ export function PosoKaneiPublicClient(){
   const [savingList,setSavingList]=useState(false);
   useEffect(()=>{
     try{
-      const saved=JSON.parse(sessionStorage.getItem(PENDING_LIST_KEY)||localStorage.getItem("posokanei-shopping-v2")||"{}") as {excluded?:string[];maxStores?:number;lines?:BasketLine[];labels?:Record<string,string>;progress?:{key:string;completed:string[]}};
+      const saved=JSON.parse(sessionStorage.getItem(PENDING_LIST_KEY)||localStorage.getItem("posokanei-shopping-v2")||"{}") as Partial<SavedList>;
       if(Array.isArray(saved.excluded))setExcluded(saved.excluded.filter(x=>typeof x==="string"&&/^[A-Za-z0-9_-]{1,100}$/.test(x)).slice(0,24));
       if(typeof saved.maxStores==="number"&&Number.isSafeInteger(saved.maxStores)&&saved.maxStores>=1&&saved.maxStores<=5)setStoreLimit(saved.maxStores);
       if(Array.isArray(saved.lines)&&saved.lines.length<=20&&saved.lines.every(x=>x&&typeof x.id==="string"&&["exact","group"].includes(x.kind)))setLines(saved.lines);
       if(saved.labels&&typeof saved.labels==="object")setLabels(saved.labels);
       if(saved.progress&&typeof saved.progress.key==="string"&&Array.isArray(saved.progress.completed))setProgress(saved.progress);
+      if(Array.isArray(saved.dismissedAlternativeLines))setDismissedAlternativeLines(saved.dismissedAlternativeLines.filter(id=>typeof id==="string"&&/^line_[a-z0-9]{1,30}$/.test(id)).slice(0,20));
       // Previously automatic anonymous storage becomes a one-time in-tab draft.
       localStorage.removeItem("posokanei-shopping-v2");
       localStorage.removeItem("posokanei-checklist-v1");
@@ -103,6 +107,7 @@ export function PosoKaneiPublicClient(){
         }else if(data.saved&&!lines.length){
           setLines(data.saved.lines);setLabels(data.saved.labels);setExcluded(data.saved.excluded);
           setStoreLimit(data.saved.maxStores);setProgress(data.saved.progress);
+          setDismissedAlternativeLines(data.saved.dismissedAlternativeLines||[]);
         }
       }catch{
         if(!abort.signal.aborted){setAccountStatus("error");setNotice("Δεν είναι διαθέσιμη η αποθήκευση αυτή τη στιγμή. Η λίστα παραμένει ανοιχτή.");}
@@ -137,7 +142,7 @@ export function PosoKaneiPublicClient(){
   // A store exclusion or line edit automatically invalidates older alerts.
   useEffect(()=>{
     if(!preferencesLoaded)return;
-    const exact=lines.filter((line):line is Extract<BasketLine,{kind:"exact"}>=>line.kind==="exact");
+    const exact=lines.filter((line):line is Extract<BasketLine,{kind:"exact"}>=>line.kind==="exact"&&!dismissedAlternativeLines.includes(line.id));
     setBrandResults({});
     if(!exact.length){setCheckingBrands(false);return;}
     const controller=new AbortController();
@@ -150,8 +155,7 @@ export function PosoKaneiPublicClient(){
             headers:{"Content-Type":"application/json"},
             body:JSON.stringify({
               lines:exact.map(l=>({id:l.id,sourceProductId:l.sourceProductId,packageCount:l.packageCount})),
-              excludedRetailerIds:excluded,
-              includeNonCheaper:true
+              excludedRetailerIds:excluded
             })
           });
           const json=await response.json() as {
@@ -163,7 +167,7 @@ export function PosoKaneiPublicClient(){
           if(!response.ok||json.status!=="ready")throw Error("unavailable");
           if(!controller.signal.aborted)setBrandResults(Object.fromEntries(
             (json.lines||[]).filter(x=>exact.some(l=>l.id===x.lineId&&l.sourceProductId===x.sourceProductId))
-              .map(x=>[x.lineId,x])
+              .map(x=>[x.lineId,{...x,alternatives:x.alternatives.filter(isCheaper),candidates:x.candidates.filter(isCheaper)}])
           ));
         }catch{
           if(!controller.signal.aborted)setNotice("Ο έλεγχος εναλλακτικών δεν ολοκληρώθηκε. Δοκίμασε ξανά.");
@@ -173,7 +177,7 @@ export function PosoKaneiPublicClient(){
       })();
     },240);
     return()=>{clearTimeout(timer);controller.abort();};
-  },[excluded,lines,preferencesLoaded,brandRefresh]);
+  },[excluded,lines,dismissedAlternativeLines,preferencesLoaded,brandRefresh]);
   function addProduct(p:Product){
     if(lines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
     const key=id();
@@ -182,14 +186,16 @@ export function PosoKaneiPublicClient(){
     setNotice("Προστέθηκε στη λίστα: "+p.name);
   }
   function addReviewedComparable(option:Cheaper){
-    if(option.confidence!=="reviewed_equivalent")return;
+    if(option.confidence!=="reviewed_equivalent"||!isCheaper(option))return;
     if(lines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
     const key=id();
     setLabels(current=>({...current,[key]:option.name}));
     update([...lines,{id:key,kind:"exact",sourceProductId:option.id,packageCount:option.packageCount}]);
-    setNotice("Προστέθηκε η εγκεκριμένη εναλλακτική με "+option.packageCount+" συσκευασία/ες.");
+    setComparedProduct(null);
+    setNotice("✓ Επιλέχθηκε φθηνότερη μάρκα. Εξοικονόμηση "+money(option.savingsEur)+".");
   }
   function chooseAlternative(lineId:string,next:Cheaper){
+    if(!isCheaper(next)||dismissedAlternativeLines.includes(lineId))return;
     if(next.confidence==="unverified_match"&&
        !window.confirm("Η εναλλακτική δεν έχει επιβεβαιωθεί ως ισοδύναμη. Έλεγξε συστατικά και χαρακτηριστικά. Θέλεις να την επιλέξεις;"))return;
     const selected=brandResults[lineId];
@@ -208,6 +214,7 @@ export function PosoKaneiPublicClient(){
       (original.replacedFrom||{sourceProductId:original.sourceProductId,packageCount:original.packageCount}):undefined;
     const revised=lines.map(line=>line.id===lineId?
       ({...line,sourceProductId:next.id,packageCount:packages,replacedFrom} as BasketLine):line);
+    setDismissedAlternativeLines(current=>current.includes(lineId)?current:[...current,lineId]);
     setExpandedAlternatives(current=>current.filter(id=>id!==lineId));
     update(revised);
     setLabels(current=>({...current,[lineId]:next.name}));
@@ -230,7 +237,7 @@ export function PosoKaneiPublicClient(){
   },[mobileListOpen]);
   async function saveList(){
     if(!lines.length||savingList||accountStatus==="checking")return;
-    const draft:SavedList={lines,labels,excluded,maxStores:storeLimit,progress};
+    const draft:SavedList={lines,labels,excluded,maxStores:storeLimit,progress,dismissedAlternativeLines};
     if(accountStatus==="guest"){
       try{sessionStorage.setItem(PENDING_LIST_KEY,JSON.stringify(draft));}
       catch{setNotice("Δεν μπορεί να διατηρηθεί προσωρινά η λίστα μέχρι τη σύνδεση.");return;}
@@ -259,7 +266,11 @@ export function PosoKaneiPublicClient(){
     }catch(e){if(calculationId.current===run)setError(e instanceof Error?e.message:"Σφάλμα υπολογισμού.");}
     finally{if(calculationId.current===run)setWorking(false);}
   }
-  const savingsOpportunities=summarizeCheaperAlternatives(Object.values(brandResults));
+  const availableAlternativeResults=Object.values(brandResults)
+    .filter(entry=>!dismissedAlternativeLines.includes(entry.lineId))
+    .map(entry=>({...entry,alternatives:entry.alternatives.filter(isCheaper),candidates:entry.candidates.filter(isCheaper)}))
+    .filter(entry=>entry.alternatives.length>0||entry.candidates.length>0);
+  const savingsOpportunities=summarizeCheaperAlternatives(availableAlternativeResults);
   const plan=result?planOf(result,mode):null;
   const storeSections=groupShoppingPlan(plan);
   const planKey=planFingerprint(result?.snapshotDate||"",mode,plan);
