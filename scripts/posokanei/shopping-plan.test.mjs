@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {groupShoppingPlan,savingsForPlan,planFingerprint,shoppingPlanText,packagesForEquivalent} from "./shopping-plan.mjs";
+import {groupShoppingPlan,savingsForPlan,savingsIncludingBrands,planFingerprint,shoppingPlanText,packagesForEquivalent} from "./shopping-plan.mjs";
 
 const item=(lineId,retailerId,retailerName,total)=>({
   lineId,retailerId,retailerName,sourceProductId:lineId,productName:"Προϊόν "+lineId,
@@ -68,4 +68,15 @@ test("preserves quantity during cross-brand substitution with different package 
   assert.equal(packagesForEquivalent(0,2,0.4),null);
   assert.equal(packagesForEquivalent(0.5,1,0),null);
   assert.equal(packagesForEquivalent(0.5,1,Number.NaN),null);
+});
+
+test("combined savings includes approved cheaper-brand choices only once",()=>{
+  const branded={...result,reviewedBrandSwitchCount:1,
+    originalBasketBenchmarkEur:9,originalBasketBenchmarkMode:"single"};
+  assert.equal(savingsForPlan(branded,current),1.4);
+  assert.equal(savingsIncludingBrands(branded,current),
+    Number((9-current.totalEur).toFixed(2)));
+  assert.equal(savingsIncludingBrands({...branded,originalBasketBenchmarkEur:null},current),null);
+  assert.equal(savingsIncludingBrands({...branded,reviewedBrandSwitchCount:0},current),null);
+  assert.equal(savingsIncludingBrands(branded,{...current,complete:false}),null);
 });
