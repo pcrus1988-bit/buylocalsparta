@@ -538,7 +538,7 @@
         {
           "id": "4f3553d6d8794a7ba909a8e15425d7c1",
           "name": "ΜΑΚΒΕΛ Σπαγγέτι Νο6 500gr",
-          "brand": "ΜΑΚΒΕΛ ",
+          "brand": "ΜΑΚΒΕΛ",
           "category": "Σπαγγέτι",
           "unit": "kg",
           "unit_quantity": 0.5
@@ -562,7 +562,7 @@
         {
           "id": "62b78947153e4c979fce433d0aa3a662",
           "name": "MISKO Σπαγγέτι Νο6 1kg",
-          "brand": "MISKO ",
+          "brand": "MISKO",
           "category": "Σπαγγέτι",
           "unit": "kg",
           "unit_quantity": 1
@@ -570,7 +570,7 @@
         {
           "id": "684df329a875463799b4dc71f4e68487",
           "name": "ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ Μακαρόνια Σπαγγέτι N6 500γρ",
-          "brand": "  ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ",
+          "brand": "ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ",
           "category": "Σπαγγέτι",
           "unit": "kg",
           "unit_quantity": 0.5
@@ -578,7 +578,7 @@
         {
           "id": "748311c2a9944796a5efbe37f5aefd65",
           "name": "ΑΒΕΖ Σπαγγέτι Νο6 500g",
-          "brand": "ΑΒΕΖ ",
+          "brand": "ΑΒΕΖ",
           "category": "Σπαγγέτι",
           "unit": "kg",
           "unit_quantity": 0.5
@@ -586,7 +586,7 @@
         {
           "id": "abe51b2f7db44d19af23ac78e1250283",
           "name": "MISKO Σπαγγέτι Νο6 4x500g",
-          "brand": "MISKO ",
+          "brand": "MISKO",
           "category": "Σπαγγέτι",
           "unit": "kg",
           "unit_quantity": 2
@@ -618,7 +618,7 @@
         {
           "id": "dfef9c14aa8e484182e8a0fe77556801",
           "name": "MISKO Σπαγγέτι Νο6 500gr",
-          "brand": "MISKO ",
+          "brand": "MISKO",
           "category": "Σπαγγέτι",
           "unit": "kg",
           "unit_quantity": 0.5
@@ -653,7 +653,7 @@
         {
           "id": "2bed19097d5042969d6d0c735472e128",
           "name": "MISKO Σπαγγέτι Ολικής Άλεσης Νο6 500g",
-          "brand": "MISKO ",
+          "brand": "MISKO",
           "category": "Σπαγγέτι",
           "unit": "kg",
           "unit_quantity": 0.5
@@ -661,7 +661,7 @@
         {
           "id": "4def679c673a440d94fcc7051ed7f296",
           "name": "ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ Μακαρόνια Σπαγγέτι Ολικής Ν6 500γρ",
-          "brand": "  ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ",
+          "brand": "ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ",
           "category": "Σπαγγέτι",
           "unit": "kg",
           "unit_quantity": 0.5
@@ -720,7 +720,7 @@
         {
           "id": "2afa21af895548dcac73eed62669258b",
           "name": "SOL Ηλιέλαιο 1lt",
-          "brand": "SOL ",
+          "brand": "SOL",
           "category": "Ηλιέλαιο",
           "unit": "L",
           "unit_quantity": 1
@@ -744,7 +744,7 @@
         {
           "id": "36add01c2cd64db2a9278281a943a00c",
           "name": "SOL ηλιέλαιο 2lt",
-          "brand": "SOL ",
+          "brand": "SOL",
           "category": "Ηλιέλαιο",
           "unit": "L",
           "unit_quantity": 2
@@ -800,7 +800,7 @@
         {
           "id": "7e8f4cfed2084c46b0980977a9d92b06",
           "name": "SANΟΛΑ Ηλιέλαιο 2lt",
-          "brand": "SANOLA ",
+          "brand": "SANOLA",
           "category": "Ηλιέλαιο",
           "unit": "L",
           "unit_quantity": 2
@@ -808,7 +808,7 @@
         {
           "id": "856b9cb0194e47fd913095efd1a758a2",
           "name": "FARMER Ηλιέλαιο 1lt",
-          "brand": "FARMER ",
+          "brand": "FARMER",
           "category": "Ηλιέλαιο",
           "unit": "L",
           "unit_quantity": 1
@@ -816,7 +816,7 @@
         {
           "id": "8bdbd782828a4a8e8efb78a5739e41fb",
           "name": "FARMER Ηλιέλαιο 5lt",
-          "brand": "FARMER ",
+          "brand": "FARMER",
           "category": "Ηλιέλαιο",
           "unit": "L",
           "unit_quantity": 5
@@ -824,7 +824,7 @@
         {
           "id": "9467ed991b45446aacc8e0c40a2353b0",
           "name": "SANOLA Ηλιέλαιο 5lt",
-          "brand": "SANOLA ",
+          "brand": "SANOLA",
           "category": "Ηλιέλαιο",
           "unit": "L",
           "unit_quantity": 5
@@ -880,7 +880,7 @@
         {
           "id": "c14599eaa3d14501bf7f5ea1de3c8fe9",
           "name": "SANOLA Ηλιέλαιο 5lt",
-          "brand": "SANOLA ",
+          "brand": "SANOLA",
           "category": "Ηλιέλαιο",
           "unit": "L",
           "unit_quantity": 5
@@ -888,7 +888,7 @@
         {
           "id": "c37e6ede8a7547489c0c90109777769e",
           "name": "FARMER Ηλιέλαιο 10lt",
-          "brand": "FARMER ",
+          "brand": "FARMER",
           "category": "Ηλιέλαιο",
           "unit": "L",
           "unit_quantity": 10
@@ -919,7 +919,7 @@
         },
         {
           "id": "c7bace8c2621443fa961303505093c18",
-          "name": " LUX FARM Ηλιέλαιο 1lt",
+          "name": "LUX FARM Ηλιέλαιο 1lt",
           "brand": "LUX FARM",
           "category": "Ηλιέλαιο",
           "unit": "L",
@@ -952,7 +952,7 @@
         {
           "id": "e1701521745342348f23d8b3919c4843",
           "name": "SANΟΛΑ Ηλιέλαιο 1lt",
-          "brand": "SANOLA ",
+          "brand": "SANOLA",
           "category": "Ηλιέλαιο",
           "unit": "L",
           "unit_quantity": 1
@@ -1043,7 +1043,7 @@
         {
           "id": "6feef2357f204b58a934d88e43170f92",
           "name": "KYKNOS Ντομάτα τριμμένη 500g",
-          "brand": "KYKNOS ",
+          "brand": "KYKNOS",
           "category": "Σάλτσα Ντομάτας",
           "unit": "kg",
           "unit_quantity": 0.5
@@ -1051,7 +1051,7 @@
         {
           "id": "728c8d5f65e243c4986120d0be3b8513",
           "name": "KYKNOS Ντομάτα τριμμένη 3x250g",
-          "brand": "KYKNOS ",
+          "brand": "KYKNOS",
           "category": "Σάλτσα Ντομάτας",
           "unit": "kg",
           "unit_quantity": 0.75
@@ -1059,7 +1059,7 @@
         {
           "id": "7df6f10570384d46bceb944a6bb9cc2a",
           "name": "ΟΜΟΣΠΟΝΔΙΑ τομάτα στον τρίφτη 680g",
-          "brand": "ΟΜΟΣΠΟΝΔΙΑ ",
+          "brand": "ΟΜΟΣΠΟΝΔΙΑ",
           "category": "Σάλτσα Ντομάτας",
           "unit": "kg",
           "unit_quantity": 0.68
@@ -1067,7 +1067,7 @@
         {
           "id": "82e8eb8fbda44553bb7fc3a989557303",
           "name": "ECONOMY Τριμμένες Τομάτες 500γρ",
-          "brand": "ECONOMY ",
+          "brand": "ECONOMY",
           "category": "Σάλτσα Ντομάτας",
           "unit": "kg",
           "unit_quantity": 0.5
@@ -1075,7 +1075,7 @@
         {
           "id": "8b1aba6f96d94192ae71bd80552dfbc8",
           "name": "ECONOMY Τομάτες Στον Τρίφτη 400γρ",
-          "brand": "ECONOMY ",
+          "brand": "ECONOMY",
           "category": "Σάλτσα Ντομάτας",
           "unit": "kg",
           "unit_quantity": 0.4
@@ -1107,7 +1107,7 @@
         {
           "id": "c00d7405f6d84d2cb2371eae975f6557",
           "name": "KYKNOS Ντομάτα τριμμένη 680g",
-          "brand": "KYKNOS ",
+          "brand": "KYKNOS",
           "category": "Σάλτσα Ντομάτας",
           "unit": "kg",
           "unit_quantity": 0.68
@@ -1166,7 +1166,7 @@
         {
           "id": "b17a259969024cc5a48151b62d2c8b15",
           "name": "ΚΟΡΠΗ  Νερό Φυσικό Μεταλλικό 500ml",
-          "brand": "ΚΟΡΠΗ ",
+          "brand": "ΚΟΡΠΗ",
           "category": "Φυσικό Μεταλλικό Νερό",
           "unit": "L",
           "unit_quantity": 0.5
@@ -1174,7 +1174,7 @@
         {
           "id": "c4bdb17a0bbb4314a537709024b1f80c",
           "name": "ZARO'S Φυσικό Μεταλλικό Νερό 500 ml",
-          "brand": "ZARO'S ",
+          "brand": "ZARO'S",
           "category": "Φυσικό Μεταλλικό Νερό",
           "unit": "L",
           "unit_quantity": 0.5
@@ -1233,7 +1233,7 @@
         {
           "id": "a035059b26bc4ef18ee7f35c683b91df",
           "name": "ΚΟΡΠΗ Νερό Φυσικό Μεταλλικό 1,5lt",
-          "brand": "ΚΟΡΠΗ ",
+          "brand": "ΚΟΡΠΗ",
           "category": "Φυσικό Μεταλλικό Νερό",
           "unit": "L",
           "unit_quantity": 1.5
@@ -1249,7 +1249,7 @@
         {
           "id": "b34dfaebcba246408fa18d73b5a55349",
           "name": "ZAROS Νερό Φυσικό Μεταλλικό 1.5lt",
-          "brand": "ZARO'S ",
+          "brand": "ZARO'S",
           "category": "Φυσικό Μεταλλικό Νερό",
           "unit": "L",
           "unit_quantity": 1.5
