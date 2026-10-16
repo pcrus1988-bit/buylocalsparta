@@ -2,6 +2,7 @@ import * as SQLite from "expo-sqlite";
 import { DeviceEventEmitter } from "react-native";
 import {validCanonicalPublicId} from "./canonical-id";
 import {planCatalogAdd,planListMoveMerge,type CatalogAddAction,type ListKind} from "./list-rules";
+import {normalizedNoteKey,parseShoppingNotes} from "./shopping-list-import";
 export type {ListKind} from "./list-rules";
 
 export type ListItem = {
@@ -69,6 +70,45 @@ export async function addItem(kind:ListKind,title:string,quantity=1,variantId:st
     id,kind,clean,quantity,variantId,Date.now());
   return id;
 }
+/** Add multiple local handwritten shopping notes in one atomic transaction.
+ * Normalized matches merge, but canonical variants are never inferred from text.
+ * Existing website saved products, order ledger and checkout are untouched.
+ */
+export async function importShoppingNotes(input:string):Promise<{
+ created:number;updated:number;total:number
+}>{
+ const notes=parseShoppingNotes(input);
+ const db=await database();
+ let created=0,updated=0;
+ await db.withExclusiveTransactionAsync(async tx=>{
+   const existing=await tx.getAllAsync<{
+     id:string;title:string;quantity:number;completed:number
+   }>("SELECT id,title,quantity,completed FROM companion_items WHERE kind='shopping' AND variant_id IS NULL ORDER BY created_at DESC");
+   const byKey=new Map(existing.map(row=>[normalizedNoteKey(row.title),row]));
+   for(const note of notes){
+     const key=normalizedNoteKey(note.title);
+     const row=byKey.get(key);
+     if(row){
+       const next=row.quantity+note.quantity;
+       if(!Number.isSafeInteger(next)||next>99)throw Error("QUANTITY_LIMIT");
+       await tx.runAsync("UPDATE companion_items SET quantity=?,completed=0 WHERE id=?",
+         next,row.id);
+       byKey.set(key,{...row,quantity:next,completed:0});
+       updated++;
+     }else{
+       const id=`companion_${Date.now()}_${Math.random().toString(36).slice(2,12)}`;
+       await tx.runAsync(
+        "INSERT INTO companion_items(id,kind,title,quantity,completed,variant_id,created_at) VALUES(?,'shopping',?,?,0,NULL,?)",
+        id,note.title,note.quantity,Date.now()
+       );
+       byKey.set(key,{id,title:note.title,quantity:note.quantity,completed:0});
+       created++;
+     }
+   }
+ });
+ return {created,updated,total:notes.length};
+}
+
 /** Add a real canonical variant to a chosen local list, without duplicate rows.
  * Wishlist: idempotent (reopens a checked item).
  * Shopping: repeated adds increment quantity, capped at 99.
