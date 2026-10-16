@@ -78,3 +78,27 @@ test("explicit disallow for alcohol, unsafe product classes, ambiguous claims an
  const surprise=p("d","C","C Αλάτι Ημίχονδρο 1kg","Αλάτι","kg",2);
  assert.deepEqual(deriveAutoPackagedTypeGroups([a,b,surprise]),[]);
 });
+
+
+test("matching croissant fillings may share type, but differing fillings never do",()=>{
+ const items=[
+  p("ca","A","A Κρουασάν Κρέμα Κακάο 70g","Κρουασάν","kg",.07),
+  p("cb","B","B Κρουασάν με Κρέμα Κακάο 90g","Κρουασάν","kg",.09),
+  p("cc","C","C Κρουασάν με Κρέμα Πραλίνα 90g","Κρουασάν","kg",.09)
+ ];
+ const groups=deriveAutoPackagedTypeGroups(items);
+ assert.equal(groups.length,1);
+ assert.deepEqual(groups[0].memberIds,["ca","cb"]);
+});
+test("cheese type comparison does not waive diet, label or package checks",()=>{
+ const items=[
+  p("fa","A","A Φέτα ΠΟΠ σε Άλμη 800g","Φέτα","kg",.8),
+  p("fb","B","B Φέτα ΠΟΠ σε Άλμη 400g","Φέτα","kg",.4),
+  p("fc","C","C Φέτα ΠΟΠ Light σε Άλμη 800g","Φέτα","kg",.8),
+  p("fd","D","D Φέτα ΠΟΠ σε Άλμη 500g","Φέτα","kg",.4)
+ ];
+ // Incorrect declared quantity on fd is a fail-closed exclusion for
+ // a same-name family; source must be corrected before any approval.
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items),[]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items.slice(0,3))[0].memberIds,["fa","fb"]);
+});
