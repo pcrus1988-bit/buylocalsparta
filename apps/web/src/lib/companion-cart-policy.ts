@@ -1,5 +1,5 @@
 import {createHash} from "node:crypto";
-import {validCompanionCanonicalId} from "./companion-catalog-policy";
+import {validCompanionCanonicalId} from "./companion-catalog-policy.ts";
 
 export type CompanionCartLine={canonicalVariantId:string;quantity:number};
 export type CompanionCartSnapshot={updatedAt:number;id:string;items:readonly {
