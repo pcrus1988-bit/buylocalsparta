@@ -123,3 +123,60 @@ test("a genuine one-cent cheaper alternative is still shown",()=>{
   assert.equal(match.alternatives.length,1);
   assert.equal(match.alternatives[0].savingsEur,0.01);
 });
+
+
+test("Greek inflections and transliterated types match only within detailed category",()=>{
+  const items=[
+    p("tom1","ΑΛΦΑ Ντομάτες ψιλοκομμένες 400 γρ","ΑΛΦΑ","ΚΟΝΣΕΡΒΑ ΝΤΟΜΑΤΑΣ","g",400),
+    p("tom2","BETA diced tomatoes 500g","BETA","ΚΟΝΣΕΡΒΑ ΝΤΟΜΑΤΑΣ","g",500),
+    p("tom3","GAMMA tomato passata 500g","GAMMA","ΚΟΝΣΕΡΒΑ ΝΤΟΜΑΤΑΣ","g",500),
+    p("tom4","DELTA diced tomato 500g","DELTA","ΚΟΝΣΕΡΒΑ ΣΑΛΤΣΑΣ","g",500)
+  ];
+  assert.equal(productFamily(items[0]),productFamily(items[1]));
+  assert.notEqual(productFamily(items[0]),productFamily(items[2]));
+  assert.notEqual(productFamily(items[0]),productFamily(items[3]));
+  const prices=new Map([
+    ["tom1",[o("tom1","a",2.2)]],["tom2",[o("tom2","b",0.9)]],
+    ["tom3",[o("tom3","b",0.1)]],["tom4",[o("tom4","b",0.1)]]
+  ]);
+  const matched=findBrandAlternatives({sourceId:"tom1",products:items,offersByProduct:prices});
+  assert.deepEqual(matched.alternatives.map(x=>x.id),["tom2"]);
+});
+test("Greek-to-Latin brand matching preserves remainder of product identity",()=>{
+  const a=p("a","DODONI γιαούρτι στραγγιστό 500g","ΔΩΔΩΝΗ","ΓΙΑΟΥΡΤΙΑ","g",500);
+  const b=p("b","ΒΗΤΑ yogurt στραγγιστό 500g","ΒΗΤΑ","ΓΙΑΟΥΡΤΙΑ","g",500);
+  assert.equal(productFamily(a),productFamily(b));
+});
+test("preserve critical modifiers including diets, strengths, scents and subtypes",()=>{
+  const base=p("b","A Γάλα 3,5% πλήρες 1lt","A","ΓΑΛΑ","l",1);
+  const variations=[
+    p("a","B Γάλα 1,5% πλήρες 1lt","B","ΓΑΛΑ","l",1),
+    p("b","B Γάλα 3,5% χωρίς λακτόζη 1lt","B","ΓΑΛΑ","l",1),
+    p("c","B Γάλα 3,5% light 1lt","B","ΓΑΛΑ","l",1),
+    p("d","B Γάλα 3,5% πλήρες βιολογικό 1lt","B","ΓΑΛΑ","l",1),
+    p("e","B Γάλα 3,5% UHT πλήρες 1lt","B","ΓΑΛΑ","l",1),
+    p("f","B Γάλα 3,5% πλήρες 2 x 500ml","B","ΓΑΛΑ","ml",1000)
+  ];
+  for(const alt of variations)assert.notEqual(productFamily(base),productFamily(alt),alt.name);
+});
+test("safe product-name synonyms also work outside food products",()=>{
+  const shampooA=p("s1","MEVGAL ΣΑΜΠΟΥΑΝ FRESH 500ml","MEVGAL","ΠΕΡΙΠΟΙΗΣΗ ΜΑΛΛΙΩΝ","ml",500);
+  const shampooB=p("s2","BETA SHAMPOO FRESH 250ml","BETA","ΠΕΡΙΠΟΙΗΣΗ ΜΑΛΛΙΩΝ","ml",250);
+  const shampooOther=p("s3","BETA SHAMPOO DRY HAIR 250ml","BETA","ΠΕΡΙΠΟΙΗΣΗ ΜΑΛΛΙΩΝ","ml",250);
+  const items=[shampooA,shampooB,shampooOther];
+  const prices=new Map([
+    ["s1",[o("s1","a",7)]],["s2",[o("s2","b",2)]],["s3",[o("s3","b",0.5)]]
+  ]);
+  const found=findBrandAlternatives({sourceId:"s1",products:items,offersByProduct:prices});
+  assert.deepEqual(found.alternatives.map(x=>x.id),["s2"]);
+  assert.equal(found.alternatives[0].packageCount,2);
+});
+test("no cross-category or incompatible-unit matches after token normalization",()=>{
+  const rice=p("r","A Ρύζι νυχάκι 1kg","A","ΡΥΖΙΑ","kg",1);
+  const riceBottle=p("b","B rice νυχάκι 1l","B","ΡΥΖΙΑ","l",1);
+  const riceOther=p("c","C rice νυχάκι 1kg","C","ΟΣΠΡΙΑ","kg",1);
+  assert.notEqual(productFamily(rice),productFamily(riceOther));
+  const result=findBrandAlternatives({sourceId:"r",products:[rice,riceBottle,riceOther],
+    offersByProduct:new Map([["r",[o("r","a",10)]],["b",[o("b","b",1)]],["c",[o("c","b",1)]]])});
+  assert.deepEqual(result.alternatives,[]);
+});
