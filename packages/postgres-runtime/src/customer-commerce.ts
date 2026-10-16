@@ -350,7 +350,7 @@ export class PostgresCustomerCommerceService {
     }, { readOnly: true });
   }
 
-  async syncCustomerCart(input: { customerId: string; marketId?: string; items: readonly Readonly<{ canonicalVariantId: string; quantity: number }>[]; now: number }): Promise<PersistentCartSnapshot> {
+  async syncCustomerCart(input: { customerId: string; marketId?: string; items: readonly Readonly<{ canonicalVariantId: string; quantity: number }>[]; now: number; expectedUpdatedAt?: number | null }): Promise<PersistentCartSnapshot> {
     const marketId = input.marketId ?? "sparta";
     const unique = new Map<string, number>();
     for (const item of input.items) {
@@ -361,6 +361,17 @@ export class PostgresCustomerCommerceService {
     await this.#uow.withTransaction(customerScope(input.customerId), async (tx) => {
       const user = await this.#userUuid(tx, input.customerId);
       const market = await this.#marketUuid(tx, marketId);
+      // Only callers that opt into optimistic versioning are checked.
+      // Lock the same cart row that browser sync upserts, then compare inside
+      // this serializable transaction to prevent stale Android replacement.
+      if (Object.prototype.hasOwnProperty.call(input, "expectedUpdatedAt")) {
+        const current = await tx.query<SqlRow>(
+          "SELECT updated_at FROM carts WHERE market_id=$1 AND user_id=$2 FOR UPDATE",
+          [market, user]
+        );
+        const actual = current.rows[0] ? epoch(current.rows[0].updated_at, "cart.updated_at") : null;
+        if (actual !== input.expectedUpdatedAt) throw new Error("CART_CHANGED");
+      }
       const cartPublicId = id("cart");
       await tx.query(`INSERT INTO carts(id,public_id,market_id,user_id,currency,created_at,updated_at)
         VALUES($1,$2,$3,$4,'EUR',$5,$5)
