@@ -16,6 +16,7 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  ["φυσικο μεταλλικο νερο",["l",/φυσικ.*μεταλλικ.*νερ|νερ.*φυσικ.*μεταλλικ|natural mineral water/u]],
   ["πατατακια",["kg",/πατατακ|chips?/u]],
   ["μουσταρδα",["kg",/μουσταρδ|mustard/u]],
   ["μαρμελαδα",["kg",/μαρμελαδ|jam/u]],
