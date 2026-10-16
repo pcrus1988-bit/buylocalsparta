@@ -143,3 +143,15 @@ The existing KONTA MOY account address service now has a gated Android Companion
 - Node tests cover invalid ownership/body fields, unsupported countries, required full name and postcode, embedded control characters and the native form. The mobile build/SDK export CI and physical-device lifecycle testing are separate release gates.
 
 **Important checkout caveat:** Adding addresses does not make payments native. The browser must be signed into the same account, and the buyer must review the actual final cart, price, address, fulfilment, shipping/locker and Mollie payment before confirming. No production flags or databases are changed by this draft PR.
+
+## Address management hardening — 16 October 2026
+
+Companion now supports authenticated **view, create, edit and delete** of the customer's own saved Greek addresses in its native Android account screen. The backend routes still require both `COMPANION_ANDROID_AUTH_ENABLED=true` and the independent `COMPANION_ANDROID_ADDRESSES_ENABLED=true` flag; neither has been activated in production.
+
+- Editing sends a complete validated address record and opaque address public ID. The existing Postgres address service updates only a row matching **both user and address**, fails instead of creating a new address for a missing/foreign ID, and uses the existing account transaction. Company name, VAT, phone and billing/delivery defaults are preserved in native edit forms rather than silently erased.
+- Deletion requires an explicit Android confirmation and passes only the address ID. The existing database service changes only the signed-in user's address book, adjusts replacement defaults and leaves past order address snapshots untouched. If the last address is deleted, the buyer must create another to check out.
+- A separate mutation rate limit applies to edit/delete. A rejected or revoked mobile bearer cannot access either action. Validation rejects extra identity fields, malformed IDs, unsupported country codes, invalid Greek postcodes, overlong fields and controls.
+- Android dismisses previous address snapshots while a fresh customer account read is in progress; common API transport rejects late responses after logout/account switch. No address is saved to local SQLite or sent through notifications.
+- Tests now cover update/delete input contracts, preservation of corporate invoicing fields and native edit round-trips. This is a **draft implementation** only: an APK, actual authenticated physical-device test, production schema/flag review, and full marketplace production CI are still independent release gates.
+
+The final purchase flow, payment authorization, BOX NOW locker choice, shipping price and availability remain **exclusively** in the official checkout. Address changes here do not retrospectively mutate existing orders.
