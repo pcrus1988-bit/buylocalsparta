@@ -143,7 +143,7 @@ export async function disconnectCompanion(){
 
 /** Owned Companion API calls only. Access never leaves this first-party HTTPS origin. */
 export async function companionAuthorizedRequest<T>(
- path:"/push/device"|"/push/test"|"/wishlist/import",method:"GET"|"PUT"|"DELETE"|"POST",payload?:unknown
+ path:"/push/device"|"/push/test"|"/wishlist/import"|"/cart",method:"GET"|"PUT"|"DELETE"|"POST",payload?:unknown
 ):Promise<T>{
  const call=async(token:string)=>fetch(`${BASE}${path}`,{
    method,headers:{
@@ -161,6 +161,6 @@ export async function companionAuthorizedRequest<T>(
    if(!token)throw Error("LOGIN_REQUIRED");
    r=await call(token);
  }
- if(!r.ok)throw Error(r.status===503?"NOT_ENABLED":r.status===401?"LOGIN_REQUIRED":"REQUEST_FAILED");
+ if(!r.ok)throw Error(r.status===409?"CART_CHANGED":r.status===503?"NOT_ENABLED":r.status===401?"LOGIN_REQUIRED":"REQUEST_FAILED");
  return await r.json() as T;
 }
