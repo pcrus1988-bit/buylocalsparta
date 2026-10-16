@@ -148,6 +148,9 @@ export default function CompanionAccountScreen(){
         <Text style={styles.outlineText}>Ανανέωση παραγγελιών & wishlist</Text>
       </Pressable>
     </View>
+    <Link href="/addresses" asChild><Pressable accessibilityRole="button" style={styles.outline}>
+      <Text style={styles.outlineText}>Αποθηκευμένες διευθύνσεις →</Text>
+    </Pressable></Link>
     <Link href="/notifications" asChild><Pressable accessibilityRole="button" style={styles.outline}>
       <Text style={styles.outlineText}>Ειδοποιήσεις Android · FCM →</Text>
     </Pressable></Link>
