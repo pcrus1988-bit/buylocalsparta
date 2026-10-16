@@ -81,3 +81,23 @@ test("simplified UI keeps grouped cross-off list and an explicit account-gated s
   assert.match(styles,/\.selectedAlternativeNote/);
   assert.match(styles,/\.suggestionLine/);
 });
+
+test("every listed supermarket price is directly selectable but the normal add remains unlocked",()=>{
+  assert.match(source,/function addProduct\(p:Product,chosenOffer\?:Offer\)/);
+  assert.match(source,/onClick=\{\(\)=>addProduct\(p,o\)\}>Επιλογή τιμής/);
+  assert.match(source,/onClick=\{\(\)=>addProduct\(p\)\}>\+ Στη λίστα/);
+  assert.match(source,/lockedRetailerId:chosenOffer\.retailerId/);
+  assert.match(source,/excluded\.includes\(chosenOffer\.retailerId\)/);
+  assert.match(source,/className=\{styles\.retailerLock\}/);
+  assert.match(source,/changeLine\(l\.id,\{lockedRetailerId:undefined\}\)/);
+  assert.match(styles,/\.retailerLock/);
+  assert.match(savedRoute,/l\.lockedRetailerId===undefined/);
+  assert.match(savedRoute,/\^\[A-Za-z0-9_-\]\{1,100\}\$/);
+});
+
+test("catalogue alternative selection keeps its baseline for server-calculated real savings",()=>{
+  assert.match(source,/function addReviewedComparable\(option:Cheaper,sourceProduct:Product\)/);
+  assert.match(source,/replacedFrom:\{sourceProductId:sourceProduct\.id,packageCount:1\}/);
+  assert.match(source,/onClick=\{\(\)=>addReviewedComparable\(a,p\)\}/);
+  assert.match(source,/lockedRetailerId:undefined/);
+});
