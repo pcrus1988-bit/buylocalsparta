@@ -658,3 +658,23 @@
 .navDisclosure .navGroup { background:#f8f8f3; }
 @media(max-width:960px) { .navDisclosure .navGroups { grid-template-columns:1fr; } }
 @media(max-width:620px) { .navBar { flex-direction:column; align-items:stretch; } .navDisclosure { max-width:100%; width:100%; } .navDisclosure .navGroups { width:100%; } .navDisclosure .navItems { flex-wrap:wrap; overflow:visible; } .navBack { min-height:32px; } }
+
+
+.compactDashboardIntro { padding:28px 0 0; }
+.compactDashboardIntro h1 { font-size:clamp(29px,4vw,46px); margin:8px 0 7px; line-height:1.14; letter-spacing:-.045em; }
+.compactDashboardIntro p { margin:0; max-width:680px; color:var(--ink-soft); line-height:1.55; font-size:14px; }
+.priorityGridSolo { grid-template-columns:minmax(0,1fr); margin-top:10px; }
+.priorityGridSolo .priorityCard { max-width:none; }
+.activityDisclosure { border:1px solid var(--line); border-radius:20px; margin-top:23px; margin-bottom:20px; padding:0; background:rgba(255,253,248,.72); overflow:hidden; }
+.activityToggle { list-style:none; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:19px 23px; cursor:pointer; }
+.activityToggle::-webkit-details-marker { display:none; }
+.activityToggle > span:first-child { display:grid; gap:5px; }
+.activityToggle strong { font-size:17px; font-weight:850; }
+.activityToggle small { font-size:12px; color:var(--ink-soft); }
+.activityToggle > span:last-child { display:grid; place-items:center; width:32px; height:32px; border-radius:50%; border:1px solid var(--line); font-size:19px; }
+.activityDisclosure[open] .activityToggle > span:last-child { transform:rotate(180deg); }
+.activityToggle:focus-visible { outline:3px solid #447a62; outline-offset:-3px; }
+.activityContent { padding:0 15px 17px; }
+.activityContent :global(.shell) { max-width:100%; }
+.activityContent :global(.account-section-intro) { margin-top:12px; }
+@media(max-width:620px) { .compactDashboardIntro { padding-top:21px; } .activityToggle { padding:16px; } .activityContent { padding:0 8px 12px; } .priorityGridSolo .priorityCard { padding:18px; } }
