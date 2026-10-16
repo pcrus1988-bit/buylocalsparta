@@ -174,11 +174,11 @@ function hasForbiddenClaim(category,title){
   if(!dangerous.test(title))return false;
   let withoutApprovedVariant=title;
   if(safeWholeGrainCategories.has(category) &&
-     /\bολικης\s+αλεσης\b/u.test(title))
-    withoutApprovedVariant=withoutApprovedVariant.replace(/\bολικης\s+αλεσης\b/gu," ");
+     /ολικης\s+αλεσης/u.test(title))
+    withoutApprovedVariant=withoutApprovedVariant.replace(/ολικης\s+αλεσης/gu," ");
   if(safeLabelledGlutenFreeCategories.has(category) &&
-     /\bχωρις\s+γλουτενη\b/u.test(title))
-    withoutApprovedVariant=withoutApprovedVariant.replace(/\bχωρις\s+γλουτενη\b/gu," ");
+     /χωρις\s+γλουτενη/u.test(title))
+    withoutApprovedVariant=withoutApprovedVariant.replace(/χωρις\s+γλουτενη/gu," ");
   // Unexpected extra claims (organic, other allergies, children's lines,
   // protein fortification, sugar reduction, etc.) retain the veto.
   return dangerous.test(withoutApprovedVariant);
