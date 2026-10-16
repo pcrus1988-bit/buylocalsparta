@@ -62,13 +62,7 @@ For privacy and authorization, neither customer IDs nor personal list contents a
 
 ## Android build recovery — 16 October 2026
 
-The 08:39 UTC Companion Logic and standalone Preview APK runs failed before packaging because `mobile/src/lib/nearby-matching.ts` mistakenly contained literal `\\n` sequences in a line comment. This commented out the exact-variant matching conditional and produced `TS1128` / Metro `'return' outside of function`. The module was corrected at source in the Companion draft branch; matcher behavior remains exact-variant-only for saved catalog products. Local Node 22 acceptance for the six bulk-import and five Nearby matcher cases now passes; this does not replace the full Expo / Gradle CI run, which must finish on the corrected branch before distributing a new APK.
-
-## Multi-item offline shopping-list entry — 16 October 2026
-
-The native shopping list has a collapsible **Προσθήκη ολόκληρης λίστας** field. Shoppers can paste up to 40 Greek or English product notes (maximum 2,400 characters). Supported quantities include `2x Γάλα` and `Ντομάτες × 3`; plain numeric product names are preserved. The parser merges case/accent-equivalent notes, while the SQLite transaction safely merges existing *free-text* shopping entries, reopens completed items and refuses totals above 99 without partial changes. Canonical IDs are **never** inferred from text. Invalid imports do not update the database. No remote services, marketing, location, server saved-products or cart operations are involved.
-
-On-device QA: paste multiple lines; verify duplicate merging, quantities, completed-state reactivation, full-batch rollback on overflow, offline persistence after restart and unchanged canonical variants. Parser tests: `mobile/test/shopping-list-import.test.ts`.
+The 08:39 UTC Companion Logic and standalone Preview APK runs failed before packaging because `mobile/src/lib/nearby-matching.ts` mistakenly contained literal `\\n` sequences in a line comment. This commented out the exact-variant matching conditional and produced `TS1128` / Metro `'return' outside of function`. The module was corrected at source in the Companion draft branch; matcher behavior remains exact-variant-only for saved catalog products. Nearby matching tests pass in CI; this does not replace the full Expo / Gradle CI run, which must finish on the corrected branch before distributing a new APK.
 
 ## Shopping-list usability increment — 16 October 2026
 
