@@ -1,8 +1,8 @@
 export type BasketLine =
   | {id:string;kind:"exact";sourceProductId:string;packageCount:number;lockedRetailerId?:string}
   | {id:string;kind:"group";groupId:string;requiredBaseQuantity:number;lockedProductId?:string;lockedRetailerId?:string};
-export type BasketProduct = { source_product_id:string;name:string;brand?:string|null;unit?:string;unit_quantity?:number;snapshot_date?:string };
-export type BasketPrice = {source_product_id:string;snapshot_date:string;country:string;retailer_id:string;retailer_name?:string;price_eur:number;source_price_updated_at?:string};
+export type BasketProduct = { source_product_id:string;name:string;brand?:string|null;unit?:string|null;unit_quantity?:number|null;snapshot_date?:string };
+export type BasketPrice = {source_product_id:string;snapshot_date:string;country:string;retailer_id:string;retailer_name?:string;price_eur:number;source_price_updated_at?:string|null};
 export type BasketGroup = {id:string;status:string;basis:string;memberIds:string[]};
 export type PlanItem = {
   lineId:string;kind:"exact"|"group";sourceProductId:string;productName:string;brand:string|null;
