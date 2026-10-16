@@ -15,6 +15,8 @@ on:
       - "mobile/test/canonical-id.test.ts"
       - "mobile/test/list-rules.test.ts"
       - "mobile/test/pickup-model.test.ts"
+      - "mobile/test/companion-cart.test.ts"
+      - "apps/web/src/lib/companion-cart-policy.test.ts"
       - ".github/workflows/companion-android-logic.yml"
   push:
     branches: [main, feature/native-customer-app-foundation-20261016]
@@ -40,7 +42,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - run: node --experimental-strip-types --test mobile/test/nearby-matching.test.ts apps/web/test/companion-pkce.test.ts apps/web/test/companion-push-policy.test.ts apps/web/test/companion-fcm-status.test.ts apps/web/test/companion-catalog-policy.test.ts mobile/test/marketplace-links.test.ts mobile/test/navigation-contract.test.mjs mobile/test/canonical-id.test.ts mobile/test/list-rules.test.ts mobile/test/pickup-model.test.ts
+      - run: node --experimental-strip-types --test mobile/test/nearby-matching.test.ts apps/web/test/companion-pkce.test.ts apps/web/test/companion-push-policy.test.ts apps/web/test/companion-fcm-status.test.ts apps/web/test/companion-catalog-policy.test.ts mobile/test/marketplace-links.test.ts mobile/test/navigation-contract.test.mjs mobile/test/canonical-id.test.ts mobile/test/list-rules.test.ts mobile/test/pickup-model.test.ts mobile/test/companion-cart.test.ts apps/web/src/lib/companion-cart-policy.test.ts
   android-types:
     name: Android Expo dependency and typecheck
     runs-on: ubuntu-latest
