@@ -21,9 +21,9 @@ function valid(p:{latitude:number;longitude:number;accuracy:number}){
  */
 export async function POST(request:Request){
   try {
-    if(Number(request.headers.get("content-length")??0)>512)
-      return Response.json({error:"INVALID_INPUT"},{status:400,headers:JSON_HEADERS});
-    const raw=await request.json() as Input;
+    const body=await request.text();
+    if(body.length>512)return Response.json({error:"INVALID_INPUT"},{status:400,headers:JSON_HEADERS});
+    const raw=JSON.parse(body) as Input;
     const position={
       latitude:typeof raw.latitude==="number"?raw.latitude:NaN,
       longitude:typeof raw.longitude==="number"?raw.longitude:NaN,
