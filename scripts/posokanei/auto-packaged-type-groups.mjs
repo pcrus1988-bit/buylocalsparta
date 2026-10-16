@@ -16,6 +16,26 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  // Source-described ordinary product types inspected in the full 2026-10-15
+  // remaining-family audit. Exact category, normalized subtype and pack unit
+  // still all have to agree; whitelist membership alone does NOT approve.
+  ["προβειο γιαουρτι",["kg",/γιαουρτ.*προβει|προβει.*γιαουρτ/u]],
+  ["κατσικισιο γιαουρτι",["kg",/γιαουρτ.*κατσικ|κατσικ.*γιαουρτ/u]],
+  ["αριανι",["l",/αριανι/u]],
+  ["κατεψυγμενο σπανακι",["kg",/σπανακ|spinach/u]],
+  ["σιμιγδαλι",["kg",/σιμιγδαλ|semolina/u]],
+  ["ζιτι",["kg",/μακαρον.*τρυπητ|παστιτσιο|ζιτι|ziti/u]],
+  ["κουβερτουρα αρτοποιιας",["kg",/κουβερτουρ|couverture/u]],
+  ["πτι μπερ",["kg",/πτι.*μπερ|petit.*beurre/u]],
+  ["κοραλλια",["kg",/κοραλλ|coralli/u]],
+  ["σκορδο σε σκονη",["kg",/σκορδ|garlic/u]],
+  ["ρεβυθια",["kg",/ρεβιθ|ρεβυθ|chickpea/u]],
+  ["μοτσαρελα",["kg",/μοτσαρελ|mozzarella/u]],
+  ["αλλα ζυμαρικα",["kg",/σελινο|ρυζακι/u]],
+  ["προιοντα πλυντηριου πιατων",["kg",/αλατ.*πλυντηρι|πλυντηρι.*αλατ/u]],
+  ["καθαρισμος τζαμιων",["l",/υγρ.*τζαμι|τζαμι.*υγρ|glass.*clean/u]],
+  ["σπαγγετι",["kg",/σπαγγετ|spaghetti/u]],
+
   // Dated 2026-10-15 source audit: exact same detailed family across real brands.
   ["κεφιρ",["l",/κεφιρ|kefir/u]],
   ["εβαπορε",["kg",/γαλα|milk|εβαπορε/u]],
@@ -41,7 +61,7 @@ const specs=new Map([
   ["στιγμιαιος καφες",["kg",/στιγμιαι.*καφ|καφ.*στιγμιαι|instant.*coffee/u]],
   ["σοκολατα γαλακτος",["kg",/σοκολατ.*γαλακ|milk chocolate/u]],
   ["σοκολατα κακαο",["kg",/κακαο.*σκονη|cocoa powder/u]],
-  ["σοκολατουχο γαλα με γευσεις",["l",/σοκολατουχ.*γαλα|γαλα.*σοκολατουχ|chocolate milk/u]],
+  ["σοκολατουχο γαλα με γευσεις",["l",/σοκολατουχ.*γαλα|γαλα.*σοκολατουχ|γαλα.*κακαο|chocolate milk/u]],
   ["αγγελαδινο γιαουρτι",["kg",/γιαουρτ.*αγελαδ|αγελαδ.*γιαουρτ|cow.*yogurt/u]],
   ["πουρες",["kg",/πουρ.*πατατ|πατατ.*πουρ|potato puree/u]],
   ["μαυρο πιπερι",["kg",/μαυρ.*πιπερ|πιπερ.*μαυρ|black pepper/u]],
@@ -125,7 +145,7 @@ function accepted(p){
      size.amount<.02||size.amount>40||Math.abs(size.amount-label.quantity)>1e-6)return false;
   const fam=productFamily(p);
   const bits=fam?.split("|")[1]?.split(" ").filter(Boolean)||[];
-  if(bits.length<2 && !["αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη","κατεψυγμενος αρακας"].includes(category))return false;
+  if(bits.length<2 && !["αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη","κατεψυγμενος αρακας,"αριανι","κοραλλια","αλλα ζυμαρικα","ταχινι"].includes(category))return false;
   // Dairy requires fat information, otherwise packaging titles alone do not
   // distinguish normal, low fat, lactose-free and fermented variants.
   const listedFatPercent=/\b\d+(?:[.,]\d+)?\s*%/u.test(title);
