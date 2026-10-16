@@ -39,7 +39,7 @@ export async function GET(request:Request){
         sourceId:p.id,packages:1,products:snapshot.products,
         offersByProduct:catalog.byProduct,approvedGroups:snapshot.approvedGroups,
         excludedRetailerIds:[...excluded],brandIndex:approvedOnlyIndex,
-        includeNonCheaper:true,maxResults:10
+        includeNonCheaper:false,maxResults:5
       }).alternatives:[]
     }));
     const categories=[...new Set(snapshot.products.map(p=>p.category).filter((s):s is string=>Boolean(s)))].sort((a,b)=>a.localeCompare(b,"el"));

@@ -5,7 +5,7 @@ export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const headers={"Cache-Control":"private, no-store"};
 
-type SavedList={lines:Array<Record<string,unknown>>;labels:Record<string,string>;excluded:string[];maxStores:number;progress:{key:string;completed:string[]}};
+type SavedList={lines:Array<Record<string,unknown>>;labels:Record<string,string>;excluded:string[];maxStores:number;progress:{key:string;completed:string[]};dismissedAlternativeLines?:string[]};
 
 function validList(value:unknown):value is SavedList{
   if(!value||typeof value!=="object"||Array.isArray(value))return false;
@@ -22,6 +22,9 @@ function validList(value:unknown):value is SavedList{
   if(!v.progress||typeof v.progress!=="object"||typeof v.progress.key!=="string"||v.progress.key.length>3000||
      !Array.isArray(v.progress.completed)||v.progress.completed.length>20||
      !v.progress.completed.every(id=>typeof id==="string"&&/^line_[a-z0-9]{1,30}$/.test(id)))return false;
+  if(v.dismissedAlternativeLines!==undefined&&(!Array.isArray(v.dismissedAlternativeLines)||
+     v.dismissedAlternativeLines.length>20||
+     !v.dismissedAlternativeLines.every(id=>typeof id==="string"&&/^line_[a-z0-9]{1,30}$/.test(id)&&v.lines!.some(line=>line.id===id))))return false;
   return true;
 }
 

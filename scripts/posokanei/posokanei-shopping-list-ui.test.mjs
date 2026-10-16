@@ -3,66 +3,77 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 
 const source=readFileSync(new URL("../../apps/web/src/components/PosoKaneiPublicClient.tsx",import.meta.url),"utf8");
-
 const listingRoute=readFileSync(new URL("../../apps/web/src/app/api/posokanei/route.ts",import.meta.url),"utf8");
+const alternativesRoute=readFileSync(new URL("../../apps/web/src/app/api/posokanei/alternatives/route.ts",import.meta.url),"utf8");
+const savedRoute=readFileSync(new URL("../../apps/web/src/app/api/posokanei/saved-list/route.ts",import.meta.url),"utf8");
+const styles=readFileSync(new URL("../../apps/web/src/components/PosoKaneiPublicClient.module.css",import.meta.url),"utf8");
 
-test("PosoKanei never renders the standalone approved product type explorer",()=>{
+test("no separate sprawling comparison explorer is rendered",()=>{
   assert.doesNotMatch(source,/Συγκρίσεις εγκεκριμένων τύπων|Διάλεξε ένα είδος για σύγκριση/);
   assert.doesNotMatch(source,/reviewedBrowser|posokanei-reviewed-comparisons|Ομάδα συγκρίσιμων/);
 });
 
-test("catalogue brand comparison renders only for actually priced, reviewed alternatives",()=>{
+test("the catalogue offers only truly cheaper priced reviewed brands",()=>{
   assert.match(listingRoute,/approvedAlternatives:p\.groupId\?findBrandAlternatives/);
   assert.match(listingRoute,/brandIndex:approvedOnlyIndex/);
   assert.match(listingRoute,/excludedRetailerIds:\[\.\.\.excluded\]/);
-  assert.match(listingRoute,/includeNonCheaper:true/);
-  assert.match(source,/!!p\.approvedAlternatives\?\.length&&<button/);
-  assert.match(source,/!!p\.approvedAlternatives\?\.length&&comparedProduct===p\.id&&/);
-  assert.match(source,/Σύγκρινε άλλες μάρκες/);
-  assert.doesNotMatch(source,/Δεν βρέθηκαν άλλα συγκρίσιμα προϊόντα με καταγεγραμμένες τιμές/);
+  assert.match(listingRoute,/includeNonCheaper:false/);
+  assert.doesNotMatch(listingRoute,/includeNonCheaper:true/);
+  assert.match(source,/cheaperCatalogueOptions=p\.approvedAlternatives\.filter\(isCheaper\)/);
+  assert.match(source,/cheaperCatalogueOptions\.length>0&&<button/);
+  assert.match(source,/cheaperCatalogueOptions\.length>0&&comparedProduct===p\.id&&/);
+  assert.match(source,/Φθηνότερες μάρκες/);
+  assert.match(source,/setComparedProduct\(null\)/);
+  assert.match(source,/setDismissedAlternativeLines\(current=>\[\.\.\.current,key\]\)/);
+  assert.doesNotMatch(source,/Ακριβότερο κατά/);
 });
 
-test("PosoKanei always shows compact shopping-list alternatives with explicit manual choice",()=>{
-  assert.match(source,/id="posokanei-basket"/);
-  assert.match(source,/fetch\("\/api\/posokanei\/alternatives",\{\s*method:"POST"/);
-  assert.match(source,/includeNonCheaper:true/);
-  assert.match(source,/entry\.alternatives\.length>0\|\|entry\.candidates\.length>0/);
-  assert.match(source,/<section className=\{styles\.suggestion\} key=\{entry\.lineId\}/);
-  assert.match(source,/Εναλλακτικές για/);
-  assert.match(source,/Πιθανή εναλλακτική · μη ελεγμένη/);
-  assert.match(source,/Ελεγμένος συγκρίσιμος τύπος/);
+test("both alternative API methods enforce cheaper-only even if callers ask for all",()=>{
+  assert.match(alternativesRoute,/includeNonCheaper:false,maxResults:5/);
+  assert.match(alternativesRoute,/input\.includeNonCheaper===true/);
+  assert.match(alternativesRoute,/includeNonCheaper:false/);
+  assert.doesNotMatch(alternativesRoute,/includeNonCheaper:input\.includeNonCheaper===true|includeNonCheaper:allBrands/);
+  assert.doesNotMatch(alternativesRoute,/show\)===\"all\"/);
+});
+
+test("basket options require positive pack-matched savings in whole cents",()=>{
+  assert.match(source,/Math\.round\(option\.originalTotalEur\*100\)>Math\.round\(option\.candidateTotalEur\*100\)/);
+  assert.match(source,/option\.savingsEur>0/);
+  assert.match(source,/x\.alternatives\.filter\(isCheaper\),candidates:x\.candidates\.filter\(isCheaper\)/);
+  assert.match(source,/availableAlternativeResults\.map\(entry=>/);
   assert.match(source,/onClick=\{\(\)=>chooseAlternative\(entry\.lineId,option\)\}/);
   assert.match(source,/window\.confirm\(/);
   assert.match(source,/packages===null\|\|packages>100/);
-  assert.doesNotMatch(source,/Μη επιβεβαιωμένες εναλλακτικές:|Δεν επιτρέπεται αυτόματη αντικατάσταση|Πιθανά οικονομικότερα προϊόντα για/);
+  assert.doesNotMatch(source,/Ίδια καταγεγραμμένη τιμή|Πιθανά οικονομικότερα προϊόντα για/);
 });
 
-test("All-price shopping-list suggestions are opt-in; other API callers retain cheaper-only defaults",()=>{
-  const route=readFileSync(new URL("../../apps/web/src/app/api/posokanei/alternatives/route.ts",import.meta.url),"utf8");
-  assert.match(route,/includeNonCheaper:input\.includeNonCheaper===true/);
-  assert.match(route,/typeof input\.includeNonCheaper!=="boolean"/);
-  assert.match(route,/includeNonCheaper:allBrands/);
+test("the selected suggestion disappears, does not return after refresh, and remains hidden on account restore",()=>{
+  assert.match(source,/setDismissedAlternativeLines\(current=>current\.includes\(lineId\)\?current:\[\.\.\.current,lineId\]\)/);
+  assert.match(source,/\.filter\(entry=>!dismissedAlternativeLines\.includes\(entry\.lineId\)\)/);
+  assert.match(source,/line\.kind===\"exact\"&&!dismissedAlternativeLines\.includes\(line\.id\)/);
+  assert.match(source,/setExpandedAlternatives\(current=>current\.filter\(id=>id!==lineId\)\)/);
+  assert.match(source,/setDismissedAlternativeLines\(data\.saved\.dismissedAlternativeLines\|\|\[\]\)/);
+  assert.match(source,/draft:SavedList=\{lines,labels,excluded,maxStores:storeLimit,progress,dismissedAlternativeLines\}/);
+  assert.match(savedRoute,/v\.dismissedAlternativeLines!==undefined/);
+  assert.match(savedRoute,/v\.lines!\.some\(line=>line\.id===id\)/);
 });
 
-test("a chosen reviewed alternative preserves original prices and refreshes total savings",()=>{
-  assert.match(source,/replacedFrom=next\.confidence==="reviewed_equivalent"/);
-  assert.match(source,/void calculate\(revised\)/);
-  assert.match(source,/savingsIncludingBrands\(result,plan\)/);
-  assert.match(source,/Συνολική εξοικονόμηση/);
-  assert.match(source,/Εξοικονόμηση από επιλογή σούπερ μάρκετ/);
-  assert.match(source,/Unverified candidates remain opt-in/);
-  assert.match(source,/Εναλλακτικές για/);
-});
-
-test("basket savings prompt expands verified cheaper options and selected alternatives collapse",()=>{
-  assert.match(source,/summarizeCheaperAlternatives\(Object\.values\(brandResults\)\)/);
+test("the opt-in savings prompt counts only outstanding cheaper alternatives",()=>{
+  assert.match(source,/summarizeCheaperAlternatives\(availableAlternativeResults\)/);
   assert.match(source,/savingsOpportunities\.productCount>0&&<button/);
-  assert.match(source,/Εξοικονόμησε έως/);
   assert.match(source,/savingsOpportunities\.potentialSavingEur/);
   assert.match(source,/setExpandedAlternatives\(current=>\[\.\.\.new Set\(\[\.\.\.current,\.\.\.savingsOpportunities\.lineIds\]\)\]\)/);
-  assert.match(source,/scrollIntoView\(\{behavior:"smooth",block:"start"\}\)/);
   assert.match(source,/aria-expanded=\{expandedAlternatives\.includes\(entry\.lineId\)\}/);
-  assert.match(source,/expandedAlternatives\.includes\(entry\.lineId\)&&[\s\S]*?entry\.alternatives/);
-  assert.match(source,/setExpandedAlternatives\(current=>current\.filter\(id=>id!==lineId\)\)/);
   assert.match(source,/void calculate\(revised\)/);
+  assert.match(source,/savingsIncludingBrands\(result,plan\)/);
+});
+
+test("simplified UI keeps grouped cross-off list and an explicit account-gated save",()=>{
+  assert.match(source,/id="posokanei-basket"/);
+  assert.match(source,/className=\{styles\.listDetails\} open/);
+  assert.match(source,/type="checkbox" checked=\{completed\.has\(item\.lineId\)\}/);
+  assert.match(source,/\/login\?next=/);
+  assert.match(source,/Συνολική εξοικονόμηση/);
+  assert.match(styles,/\.selectedAlternativeNote/);
+  assert.match(styles,/\.suggestionLine/);
 });
