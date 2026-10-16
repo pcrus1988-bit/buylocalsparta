@@ -180,3 +180,34 @@ test("no cross-category or incompatible-unit matches after token normalization",
     offersByProduct:new Map([["r",[o("r","a",10)]],["b",[o("b","b",1)]],["c",[o("c","b",1)]]])});
   assert.deepEqual(result.alternatives,[]);
 });
+
+
+test("retailer own-label brand aliases keep detailed product attributes and units",()=>{
+  const a=p("ab","ΑΒ Γιαούρτι Στραγγιστό 2% 1kg","ΑΒ Βασιλόπουλος","Στραγγιστό Γιαούρτι","kg",1);
+  const b=p("other","ΔΕΛΤΑ Γιαούρτι Στραγγιστό 2% 500g","ΔΕΛΤΑ","Στραγγιστό Γιαούρτι","kg",.5);
+  const c=p("low","ΓΑΛΠΟ Γιαούρτι Στραγγιστό 5% 500g","ΓΑΛΠΟ","Στραγγιστό Γιαούρτι","kg",.5);
+  assert.equal(productFamily(a),productFamily(b));
+  assert.notEqual(productFamily(a),productFamily(c));
+  const prices=new Map([["ab",[o("ab","alpha",4)]],["other",[o("other","beta",1)]],["low",[o("low","beta",.2)]]]);
+  const res=findBrandAlternatives({sourceId:"ab",products:[a,b,c],offersByProduct:prices});
+  assert.deepEqual(res.alternatives.map(x=>x.id),["other"]);
+  assert.equal(res.alternatives[0].packageCount,2);
+});
+test("English brand punctuation and label spacing only affect declared brand",()=>{
+  const a=p("a","KELLOGG'S Corn Flakes Original 400g","Kelloggs","ΔΗΜΗΤΡΙΑΚΑ","kg",.4);
+  const b=p("b","ΒΗΤΑ Corn Flakes Original 500g","ΒΗΤΑ","ΔΗΜΗΤΡΙΑΚΑ","kg",.5);
+  assert.equal(productFamily(a),productFamily(b));
+  const c=p("c","EVERYDAY Σερβιέτες Maxi Night 12τεμ","EVERY DAY","ΣΕΡΒΙΕΤΕΣ","pcs",12);
+  const d=p("d","ΑΛΦΑ Σερβιέτες Maxi Night 16τεμ","ΑΛΦΑ","ΣΕΡΒΙΕΤΕΣ","pcs",16);
+  assert.equal(productFamily(c),productFamily(d));
+});
+test("unbranded, registry placeholders and recycled EAN labels are NOT distinct brands",()=>{
+  const fake=p("f","Τσιπούρα Ελληνική 400g","ΔΙΑΦΟΡΑ - - - [ΧΩΡΙΣ BRAND]","ΨΑΡΙΑ","kg",.4);
+  const real=p("r","ΒΗΤΑ Τσιπούρα Ελληνική 400g","ΒΗΤΑ","ΨΑΡΙΑ","kg",.4);
+  const ean=p("e","Τσιπούρα Ελληνική 400g","EAN 29.05.26","ΨΑΡΙΑ","kg",.4);
+  const prices=new Map([
+    ["f",[o("f","alpha",4)]],["r",[o("r","beta",2)]],["e",[o("e","gamma",1)]]
+  ]);
+  assert.equal(findBrandAlternatives({sourceId:"f",products:[fake,real,ean],offersByProduct:prices}).alternatives.length,0);
+  assert.equal(findBrandAlternatives({sourceId:"r",products:[fake,real,ean],offersByProduct:prices}).alternatives.length,0);
+});
