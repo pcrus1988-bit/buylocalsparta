@@ -12,7 +12,7 @@
 
 const normalize = value => String(value||"").normalize("NFD")
   .replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("el-GR")
-  .replace(/[’‘´΄']/g," ").replace(/[–—−]/g,"-")
+  .replace(/[’‘´΄']/g,"").replace(/[–—−]/g,"-")
   .replace(/\s+/g," ").trim();
 
 const generic = new Set([
@@ -33,23 +33,117 @@ export function referenceQuantity(p) {
   return null;
 }
 
+
+/**
+ * Curated, one-to-one product-type spellings. These are wording equivalences,
+ * not recipe/variant equivalences: e.g. passata is NOT diced tomato, and
+ * full-fat milk is NOT light or lactose-free milk.
+ */
+const canonicalTypes=[
+  ["tomato","ντοματα","ντοματες","τοματα","τοματες","tomato","tomatoes"],
+  ["diced","κονκασε","ψιλοκομμενη","ψιλοκομμενες","ψιλοκομμενο","ψιλοκομμενα","diced","chopped"],
+  ["milk","γαλα","γαλακτος","milk"],
+  ["yogurt","γιαουρτι","γιαουρτια","γιαουρτης","yogurt","yoghurt"],
+  ["cheese","τυρι","τυρια","τυρου","cheese"],
+  ["rice","ρυζι","ρυζιου","rice"],
+  ["lentils","φακες","φακη","lentils"],
+  ["chickpeas","ρεβιθια","ρεβιθι","chickpeas"],
+  ["beans","φασολια","φασολι","beans"],
+  ["spaghetti","σπαγγετι","σπαγγετ","spaghetti","spagetti"],
+  ["penne","πεννες","πεννε","penne"],
+  ["pasta","ζυμαρικα","μακαρονια","pasta"],
+  ["oliveoil","ελαιολαδο","ελαιολαδου","oliveoil"],
+  ["sugar","ζαχαρη","ζαχαρης","sugar"],
+  ["flour","αλευρι","αλευρου","flour"],
+  ["salt","αλατι","αλατιου","salt"],
+  ["water","νερο","νερου","water"],
+  ["juice","χυμος","χυμοι","χυμου","juice"],
+  ["coffee","καφες","καφε","καφεδες","coffee"],
+  ["instant","στιγμιαιος","στιγμιαιου","instant"],
+  ["biscuits","μπισκοτα","μπισκοτο","biscuits","biscuit"],
+  ["chocolate","σοκολατα","σοκολατες","chocolate"],
+  ["shampoo","σαμπουαν","shampoo"],
+  ["detergent","απορρυπαντικο","απορρυπαντικα","detergent"],
+  ["softener","μαλακτικο","μαλακτικα","softener"],
+  ["diapers","πανες","πανα","diapers"],
+  ["soap","σαπουνι","σαπουνια","soap"],
+  ["toothpaste","οδοντοκρεμα","toothpaste"]
+];
+const typeAliases=new Map(canonicalTypes.flatMap(([type,...words])=>words.map(w=>[w,type])));
+
+// Reviewed aliases for a source-declared brand and its actual package marking.
+// Never infer aliases from partial textual similarity or store names.
+const declaredBrandAliases=new Map([
+  ["αβ βασιλοπουλος",["αβ"]],
+  ["every day",["everyday"]],
+  ["w5 lidl",["w5"]],
+  ["my planet",["planet"]],
+  ["coffee way",["coffeeway"]],
+  ["mr grand",["mrgrand"]],
+  ["3 αλφα",["3α","3αλφα"]],
+  ["ευ ελαιολαδο",["ευ"]],
+  ["νουνου",["nounou","noynoy"]]
+]);
+function reliableBrand(value){
+  const text=normalize(value).replace(/[^\p{L}\p{N}]+/gu," ").trim();
+  return !!text && !/^(?:διαφορα|ean\b|unknown\b|unbranded\b|χωρις brand\b|χωρις μαρκα\b|αγνωστ)/u.test(text);
+}
+
+function greekToLatin(value) {
+  const pairs={ου:"ou",αι:"e",ει:"i",οι:"i",υι:"i",μπ:"b",ντ:"d",γκ:"g",γγ:"ng"};
+  const one={α:"a",β:"v",γ:"g",δ:"d",ε:"e",ζ:"z",η:"i",θ:"th",ι:"i",κ:"k",
+    λ:"l",μ:"m",ν:"n",ξ:"x",ο:"o",π:"p",ρ:"r",σ:"s",ς:"s",τ:"t",υ:"y",
+    φ:"f",χ:"ch",ψ:"ps",ω:"o"};
+  const source=normalize(value);
+  return source.replace(/ου|αι|ει|οι|υι|μπ|ντ|γκ|γγ|[α-ω]/g,ch=>pairs[ch]||one[ch]||ch);
+}
+function words(value) {
+  return normalize(value).replace(/[^\p{L}\p{N}%]+/gu," ").trim().split(/\s+/).filter(Boolean);
+}
+function withoutExplicitBrand(tokens,brand) {
+  const exact=words(brand);
+  if(!exact.length)return tokens;
+  const aliases=declaredBrandAliases.get(words(brand).join(" "))||[];
+  const alternatives=[exact,...aliases.map(words)];
+  // A source title may Romanize its explicitly declared Greek brand. Only
+  // strip a WHOLE brand phrase; do not strip similar product words.
+  if(/[α-ω]/.test(normalize(brand))) {
+    const roman=words(greekToLatin(brand));
+    if(roman.join(" ")!==exact.join(" "))alternatives.push(roman);
+  }
+  const output=[...tokens];
+  for(const phrase of alternatives){
+    for(let pos=0;pos<=output.length-phrase.length;){
+      if(phrase.every((word,i)=>word===output[pos+i]))output.splice(pos,phrase.length);
+      else pos++;
+    }
+  }
+  return output;
+}
 export function productFamily(p) {
-  const category=normalize(p?.category);
+  const category=normalize(p?.category).replace(/[^\p{L}\p{N}]+/gu," ").trim();
   if(!category||typeof p?.name!=="string")return null;
   let name=normalize(p.name);
-  const brand=normalize(p.brand);
-  // Remove the explicit *whole brand phrase*; never infer brands from similar
-  // words in titles. Protect word boundaries by padding with spaces.
-  if(brand)name=(" "+name+" ").replaceAll(" "+brand+" "," ").trim();
-  // Discard only physical pack volumes, not fat percentages, numeric formats,
-  // formulas, fragrances, ages, coffee strengths or other distinguishing traits.
+  // Discard only physical package volume/weight. Fat %, age, strength,
+  // dosage, chemical variants, number of ply, etc. must still match.
   name=name.replace(/(?:^|[^\p{L}\p{N}])\d+(?:[.,]\d+)?\s*(?:kg|gr|g|ml|lt|l|γρ|γραμ|γραμμαρια|κιλ|λιτρα|μλ)(?=$|[^\p{L}])/gu," ");
-  const tokens=name.replace(/[^\p{L}\p{N}%]+/gu," ").split(/\s+/)
-    .filter(x=>x.length>0&&!generic.has(x));
+  // Piece-count markings are *pack sizes*, not formulation/size attributes.
+  // Only remove a count corroborated by the published package quantity;
+  // retain egg weight classes, roll ply, diaper size, color/shade numbers.
+  const q=referenceQuantity(p);
+  if(q?.unit==="piece"&&Number.isSafeInteger(q.amount)&&q.amount>0){
+    const count=new RegExp("(?:^|[^\\p{L}\\p{N}])"+q.amount+
+      "\\s*(?:τεμ(?:αχια)?|τμχ|pcs?|pieces?|ρολα|rolls?)(?=$|[^\\p{L}\\p{N}])","gu");
+    name=name.replace(count," ");
+  }
+
+  const tokens=withoutExplicitBrand(words(name),p.brand)
+    .filter(token=>!generic.has(token))
+    .map(token=>typeAliases.get(token)||token);
   if(!tokens.length)return null;
-  // One strong product term is valid within a detailed category; prevent very
-  // short or generic-only labels from producing broad category substitutions.
   if(tokens.length===1&&tokens[0].length<5)return null;
+  // Keep repeated terms and all remaining modifiers, preventing spurious
+  // family collapse across "χωρις ζαχαρη", "zero", "light", etc.
   return category+"|"+tokens.sort().join(" ");
 }
 
@@ -82,7 +176,7 @@ function productIndex(products){
 
 export function findBrandAlternatives({
   sourceId,packages=1,products,offersByProduct,excludedRetailerIds=[],
-  brandIndex=createBrandIndex(products),approvedGroups=[],maxResults=5
+  brandIndex=createBrandIndex(products),approvedGroups=[],maxResults=5,includeNonCheaper=false
 }) {
   if(!Number.isSafeInteger(packages)||packages<1||packages>100)
     throw new Error("packages must be an integer 1–100");
@@ -92,7 +186,7 @@ export function findBrandAlternatives({
   if(!quantity)return {reason:"unknown_quantity",basis:null,sourceAmount:null,alternatives:[],candidates:[]};
   const base={basis:quantity.unit,sourceAmount:quantity.amount,alternatives:[],candidates:[]};
   const family=productFamily(source);
-  if(!family||!source.brand)return {...base,reason:"no_comparable_brands"};
+  if(!family||!reliableBrand(source.brand))return {...base,reason:"no_comparable_brands"};
   const forbidden=new Set(excludedRetailerIds);
   const bestOffer=id=>(offersByProduct.get(id)||[])
     .filter(o=>!forbidden.has(o.retailer_id)&&validPrice(o.price_eur))
@@ -110,7 +204,7 @@ export function findBrandAlternatives({
     .flatMap(g=>g.memberIds));
   const byBrand=new Map();
   for(const candidate of pool) {
-    if(candidate.source_product_id===sourceId||normalize(candidate.brand)===normalize(source.brand))continue;
+    if(candidate.source_product_id===sourceId||!reliableBrand(candidate.brand)||normalize(candidate.brand)===normalize(source.brand))continue;
     const size=referenceQuantity(candidate);
     if(!size||size.unit!==quantity.unit)continue;
     const count=Math.ceil(demand/size.amount-1e-9);
@@ -118,7 +212,7 @@ export function findBrandAlternatives({
     const offer=bestOffer(candidate.source_product_id);
     if(!offer)continue;
     const cents=count*Math.round(offer.price_eur*100);
-    if(cents>=sourceCents||!Number.isSafeInteger(cents))continue;
+    if(!Number.isSafeInteger(cents)||(!includeNonCheaper&&cents>=sourceCents))continue;
     const entry={
       id:candidate.source_product_id,name:candidate.name,brand:candidate.brand,
       packageQuantity:size.amount,unit:size.unit,packageCount:count,
@@ -144,7 +238,7 @@ export function findBrandAlternatives({
   // substitution CTA or guaranteed-savings claim in the UI.
   const candidates=ranked.filter(x=>x.confidence==="unverified_match").slice(0,maxResults);
   return {...base,originalTotalEur:euros(sourceCents),sourcePackages:packages,
-    alternatives,candidates,reason:alternatives.length?"cheaper_found":
+    alternatives,candidates,reason:alternatives.length?(includeNonCheaper?"comparable_found":"cheaper_found"):
       candidates.length?"unreviewed_candidates":
       pool.length>1?"no_cheaper_brand":"no_comparable_brands"};
 }
