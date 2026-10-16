@@ -3,7 +3,7 @@
     "name": "KONTA MOY Companion",
     "slug": "kontamou-companion",
     "scheme": "kontamoucompanion",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "android": {
@@ -12,7 +12,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FEFEFE"
-      }
+      },
+      "versionCode": 1
     },
     "plugins": [
       "expo-router",
@@ -28,6 +29,15 @@
         {
           "color": "#193E32",
           "defaultChannel": "shopping-reminders"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#F8F6ED"
         }
       ]
     ],
