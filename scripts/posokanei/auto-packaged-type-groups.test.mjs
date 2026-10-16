@@ -102,3 +102,254 @@ test("cheese type comparison does not waive diet, label or package checks",()=>{
  assert.deepEqual(deriveAutoPackagedTypeGroups(items),[]);
  assert.deepEqual(deriveAutoPackagedTypeGroups(items.slice(0,3))[0].memberIds,["fa","fb"]);
 });
+
+
+test("vinegar types can be compared across brands, but not mixed with balsamic or mass-labelled vinegar",()=>{
+ const items=[
+   p("v-a","ALFA","ALFA Ξίδι από Λευκό Κρασί 1lt","Ξύδι","l",1),
+   p("v-b","BETA","BETA Ξίδι από Λευκό Κρασί 500ml","Ξύδι","l",.5),
+   p("v-c","GAMMA","GAMMA Ξίδι Βαλσάμικο 1lt","Ξύδι","l",1),
+   p("v-bad","DELTA","DELTA Ξίδι από Λευκό Κρασί 400g","Ξύδι","kg",.4)
+ ];
+ const groups=deriveAutoPackagedTypeGroups(items);
+ assert.equal(groups.length,1);
+ assert.deepEqual(groups[0].memberIds,["v-a","v-b"]);
+});
+test("frozen okra and cut pasta keep different variants separate",()=>{
+ const items=[
+  p("okra-a","ALFA","ALFA Μπάμιες Κατεψυγμένες 1kg","Κατεψυγμένες Μπάμιες","kg",1),
+  p("okra-b","BETA","BETA Μπάμιες Κατεψυγμένες 500g","Κατεψυγμένες Μπάμιες","kg",.5),
+  p("okra-pre","GAMMA","GAMMA Μπάμιες Κατεψυγμένες Προμαγειρεμένες 1kg","Κατεψυγμένες Μπάμιες","kg",1),
+  p("pasta-a","ALFA","ALFA Κοφτό Μακαρόνι 500g","Kοφτό Mακαρόνι","kg",.5),
+  p("pasta-b","BETA","BETA Κοφτό Μακαρόνι 1kg","Kοφτό Mακαρόνι","kg",1),
+  p("pasta-gf","GAMMA","GAMMA Κοφτό Μακαρόνι χωρίς γλουτένη 500g","Kοφτό Mακαρόνι","kg",.5)
+ ];
+ const groups=deriveAutoPackagedTypeGroups(items);
+ assert.equal(groups.length,2);
+ assert.deepEqual(groups.map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["okra-a","okra-b"],["pasta-a","pasta-b"]]);
+});
+
+test("strawberry kefir is an alternative across packs, not a different fruit flavor",()=>{
+ const list=[
+  p("k-a","ΕΒΡΟΦΑΡΜΑ","ΕΒΡΟΦΑΡΜΑ Κεφίρ Φράουλα 500ml","Κεφίρ","l",.5),
+  p("k-b","ΜΕΒΓΑΛ","ΜΕΒΓΑΛ Κεφίρ Φράουλα 330ml","Κεφίρ","l",.33),
+  p("k-c","ΣΤΑΜΟΥ","ΣΤΑΜΟΥ Κεφίρ Κόκκινα Φρούτα 330ml","Κεφίρ","l",.33)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["k-a","k-b"]]);
+});
+test("powdered cocoa and instant cocoa drink remain separate product types",()=>{
+ const list=[
+  p("c-a","ΓΙΩΤΗΣ","ΓΙΩΤΗΣ Κακάο Σε Σκόνη 1kg","Σοκολάτα - Κακάο","kg",1),
+  p("c-b","BONORA","BONORA Κακάο Σε Σκόνη 125g","Σοκολάτα - Κακάο","kg",.125),
+  p("c-mix","HEMO","HEMO Ρόφημα Στιγμής Κακάο 400g","Σοκολάτα - Κακάο","kg",.4)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["c-a","c-b"]]);
+});
+test("condensed whole milk cannot merge with caramelized sweetened milk",()=>{
+ const list=[
+  p("m-a","ΒΛΑΧΑΣ","ΒΛΑΧΑΣ Συμπυκνωμένο Γάλα Πλήρες 410g","Εβαπορέ","kg",.41),
+  p("m-b","ΝΟΥΝΟΥ","ΝΟΥΝΟΥ Γάλα Συμπυκνωμένο Πλήρες 170g","Εβαπορέ","kg",.17),
+  p("m-s","ROYAL","ROYAL Καραμελωμένο Ζαχαρούχο Γάλα 397g","Εβαπορέ","kg",.397)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["m-a","m-b"]]);
+});
+test("cherry fruit-drinks are comparable, but not the same as pure cherry juice",()=>{
+ const list=[
+  p("j-a","AMITA","AMITA Φρουτοποτό Βύσσινο 1lt","Χυμός Bύσσινο","l",1),
+  p("j-b","MY GUSTO","MY GUSTO Φρουτοποτό Βύσσινο 1lt","Χυμός Bύσσινο","l",1),
+  p("j-c","FRUIT","FRUIT Χυμός Βύσσινο 100% 1lt","Χυμός Bύσσινο","l",1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["j-a","j-b"]]);
+});
+test("lemon dishwashing liquid alternatives keep scent and exclude mass-only packs",()=>{
+ const list=[
+  p("d-a","ECONOMY","ECONOMY Υγρό Πιάτων Λεμόνι 1l","Υγρά πιάτων","l",1),
+  p("d-b","ΑΒ","ΑΒ Υγρό Πιάτων Λεμόνι 500ml","Υγρά πιάτων","l",.5),
+  p("d-c","GAMMA","GAMMA Υγρό Πιάτων Aloe 500ml","Υγρά πιάτων","l",.5),
+  p("d-kg","DELTA","DELTA Υγρό Πιάτων Λεμόνι 500g","Υγρά πιάτων","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["d-a","d-b"]]);
+});
+test("fresh mozzarella, generic white cheese and smoked turkey stay distinct",()=>{
+ const list=[
+  p("z-a","GRANAROLO","GRANAROLO Mozzarella Φρέσκια 125g","Λευκό Τυρί","kg",.125),
+  p("z-b","ROYAL","ROYAL Mozzarella Φρέσκια 125gr","Λευκό Τυρί","kg",.125),
+  p("z-other","ΓΑΛΠΟ","ΓΑΛΠΟ Λευκό Τυρί 400g","Λευκό Τυρί","kg",.4),
+  p("t-a","ECONOMY","ECONOMY Γαλοπούλα Καπνιστή Φέτες 160γρ","Αλλαντικά Γαλοπούλας","kg",.16),
+  p("t-b","ΑΓΡΟΙΚΙΑ","ΑΓΡΟΙΚΙΑ Γαλοπούλα Καπνιστή Φέτες 160g","Αλλαντικά Γαλοπούλας","kg",.16),
+  p("t-gf","BUENAS","BUENAS Καπνιστή Γαλοπούλα Φέτες Χωρίς Γλουτένη 300g","Αλλαντικά Γαλοπούλας","kg",.3)
+ ];
+ const groups=deriveAutoPackagedTypeGroups(list);
+ assert.equal(groups.length,2);
+ assert.deepEqual(groups.map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["t-a","t-b"],["z-a","z-b"]]);
+});
+
+test("explicit frozen pea category permits simple brand-neutral pea labels with verified kg packs",()=>{
+ const list=[
+  p("pea-a","ΛΑΖΑΡΙΔΗ","ΛΑΖΑΡΙΔΗ Αρακάς 900g","Κατεψυγμένος Αρακάς","kg",.9),
+  p("pea-b","ΑΙΝΟΣ","ΑΙΝΟΣ Αρακάς 1kg","Κατεψυγμένος Αρακάς","kg",1),
+  p("pea-c","THIRD","THIRD Αρακάς Με Καρότο 1kg","Κατεψυγμένος Αρακάς","kg",1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["pea-a","pea-b"]]);
+});
+test("source-described full fat fresh milk may match without numerical fat percentage but not light",()=>{
+ const list=[
+  p("milk-full-a","ΦΑΡΜΑ ΗΛΕΙΑΣ","ΦΑΡΜΑ ΗΛΕΙΑΣ Φρέσκο Γάλα Πλήρες 1lt","Φρέσκο Γάλα","l",1),
+  p("milk-full-b","ΜΑΝΔΡΕΚΑΣ","ΜΑΝΔΡΕΚΑΣ Φρέσκο Γάλα Πλήρες 1lt","Φρέσκο Γάλα","l",1),
+  p("milk-light","ΕΒΟΛ","ΕΒΟΛ Φρέσκο Γάλα Ελαφρύ 590ml","Φρέσκο Γάλα","l",.59),
+  p("milk-unspecified","OTHER","OTHER Φρέσκο Γάλα 1lt","Φρέσκο Γάλα","l",1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["milk-full-a","milk-full-b"]]);
+});
+test("vinegar spelling variation unifies balsamic type without merging wine vinegar or conflicting physical units",()=>{
+ const list=[
+  p("v-a","ALFA","ALFA Ξίδι Βαλσάμικο 250ml","Ξύδι","l",.25),
+  p("v-b","BETA","BETA Ξύδι Βαλσάμικο 500ml","Ξύδι","l",.5),
+  p("v-wine","GAMMA","GAMMA Ξύδι από Λευκό Κρασί 500ml","Ξύδι","l",.5),
+  p("v-mass","DELTA","DELTA Ξύδι Βαλσάμικο 250g","Ξύδι","kg",.25)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["v-a","v-b"]]);
+});
+
+test("exact traditional sheep and goat yogurt are independent type comparisons",()=>{
+ const list=[
+  p("s-a","Η ΘΕΡΜΗ","Η ΘΕΡΜΗ Γιαούρτι Πρόβειο Παραδοσιακό 220g","Πρόβειο Γιαούρτι","kg",.22),
+  p("s-b","ΓΑΛΠΟ","ΓΑΛΠΟ Πρόβειο Παραδοσιακό Γιαούρτι 240g","Πρόβειο Γιαούρτι","kg",.24),
+  p("s-light","OTHER","OTHER Πρόβειο Ελαφρύ Παραδοσιακό Γιαούρτι 200g","Πρόβειο Γιαούρτι","kg",.2),
+  p("g-a","ΓΑΛΠΟ","ΓΑΛΠΟ Κατσικίσιο Γιαούρτι Παραδοσιακό 240g","Κατσικίσιο Γιαούρτι","kg",.24),
+  p("g-b","ΡΟΔΟΠΗ","ΡΟΔΟΠΗ Γιαούρτι Κατσικίσιο Παραδοσιακό 200g","Κατσικίσιο Γιαούρτι","kg",.2)
+ ];
+ const matches=deriveAutoPackagedTypeGroups(list);
+ assert.deepEqual(matches.map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["g-a","g-b"],["s-a","s-b"]]);
+});
+test("plain ayran and spinach leaves match only exact source type, not altered preparations",()=>{
+ const list=[
+  p("a-a","ΟΛΥΜΠΟΣ","ΟΛΥΜΠΟΣ Αριάνι 500ml","Αριάνι","l",.5),
+  p("a-b","ΕΒΡΟΦΑΡΜΑ","ΕΒΡΟΦΑΡΜΑ Αριάνι 1lt","Αριάνι","l",1),
+  p("spin-a","ΑΙΝΟΣ","ΑΙΝΟΣ Σπανάκι Φύλλα 1kg","Κατεψυγμένο Σπανάκι","kg",1),
+  p("spin-b","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Σπανάκι σε Φύλλα 1kg","Κατεψυγμένο Σπανάκι","kg",1),
+  p("spin-chopped","BETA","BETA Σπανάκι Ψιλοκομμένο 1kg","Κατεψυγμένο Σπανάκι","kg",1)
+ ];
+ const matches=deriveAutoPackagedTypeGroups(list);
+ assert.deepEqual(matches.map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["a-a","a-b"],["spin-a","spin-b"]]);
+});
+test("semolina grades, exact pasta shapes and cocoa type remain independently comparable",()=>{
+ const list=[
+  p("sem-a","MELISSA","MELISSA Σιμιγδάλι Χονδρό 500gr","Σιμιγδάλι","kg",.5),
+  p("sem-b","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Σιμιγδάλι Χονδρό 500g","Σιμιγδάλι","kg",.5),
+  p("sem-fine","BETA","BETA Σιμιγδάλι Ψιλό 500g","Σιμιγδάλι","kg",.5),
+  p("p-a","MISKO","MISKO Μακαρόνια Τρυπητά Νο3 500gr","Ζίτι","kg",.5),
+  p("p-b","MELISSA","MELISSA Μακαρόνια Τρυπητά Νο3 500gr","Ζίτι","kg",.5),
+  p("p2","BETA","BETA Παστίτσιο Νο2 500g","Ζίτι","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["p-a","p-b"],["sem-a","sem-b"]]);
+});
+test("white and dark couverture, plain petit beurre and coral pasta are not cross-types",()=>{
+ const list=[
+  p("w-a","FIN CARRE","FIN CARRE Κουβερτούρα Λευκή 200g","Κουβερτούρα Αρτοποιίας","kg",.2),
+  p("w-b","ΙΟΝ","ΙΟΝ Κουβερτούρα Λευκή 125g","Κουβερτούρα Αρτοποιίας","kg",.125),
+  p("dark","BETA","BETA Κουβερτούρα Κλασική 125g","Κουβερτούρα Αρτοποιίας","kg",.125),
+  p("pb-a","ECONOMY","ECONOMY Μπισκότα Πτι Μπερ 200γρ","Πτι Μπερ","kg",.2),
+  p("pb-b","KITBIS","KITBIS Μπισκότα Πτι Μπερ 225g","Πτι Μπερ","kg",.225),
+  p("cor-a","COMBINO","COMBINO Κοράλλι 500g","Κοράλλια","kg",.5),
+  p("cor-b","MELISSA","MELISSA Κοράλλι 500gr","Κοράλλια","kg",.5)
+ ];
+ const ids=deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0]));
+ assert.deepEqual(ids,[["cor-a","cor-b"],["pb-a","pb-b"],["w-a","w-b"]]);
+});
+test("dishwasher salt excludes dishwasher chemicals, glass cleaner keeps blue versus clear",()=>{
+ const list=[
+  p("salt-a","MR GRAND","MR GRAND Αλάτι Πλυντηρίου Πιάτων 2kg","Προϊόντα Πλυντηρίου Πιάτων","kg",2),
+  p("salt-b","CLEAN HOME","CLEAN HOME Αλάτι Πλυντηρίου Πιάτων 2kg","Προϊόντα Πλυντηρίου Πιάτων","kg",2),
+  p("tabs","BETA","BETA Ταμπλέτες Πλυντηρίου Πιάτων 2kg","Προϊόντα Πλυντηρίου Πιάτων","kg",2),
+  p("glass-a","MY HOME","MY HOME Υγρό Τζαμιών Blue Ανταλλακτικό 750ml","Καθαρισμός Τζαμιών","l",.75),
+  p("glass-b","DROLIO","DROLIO Υγρό Τζαμιών Blue Ανταλλακτικό 1lt","Καθαρισμός Τζαμιών","l",1),
+  p("clear","W5","W5 Υγρό Τζαμιών Clear Ανταλλακτικό 1l","Καθαρισμός Τζαμιών","l",1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["glass-a","glass-b"],["salt-a","salt-b"]]);
+});
+test("plain tahini, whole-chickpea size, ground garlic and grated mozzarella retain exact subtypes",()=>{
+ const list=[
+  p("t-a","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Ταχίνι 900g","Ταχίνι","kg",.9),
+  p("t-b","ΓΑΛΑΞΙΑΣ","ΓΑΛΑΞΙΑΣ Ταχίνι 900g","Ταχίνι","kg",.9),
+  p("t-whole","BETA","BETA Ταχίνι Ολικής Άλεσης 900g","Ταχίνι","kg",.9),
+  p("ch-a","MY KOUZINA","MY KOUZINA Ρεβίθια Χονδρά 500g","Ρεβύθια","kg",.5),
+  p("ch-b","MR GRAND","MR GRAND Ρεβίθια Χονδρά 500γρ","Ρεβύθια","kg",.5),
+  p("gar-a","ΗΛΙΟΣ","ΗΛΙΟΣ Σκόρδο Τριμμένο 50g","Σκόρδο σε Σκόνη","kg",.05),
+  p("gar-b","KANIA","KANIA Σκόρδο Τριμμένο 40g","Σκόρδο σε Σκόνη","kg",.04),
+  p("mo-a","ARLA","ARLA Μοτσαρέλα Τριμμένη 200g","Μοτσαρέλα","kg",.2),
+  p("mo-b","MILBONA","MILBONA Μοτσαρέλα Τριμμένη 250g","Μοτσαρέλα","kg",.25)
+ ];
+ const matches=deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0]));
+ assert.deepEqual(matches,[["ch-a","ch-b"],["gar-a","gar-b"],["mo-a","mo-b"],["t-a","t-b"]]);
+});
+test("pasta celery and rice-shape products, and spaghetti number, require same detailed type",()=>{
+ const list=[
+  p("se-a","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Σέλινο 500g","Άλλα Ζυμαρικά","kg",.5),
+  p("se-b","MISKO","MISKO Σέλινο 500g","Άλλα Ζυμαρικά","kg",.5),
+  p("ri-a","MELISSA","MELISSA Ρυζάκι 500g","Άλλα Ζυμαρικά","kg",.5),
+  p("spa-a","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Σπαγγέτι Νο7 500g","Σπαγγέτι","kg",.5),
+  p("spa-b","MISKO","MISKO Σπαγγέτι Νο7 500g","Σπαγγέτι","kg",.5),
+  p("spa-other","BETA","BETA Σπαγγέτι Νο5 500g","Σπαγγέτι","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["se-a","se-b"],["spa-a","spa-b"]]);
+});
+
+test("plain farina and anthotyro are source-described types without spurious one-token rejection",()=>{
+ const list=[
+  p("fl-a","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Φαρίνα 500g","Φαρίνα","kg",.5),
+  p("fl-b","ΑΛΛΑΤΙΝΗ","ΑΛΛΑΤΙΝΗ Φαρίνα 500g","Φαρίνα","kg",.5),
+  p("ch-a","ΓΑΛΠΟ","ΓΑΛΠΟ Ανθότυρο 300g","Ανθότυρο","kg",.3),
+  p("ch-b","MR GRAND","MR GRAND Ανθότυρο 250gr","Ανθότυρο","kg",.25)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["ch-a","ch-b"],["fl-a","fl-b"]]);
+});
+test("milk chocolate and powdered cocoa word ordering does not change family identity",()=>{
+ const list=[
+  p("co-a","ΓΙΩΤΗΣ","ΓΙΩΤΗΣ Κακάο Σε Σκόνη 1kg","Σοκολάτα - Κακάο","kg",1),
+  p("co-b","ΙΟΝ","ΙΟΝ Σκόνη Κακάο 125g","Σοκολάτα - Κακάο","kg",.125),
+  p("milk-a","BONORA","BONORA Σοκολάτα Γάλακτος 100g","Σοκολάτα Γάλακτος","kg",.1),
+  p("milk-b","ΙΟΝ","ΙΟΝ Γάλακτος Σοκολάτα 70g","Σοκολάτα Γάλακτος","kg",.07),
+  p("mix","CAOTONIC","CAOTONIC Ρόφημα Στιγμής Κακάο 250g","Σοκολάτα - Κακάο","kg",.25)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["co-a","co-b"],["milk-a","milk-b"]]);
+});
+test("sliced pariza and differently formulated gluten-free sausage never mix",()=>{
+ const list=[
+  p("pa-a","ECONOMY","ECONOMY Παρίζα Σε Φέτες 400γρ","Πάριζα Παριζάκι","kg",.4),
+  p("pa-b","ΑΒ ΕΠΙΛΟΓΗ","ΑΒ ΕΠΙΛΟΓΗ Πάριζα Φέτες 160g","Πάριζα Παριζάκι","kg",.16),
+  p("pa-gf","BUENAS","BUENAS Παριζάκι Χωρίς Γλουτένη 330g","Πάριζα Παριζάκι","kg",.33)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["pa-a","pa-b"]]);
+});
+test("source category may include spreads but only exactly matched crunchy peanut butter passes",()=>{
+ const list=[
+  p("p-a","CALVE","CALVE Φυστικοβούτυρο Τραγανό 350g","Μαρμελάδες / Μέλι / Άλειμμα","kg",.35),
+  p("p-b","NATURE'S PROMISE","NATURE'S PROMISE Φυστικοβούτυρο Τραγανό 350g","Μαρμελάδες / Μέλι / Άλειμμα","kg",.35),
+  p("p-smooth","BETA","BETA Φυστικοβούτυρο Απαλό 350g","Μαρμελάδες / Μέλι / Άλειμμα","kg",.35),
+  p("p-honey","OTHER","OTHER Μέλι 350g","Μαρμελάδες / Μέλι / Άλειμμα","kg",.35)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["p-a","p-b"]]);
+});
+test("fish preservatives and tortellini fillings cannot cross subtype or ingredient basis",()=>{
+ const list=[
+  p("sa-a","GEISHA","GEISHA Σαρδέλες σε Φυτικό Λάδι 120g","Κονσέρβες Τόνος / Θαλασσινά","kg",.12),
+  p("sa-b","TRATA","TRATA Σαρδέλες σε Φυτικό Λάδι 100g","Κονσέρβες Τόνος / Θαλασσινά","kg",.1),
+  p("sa-water","BETA","BETA Σαρδέλες Σε Νερό 120g","Κονσέρβες Τόνος / Θαλασσινά","kg",.12),
+  p("tor-a","ECONOMY","ECONOMY Τορτελίνια Με Τυρί 250γρ","Τορτελίνια","kg",.25),
+  p("tor-b","ΓΑΛΑΞΙΑΣ","ΓΑΛΑΞΙΑΣ Τορτελίνια Με Τυρί 250gr","Τορτελίνια","kg",.25),
+  p("tor-m","ALFA","ALFA Τορτελίνια Με Κρέας 250g","Τορτελίνια","kg",.25)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["sa-a","sa-b"],["tor-a","tor-b"]]);
+});
+test("cola zero remains excluded from plain cola and different chip flavors remain distinct",()=>{
+ const list=[
+  p("cola-a","ECONOMY","ECONOMY Cola Αναψυκτικό 500ml","Κόλα","l",.5),
+  p("cola-b","X","X Cola Αναψυκτικό 1,5lt","Κόλα","l",1.5),
+  p("cola-zero","ΒΙΚΟΣ","ΒΙΚΟΣ Cola Zero Χωρίς ζάχαρη 330ml","Κόλα","l",.33),
+  p("chip-a","ΑΒ","ΑΒ Τσιπς Αλάτι Κυματιστά 120g","Πατατάκια","kg",.12),
+  p("chip-b","SNACK DAY","SNACK DAY Τσιπς Αλάτι Κυματιστά 150g","Πατατάκια","kg",.15),
+  p("chip-r","BETA","BETA Τσιπς Ρίγανη 150g","Πατατάκια","kg",.15)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["chip-a","chip-b"],["cola-a","cola-b"]]);
+});

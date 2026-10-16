@@ -10,6 +10,7 @@ import {createBrandIndex,referenceQuantity} from "./brand-alternatives.mjs";
 import {buildApprovedReferenceGroups} from "./reviewed-groups.mjs";
 import {deriveAutoCommodityGroups} from "./auto-commodity-groups.mjs";
 import {deriveAutoPackagedTypeGroups} from "./auto-packaged-type-groups.mjs";
+import {deriveAutoEggGroups} from "./auto-egg-groups.mjs";
 const [dir,reviewedFile]=process.argv.slice(2);
 if(!dir||!reviewedFile)throw Error("Usage: analyze-unapproved-categories.mjs IMPORT_DIR REVIEWED_JSON");
 const readJsonl=async n=>(await readFile(join(resolve(dir),n),"utf8")).split("\n").filter(Boolean).map(JSON.parse);
@@ -17,7 +18,8 @@ const products=await readJsonl("reference-products.jsonl");
 const manual=buildApprovedReferenceGroups(products,JSON.parse(await readFile(resolve(reviewedFile),"utf8")));
 const auto=deriveAutoCommodityGroups(products,manual);
 const expanded=deriveAutoPackagedTypeGroups(products,[...manual,...auto]);
-const approved=new Set([...manual,...auto,...expanded].flatMap(g=>g.memberIds));
+const eggs=deriveAutoEggGroups(products,[...manual,...auto,...expanded]);
+const approved=new Set([...manual,...auto,...expanded,...eggs].flatMap(g=>g.memberIds));
 const grouped=new Map();
 for(const [family,members] of createBrandIndex(products)){
  const nonApproved=members.filter(p=>!approved.has(p.source_product_id));
@@ -33,7 +35,7 @@ for(const [family,members] of createBrandIndex(products)){
 }
 const categories=[...grouped.values()].sort((a,b)=>b.products-a.products||b.families-a.families);
 console.log(JSON.stringify({
- snapshotProducts:products.length,manualGroups:manual.length,autoGroups:auto.length,expandedGroups:expanded.length,expandedMembers:expanded.reduce((n,g)=>n+g.memberIds.length,0),
+ snapshotProducts:products.length,manualGroups:manual.length,autoGroups:auto.length,expandedGroups:expanded.length,expandedMembers:expanded.reduce((n,g)=>n+g.memberIds.length,0),eggGroups:eggs.length,eggMembers:eggs.reduce((n,g)=>n+g.memberIds.length,0),
  totalCrossBrandUnapprovedGroups:categories.reduce((n,x)=>n+x.families,0),
  totalCrossBrandUnapprovedMembers:categories.reduce((n,x)=>n+x.products,0),
  categoryCount:categories.length,
