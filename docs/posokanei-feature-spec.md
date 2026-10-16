@@ -84,13 +84,32 @@ Every plan records its source product, selected retailer, package count, require
 
 ### Current offline interfaces
 
-- \`basket-optimizer.mjs\`: \`optimizeReferenceBasket({...})\`; fully separate from the commerce and payments application.
-- \`optimize-basket.mjs\`: local-only JSONL staged import reader, accepted input list + reviewed group definitions, private JSON report and fail-closed manifest verification.
-- \`basket-optimizer.test.mjs\` and \`optimize-basket.test.mjs\`: deterministic economics and end-to-end fixture tests.
-- Workflow \`PosoKanei Reference Evaluation\`: validates importer, retailer comparator and basket optimizer on PR changes.
+- `basket-optimizer.mjs`: `optimizeReferenceBasket({...})`; fully separate from the commerce and payments application.
+- `optimize-basket.mjs`: local-only JSONL staged import reader, accepted input list + reviewed group definitions, private JSON report and fail-closed manifest verification.
+- `basket-optimizer.test.mjs` and `optimize-basket.test.mjs`: deterministic economics and end-to-end fixture tests.
+- Workflow `PosoKanei Reference Evaluation`: validates importer, retailer comparator and basket optimizer on PR changes.
 
 ### Intended mobile view once data rights clear
 
 Show a shopping-list editor, 3 comparable result tabs (**Ελάχιστο σύνολο**, **Σε 1 σούπερ μάρκετ**, **Μέχρι 2–3 σούπερ μάρκετ**), line-level cheapest suggestions and **Προτίμηση μάρκας** overrides. Emphasize that visiting more chains can be inconvenient, and display chain count alongside savings. If a chosen chain cannot price an item, show it in **Προϊόντα που λείπουν**, never conceal it inside an attractive but incomplete total. Always display source date and avoid branch-level locality claims without verified source evidence.
 
 **Important:** No public UI or recurring importer is present. Any public browsing, use of images and prices, production persistence or merchant-like use still depends on rights and a separately approved release.
+
+
+## Private interactive admin preview (implemented in the draft PR)
+
+A responsive Greek prototype now exists at **`/admin/posokanei/preview`**, linked via a catalog-permission-controlled tile in the admin command centre. The route requires an authenticated platform admin with `catalog.read` and publishes `noindex` metadata. It is not a public `/posokanei` route, nor does it imply a live data feed.
+
+- Client UI: `apps/web/src/components/PosoKaneiPreviewClient.tsx` and isolated CSS module.
+- Browse/search by Greek text and product category.
+- Expand any product to view **all** illustrative chain price observations ordered cheapest first; selecting any retailer adds an exact, supermarket-locked line to the comparison list.
+- Compare curated equivalent items using a selectable €/kg or shelf-package-price sort. The demo's chopped tomato group deliberately excludes passata.
+- Add fixed-brand or flexible equivalent-brand requirements to the list; edit package count, required quantity, brand locks and retailer locks.
+- Compare cheapest full basket across one chain, 2–3 chains, and all chains; explain missing goods and show selected chain IDs/items.
+- The server-side `POST /api/admin/posokanei-preview` calculation is **authenticated, RBAC-checked and CSRF-protected**. It invokes the same isolated `scripts/posokanei/basket-optimizer.mjs` that the offline CLI tests. It NEVER trusts price, product or reviewed-group data supplied by the browser and does not access the third-party upstream API.
+- All UI prices are **synthetic fixtures**: `apps/web/src/lib/posokanei-preview-fixture.ts` explicitly has invented products, sellers and prices. Demo content must not be misrepresented as actual supermarket price observations, and it must not be indexed.
+- No order/payment/cart calls, no writes to PostgreSQL, no public data or images, no scheduled collection.
+
+**To preview:** the draft PR must first pass release checks and be deployed to an admin-authenticated preview environment. The path does not exist on the production main branch until the changes are merged and deployed. Admin permissions cannot be bypassed by knowing the URL.
+
+**Remaining prerequisites for real public browsing:** audit permissible data usage, authorize commercial product/price listings, ingest actual data into an independently governed source-specific database model with reviewed equivalents and data freshness/availability, then swap the synthetic UI provider for an authenticated reviewed read model before explicitly enabling the public route. Never enable public commercial price display merely by switching an environment flag.
