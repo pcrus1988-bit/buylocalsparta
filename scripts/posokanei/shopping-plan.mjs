@@ -68,3 +68,13 @@ export function shoppingPlanText(result,plan,mode) {
   lines.push("Πηγή: posokanei.gov.gr · Ανεξάρτητη σύγκριση KONTA MOY.");
   return lines.join("\n");
 }
+
+
+/** Preserve demanded quantity when swapping to a different pack size. */
+export function packagesForEquivalent(sourceBaseQuantity,sourcePackages,candidateBaseQuantity) {
+  if (![sourceBaseQuantity,candidateBaseQuantity].every(n=>typeof n==="number"&&Number.isFinite(n)&&n>0) ||
+      !Number.isSafeInteger(sourcePackages) || sourcePackages<1 || sourcePackages>100) return null;
+  const required=sourceBaseQuantity*sourcePackages;
+  const count=Math.ceil(required/candidateBaseQuantity - 1e-9);
+  return Number.isSafeInteger(count)&&count>=1&&count<=100?count:null;
+}
