@@ -1,3 +1,5 @@
+# Internal Preview rebuild requested after native account-address edit/delete integration.
+# Draft PR only; preview package, no production auth or Firebase credentials.
 name: Companion Android Preview Standalone APK
 on:
   workflow_dispatch:
