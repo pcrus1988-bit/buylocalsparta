@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+android/
+dist/
+*.apk
+*.aab
+.env
+.env.*
+google-services.json
+google-services.*.json
+!app.json
