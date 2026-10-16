@@ -35,6 +35,7 @@ export async function GET(req:Request){
     const id=params.get("productId")||"";
     if(!/^[A-Za-z0-9_-]{1,100}$/.test(id))
       return NextResponse.json({status:"invalid",alternatives:[]},{status:400,headers});
+    const allBrands=params.get("show")==="all";
     const packages=Number(params.get("packages")||"1");
     if(!Number.isSafeInteger(packages)||packages<1||packages>100)
       return NextResponse.json({status:"invalid",alternatives:[],reason:"invalid_packages"},{status:400,headers});
@@ -47,7 +48,8 @@ export async function GET(req:Request){
       sourceId:id,packages,products:snap.products,
       offersByProduct:catalogFor(snap).byProduct,brandIndex:index,
       approvedGroups:snap.approvedGroups,
-      excludedRetailerIds:excluded
+      excludedRetailerIds:excluded,
+      includeNonCheaper:allBrands,maxResults:allBrands?10:5
     });
     if(matches.reason==="not_found")
       return NextResponse.json({status:"not_found",alternatives:[]},{status:404,headers});
