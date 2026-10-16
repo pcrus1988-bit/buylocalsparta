@@ -205,10 +205,14 @@ export function PosoKaneiPublicClient(){
     setLabels(current=>({...current,[key]:option.name}));
     // The shopper chose this cheaper brand against the visible original SKU.
     // Preserve that original so the server can verify real basket savings.
-    update([...lines,{id:key,kind:"exact",sourceProductId:option.id,packageCount:option.packageCount,
-      replacedFrom:{sourceProductId:sourceProduct.id,packageCount:1}}]);
+    const revised:BasketLine[]=[...lines,{id:key,kind:"exact",sourceProductId:option.id,
+      packageCount:option.packageCount,
+      replacedFrom:{sourceProductId:sourceProduct.id,packageCount:1}}];
+    update(revised);
     setComparedProduct(null);
-    setNotice("✓ Επιλέχθηκε φθηνότερη μάρκα. Εξοικονόμηση "+money(option.savingsEur)+".");
+    void calculate(revised);
+    setNotice("✓ Επιλέχθηκε φθηνότερη μάρκα. Δυνητικό όφελος "+money(option.savingsEur)+
+      ". Υπολογίζεται η πραγματική εξοικονόμηση του καλαθιού.");
   }
   function chooseAlternative(lineId:string,next:Cheaper){
     if(!isCheaper(next)||dismissedAlternativeLines.includes(lineId))return;
