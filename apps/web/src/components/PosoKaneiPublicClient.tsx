@@ -163,7 +163,7 @@ export function PosoKaneiPublicClient(){
     }
     // Keep the customer's first exact choice as the comparison baseline.
     // The server revalidates equivalence, quantity and live snapshot prices.
-    const replacedFrom=original.kind==="exact"?
+    const replacedFrom=original?.kind==="exact"?
       (original.replacedFrom||{sourceProductId:original.sourceProductId,packageCount:original.packageCount}):undefined;
     const revised=lines.map(line=>line.id===lineId?
       ({...line,sourceProductId:next.id,packageCount:packages,replacedFrom} as BasketLine):line);
