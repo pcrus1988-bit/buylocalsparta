@@ -101,10 +101,38 @@
 @media(max-width:1120px){.scope{padding-bottom:106px}}
 
 
-/* Group each assigned store into a real shopping stop, not a per-product store decision. */
-.storeGroup{border:1px solid #dce7db;background:#fcfdfa;padding:12px;border-radius:13px;margin:12px 0}
-.storeGroup h4{font-size:14px;font-weight:800;color:#20523b;display:flex;justify-content:space-between;gap:12px;align-items:center;margin:0 0 8px}
-.storeGroup h4 small{font-size:11px;font-weight:500;color:#6c8774}
+/* The optimized result is a real, device-local checklist grouped by chain. */
+.planToolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:12px 0;font-size:12px;color:#466d56}
+.planToolbar button{font-size:11px;padding:9px 11px}
+.storePlans{display:flex;flex-direction:column;gap:13px;margin-top:13px}
+.storePlan{border:1px solid #d7e2d7;border-radius:14px;background:#fff;overflow:hidden}
+.storePlanHeader{display:flex;flex-direction:column;gap:5px;padding:13px 12px;background:#edf3e9;border-bottom:1px solid #d7e2d7}
+.storePlanHeader strong{font-size:15px;color:#184d37}
+.storePlanHeader span{font-size:12px;color:#4c6e57;font-weight:700}
+.storePlanItem{display:grid!important;grid-template-columns:20px minmax(0,1fr) auto;gap:10px!important;align-items:start;padding:12px 11px;border-top:1px solid #e7eee7;cursor:pointer;font-size:12px!important;font-weight:500!important}
+.storePlanItem:first-of-type{border-top:0}
+.storePlanItem input{appearance:auto;width:18px!important;height:18px!important;min-height:18px!important;margin:1px 0 0;padding:0;accent-color:#19513b}
+.storePlanItem>span{min-width:0;overflow-wrap:anywhere;line-height:1.35}
+.storePlanItem small{display:block;font-size:11px;color:#748775;margin-top:4px}
+.storePlanItem>strong{white-space:nowrap;font-size:12px}
+.doneItem{text-decoration:line-through;color:#87988a}
+.planCaution{font-size:11px;color:#667e6d;line-height:1.6}
+@media(max-width:700px){.storePlanHeader{padding:12px}.storePlanItem{padding:13px 9px}.planToolbar button{width:100%}}
+
+
+/* The manual brand check belongs below each complete basket row. */
+.listDetails .line>.textButton{grid-column:1/-1;text-align:left;padding:7px 1px;font-size:12px}
+.listDetails .line>.textButton:disabled{opacity:.55}
+.suggestion>small{display:block;color:#56735c;font-size:11px;line-height:1.5;margin-top:10px}
+.suggestionLine small+small{margin-top:2px;color:#265a3b;font-weight:700}
+
+
+.brandStatus{grid-column:1/-1;color:#527b60;line-height:1.4;font-size:11px}
+details.suggestion{display:block;padding:12px;margin:10px 0;border-radius:12px}
+details.suggestion>summary{font-size:13px;line-height:1.45;font-weight:750;cursor:pointer;color:#22593e}
+details.suggestion[open]>summary{margin-bottom:10px}
+
+/* Preserve the latest main branch availability-first comparison styles. */
 .classicComparison{margin:18px 0 12px;border-top:1px solid #d8e4d7;padding-top:18px}
 .classicComparison h3{font-family:Georgia,serif;font-weight:500;letter-spacing:-.02em;font-size:22px;line-height:1.25;margin:10px 0}
 .methodNote{font-size:12px;line-height:1.65;color:#556e5d}
