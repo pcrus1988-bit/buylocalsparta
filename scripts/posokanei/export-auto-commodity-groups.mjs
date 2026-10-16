@@ -7,6 +7,7 @@ import {readFile,mkdir,writeFile} from "node:fs/promises";
 import {dirname,join,resolve} from "node:path";
 import {buildApprovedReferenceGroups} from "./reviewed-groups.mjs";
 import {deriveAutoCommodityGroups} from "./auto-commodity-groups.mjs";
+import {deriveAutoPackagedTypeGroups} from "./auto-packaged-type-groups.mjs";
 
 const [input,manualFile,out]=process.argv.slice(2);
 if(!input||!manualFile||!out)throw Error("Usage: node export-auto-commodity-groups.mjs IMPORT_DIR APPROVED_REGISTRY OUTPUT_JSON");
@@ -15,10 +16,11 @@ const products=(await readFile(join(resolve(input),"reference-products.jsonl"),"
 const manifest=JSON.parse(await readFile(join(resolve(input),"manifest.json"),"utf8"));
 const manual=buildApprovedReferenceGroups(products,JSON.parse(await readFile(resolve(manualFile),"utf8")));
 const automatic=deriveAutoCommodityGroups(products,manual);
+const packaged=deriveAutoPackagedTypeGroups(products,[...manual,...automatic]);
 const report={
   source:"posokanei.gov.gr",snapshotDate:manifest.snapshot_date,
   snapshotChecksum:manifest.snapshot_sha256,
-  approvedGroups:[...manual,...automatic]
+  approvedGroups:[...manual,...automatic,...packaged]
 };
 await mkdir(dirname(resolve(out)),{recursive:true});
 await writeFile(resolve(out),JSON.stringify(report,null,2)+"\n");
@@ -27,5 +29,7 @@ console.log(JSON.stringify({
   manuallyReviewedMembers:manual.reduce((n,g)=>n+g.memberIds.length,0),
   automaticallyApprovedGroups:automatic.length,
   automaticallyApprovedMembers:automatic.reduce((n,g)=>n+g.memberIds.length,0),
+  expandedTypeGroups:packaged.length,
+  expandedTypeMembers:packaged.reduce((n,g)=>n+g.memberIds.length,0),
   distinctApprovedMembers:new Set(report.approvedGroups.flatMap(g=>g.memberIds)).size
 }));
