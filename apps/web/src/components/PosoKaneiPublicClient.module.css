@@ -166,27 +166,3 @@ details.suggestion[open]>summary{margin-bottom:10px}
   .matchedHead{font-size:10px}.matchedName strong{font-size:11px}.matchedPrice strong{font-size:12px}
   .matchedName small,.matchedPrice small{font-size:9px}
 }
-
-
-/* Catalogue comparisons distinguish reviewed equivalent products from candidates. */
-.comparablePanel{margin-top:14px;padding:15px;border:1px solid #c5d9c5;border-radius:14px;background:#f2f8f0}
-.comparablePanel h4{font-size:15px;color:#1c5237;margin:0 0 6px}
-.comparablePanel h5{font-size:13px;color:#1d553b;margin:17px 0 8px}
-.comparablePanel>p{font-size:12px;line-height:1.55;color:#496951;margin:7px 0 12px}
-.comparableRow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-top:1px solid #d9e7d5}
-.comparableRow>div{flex:1;min-width:0;overflow-wrap:anywhere}
-.comparableRow strong{font-size:13px;line-height:1.4}
-.comparableRow small{display:block;font-size:11px;color:#526d57;margin-top:4px}
-.comparableRow .comparableBenefit{color:#237046;font-weight:800}
-.comparableRow button{white-space:nowrap}
-@media(max-width:640px){.comparableRow{flex-direction:column;align-items:stretch}.comparableRow button{width:100%}}
-
-/* Browse verified product-type groups without first adding a basket line. */
-.reviewedBrowser{margin:14px 0 20px;padding:13px 15px;border:1px solid #bfd7c0;background:#eaf4ea;border-radius:14px;color:#1b5239}
-.reviewedBrowser>summary{font-size:13px;font-weight:800;cursor:pointer;line-height:1.5}
-.reviewedBrowser p{font-size:12px;line-height:1.6;color:#466a50;margin:12px 0}
-.reviewedChips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 2px}
-.reviewedChips button{background:#fff;border-color:#bdd7c3;text-align:left;font-size:12px}
-#posokanei-reviewed-comparisons{scroll-margin-top:18px}
-@media(max-width:700px){.reviewedChips{display:grid;grid-template-columns:1fr 1fr}.reviewedChips button{font-size:11px}}
-@media(max-width:410px){.reviewedChips{grid-template-columns:1fr}}
