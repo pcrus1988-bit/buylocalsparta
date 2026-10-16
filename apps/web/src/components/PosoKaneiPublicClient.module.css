@@ -118,3 +118,10 @@
 .doneItem{text-decoration:line-through;color:#87988a}
 .planCaution{font-size:11px;color:#667e6d;line-height:1.6}
 @media(max-width:700px){.storePlanHeader{padding:12px}.storePlanItem{padding:13px 9px}.planToolbar button{width:100%}}
+
+
+/* The manual brand check belongs below each complete basket row. */
+.listDetails .line>.textButton{grid-column:1/-1;text-align:left;padding:7px 1px;font-size:12px}
+.listDetails .line>.textButton:disabled{opacity:.55}
+.suggestion>small{display:block;color:#56735c;font-size:11px;line-height:1.5;margin-top:10px}
+.suggestionLine small+small{margin-top:2px;color:#265a3b;font-weight:700}
