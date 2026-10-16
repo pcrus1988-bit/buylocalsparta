@@ -1,7 +1,7 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback,useState } from "react";
 import { Alert, Pressable,ScrollView,Share,StyleSheet,Text,TextInput,View } from "react-native";
-import {addItem,getItems,removeItem,setItemCompleted,setItemQuantity,moveItem,addCatalogItem,clearCompletedItems,type ListItem,type ListKind} from "../lib/companion-store";
+import {addItem,getItems,removeItem,setItemCompleted,setItemQuantity,moveItem,addCatalogItem,clearCompletedItems,importShoppingNotes,type ListItem,type ListKind} from "../lib/companion-store";
 import {theme} from "../theme";
 import {openMarketplace} from "../lib/marketplace-navigation";
 import {searchCompanionCatalog,type CompanionCatalogProduct} from "../lib/companion-catalog";
@@ -10,6 +10,9 @@ export default function CompanionListsScreen(){
  const [kind,setKind]=useState<ListKind>("shopping");
  const [items,setItems]=useState<ListItem[]>([]);
  const [showCompleted,setShowCompleted]=useState(true);
+ const [bulkOpen,setBulkOpen]=useState(false);
+ const [bulkText,setBulkText]=useState("");
+ const [bulkNotice,setBulkNotice]=useState("");
  const [title,setTitle]=useState("");
  const [quantity,setQuantity]=useState("1");
  const [busy,setBusy]=useState(false);
@@ -30,6 +33,20 @@ export default function CompanionListsScreen(){
    await addItem(kind,title,Number(quantity));setTitle("");setQuantity("1");await refresh();
   }catch{setError("Συμπλήρωσε ένα όνομα και ποσότητα 1–99.");}
   finally{setBusy(false);}
+ }
+ async function importBulk(){
+  if(busy||!bulkText.trim())return;
+  setBusy(true);setBulkNotice("");
+  try{
+   const result=await importShoppingNotes(bulkText);
+   await refresh();
+   setBulkText("");
+   setBulkNotice(`Προστέθηκαν ${result.created} νέα είδη και ενημερώθηκαν ${result.updated} υπάρχοντα. Όλα αποθηκεύτηκαν μόνο στη συσκευή.`);
+  }catch(e){
+   setBulkNotice(e instanceof Error&&e.message==="QUANTITY_LIMIT"
+    ?"Κάποιο είδος θα ξεπερνούσε τα 99 τεμάχια. Καμία εγγραφή δεν άλλαξε."
+    :"Έλεγξε τη λίστα: έως 40 γραμμές, έγκυρο όνομα και ποσότητα 1–99. Καμία εγγραφή δεν άλλαξε.");
+  }finally{setBusy(false);}
  }
  async function toggle(item:ListItem){
   try{await setItemCompleted(item.id,!item.completed);await refresh();}
@@ -126,6 +143,25 @@ export default function CompanionListsScreen(){
     </Pressable>
    </View>
   </View>
+  {kind==="shopping"&&<View style={styles.card}>
+    <Pressable accessibilityRole="button" accessibilityState={{expanded:bulkOpen}}
+      onPress={()=>setBulkOpen(open=>!open)} style={styles.bulkToggle}>
+      <Text style={styles.heading}>Προσθήκη ολόκληρης λίστας {bulkOpen?"−":"+"}</Text>
+    </Pressable>
+    {bulkOpen&&<>
+     <Text style={styles.sub}>Επικόλλησε έως 40 είδη, ένα ανά γραμμή. Για ποσότητες γράψε «2x Γάλα» ή «Γάλα × 2». Ίδια ονόματα ενώνονται αυτόματα.</Text>
+     <TextInput multiline numberOfLines={6} textAlignVertical="top"
+       value={bulkText} onChangeText={setBulkText} maxLength={2400}
+       placeholder={"2x Γάλα\nΝτομάτες × 3\nΚαφές"}
+       accessibilityLabel="Επικόλληση πολλών προϊόντων στη λίστα αγορών"
+       style={[styles.input,styles.bulkInput]}/>
+     <Pressable accessibilityRole="button" disabled={busy||!bulkText.trim()}
+       onPress={()=>void importBulk()} style={[styles.add,(busy||!bulkText.trim())&&{opacity:.5}]}>
+       <Text style={styles.addText}>{busy?"Αποθήκευση…":"Προσθήκη όλων στη λίστα"}</Text>
+     </Pressable>
+    </>}
+    {bulkNotice!==""&&<Text style={styles.sub} accessibilityLiveRegion="polite">{bulkNotice}</Text>}
+  </View>}
   <View style={styles.card}>
     <Text style={styles.heading}>Προσθήκη από τον πραγματικό κατάλογο</Text>
     <Text style={styles.sub}>Διάλεξε ακριβή παραλλαγή για {kind==="shopping"?"τη λίστα αγορών":"τη wishlist"}. Η τιμή και το απόθεμα επιβεβαιώνονται στο κατάστημα.</Text>
@@ -228,6 +264,8 @@ const styles=StyleSheet.create({
  tabLabelActive:{color:theme.green},
  card:{backgroundColor:theme.white,borderRadius:18,padding:18,gap:12,borderWidth:1,borderColor:theme.border},
  heading:{fontSize:18,color:theme.ink,fontWeight:"800"},
+ bulkToggle:{minHeight:44,justifyContent:"center"},
+ bulkInput:{height:130,paddingTop:12,paddingBottom:12},
  input:{height:50,borderWidth:1,borderColor:theme.border,borderRadius:12,paddingHorizontal:14,fontSize:16,color:theme.ink,backgroundColor:theme.white},
  addRow:{flexDirection:"row",gap:10},
  quantity:{width:75},
