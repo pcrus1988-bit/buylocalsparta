@@ -16,6 +16,26 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  // 2026-10-16 source snapshot: specific two-brand ordinary product kinds.
+  // Product family identity, named category, corroborated complete package
+  // quantity, separately known brands and claim vetoes still apply.
+  ["μπισκοτα digestive",["kg",/digestive.*μπισκοτ|μπισκοτ.*digestive/u]],
+  ["μακαρονια αστερακια",["kg",/αστρακι|αστερακι/u]],
+  ["κατεψυγμενο καλαμποκι",["kg",/καλαμποκ.*κατεψυγμεν|κατεψυγμεν.*καλαμποκ/u]],
+  ["φιδες",["kg",/φιδε.*ψιλ|ψιλ.*φιδε/u]],
+  ["μπισκοτα γεμιστα διαφορες γευσεις",["kg",/μπισκοτ.*γεμιστ.*κακαο/u]],
+  ["αλευρι για τσουρεκι",["kg",/αλευρ.*τσουρεκ/u]],
+  ["κορν φλαουερ",["kg",/κορν.*φλαουρ|corn.*flour/u]],
+  ["κατεψυγμενα φασολια",["kg",/φασολ.*χαντρ|χαντρ.*φασολ/u]],
+  ["γλυκισματα ψυγειου",["kg",/προφιτερολ|profiterole/u]],
+  ["ενταμ",["kg",/edam.*φετ|ενταμ.*φετ/u]],
+  ["ανθρακουχο νερο",["l",/ανθρακουχ.*νερ|sparkling.*water/u]],
+  ["νατσος",["kg",/tortilla.*(?:sweet.*chili|chili.*sweet)/u]],
+  ["αλλα αναψυκτικα",["l",/mixer.*pink.*grapefruit/u]],
+  ["παγωμενο τσαι",["l",/κρυο.*τσαι.*λεμον|παγωμεν.*τσαι.*λεμον/u]],
+  ["χυμος πορτοκαλι",["l",/νεκταρ.*πορτοκαλ|χυμ.*πορτοκαλ|orange juice/u]],
+  ["καφες καπουτσινο",["kg",/στιγμιαι.*ροφημα.*cappuccino/u]],
+
   // Narrow ordinary goods, audited against the 2026-10-16 retail archive.
   // Generic parent categories still need an explicit source subtype.
   ["μαυρη σοκολατα",["kg",/(?:σοκολατ.*μαυρ|μαυρ.*σοκολατ|dark.*chocolate)/u]],
@@ -216,7 +236,7 @@ function accepted(p){
      size.amount<.02||size.amount>40||Math.abs(size.amount-label.quantity)>1e-6)return false;
   const fam=productFamily(p);
   const bits=fam?.split("|")[1]?.split(" ").filter(Boolean)||[];
-  if(bits.length<2 && !(category==="βουτηματα" && /μουστοκουλουρ/u.test(title)) && !["αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη","κατεψυγμενος αρακας","αριανι","κοραλλια","αλλα ζυμαρικα","ταχινι","φαρινα","ανθοτυρο","κατεψυγμενες αγκιναρες","νισεστες","ρυζογαλο","ριγκατονι","λαζανια","στριφτο","σοδα"].includes(category))return false;
+  if(bits.length<2 && !(category==="βουτηματα" && /μουστοκουλουρ/u.test(title)) && !["αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη","κατεψυγμενος αρακας","αριανι","κοραλλια","αλλα ζυμαρικα","ταχινι","φαρινα","ανθοτυρο","κατεψυγμενες αγκιναρες","νισεστες","ρυζογαλο","ριγκατονι","λαζανια","στριφτο","σοδα","μακαρονια αστερακια","γλυκισματα ψυγειου"].includes(category))return false;
   // Dairy requires fat information, otherwise packaging titles alone do not
   // distinguish normal, low fat, lactose-free and fermented variants.
   const listedFatPercent=/\b\d+(?:[.,]\d+)?\s*%/u.test(title);
