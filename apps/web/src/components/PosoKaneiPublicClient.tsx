@@ -2,7 +2,7 @@
 
 import {useCallback,useEffect,useMemo,useState} from "react";
 import type {BasketLine,BasketPlan,BasketResult} from "../../../../scripts/posokanei/basket-optimizer.mjs";
-import {groupShoppingPlan,planFingerprint,savingsForPlan,shoppingPlanText} from "../../../../scripts/posokanei/shopping-plan.mjs";
+import {groupShoppingPlan,planFingerprint,savingsForPlan,shoppingPlanText,packagesForEquivalent} from "../../../../scripts/posokanei/shopping-plan.mjs";
 import styles from "./PosoKaneiPublicClient.module.css";
 
 type Offer={retailerId:string;retailerName:string;priceEur:number;observedAt:string|null;discount:boolean};
@@ -10,8 +10,8 @@ type Product={id:string;name:string;brand:string|null;category:string|null;unit:
 type Group={id:string;label:string;basis:"kg"|"l"|"piece"};
 type Retailer={id:string;name:string};
 type Listing={status:string;snapshotDate?:string;source?:string;count?:number;page?:number;hasMore?:boolean;products:Product[];categories:string[];categoryGroups?:string[];groups:Group[];retailers:Retailer[]};
-type Cheaper={id:string;name:string;brand:string|null;priceEur:number;unitPriceEur:number;retailerName:string;savingPercent:number};
-type Mode="single"|"limited"|"all";
+type Cheaper={id:string;name:string;brand:string|null;priceEur:number;unitPriceEur:number;retailerName:string;savingPercent:number;packageQuantity:number;unit:string};
+type Mode="single"|"limited";
 const money=(n:number|null|undefined)=>typeof n==="number"&&Number.isFinite(n)?new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(n):"—";
 const empty:Listing={status:"unavailable",products:[],categories:[],groups:[],retailers:[]};
 function pricePerUnit(product:Product,price:number){
@@ -20,8 +20,18 @@ function pricePerUnit(product:Product,price:number){
   if(!unit||!product.unitQuantity||product.unitQuantity<=0)return null;
   return {price:price/(product.unitQuantity*unit[1]),unit:unit[0]};
 }
+function productBaseQuantity(p:Product):{unit:"kg"|"l"|"piece";amount:number}|null{
+  const unit=(p.unit||"").toLowerCase(),quantity=p.unitQuantity;
+  if(typeof quantity!=="number"||!Number.isFinite(quantity)||quantity<=0)return null;
+  if(unit==="kg")return {unit:"kg",amount:quantity};
+  if(unit==="g"||unit==="gr")return {unit:"kg",amount:quantity/1000};
+  if(unit==="l")return {unit:"l",amount:quantity};
+  if(unit==="ml")return {unit:"l",amount:quantity/1000};
+  if(unit==="piece"||unit==="pcs")return {unit:"piece",amount:quantity};
+  return null;
+}
 const id=()=>("line_"+Math.random().toString(36).slice(2,11));
-const planOf=(r:BasketResult,m:Mode):BasketPlan|null=>m==="single"?r.bestSingleStore:m==="limited"?r.cheapestWithinStoreLimit:r.cheapestAcrossAnyStores;
+const planOf=(r:BasketResult,m:Mode):BasketPlan|null=>m==="single"?r.bestSingleStore:r.cheapestWithinStoreLimit;
 
 export function PosoKaneiPublicClient(){
   const [q,setQ]=useState("");
@@ -39,7 +49,7 @@ export function PosoKaneiPublicClient(){
   const [excluded,setExcluded]=useState<string[]>([]);
   const [settingsOpen,setSettingsOpen]=useState(false);
   const [preferencesLoaded,setPreferencesLoaded]=useState(false);
-  const [suggestion,setSuggestion]=useState<{sourceId:string;lineId:string;unit:string;alternatives:Cheaper[]}|null>(null);
+  const [suggestion,setSuggestion]=useState<{sourceId:string;lineId:string;unit:string;sourceAmount:number;alternatives:Cheaper[]}|null>(null);
   const [mode,setMode]=useState<Mode>("limited");
   const [result,setResult]=useState<BasketResult|null>(null);
   const [working,setWorking]=useState(false);
@@ -117,23 +127,33 @@ export function PosoKaneiPublicClient(){
     setLabels(current=>({...current,[key]:p.name}));
     update([...lines,{id:key,kind:"exact",sourceProductId:p.id,packageCount:1}]);
     setSuggestion(null);
-    void findCheaper(p.id,key);
+    void findCheaper(p,key);
     setNotice("Προστέθηκε στη λίστα: "+p.name);
   }
-  async function findCheaper(productId:string,lineId:string){
+  async function findCheaper(product:Product,lineId:string){
+    const base=productBaseQuantity(product);
+    if(!base)return;
     try{
-      const url="/api/posokanei/alternatives?productId="+encodeURIComponent(productId)+(excluded.length?"&exclude="+encodeURIComponent(excluded.join(",")):"");
+      const url="/api/posokanei/alternatives?productId="+encodeURIComponent(product.id)+(excluded.length?"&exclude="+encodeURIComponent(excluded.join(",")):"");
       const response=await fetch(url,{cache:"no-store"});
       if(!response.ok)return;
       const data=await response.json() as {status:string;basis?:string;alternatives?:Cheaper[]};
-      if(data.status==="ready"&&data.alternatives?.length)setSuggestion({sourceId:productId,lineId,unit:data.basis||"kg",alternatives:data.alternatives});
+      if(data.status==="ready"&&data.basis===base.unit&&data.alternatives?.length)setSuggestion({sourceId:product.id,lineId,unit:base.unit,sourceAmount:base.amount,alternatives:data.alternatives});
     }catch{}
   }
   function chooseCheaper(next:Cheaper){
     if(!suggestion)return;
-    changeLine(suggestion.lineId,{sourceProductId:next.id});
+    const original=lines.find(line=>line.id===suggestion.lineId);
+    const packages=original?.kind==="exact"&&next.unit===suggestion.unit?
+      packagesForEquivalent(suggestion.sourceAmount,original.packageCount,next.packageQuantity):null;
+    if(packages===null){
+      setNotice("Η εναλλακτική συσκευασία δεν επαρκεί για την ίδια ποσότητα (ή υπερβαίνει το όριο των 100).");
+      setSuggestion(null);
+      return;
+    }
+    changeLine(suggestion.lineId,{sourceProductId:next.id,packageCount:packages});
     setLabels(current=>({...current,[suggestion.lineId]:next.name}));
-    setNotice("Επιλέχθηκε εναλλακτική μάρκα — θα επανυπολογιστεί η καλύτερη αλυσίδα.");
+    setNotice("Επιλέχθηκε εναλλακτική μάρκα · "+packages+" συσκευασίες για να διατηρηθεί η ζητούμενη ποσότητα.");
     setSuggestion(null);
   }
   function addGroup(g:Group){
@@ -239,8 +259,8 @@ export function PosoKaneiPublicClient(){
                 {expanded&&<div className={styles.offers}><h4>Καταγεγραμμένες τιμές · μόνο από τις επιλεγμένες αλυσίδες</h4>
                   {p.offers.map((o,i)=><div key={o.retailerId} className={styles.offer}><span>{o.retailerName}{i===0&&<small className={styles.lowest}> Χαμηλότερη καταγραφή</small>}{o.discount&&<small> · Σήμανση έκπτωσης</small>}</span><strong>{money(o.priceEur)}</strong></div>)}
                 </div>}
-                {suggestion?.sourceId===p.id&&<div className={styles.suggestion} role="status"><div className={styles.suggestionHeader}><strong>Βρήκαμε πιθανώς οικονομικότερη μάρκα!</strong><button type="button" onClick={()=>setSuggestion(null)} aria-label="Κλείσιμο">✕</button></div><p>Παρόμοιος τύπος προϊόντος στην ίδια λεπτομερή κατηγορία. Σύγκριση ανά {suggestion.unit} — επιβεβαίωσε ότι σε καλύπτει.</p>
-                  {suggestion.alternatives.map(a=><div className={styles.suggestionLine} key={a.id}><span><strong>{a.name}</strong><small>{a.retailerName} · {money(a.unitPriceEur)}/{suggestion.unit} · −{a.savingPercent}% ανά μονάδα</small></span><button type="button" className={styles.secondary} onClick={()=>chooseCheaper(a)}>Αντικατάσταση</button></div>)}
+                {suggestion?.sourceId===p.id&&<div className={styles.suggestion} role="status"><div className={styles.suggestionHeader}><strong>Βρήκαμε πιθανώς οικονομικότερη μάρκα!</strong><button type="button" onClick={()=>setSuggestion(null)} aria-label="Κλείσιμο">✕</button></div><p>Παρόμοιος τύπος προϊόντος στην ίδια λεπτομερή κατηγορία. Σύγκριση ανά {suggestion.unit} — το κόστος υπολογίζεται με ολόκληρες συσκευασίες ώστε να διατηρηθεί η ποσότητα.</p>
+                  {suggestion.alternatives.map(a=><div className={styles.suggestionLine} key={a.id}><span><strong>{a.name}</strong><small>{a.retailerName} · {money(a.unitPriceEur)}/{suggestion.unit} · −{a.savingPercent}% ανά μονάδα</small></span><button type="button" className={styles.secondary} onClick={()=>chooseCheaper(a)}>Αλλαγή μάρκας & ποσότητας</button></div>)}
                   <button type="button" className={styles.textButton} onClick={()=>setSuggestion(null)}>Κράτησε την αρχική μάρκα</button>
                 </div>}
               </article>;
@@ -266,7 +286,7 @@ export function PosoKaneiPublicClient(){
           <button className={styles.calculate} type="button" onClick={calculate} disabled={!lines.length||listing.status!=="ready"||working||listing.retailers.length===excluded.length}>{working?"Υπολογισμός…":"Βρες το οικονομικότερο καλάθι →"}</button>
           {error&&<p className={styles.error} role="alert">{error}</p>}
           {result&&<div className={styles.results} aria-live="polite">
-            <div className={styles.buttons}><button className={mode==="single"?styles.primary:styles.secondary} onClick={()=>setMode("single")} type="button">1 αλυσίδα</button><button className={mode==="limited"?styles.primary:styles.secondary} onClick={()=>setMode("limited")} type="button">Έως {storeLimit}</button><button className={mode==="all"?styles.primary:styles.secondary} onClick={()=>setMode("all")} type="button">Χωρίς όριο</button></div>
+            <div className={styles.buttons}><button className={mode==="single"?styles.primary:styles.secondary} onClick={()=>setMode("single")} type="button">1 αλυσίδα</button><button className={mode==="limited"?styles.primary:styles.secondary} onClick={()=>setMode("limited")} type="button">Έως {storeLimit}</button></div>
             {plan?.complete?<><small>Σύνολο πλήρους λίστας</small><div className={styles.bigTotal}>{money(plan.totalEur)}</div>
               <div className={styles.planToolbar}>
                 <span role="status">{completedCount}/{plan.items.length} προϊόντα στη λίστα ολοκληρώθηκαν</span>
