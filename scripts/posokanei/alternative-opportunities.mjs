@@ -1,15 +1,20 @@
 /**
- * Non-binding, per-item savings opportunities from reviewed alternatives only.
+ * Non-binding, per-item savings opportunities from validated alternatives.
  * These figures do not replace the basket optimiser or promise combined savings:
  * the final basket may require different supermarkets or incur other constraints.
  */
 export function summarizeCheaperAlternatives(results) {
   const byLine=new Map();
   for(const entry of results) {
-    if(typeof entry?.lineId!=="string"||!entry.lineId||!Array.isArray(entry.alternatives))continue;
+    if(typeof entry?.lineId!=="string"||!entry.lineId)continue;
+    // API summary covers all eligible cheaper candidates, including those
+    // beyond the compact displayed list. Old responses still work as fallback.
+    const full=entry.bestCheaperSavingEur;
     let bestCents=0;
-    for(const candidate of entry.alternatives) {
-      if(candidate?.confidence!=="reviewed_equivalent"||
+    if(typeof full==="number"&&Number.isFinite(full)&&full>=0){
+      bestCents=Math.round(full*100);
+    }else for(const candidate of entry.alternatives||[]){
+      if(!["reviewed_equivalent","automatically_verified"].includes(candidate?.confidence)||
          typeof candidate.savingsEur!=="number"||!Number.isFinite(candidate.savingsEur)||
          candidate.savingsEur<=0||
          typeof candidate.originalTotalEur!=="number"||!Number.isFinite(candidate.originalTotalEur)||
