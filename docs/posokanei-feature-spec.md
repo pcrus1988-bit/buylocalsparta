@@ -229,3 +229,13 @@ New narrow families considered in audit: frozen artichokes, frozen mixed vegetab
 ### Final review hardening for Pollock and raw/plain comparables
 
 Pollock fillet approvals explicitly require both the Pollock species marker and the fillet marker. Generic Μπακαλιάρος Φιλέτο is never auto-approved as Pollock. Raw chicken thigh fillets and plain frozen potato approvals reject identically described breaded, marinated, seasoned, pre-fried or prepared products; an exact title-family match by itself cannot waive the unprocessed-intended-use restriction. These guardrails are enforced before grouping and covered by negative regression tests.
+
+
+### October 16, fourth comparison pass — ordinary exact subtypes
+
+Additional audited source-title predicates now recognize dark chocolate (not milk chocolate), mountain tea (not green tea), passata named within the tomato-juice source category (not diced tomato), grape-must cookies, independently labelled semi-hard or grated hard cheese and fine Greek lentils. Cross-brand eligibility still requires the exact deterministic product family, source category, single matching whole-package quantity, reliable distinct brands and no sensitive specialty claims. Candidates with contradictory metadata or novel variants remain unapproved and are not presumed interchangeable.
+
+
+### Source-declared wholegrain and gluten-free wording (strictly scoped)
+
+Approved-type discovery may consider only exactly identical subtype signatures for source-labelled wholegrain tahini, wholegrain linguine/oats/rusks/breadsticks, and gluten-free ketchup or mustard. The label must explicitly contain the complete claim phrase. Removing the one permitted phrase from the eligibility check must leave no other restricted claims; different-source titles remain separate product families and *the UI must not imply allergen certification, ingredient identity, or user-specific dietary suitability*. Unknown/imprecise labels are excluded. Existing whole-pack price and no-automatic-substitution safeguards remain mandatory.

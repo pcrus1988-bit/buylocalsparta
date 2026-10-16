@@ -507,3 +507,103 @@ test("processed chicken thigh fillets and pre-fried potato variants fail plain r
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["raw-a","raw-b"]]);
 });
+
+test("exact dark chocolate type and mountain-tea leaves compare only within separately named variants",()=>{
+ const list=[
+ p("d-a","BONORA","BONORA Σοκολάτα Μαύρη 100g","Μαύρη Σοκολάτα","kg",.1),
+ p("d-b","ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ","ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ Σοκολάτα Μαύρη 85γρ","Μαύρη Σοκολάτα","kg",.085),
+ p("t-a","ECONOMY","ECONOMY Τσάι Βουνού 50γρ","Τσάι","kg",.05),
+ p("t-b","ΣΚΛΑΒΕΝΙΤΗΣ","ΣΚΛΑΒΕΝΙΤΗΣ Τσάι Βουνού 50g","Τσάι","kg",.05),
+ p("green","BRAVO","BRAVO Πράσινο Τσάι 50g","Τσάι","kg",.05)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["d-a","d-b"],["t-a","t-b"]]);
+});
+test("tomato passata cannot merge with tomato juice or diced tomato despite the source's broad juice category",()=>{
+ const list=[
+ p("pa-a","ΓΚΡΕΚΑ","ΓΚΡΕΚΑ Τομάτα Passata 500g","Χυμός Ντομάτας","kg",.5),
+ p("pa-b","FARMER","FARMER Τομάτα Passata 500gr","Χυμός Ντομάτας","kg",.5),
+ p("pa-c","THE RED FARM","THE RED FARM Τομάτα Passata 500g","Χυμός Ντομάτας","kg",.5),
+ p("juice","OTHER","OTHER Χυμός Τομάτας 500g","Χυμός Ντομάτας","kg",.5),
+ p("diced","OTHER 2","OTHER 2 Τομάτα Ψιλοκομμένη 500g","Χυμός Ντομάτας","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["pa-a","pa-b","pa-c"]]);
+});
+test("semi-hard cheese and grated hard cheese stay independent within the generic cheese category",()=>{
+ const list=[
+ p("sh-a","ΓΑΛΠΟ","ΓΑΛΠΟ Τυρί Ημίσκληρο 500g","Τυριά","kg",.5),
+ p("sh-b","ECONOMY","ECONOMY Τυρί Ημίσκληρο 370gr","Τυριά","kg",.37),
+ p("gr-a","ΓΑΛΠΟ","ΓΑΛΠΟ Σκληρό Τυρί Τριμμένο 250gr","Τυριά","kg",.25),
+ p("gr-b","ΟΛΥΜΠΟΣ","ΟΛΥΜΠΟΣ Σκληρό Τυρί Τριμμένο 250g","Τυριά","kg",.25),
+ p("other","BETA","BETA Τυρί Μαλακό 250g","Τυριά","kg",.25)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["gr-a","gr-b"],["sh-a","sh-b"]]);
+});
+test("exact traditional grape-must cookies and fine domestic lentils compare without a recipe waiver",()=>{
+ const list=[
+ p("mu-a","MY GUSTO","MY GUSTO Μουστοκούλουρα 330g","Βουτήματα","kg",.33),
+ p("mu-b","ΓΛΥΚΑΝΘΗ","ΓΛΥΚΑΝΘΗ Μουστοκούλουρα 200g","Βουτήματα","kg",.2),
+ p("mu-else","OTHER","OTHER Μουστοκούλουρα Σοκολάτα 200g","Βουτήματα","kg",.2),
+ p("le-a","ΣΚΛΑΒΕΝΙΤΗΣ","ΣΚΛΑΒΕΝΙΤΗΣ Φακές Ψιλές Ελληνικές 500g","Φακές","kg",.5),
+ p("le-b","FARMER","FARMER Φακές Ψιλές Ελληνικές 500gr","Φακές","kg",.5),
+ p("le-bio","OLA BIO","OLA BIO Φακές Ψιλές Ελληνικές 500g","Φακές","kg",.5)
+ ];
+ // A BIO-marked producer shares this family signature; fail the whole
+ // family closed rather than implying its organic product equals conventional.
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["mu-a","mu-b"]]);
+ // Without the ambiguous/claim-bearing third product, ordinary lentils can
+ // be compared within their explicitly described origin and grain size.
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list.filter(x=>x.source_product_id!=="le-bio")).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["le-a","le-b"],["mu-a","mu-b"]]);
+});
+
+test("wholegrain tahini is a separate source-labelled comparison, not interchangeable with plain tahini",()=>{
+ const list=[
+ p("a","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Ταχίνι Ολικής Άλεσης 300g","Ταχίνι","kg",.3),
+ p("b","ΟΛΥΜΠΟΣ","ΟΛΥΜΠΟΣ Ταχίνι Ολικής Άλεσης 300g","Ταχίνι","kg",.3),
+ p("plain","ΓΑΛΑΞΙΑΣ","ΓΑΛΑΞΙΑΣ Ταχίνι 300g","Ταχίνι","kg",.3),
+ p("organic","BETA","BETA Ταχίνι Βιολογικό Ολικής Άλεσης 300g","Ταχίνι","kg",.3)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["a","b"]]);
+});
+test("source-described wholegrain linguine, oat flakes and rusks preserve their own distinct variants",()=>{
+ const list=[
+ p("l1","MISKO","MISKO Λιγκουίνι Ολικής Άλεσης 500g","Λιγκουίνι","kg",.5),
+ p("l2","MELISSA","MELISSA Λιγκουίνι Ολικής Άλεσης 500g","Λιγκουίνι","kg",.5),
+ p("l-regular","OTHER","OTHER Λιγκουίνι 500g","Λιγκουίνι","kg",.5),
+ p("o1","QUAKER","QUAKER Νιφάδες Βρώμης Ολικής Άλεσης 500g","Βρώμη","kg",.5),
+ p("o2","FYTRO","FYTRO Νιφάδες Βρώμης Ολικής Άλεσης 500g","Βρώμη","kg",.5),
+ p("r1","ΑΒ","ΑΒ Παξιμάδια Σταρένια Ολικής Άλεσης 400g","Παξιμάδι","kg",.4),
+ p("r2","Η ΛΗΜΝΟΣ","Η ΛΗΜΝΟΣ Παξιμάδια Σταρένια Ολικής Άλεσης 800g","Παξιμάδι","kg",.8),
+ p("r-vegan","THIRD","THIRD Παξιμάδια Σταρένια Vegan Ολικής Άλεσης 400g","Παξιμάδι","kg",.4)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["l1","l2"],["o1","o2"],["r1","r2"]]);
+});
+test("wholegrain breadsticks retain style and vegan/free-from vetoes",()=>{
+ const list=[
+ p("c1","MR GRAND","MR GRAND Κριτσίνια Ολικής Άλεσης 250γρ","Κριτσίνια","kg",.25),
+ p("c2","ΦΑΙΔΩΝ","ΦΑΙΔΩΝ Κριτσίνια Ολικής Άλεσης 400g","Κριτσίνια","kg",.4),
+ p("cv1","ELENI","ELENI Κριτσίνια με Καλαμπόκι Vegan 150g","Κριτσίνια","kg",.15),
+ p("cv2","ΤΣΑΤΣΑΚΗΣ","ΤΣΑΤΣΑΚΗΣ Κριτσίνια με Καλαμπόκι Vegan 250g","Κριτσίνια","kg",.25)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["c1","c2"]]);
+});
+test("only exact source-declared gluten-free mustard/ketchup variants share their own comparison family",()=>{
+ const list=[
+ p("m1","BRAVA","BRAVA Μουστάρδα Απαλή Χωρίς Γλουτένη 430g","Μουστάρδα","kg",.43),
+ p("m2","GALAXY","GALAXY Μουστάρδα Απαλή Χωρίς Γλουτένη 520g","Μουστάρδα","kg",.52),
+ p("k1","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Κέτσαπ Χωρίς Γλουτένη 560g","Κέτσαπ","kg",.56),
+ p("k2","BRAVA","BRAVA Κέτσαπ Χωρίς Γλουτένη 400g","Κέτσαπ","kg",.4),
+ p("k-sugar","OTHER","OTHER Κέτσαπ Χωρίς Γλουτένη Χωρίς Ζάχαρη 560g","Κέτσαπ","kg",.56),
+ p("m-noclaim","OTHER","OTHER Μουστάρδα Απαλή 430g","Μουστάρδα","kg",.43),
+ p("k-organic","OTHER 2","OTHER 2 Κέτσαπ Βιολογικό Χωρίς Γλουτένη 400g","Κέτσαπ","kg",.4)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["k1","k2"],["m1","m2"]]);
+});
+test("a generic gluten-free, wholegrain or organic claim never waives restrictions in unrelated categories",()=>{
+ const wrong=[
+ p("a","A","A Κατεψυγμένες Πατάτες Χωρίς Γλουτένη 1kg","Πατάτες","kg",1),
+ p("b","B","B Κατεψυγμένες Πατάτες Χωρίς Γλουτένη 1kg","Πατάτες","kg",1),
+ p("c","A","A Φέτα Ολικής Άλεσης 200g","Φέτα","kg",.2),
+ p("d","B","B Φέτα Ολικής Άλεσης 200g","Φέτα","kg",.2)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(wrong),[]);
+});
