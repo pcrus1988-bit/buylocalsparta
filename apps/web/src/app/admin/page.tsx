@@ -121,6 +121,19 @@ export default async function AdminPage() {
     })));
   const widgets: AdminDashboardWidget[] = [...categoryWidgets];
 
+  if (canCatalog) widgets.push({
+    id: "posokanei-private-preview",
+    kind: "route",
+    icon: "catalog",
+    label: "KONTA MOY × PosoKanei",
+    eyebrow: "Supermarket comparison · Demo",
+    href: "/admin/posokanei/preview",
+    source: "Catalogue · Private evaluation",
+    detail: "Ιδιωτική δοκιμή τιμών, εναλλακτικών μαρκών και οικονομικότερου καλαθιού. Μόνο συνθετικά δεδομένα.",
+    defaultSize: "small",
+    defaultVisible: true
+  });
+
   widgets.push({
     id: "attention",
     kind: "metric",
