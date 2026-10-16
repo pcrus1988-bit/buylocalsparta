@@ -1,7 +1,7 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback,useState } from "react";
 import { Alert, Pressable,ScrollView,Share,StyleSheet,Text,TextInput,View } from "react-native";
-import {addItem,getItems,removeItem,setItemCompleted,setItemQuantity,moveItem,importAccountWishlist,type ListItem,type ListKind} from "../lib/companion-store";
+import {addItem,getItems,removeItem,setItemCompleted,setItemQuantity,moveItem,addCatalogItem,clearCompletedItems,type ListItem,type ListKind} from "../lib/companion-store";
 import {theme} from "../theme";
 import {openMarketplace} from "../lib/marketplace-navigation";
 import {searchCompanionCatalog,type CompanionCatalogProduct} from "../lib/companion-catalog";
@@ -9,6 +9,7 @@ import {searchCompanionCatalog,type CompanionCatalogProduct} from "../lib/compan
 export default function CompanionListsScreen(){
  const [kind,setKind]=useState<ListKind>("shopping");
  const [items,setItems]=useState<ListItem[]>([]);
+ const [showCompleted,setShowCompleted]=useState(true);
  const [title,setTitle]=useState("");
  const [quantity,setQuantity]=useState("1");
  const [busy,setBusy]=useState(false);
@@ -19,7 +20,9 @@ export default function CompanionListsScreen(){
  const [catalogNotice,setCatalogNotice]=useState("");
  const refresh=useCallback(async()=>{try{setItems(await getItems());}catch{setError("Δεν κατέστη δυνατή η φόρτωση των λιστών.");}},[]);
  useFocusEffect(useCallback(()=>{void refresh();},[refresh]));
- const visible=items.filter(i=>i.kind===kind);
+ const allForKind=items.filter(i=>i.kind===kind);
+ const checked=allForKind.filter(i=>i.completed).length;
+ const visible=allForKind.filter(i=>showCompleted||!i.completed);
  async function create(){
   if(busy)return;
   setBusy(true);setError("");
@@ -50,11 +53,18 @@ export default function CompanionListsScreen(){
   if(busy)return;
   setBusy(true);setCatalogNotice("");
   try{
-   const added=await importAccountWishlist([{variantId:product.variantId,title:product.title}]);
+   const result=await addCatalogItem(kind,{variantId:product.variantId,title:product.title});
    await refresh();
-   setCatalogNotice(added?"Το προϊόν προστέθηκε στη wishlist με το ακριβές αναγνωριστικό καταλόγου.":"Αυτό το προϊόν υπάρχει ήδη στη wishlist.");
-  }catch{setCatalogNotice("Δεν έγινε η αποθήκευση στη συσκευή.");}
-  finally{setBusy(false);}
+   setCatalogNotice(
+    result==="added"?("Το προϊόν προστέθηκε "+(kind==="shopping"?"στη λίστα αγορών.":"στη wishlist.")):
+    result==="incremented"?"Η ποσότητα στη λίστα αγορών αυξήθηκε κατά 1.":
+    result==="reactivated"?"Το προϊόν σημειώθηκε ξανά ως εκκρεμές.":
+    "Το προϊόν υπάρχει ήδη στη wishlist σου."
+   );
+  }catch(e){
+   setCatalogNotice(e instanceof Error&&e.message==="QUANTITY_LIMIT"
+    ?"Η μέγιστη ποσότητα ανά προϊόν είναι 99.":"Δεν έγινε η αποθήκευση στη συσκευή.");
+  }finally{setBusy(false);}
  }
  async function adjust(item:ListItem,amount:number){
   const target=item.quantity+amount;
@@ -66,7 +76,18 @@ export default function CompanionListsScreen(){
   try{
    await moveItem(item.id,item.kind==="shopping"?"wishlist":"shopping");
    await refresh();
-  }catch{setError("Δεν ολοκληρώθηκε η μεταφορά.");}
+  }catch(e){setError(e instanceof Error&&e.message==="QUANTITY_LIMIT"
+    ?"Δεν μπορεί να μεταφερθεί: η συνολική ποσότητα θα ξεπερνούσε τα 99 τεμάχια."
+    :"Δεν ολοκληρώθηκε η μεταφορά.");}
+ }
+ function confirmClearCompleted(){
+  if(!checked)return;
+  Alert.alert("Καθαρισμός ολοκληρωμένων",
+    `Να αφαιρεθούν ${checked} ολοκληρωμένα είδη από ${kind==="shopping"?"τη λίστα αγορών":"τη wishlist"}; Δεν επηρεάζεται ο λογαριασμός σου.`,[
+    {text:"Άκυρο",style:"cancel"},
+    {text:"Αφαίρεση",style:"destructive",onPress:()=>void clearCompletedItems(kind)
+      .then(refresh).catch(()=>setError("Δεν έγινε ο καθαρισμός."))}
+   ]);
  }
  async function share(){
   const pending=visible.filter(i=>!i.completed);
@@ -105,9 +126,9 @@ export default function CompanionListsScreen(){
     </Pressable>
    </View>
   </View>
-  {kind==="wishlist" && <View style={styles.card}>
-    <Text style={styles.heading}>Αναζήτηση πραγματικών προϊόντων KONTA MOY</Text>
-    <Text style={styles.sub}>Διάλεξε συγκεκριμένη παραλλαγή από τον κατάλογο. Η τιμή και η διαθεσιμότητα ελέγχονται χωριστά.</Text>
+  <View style={styles.card}>
+    <Text style={styles.heading}>Προσθήκη από τον πραγματικό κατάλογο</Text>
+    <Text style={styles.sub}>Διάλεξε ακριβή παραλλαγή για {kind==="shopping"?"τη λίστα αγορών":"τη wishlist"}. Η τιμή και το απόθεμα επιβεβαιώνονται στο κατάστημα.</Text>
     <TextInput placeholder="π.χ. παπούτσια τρεξίματος" value={catalogQuery}
       onChangeText={setCatalogQuery} style={styles.input} maxLength={72}
       autoCapitalize="none" returnKeyType="search" onSubmitEditing={()=>void searchCatalog()}
@@ -124,15 +145,25 @@ export default function CompanionListsScreen(){
         <Text style={styles.itemMeta}>Διαθεσιμότητα: έλεγχος στον ιστότοπο</Text>
       </View>
       <Pressable accessibilityRole="button" disabled={busy}
-        accessibilityLabel={`Προσθήκη ${product.title} στη wishlist`}
+        accessibilityLabel={`Προσθήκη ${product.title} ${kind==="shopping"?"στη λίστα αγορών":"στη wishlist"}`}
         onPress={()=>void addCatalogProduct(product)}
         style={[styles.catalogSave,busy&&{opacity:.6}]}>
-        <Text style={styles.catalogSaveText}>+ Wishlist</Text>
+        <Text style={styles.catalogSaveText}>{kind==="shopping"?"+ Στη λίστα":"+ Wishlist"}</Text>
       </Pressable>
     </View>)}
-  </View>}
+  </View>
   {error?<Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>:null}
-  <Text style={styles.count}>{visible.filter(i=>!i.completed).length} εκκρεμή · {visible.length} συνολικά</Text>
+  <View style={styles.listTools}>
+    <Text style={styles.count}>{allForKind.length-checked} εκκρεμή · {checked} ολοκληρωμένα</Text>
+    <Pressable accessibilityRole="button" accessibilityState={{selected:!showCompleted}}
+      onPress={()=>setShowCompleted(!showCompleted)} style={styles.listToolButton}>
+      <Text style={styles.listToolText}>{showCompleted?"Απόκρυψη ολοκληρωμένων":"Εμφάνιση όλων"}</Text>
+    </Pressable>
+    {checked>0&&<Pressable accessibilityRole="button" onPress={confirmClearCompleted}
+      style={styles.listToolButton}>
+      <Text style={styles.clearToolText}>Καθαρισμός ολοκληρωμένων</Text>
+    </Pressable>}
+  </View>
   <Pressable accessibilityRole="button" onPress={()=>void share()}
     disabled={!visible.some(i=>!i.completed)}
     style={[styles.shareButton,!visible.some(i=>!i.completed)&&{opacity:.5}]}>
@@ -140,8 +171,8 @@ export default function CompanionListsScreen(){
   </Pressable>
   <View style={styles.list}>
    {visible.length===0?<View style={styles.empty}>
-     <Text style={styles.emptyTitle}>Η λίστα είναι ακόμη άδεια.</Text>
-     <Text style={styles.sub}>Πρόσθεσε το πρώτο σου προϊόν.</Text>
+     <Text style={styles.emptyTitle}>{allForKind.length?"Δεν υπάρχουν εκκρεμή προϊόντα.":"Η λίστα είναι ακόμη άδεια."}</Text>
+     <Text style={styles.sub}>{allForKind.length?"Πάτησε «Εμφάνιση όλων» για να δεις τα ολοκληρωμένα είδη.":"Πρόσθεσε το πρώτο σου προϊόν."}</Text>
     </View>:
     visible.map(item=><View key={item.id} style={styles.item}>
      <View style={styles.itemRow}>
@@ -203,6 +234,10 @@ const styles=StyleSheet.create({
  add:{flex:1,backgroundColor:theme.green,padding:14,borderRadius:12,alignItems:"center",justifyContent:"center"},
  addText:{color:theme.white,fontWeight:"800"},
  count:{fontSize:14,color:theme.muted,fontWeight:"700"},
+ listTools:{gap:9,alignItems:"flex-start"},
+ listToolButton:{paddingVertical:7,paddingHorizontal:12,borderWidth:1,borderRadius:10,borderColor:theme.border,backgroundColor:theme.white},
+ listToolText:{fontSize:13,color:theme.green,fontWeight:"700"},
+ clearToolText:{fontSize:13,color:"#A54536",fontWeight:"700"},
  list:{gap:10},
  item:{backgroundColor:theme.white,borderRadius:15,borderWidth:1,borderColor:theme.border,paddingBottom:10},
  itemRow:{flexDirection:"row",alignItems:"center",gap:7,paddingHorizontal:11,paddingTop:9},
