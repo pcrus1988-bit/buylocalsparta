@@ -386,7 +386,7 @@ export function PosoKaneiPublicClient(){
             <summary>💡 Φθηνότερες μάρκες για {labels[result.lineId]||"προϊόν"} ({result.alternatives.length})</summary>
             <p>Ίδια λεπτομερής κατηγορία και περιγραφή προϊόντος. Σύγκριση του κόστους για τη ζητούμενη ποσότητα, με ολόκληρες συσκευασίες και μόνο τις επιλεγμένες αλυσίδες. Έλεγξε τα χαρακτηριστικά πριν αντικαταστήσεις.</p>
             {result.alternatives.map(a=><div className={styles.suggestionLine} key={a.id}>
-              <span><strong>{a.name}</strong><small>{a.retailerName} · {a.packageCount} συσκ. × {money(a.priceEur)} = {money(a.candidateTotalEur)}</small><small>Έναντι {money(a.originalTotalEur)} · λιγότερα {money(a.savingsEur)} ({a.savingPercent}%)</small></span>
+              <span><strong>{a.name}</strong><small>{a.retailerName} · {a.packageCount} συσκ. × {money(a.priceEur)} = {money(a.candidateTotalEur)}</small><small>Έναντι {money(a.originalTotalEur)} · λιγότερα {money(a.savingsEur)} ({a.savingPercent}%)</small><small>{a.approvalMethod==="automatic_commodity"?"Αυτόματη έγκριση τύπου · έλεγξε συστατικά / αλλεργιογόνα":"Χειροκίνητα ελεγμένος τύπος"}</small></span>
               <button type="button" className={styles.secondary} onClick={()=>chooseCheaper(result.lineId,a)}>Αντικατάσταση μάρκας</button>
             </div>)}
             <small>Ενδεικτικές καταγεγραμμένες τιμές αλυσίδων · η τελική εξοικονόμηση εξαρτάται από το συνολικό σχέδιο αγορών.</small>
