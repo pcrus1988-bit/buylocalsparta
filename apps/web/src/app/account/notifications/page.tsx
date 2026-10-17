@@ -21,9 +21,10 @@ export default async function AccountNotificationsPage() {
     <div className="announcement">Όλες οι σημαντικές αλλαγές του λογαριασμού σου σε ένα σημείο.</div>
     <SiteHeader compact />
     <AccountSectionNavigation />
-    <section className="shell customer-account-page" style={{paddingBottom:0}}>
-      <CartRecoveryPreferenceToggle initialEnabled={cartRecoveryEnabled} csrfToken={dashboard.csrfToken} />
-    </section>
     <AccountNotificationsClient initial={dashboard.notifications} csrfToken={dashboard.csrfToken} />
+    <details className="shell account-subpage-settings">
+      <summary>Ρυθμίσεις ειδοποιήσεων</summary>
+      <div><CartRecoveryPreferenceToggle initialEnabled={cartRecoveryEnabled} csrfToken={dashboard.csrfToken} /></div>
+    </details>
   </main>;
 }

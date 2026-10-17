@@ -38,7 +38,7 @@ const services: readonly Tile[] = [
   { title: "Ask Local", subtitle: "Ρώτησε την τοπική αγορά", href: "/account/ask-local", icon: "chat", featured: true },
   { title: "Try On Me", subtitle: "Δοκίμασε ρούχα ψηφιακά", href: "/account/try-on", icon: "sparkle" },
   { title: "Ραντεβού", subtitle: "Οι κρατήσεις σου", href: "/account/appointments", icon: "calendar" },
-  { title: "Έγγραφα", subtitle: "Αποδείξεις & αρχεία", href: "/account/documents", icon: "document" },
+  { title: "Έγγραφα", subtitle: "Οδηγοί έργων & PDF", href: "/account/documents", icon: "document" },
   { title: "Δωροκάρτες", subtitle: "Υπόλοιπα & δώρα", href: "/account/gift-cards", icon: "gift" },
   { title: "Αποθηκευμένα", subtitle: "Αναζητήσεις & ειδοποιήσεις", href: "/account/saved", icon: "bookmark" }
 ];

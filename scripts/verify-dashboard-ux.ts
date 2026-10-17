@@ -67,6 +67,24 @@ for (const requirement of [".compactDashboardIntro", ".priorityGrid", ".trackerC
 const accountHubStyles = read("apps/web/src/components/AccountHomeHub.module.css");
 for (const requirement of [".tileGrid", ".tileIcon", ".stats", ".section", "focus-visible", "@media (max-width:740px)", "prefers-reduced-motion"]) if (!accountHubStyles.includes(requirement)) failures.push(`Responsive account hub styles are missing ${requirement}`);
 
+// Customer subpages share one visual system without changing account data/actions.
+for (const requirement of ["navLocation", "navCurrent", "navNearby", "aria-current", "navDisclosure"]) if (!accountNav.includes(requirement)) failures.push(`Customer subpage navigation is missing ${requirement}`);
+const customerPolish = read("apps/web/src/app/customer-subpages-polish.css");
+for (const requirement of [".customer-page-heading", ".customer-account-panel", ".customer-order-card", ".customer-notification-item", ".customer-address-card", ".account-gift-card", ".account-saved-page", "@media(max-width:640px)", "prefers-reduced-motion"]) if (!customerPolish.includes(requirement)) failures.push(`Customer subpage polish is missing ${requirement}`);
+if (!read("apps/web/src/app/layout.tsx").includes('import "./customer-subpages-polish.css"')) failures.push("Customer subpage CSS not loaded in root layout");
+const giftCardPage = read("apps/web/src/app/account/gift-cards/page.tsx");
+for (const requirement of ["account-app", "AccountSectionNavigation", "SiteHeader", "/login?next=/account/gift-cards", "GiftCardWalletClient"]) if (!giftCardPage.includes(requirement)) failures.push(`Gift card customer shell is missing ${requirement}`);
+if (giftCardPage.includes('className="vendor-app"')) failures.push("Gift cards must not render inside the vendor workspace shell");
+const giftCardWallet = read("apps/web/src/components/GiftCardWalletClient.tsx");
+for (const requirement of ["account-gift-wallet", "account-gift-list", "account-gift-card", "account-empty", 'type="submit"', "x-csrf-token"]) if (!giftCardWallet.includes(requirement)) failures.push(`Customer gift card wallet is missing ${requirement}`);
+const deliveryPage = read("apps/web/src/app/account/delivery/page.tsx");
+for (const requirement of ["account-app", "AccountSectionNavigation", "CustomerDeliveryWorkspaceClient", "/account/orders"]) if (!deliveryPage.includes(requirement)) failures.push(`Delivery account page is missing ${requirement}`);
+const notificationPage = read("apps/web/src/app/account/notifications/page.tsx");
+for (const requirement of ["AccountNotificationsClient", "account-subpage-settings", "CartRecoveryPreferenceToggle"]) if (!notificationPage.includes(requirement)) failures.push(`Notification inbox preferences are missing ${requirement}`);
+const ordersPage = read("apps/web/src/app/account/orders/page.tsx");
+if (!ordersPage.includes('className="filter-count"')) failures.push("Customer order filters are missing result counts");
+if (!read("apps/web/src/app/account/orders/[id]/page.tsx").includes("account-app account-order-page")) failures.push("Customer order detail is not in shared account shell");
+
 const vendorIaCss = read("apps/web/src/app/vendor-information-architecture.css");
 for (const requirement of [".vendor-settings-grid", ".vendor-subpage-back", ".vendor-app .workspace-page-metrics", ".vendor-app .workspace-form-actions", "@media(max-width:620px)", "Complete vendor mobile workspace pass", "height: 100dvh", "min-height: 52px", "overflow-x: clip", "grid-template-columns: 1fr"]) if (!vendorIaCss.includes(requirement)) failures.push(`Vendor subpage polish is missing ${requirement}`);
 

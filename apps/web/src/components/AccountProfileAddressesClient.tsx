@@ -70,7 +70,7 @@ export function AccountProfileAddressesClient({ initialProfile, initialAccount, 
     finally { setBusy(""); }
   }
 
-  return <section className="shell customer-account-page">
+  return <section className="shell customer-account-page customer-profile-page">
     <div className="customer-page-heading"><div><div className="eyebrow">Τα στοιχεία μου</div><h1>Προφίλ & διευθύνσεις</h1></div><p>Διαχειρίσου τα προσωπικά στοιχεία, τη γλώσσα και τις διευθύνσεις που χρησιμοποιούνται στην εμπειρία αγοράς.</p></div>
     {error && <p className="account-action-error" role="alert">{error}</p>}
     {success && <p className="privacy-status" role="status">{success}</p>}
