@@ -251,3 +251,40 @@ for (const scenarioKey of traceabilityScenarios) {
     assert.ok(layers.has("KONTA_MOU_RULE"));
   });
 }
+
+
+test("quantity calculation uses verified m²/kg manufacturer coverage for fillers", () => {
+  const quantity = calculateBuildQuantity(syntheticGuidance({
+    manufacturer_guidance: {
+      source_layer: "MANUFACTURER_VITEX",
+      status: "verified",
+      quantity_inputs_available: true,
+      application_profile: {
+        consumption_value_min: 2,
+        consumption_value_max: 3,
+        consumption_unit: "m²/kg"
+      }
+    }
+  }), 10);
+  assert.equal(quantity.status, "available");
+  assert.equal(quantity.unit, "kg");
+  assert.equal(quantity.min, 3.33);
+  assert.equal(quantity.max, 5);
+  assert.match(quantity.basisEl, /m²\/kg/);
+});
+
+test("quantity calculation fails closed for unknown consumption unit", () => {
+  const quantity = calculateBuildQuantity(syntheticGuidance({
+    manufacturer_guidance: {
+      source_layer: "MANUFACTURER_VITEX",
+      status: "verified",
+      quantity_inputs_available: true,
+      application_profile: {
+        consumption_value_min: 2,
+        consumption_value_max: 3,
+        consumption_unit: "bucket"
+      }
+    }
+  }), 10);
+  assert.equal(quantity.status, "missing_manufacturer_values");
+});
