@@ -4,6 +4,15 @@ Production-oriented implementation of the **Buy Local Sparta** human-first, mult
 
 > **Buy Local. Know Your Vendor. Get Real Advice.**
 
+## Current product directions and documentation (10 October 2026)
+
+The **Build 0.45** sections below are retained as a historical release description, **not** a complete inventory of the much later work in this repository. The codebase also includes the KONTA MOY Research / Survey ecosystem, a marketplace Admin Tax / AADE myDATA Control Center, KONTA MOY Daily, Sport & Fit Studio and multiple vendor/catalogue integrations. Inspect each area's routes, migrations, tests and its dedicated documentation before making claims about deployment or completeness.
+
+- **Research / Retail Observatory:** `docs/RESEARCH_SURVEY_ECOSYSTEM.md` documents the governed study/wave, frozen frame, pilot/main isolation, consent/suppression, SES invitation and publication evidence chain. Public/admin implementations exist under `apps/web/src/app/research` and `apps/web/src/app/admin/research`. Operational sends, SES quota/reputation state and live study counts are **not** established by this README and require fresh evidence.
+- **Existing marketplace tax functions:** `docs/admin-tax-control-center.md` and `docs/MYDATA_ERP_RUNBOOK.md` cover the marketplace `/admin/tax` and AADE-related code. Provider or accounting production readiness is independently gated.
+- **New independent product direction — KONTA MOY FISCAL:** `docs/KONTA_MOY_FISCAL_PLAN.md` records the requirement for independently licensed `/timologio` and a separate `/timologio-admin`, maintaining existing super Admin access and optionally integrating with the marketplace. B2C, B2B, B2G and POS advance in parallel over a shared fiscal domain. **These standalone routes are planned, not implemented in the inspected main tree.**
+- **Project continuity:** `docs/PROJECT_STATUS.md` identifies its historical Build 0.45 baseline and points to newer workstream-specific sources. Do not infer a production release merely from merged source or a checklist.
+
 ## Build 0.45.0
 
 Build 0.45.0 closes the merchant-visual gap left by Build 0.44 without weakening the media-governance model. `/shops` and `/vendor/[id]` now prefer approved merchant photography when a Vendor-approved published merchant story explicitly references an eligible Vendor-owned media asset; the existing generated merchant artwork remains the fallback when no governed photo is available. The public media stream independently revalidates Vendor activity, story publication/approval, media ownership, non-product scope, malware scan, rights approval, moderation approval and reviewed object metadata on every read.

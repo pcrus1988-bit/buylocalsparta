@@ -1,10 +1,30 @@
 # Buy Local Sparta — Project Status
 
 **Build started:** 14 August 2026
-**Current development build:** 0.45.0
+**Documented legacy release baseline:** 0.45.0 (the later repository workstreams are not reflected in this build number)
 **Continuity source:** this Git repository. Future work must inspect and preserve the existing implementation before modification.
 
-This file is the current-state continuity record. Detailed historical implementation notes remain in the versioned `docs/BUILD_*.md` reports and provider/deployment runbooks.
+This file preserves the Build 0.45 continuity baseline. It is **not** an exhaustive current implementation, deployment or provider-activation report. Detailed historical notes remain in versioned `docs/BUILD_*.md` reports and provider/deployment runbooks. Later workstream references appear below.
+
+## Current documentation checkpoint — 10 October 2026
+
+This section corrects the scope of the historical Build 0.45 snapshot without retroactively marking older provider gates complete. The `main` branch inspected for this checkpoint had latest commit `8e714c12f4b85a11eda89c76850c7ada42eca510` (8 October 2026). **Source presence does not prove production deployment, service health, provider approval, legal compliance or a live customer flow.**
+
+| Workstream | Grounded code / documentation | Current document interpretation |
+| --- | --- | --- |
+| Marketplace & merchant operations | Existing storefront, `/vendor`, `/admin`, `/daily`; see this file and `docs/KONTA_MOY_DAILY_OPERATIONS.md` | Several more recent capabilities exist beyond Build 0.45; verify runtime and release before declaring active |
+| Research / Retail Observatory | `apps/web/src/app/admin/research`; `docs/RESEARCH_SURVEY_ECOSYSTEM.md`; SES event/webhook code | Governed study/fieldwork infrastructure is represented in code; invitation delivery, live figures and SES quota/reputation are operational checks, not static documentation facts |
+| Marketplace fiscal + AADE | `/admin/tax`, `packages/aade-mydata`, `docs/admin-tax-control-center.md` | Existing marketplace fiscal machinery and fail-closed policy; not proof of universal statutory issuance eligibility |
+| **KONTA MOY FISCAL (standalone)** | `docs/KONTA_MOY_FISCAL_PLAN.md` | **New approved product direction; not implemented by documentation alone.** Independent `/timologio`, dedicated `/timologio-admin`, existing super Admin access, optional marketplace connector, shared B2C/B2B/B2G/POS engine |
+| Product intelligence and catalogue | `/sport-fit-studio`, `docs/sport-fit-knowledge-model.md`, XML feed, supplier integrations | Present in repository; data quality, completeness and live performance need separate evidence |
+
+### Immediate documentation and engineering priorities
+
+1. Treat the older 0.45 checklists as build-scoped, not an assertion that current `main` contains only 37 migrations or 210 tests.
+2. For fiscal work, follow `docs/KONTA_MOY_FISCAL_PLAN.md`: reuse AADE/tax infrastructure, **first establish independent tenancy and issuer/series boundaries**, then implement B2C, B2B, B2G and POS tracks in parallel behind independent legal/provider gates.
+3. Keep `/timologio-admin` distinct from marketplace `/admin` while retaining explicitly authorized KONTA MOY super Admin access; do not collapse role/tenant permissions.
+4. Track Research invitation dispatch, opt-out and SES reputation/quotas in live auditable operations. Do not encode variable campaign counts in the project README.
+5. Update completion evidence only after reviewing exact code, schema migration, relevant tests, deployment status and provider approvals.
 
 ## Build 0.45.0 — governed merchant photography
 
