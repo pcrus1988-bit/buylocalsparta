@@ -14,6 +14,15 @@ import { getSeoGlobalSettingsSnapshot } from "../../../../lib/seo-settings";
 
 type BazaarProductPageProps = Readonly<{ params: Promise<{ slug: string }> }>;
 
+export const revalidate = 300;
+export const dynamicParams = true;
+
+export function generateStaticParams() {
+  // BAZAAR stock is discovery data; product eligibility is revalidated again at
+  // cart/checkout, so on-demand ISR is safe and avoids a database render per view.
+  return [];
+}
+
 function euro(minor: number): string {
   return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
 }

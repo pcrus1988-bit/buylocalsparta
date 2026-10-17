@@ -245,34 +245,50 @@ export default async function ShopsPage({ searchParams }: Props) {
                 </div>
 
                 <div className="shops-grid">
-                  {researchGroups.map((group) => (
-                    <details className="shop-card" key={group.slug} open={expandResearchGroups}>
-                      <summary className="shop-card-body">
-                        <span className="eyebrow">Κατηγορία · {group.vendors.length} {group.vendors.length === 1 ? "επιχείρηση" : "επιχειρήσεις"}</span>
-                        <span style={{ fontFamily: "Georgia, serif", fontSize: "28px", lineHeight: 1.08, margin: "8px 0 10px" }}>{group.label}</span>
-                        <span className="shop-card-copy">Χαρτογραφημένες τοπικές επιχειρήσεις που δεν έχουν ακόμη ενεργοποιηθεί ως συνεργάτες.</span>
-                        <span className="text-link">{expandResearchGroups ? "Σχετικά αποτελέσματα ↓" : "Άνοιγμα κατηγορίας ↓"}</span>
-                      </summary>
-                      <div className="shop-card-body">
-                        <div className="shop-meta">
-                          {group.vendors.map((vendor) => {
-                            const taxonomy = vendor.taxonomies.find((entry) => entry.categorySlug === group.slug) ?? vendor.taxonomies[0];
-                            const label = taxonomy?.subcategoryLabel ?? vendor.location?.locality ?? "Τοπική επιχείρηση";
-                            return (
-                              <div className="shop-meta-row" key={vendor.id}>
-                                <span>{label}</span>
-                                <strong><a className="text-link" href={`/vendor/${encodeURIComponent(vendor.slug)}`}>{vendor.name} →</a></strong>
-                              </div>
-                            );
-                          })}
+                  {researchGroups.map((group) => {
+                    const categoryHref = `/shops?category=${encodeURIComponent(group.slug)}&status=research`;
+                    if (!expandResearchGroups) {
+                      return (
+                        <article className="shop-card" key={group.slug}>
+                          <div className="shop-card-body">
+                            <span className="eyebrow">Κατηγορία · {group.vendors.length} {group.vendors.length === 1 ? "επιχείρηση" : "επιχειρήσεις"}</span>
+                            <span style={{ fontFamily: "Georgia, serif", fontSize: "28px", lineHeight: 1.08, margin: "8px 0 10px" }}>{group.label}</span>
+                            <span className="shop-card-copy">Χαρτογραφημένες τοπικές επιχειρήσεις που δεν έχουν ακόμη ενεργοποιηθεί ως συνεργάτες.</span>
+                            <a className="text-link" href={categoryHref}>Άνοιγμα κατηγορίας →</a>
+                          </div>
+                        </article>
+                      );
+                    }
+
+                    return (
+                      <details className="shop-card" key={group.slug} open>
+                        <summary className="shop-card-body">
+                          <span className="eyebrow">Κατηγορία · {group.vendors.length} {group.vendors.length === 1 ? "επιχείρηση" : "επιχειρήσεις"}</span>
+                          <span style={{ fontFamily: "Georgia, serif", fontSize: "28px", lineHeight: 1.08, margin: "8px 0 10px" }}>{group.label}</span>
+                          <span className="shop-card-copy">Χαρτογραφημένες τοπικές επιχειρήσεις που ταιριάζουν στην τρέχουσα επιλογή.</span>
+                          <span className="text-link">Σχετικά αποτελέσματα ↓</span>
+                        </summary>
+                        <div className="shop-card-body">
+                          <div className="shop-meta">
+                            {group.vendors.map((vendor) => {
+                              const taxonomy = vendor.taxonomies.find((entry) => entry.categorySlug === group.slug) ?? vendor.taxonomies[0];
+                              const label = taxonomy?.subcategoryLabel ?? vendor.location?.locality ?? "Τοπική επιχείρηση";
+                              return (
+                                <div className="shop-meta-row" key={vendor.id}>
+                                  <span>{label}</span>
+                                  <strong><a className="text-link" href={`/vendor/${encodeURIComponent(vendor.slug)}`}>{vendor.name} →</a></strong>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="shop-card-action">
+                            <small>Δημόσιες καταχωρίσεις · δεν παρουσιάζονται ως ενεργοί συνεργάτες</small>
+                            <a className="text-link" href={categoryHref}>Σταθερό φίλτρο κατηγορίας →</a>
+                          </div>
                         </div>
-                        <div className="shop-card-action">
-                          <small>Δημόσιες καταχωρίσεις · δεν παρουσιάζονται ως ενεργοί συνεργάτες</small>
-                          <a className="text-link" href={`/shops?category=${encodeURIComponent(group.slug)}&status=research`}>Φίλτρο κατηγορίας →</a>
-                        </div>
-                      </div>
-                    </details>
-                  ))}
+                      </details>
+                    );
+                  })}
                 </div>
               </div>
             )}
