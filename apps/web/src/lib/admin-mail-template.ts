@@ -8,12 +8,13 @@ export function renderAdminMailHtml(input: {
   format: AdminMailFormat;
   text: string;
   html?: string;
+  locale?: "el" | "en";
 }): string | undefined {
   if (input.format === "plain") return undefined;
   const body = input.format === "html"
     ? validateCustomMailHtml(input.html ?? "")
     : plainTextToEmailHtml(input.text);
-  return wrapKontaMouMailHtml(body);
+  return wrapKontaMouMailHtml(body, input.locale || "el");
 }
 
 export function validateCustomMailHtml(html: string): string {
@@ -47,9 +48,9 @@ export function plainTextToEmailHtml(text: string): string {
   }).join("\n");
 }
 
-export function wrapKontaMouMailHtml(innerBody: string): string {
+export function wrapKontaMouMailHtml(innerBody: string, locale: "el" | "en" = "el"): string {
   return [
-    '<!doctype html><html lang="el"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>KONTA MOY</title></head>',
+    '<!doctype html><html lang="' + locale + '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>KONTA MOY</title></head>',
     '<body style="margin:0;padding:0;background:#f4f6f3;color:#19382c;font-family:Arial,Helvetica,sans-serif">',
     '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#f4f6f3"><tr><td align="center" style="padding:32px 14px">',
     '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:640px;background:#fff;border:1px solid #dce5df;border-radius:18px;overflow:hidden">',
@@ -59,7 +60,7 @@ export function wrapKontaMouMailHtml(innerBody: string): string {
     '<tr><td style="padding:34px 32px;font-size:15px;line-height:1.75;color:#223a2d;overflow-wrap:anywhere">',
     innerBody,
     '</td></tr><tr><td style="border-top:1px solid #e3e9e4;padding:24px 32px;background:#f8faf8;color:#566d5e;font-size:12px;line-height:1.6">',
-    '<strong style="color:#173e2a;font-size:14px">KONTA MOY</strong><br>Τοπικές επιχειρήσεις. Περισσότερες δυνατότητες.<br>',
+    '<strong style="color:#173e2a;font-size:14px">KONTA MOY</strong><br>' + (locale === "en" ? "Local businesses. More possibilities." : "Τοπικές επιχειρήσεις. Περισσότερες δυνατότητες.") + '<br>',
     '<a href="https://kontamou.site" style="color:#17684e;text-decoration:underline">www.kontamou.site</a><br>',
     '<span style="color:#768679">Developed in Sparta for Greece</span></td></tr></table></td></tr></table></body></html>'
   ].join("\n");
