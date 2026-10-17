@@ -30,7 +30,7 @@ const tally = (items: ReadonlyArray<{ status: string }>, status:string) => items
 export default async function ResearchPressOfficePage({searchParams}: {searchParams:SearchParams}) {
   const principal = await getAdminSession();
   if(!principal) redirect("/admin/login");
-  if(!hasAdminPermission(principal,"research.read")) redirect("/admin");
+  if(!hasAdminPermission(principal,"research.publish.manage")) redirect("/admin");
   const editable = hasAdminPermission(principal,"research.publish.manage");
   const params = await searchParams;
   const id = one(params.id);
