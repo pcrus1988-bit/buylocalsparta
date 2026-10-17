@@ -193,7 +193,7 @@ export function CustomerSupportClient({ csrfToken, initialCases, ready, readines
           <div className="customer-support-case-head"><div><span className="eyebrow">{item.referenceNumber}</span><h2>{item.subject}</h2><small>{CATEGORY_LABELS[item.category]} · ενημέρωση {formatDate(item.updatedAt)}</small></div><span className={`status-pill${item.status === "waiting_customer" ? " warning" : ""}`}>{STATUS_LABELS[item.status]}</span></div>
           {item.contextType && <div className="customer-support-context is-compact"><strong>{CONTEXT_LABELS[item.contextType]}</strong>{item.contextReference && <span>{item.contextReference}</span>}</div>}
           <CustomerLifecycle label={`Πορεία ${item.referenceNumber}`} stages={lifecycle(item.status)} />
-          <details className="account-support-conversation" defaultOpen={item.status === "waiting_customer" || cases.length === 1}><summary>Συνομιλία & απάντηση <span>{item.messages.length} {item.messages.length === 1 ? "μήνυμα" : "μηνύματα"}</span></summary>
+          <details className="account-support-conversation" open={item.status === "waiting_customer" || cases.length === 1}><summary>Συνομιλία & απάντηση <span>{item.messages.length} {item.messages.length === 1 ? "μήνυμα" : "μηνύματα"}</span></summary>
           <div className="customer-support-thread" aria-label={`Συνομιλία ${item.referenceNumber}`}>
             {item.messages.map((entry, index) => <div className={`customer-support-message is-${entry.sender}`} key={`${entry.sender}:${entry.createdAt}:${index}`}><div><strong>{entry.sender === "customer" ? "Εσύ" : "Ομάδα ΚΟΝΤΑ ΜΟΥ"}</strong><small>{formatDate(entry.createdAt)}</small></div><p>{entry.body}</p></div>)}
           </div>
