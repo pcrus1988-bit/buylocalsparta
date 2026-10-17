@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import styles from "./AccountHomeHub.module.css";
 
@@ -61,11 +62,11 @@ function Section({ id, eyebrow, title, description, items }: { id: string; eyebr
   </section>;
 }
 
-export function AccountHomeHub({ activeOrders, unreadNotifications, savedProducts, savedSearches }: { activeOrders: number; unreadNotifications: number; savedProducts: number; savedSearches: number }) {
+export function AccountHomeHub({ activeOrders, unreadNotifications, savedProducts, savedSearches, children }: { activeOrders: number; unreadNotifications: number; savedProducts: number; savedSearches: number; children?: ReactNode }) {
   return <div className={`shell ${styles.hub}`}>
     <div className={styles.overview}>
-      <div><span className={styles.eyebrow}>Ο λογαριασμός μου</span><h2>Τι θέλεις να κάνεις <span>σήμερα;</span></h2><p>Οι πιο σημαντικές ενέργειες και η δραστηριότητά σου, χωρίς περιττά μενού.</p></div>
-      <Link className={styles.browseLink} href="/shop">Ανακάλυψε προϊόντα <span aria-hidden="true">↗</span></Link>
+      <div><span className={styles.eyebrow}>Ο προσωπικός σου χώρος</span><h1>Ο λογαριασμός μου</h1><p>Οι αγορές σου, οι ενημερώσεις και οι υπηρεσίες του ΚΟΝΤΑ ΜΟΥ, όλα σε ένα σημείο.</p></div>
+      <Link className={styles.browseLink} href="/shop">Συνέχισε τις αγορές <span aria-hidden="true">↗</span></Link>
     </div>
     <div className={styles.stats} aria-label="Η δραστηριότητά σου">
       <Link href="/account/orders" className={styles.stat}><span><TileIcon name="orders" /> Ενεργές παραγγελίες</span><strong>{activeOrders}</strong></Link>
@@ -73,6 +74,7 @@ export function AccountHomeHub({ activeOrders, unreadNotifications, savedProduct
       <Link href="/account/wishlist" className={styles.stat}><span><TileIcon name="heart" /> Αγαπημένα</span><strong>{savedProducts}</strong></Link>
       <Link href="/account/saved" className={styles.stat}><span><TileIcon name="bookmark" /> Αναζητήσεις</span><strong>{savedSearches}</strong></Link>
     </div>
+    {children && <div className={styles.focus} aria-label="Σημαντικά για εσένα">{children}</div>}
     <Section id="account-shopping" eyebrow="01 / Αγορές" title="Οι αγορές μου" description="Όσα αγοράζεις, θέλεις και παρακολουθείς." items={shopping} />
     <Section id="account-services" eyebrow="02 / Υπηρεσίες" title="Ανακάλυψε περισσότερα" description="Οι χρήσιμες δυνατότητες του ΚΟΝΤΑ ΜΟΥ." items={services} />
     <Section id="account-settings" eyebrow="03 / Λογαριασμός" title="Προσωπικά & ρυθμίσεις" description="Ο λογαριασμός σου, πάντα υπό τον έλεγχό σου." items={settings} />
