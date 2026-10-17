@@ -46,7 +46,6 @@ export function PressEditorFields(props: Readonly<{
     el:selected.recipients.filter(a=>selected.recipient_languages[a]==="el").length,
     en:selected.recipients.filter(a=>selected.recipient_languages[a]==="en").length
   } : null);
-  const activeAttachmentName=lang==="el"?props.attachmentName:props.attachmentNameEn;
   const changeCsv=async(file:File|undefined)=>{
     if(!file){setCsvPreview(emptyPreview);return;}
     setSelectedList("");
@@ -174,6 +173,16 @@ export function PressEditorFields(props: Readonly<{
           </tr>)}</tbody>
         </table></div>}
       </div>}
+      {props.recipients.length>0 && <details className="press-recipients-detail">
+        <summary>Review saved recipient addresses and their languages ({props.recipients.length})</summary>
+        <div className="press-delivery-table-wrap"><table>
+          <thead><tr><th>Email</th><th>Language</th></tr></thead>
+          <tbody>{props.recipients.map(email=><tr key={email}>
+            <td>{email}</td>
+            <td>{props.recipientLanguages[email]==="el"?"🇬🇷 Greek":props.recipientLanguages[email]==="en"?"🇬🇧 English":"⚠ Missing language"}</td>
+          </tr>)}</tbody>
+        </table></div>
+      </details>}
       {!editable && <p className="press-help">Contact addresses are locked for this release.</p>}
       <p className="press-help">Accepted values for language: el/en or Greek/English. Supports comma- or semicolon-separated CSV, quoted fields and UTF-8 BOM. Limit 500 contacts per release.</p>
     </section>
