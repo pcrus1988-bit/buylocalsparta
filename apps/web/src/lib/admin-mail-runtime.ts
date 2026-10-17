@@ -486,6 +486,7 @@ export async function sendAdminMail(
     text: string;
     html?: string;
     format?: AdminMailFormat;
+    locale?: "el" | "en";
     inReplyToId?: string;
     attachments?: readonly File[];
   }
@@ -506,7 +507,7 @@ export async function sendAdminMail(
   if (text.length > 500_000) throw new Error("Message body is too large");
   // The same pure renderer powers the browser preview and outgoing MIME.
   // For custom HTML, it validates the fragment before persisting or sending.
-  const html = renderAdminMailHtml({ format, text, html: input.html });
+  const html = renderAdminMailHtml({ format, text, html: input.html, locale: input.locale });
 
   const attachments = await normalizeOutgoingAttachments(input.attachments || []);
   const pool = getProductionPostgresRuntime().sqlPool;

@@ -43,6 +43,7 @@ export default async function ResearchSurveysAdminPage() {
         <div className="hero-actions">
           <Link prefetch={false} className="button" href="/admin/research/handbook">Admin handbook · Start here</Link>
           <Link prefetch={false} className="button button-secondary" href="/admin/research/settings">Global Research settings</Link>
+          <Link prefetch={false} className="button button-secondary" href="/admin/research/press">Press Releases · Γραφείο Τύπου</Link>
         </div>
       </div>
     </section>

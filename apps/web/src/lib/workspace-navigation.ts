@@ -240,6 +240,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     description: "Survey control center, fieldwork, consent, evidence και publication",
     links: [
       { label: "Survey Control Center", href: "/admin/research/surveys", icon: "◌", permission: "research.read" },
+      { label: "Press Releases", href: "/admin/research/press", icon: "✉", permission: "research.publish.manage" },
       { label: "Admin handbook", href: "/admin/research/handbook", icon: "▤", permission: "research.read" },
       { label: "Global settings", href: "/admin/research/settings", icon: "⚙", permission: "research.read" }
     ]
