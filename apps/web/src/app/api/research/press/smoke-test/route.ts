@@ -26,7 +26,7 @@ export async function POST(request:Request){
   const db=getProductionPostgresRuntime().sqlPool;
   const subject="[INTERNAL TEST] KONTA MOY Press Office — SES delivery verification";
   const html="<p>This is one authorized internal KONTA MOY Press Office delivery test.</p><p>No media campaign has been distributed. The provider delivery receipt will be checked separately.</p>";
-  let saved:{id:string}[];
+  let saved:readonly {id:string}[];
   try{
     saved=(await db.query<{id:string}>(`
       INSERT INTO public.research_press_releases (
