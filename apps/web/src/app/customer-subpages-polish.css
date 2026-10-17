@@ -1,0 +1,135 @@
+/* Account subpages: calm hierarchy, high-contrast actions and a consistent card system. */
+.account-app {
+  --account-green:#234a37;
+  --account-green-dark:#173629;
+  --account-leaf:#e9f3e7;
+  --account-line:#e0e8dc;
+  --account-text:#254336;
+  --account-muted:#5d7168;
+  --account-card:#fff;
+}
+.account-app .customer-account-page { padding-top:20px; padding-bottom:30px; }
+.account-app .customer-page-heading {
+  position:relative; display:flex; gap:22px; align-items:flex-end; justify-content:space-between;
+  padding:23px 25px; border:1px solid var(--account-line); border-radius:23px;
+  background:radial-gradient(circle at 95% -25%,rgba(180,206,168,.36),transparent 44%),linear-gradient(125deg,#fff,#f7fbf5);
+  margin:0 0 18px; box-shadow:0 10px 24px rgba(24,48,39,.035);
+}
+.account-app .customer-page-heading .eyebrow { color:#527350; font-weight:900; }
+.account-app .customer-page-heading h1 { font-size:clamp(27px,3.3vw,42px);line-height:1.13;letter-spacing:-.035em;max-width:690px;color:var(--account-green-dark); }
+.account-app .customer-page-heading h2 { font-size:clamp(22px,2.5vw,30px);line-height:1.2;color:var(--account-green-dark);letter-spacing:-.025em; }
+.account-app .customer-page-heading p { font-size:13px;line-height:1.6;color:var(--account-muted);max-width:440px; }
+.account-app .customer-account-panel,.account-app .customer-order-card,
+.account-app .customer-session-card,.account-app .customer-support-case,
+.account-app .account-live-card { border:1px solid var(--account-line);border-radius:20px;background:var(--account-card);box-shadow:0 8px 24px rgba(24,48,39,.045); }
+.account-app .customer-account-panel { padding:22px; }
+.account-app .customer-account-panel h2 { font-size:clamp(20px,2.3vw,26px);color:var(--account-green-dark);letter-spacing:-.025em; }
+.account-app .customer-account-grid { gap:16px;align-items:start; }
+.account-app .customer-profile-page .customer-account-grid,
+.account-app .customer-security-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.account-app .account-saved-page .customer-account-grid { grid-template-columns:minmax(0,1.12fr) minmax(290px,.88fr); }
+.account-app .customer-account-panel-row { flex-wrap:wrap;overflow-wrap:anywhere; }
+.account-app .customer-account-panel-row > span { overflow-wrap:anywhere; }
+.account-app .customer-address-card,
+.account-app .customer-saved-product-card,
+.account-app .customer-saved-search-card { border:1px solid var(--account-line);border-radius:16px;background:linear-gradient(155deg,#fff,#fbfcfa);box-shadow:0 3px 12px rgba(24,48,39,.025); }
+.account-app .customer-address-card { padding:17px; }
+.account-app .customer-address-card h3 { color:var(--account-green-dark); }
+.account-app .customer-address-grid { grid-template-columns:1fr 1fr; }
+.account-app .customer-saved-product-list { gap:12px; }
+.account-app .customer-saved-product-card { padding:16px; }
+.account-app .customer-product-alert-option { background:#f8fbf7;border-color:var(--account-line);border-radius:13px; }
+.account-app .customer-product-alert-option:has(input:checked) { border-color:#7ba57d;background:#edf6ec; }
+.account-app .customer-saved-product-head a,
+.account-app .customer-order-card-head a { color:var(--account-green-dark);text-decoration-thickness:1px;text-underline-offset:3px; }
+.account-app .customer-order-directory { gap:13px;padding-bottom:52px; }
+.account-app .customer-order-card { padding:21px; }
+.account-app .customer-order-card-status { background:var(--account-leaf);color:var(--account-green); }
+.account-app .customer-order-card-lines span { background:#f0f5ed;color:#4f6557; }
+.account-app .customer-filter-tabs { gap:8px;scrollbar-width:thin;scrollbar-color:#c0d5bc transparent; }
+.account-app .customer-filter-tabs a,.account-app .customer-filter-tabs button {
+  min-height:44px;padding:0 15px;border:1px solid #d5e2d1;border-radius:999px;
+  background:#fff;color:var(--account-green);transition:background .15s ease,border-color .15s ease;
+}
+.account-app .customer-filter-tabs .is-active,
+.account-app .customer-filter-tabs [aria-pressed="true"] {
+  background:var(--account-green);border-color:var(--account-green);color:#fff;
+}
+.account-app .customer-filter-tabs a:hover:not(.is-active),
+.account-app .customer-filter-tabs button:hover:not(.is-active) { background:#edf6ed; }
+.account-app .customer-filter-tabs .filter-count { display:inline-flex;justify-content:center;align-items:center;min-width:23px;padding:2px 6px;margin-left:7px;border-radius:10px;background:#eef4ed;color:#45684c;font-size:11px;font-variant-numeric:tabular-nums; }
+.account-app .customer-filter-tabs .is-active .filter-count {background:rgba(255,255,255,.2);color:#fff;}
+.account-app .customer-notification-item { gap:14px;padding:17px;border:1px solid var(--account-line);border-radius:15px;margin:9px 0;background:#fbfefb; }
+.account-app .customer-notification-item.is-read { background:#fff; }
+.account-app .customer-notification-dot { background:#507e59;width:10px;height:10px; }
+.account-app .customer-notification-item.is-read .customer-notification-dot { background:#ccd7cb; }
+.account-app .customer-notification-copy strong {color:var(--account-green-dark); }
+.account-app .customer-notification-list {gap:4px;}
+.account-app .customer-account-panel .button,
+.account-app .customer-order-card .button,
+.account-app .customer-account-panel .text-button,
+.account-app .customer-account-panel .text-link,
+.account-app .customer-notification-actions button {min-height:40px;}
+.account-app .customer-account-panel :is(input:not([type="checkbox"]),select,textarea),
+.account-app .customer-profile-form :is(input,select),.account-app .customer-security-form input {
+  border-color:#d1dfd0;border-radius:12px;background:#fff;
+}
+.account-app :is(input,select,textarea,button,a,summary):focus-visible {outline:3px solid #599067;outline-offset:3px;}
+.account-app .customer-account-panel :is(input:not([type="checkbox"]),select,textarea):focus-visible {border-color:#52835d;}
+.account-app .account-empty,.account-app .empty-state {padding:28px 22px;border-radius:17px;border:1px dashed #c6d7c3;background:#f7faf5;text-align:left;}
+.account-app .account-empty h2,.account-app .empty-state h2 {color:var(--account-green-dark);}
+.account-app .customer-how-it-works {border-color:#dde8d8;border-radius:14px;background:#f8faf5; }
+.account-app .customer-how-it-works>summary {min-height:44px;padding:9px 14px;color:var(--account-green);}
+.account-app .customer-how-it-works>div {color:var(--account-muted);}
+.account-app .customer-sessions-page {padding-top:12px; }
+.account-app .customer-session-toolbar {border:1px solid var(--account-line);border-radius:17px; }
+.account-app .customer-session-card.is-current {border-color:#699676;background:#f9fdf9;}
+.account-app .customer-account-panel-list {min-width:0;}
+.account-app .customer-security-pending {background:#f5f9f3;border-color:var(--account-line);}
+.account-app .customer-support-page .customer-account-panel {min-width:0;}
+.account-app .account-subpage-settings {margin-top:0;margin-bottom:48px;border:1px solid var(--account-line);border-radius:19px;background:#fff;overflow:hidden;}
+.account-app .account-subpage-settings > summary {padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;list-style:none;color:var(--account-green-dark);font-weight:850;}
+.account-app .account-subpage-settings > summary::-webkit-details-marker {display:none;}
+.account-app .account-subpage-settings > summary::after {content:"⌄";font-size:19px;}
+.account-app .account-subpage-settings[open] > summary::after {transform:rotate(180deg);}
+.account-app .account-subpage-settings > div {padding:0 18px 16px;}
+.account-app .account-gift-wallet {display:grid;grid-template-columns:1fr;gap:16px;padding-bottom:60px;}
+.account-app .account-gift-claim {padding:24px;border:1px solid var(--account-line);border-radius:21px;background:linear-gradient(135deg,#f4faf2,#fff);}
+.account-app .account-gift-claim h2 {margin:0 0 7px;color:var(--account-green-dark);font-size:24px;}
+.account-app .account-gift-claim p {color:var(--account-muted);font-size:13px;}
+.account-app .account-gift-claim form {display:flex;gap:10px;margin-top:17px;flex-wrap:wrap;}
+.account-app .account-gift-claim input {min-height:47px;flex:1 1 240px;width:100%;max-width:490px;border:1px solid #c9dbc8;border-radius:13px;padding:0 14px;font:inherit;font-size:15px;}
+.account-app .account-gift-claim .button {min-height:47px;border-radius:13px;}
+.account-app .account-gift-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;}
+.account-app .account-gift-card {padding:23px;border:1px solid #c5d9c0;border-radius:20px;background:linear-gradient(150deg,#244b39,#37644e);color:#fff;min-width:0;box-shadow:0 13px 28px rgba(35,74,55,.12);}
+.account-app .account-gift-card h3 {margin:0;font-size:17px;color:#fff;letter-spacing:.01em;}
+.account-app .account-gift-card small {font-size:12px;color:#d8e8d7;}
+.account-app .account-gift-card .status-pill {background:#e9f3e7;color:#244b39;}
+.account-app .account-gift-balance {display:block;font-size:32px;font-weight:900;font-variant-numeric:tabular-nums;margin:21px 0 4px;}
+.account-app .account-gift-meta {display:flex;flex-wrap:wrap;gap:8px 17px;color:#e4f1e4;font-size:12px;}
+.account-app .account-gift-claim .account-gift-status {font-size:13px;font-weight:750;}
+@media(max-width:960px) {
+ .account-app .customer-profile-page .customer-account-grid,
+ .account-app .customer-security-grid,
+ .account-app .account-saved-page .customer-account-grid {grid-template-columns:1fr;}
+ .account-app .customer-address-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:640px) {
+ .account-app .customer-account-page {padding-top:13px;padding-bottom:26px;}
+ .account-app .customer-page-heading {flex-direction:column;align-items:flex-start;gap:10px;padding:18px 17px;border-radius:18px;}
+ .account-app .customer-page-heading h1 {font-size:clamp(27px,8vw,35px);}
+ .account-app .customer-page-heading p {max-width:100%;}
+ .account-app .customer-account-panel,.account-app .customer-order-card {padding:16px;}
+ .account-app .customer-address-grid,.account-app .account-gift-list {grid-template-columns:1fr;}
+ .account-app .customer-order-card-actions {justify-content:stretch;flex-direction:column;}
+ .account-app .customer-order-card-actions .button {width:100%;}
+ .account-app .customer-account-panel .account-card-head {align-items:flex-start;flex-wrap:wrap;}
+ .account-app .customer-account-panel .account-card-head .button {width:100%;}
+ .account-app .customer-account-panel .customer-account-panel-row {gap:10px;}
+ .account-app .account-gift-claim {padding:18px;}
+ .account-app .account-gift-claim form button {width:100%;}
+ .account-app .customer-notification-item {padding:12px;gap:8px;}
+ .account-app .customer-notification-actions {grid-column:2;display:flex;gap:8px;flex-wrap:wrap;}
+ .account-app .customer-session-list {grid-template-columns:1fr;}
+}
+@media(prefers-reduced-motion:reduce) {.account-app .customer-filter-tabs a,.account-app .customer-filter-tabs button{transition:none;}}
