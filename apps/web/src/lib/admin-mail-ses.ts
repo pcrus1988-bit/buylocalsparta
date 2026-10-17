@@ -119,6 +119,61 @@ export async function sendRawSesEmail(input: {
   }
 }
 
+
+export type SesAccountSendingStatus = Readonly<{
+  productionAccess:boolean;
+  sendingEnabled:boolean;
+  enforcementStatus:string;
+  reviewStatus:string|null;
+  max24HourSend:number|null;
+  sentLast24Hours:number|null;
+  canSendToUnverifiedRecipients:boolean;
+}>;
+
+/** Read-only authoritative SES v2 GetAccount call. A successful send to a verified
+ * internal mailbox alone does not prove production sending rights. */
+export async function getSesAccountSendingStatus(config:SesMailConfig):Promise<SesAccountSendingStatus> {
+  if(config.region!=="eu-north-1")throw new Error("SES account must be checked in eu-north-1");
+  const endpoint=new URL(config.endpoint||`https://email.${config.region}.amazonaws.com`);
+  endpoint.pathname="/v2/email/account";endpoint.search="";
+  const headers=signAwsRequest({
+    method:"GET",url:endpoint,body:"",region:config.region,service:"ses",
+    accessKeyId:config.accessKeyId,secretAccessKey:config.secretAccessKey,
+    sessionToken:config.sessionToken,contentType:"application/json"
+  });
+  const abort=new AbortController();
+  const timer=setTimeout(()=>abort.abort(),Math.min(config.timeoutMs,6000));
+  try{
+    const result=await fetch(endpoint,{method:"GET",headers,cache:"no-store",
+      redirect:"error",signal:abort.signal});
+    if(!result.ok){
+      // Do not leak AWS payloads, credentials, or internal error details.
+      throw new Error(`SES GetAccount unavailable (HTTP ${result.status}); verify ses:GetAccount IAM permission.`);
+    }
+    const data=await result.json() as Record<string,unknown>;
+    const details=(data.Details&&typeof data.Details==="object")?
+      data.Details as Record<string,unknown>:{};
+    const review=(details.ReviewDetails&&typeof details.ReviewDetails==="object")?
+      details.ReviewDetails as Record<string,unknown>:{};
+    const quota=(data.SendQuota&&typeof data.SendQuota==="object")?
+      data.SendQuota as Record<string,unknown>:{};
+    const enforcement=typeof data.EnforcementStatus==="string"?data.EnforcementStatus:"UNKNOWN";
+    const productionAccess=data.ProductionAccessEnabled===true;
+    const sendingEnabled=data.SendingEnabled===true;
+    const reviewStatus=typeof review.Status==="string"?review.Status:null;
+    const max24HourSend=typeof quota.Max24HourSend==="number"?quota.Max24HourSend:null;
+    const sentLast24Hours=typeof quota.SentLast24Hours==="number"?quota.SentLast24Hours:null;
+    const withinQuota=max24HourSend===null||sentLast24Hours===null||
+      sentLast24Hours<max24HourSend;
+    return {
+      productionAccess,sendingEnabled,enforcementStatus:enforcement,reviewStatus,
+      max24HourSend,sentLast24Hours,
+      canSendToUnverifiedRecipients:productionAccess&&sendingEnabled&&
+        enforcement==="HEALTHY"&&withinQuota
+    };
+  }finally{clearTimeout(timer);}
+}
+
 function signAwsRequest(input: {
   method: string;
   url: URL;

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { assertAdminCsrf, assertAdminPermission, recordAdminAudit } from "../../../../lib/admin-runtime";
 import {
-  dispatchPressBatch, preparePressRelease, savePressList, savePressRelease,
+  deletePressDraft, dispatchPressBatch, preparePressRelease, savePressList, savePressRelease,
   sendPressTest, suppressPressRecipient
 } from "../../../../lib/research-press-office";
 
@@ -118,4 +118,20 @@ export async function dispatchPressAction(form: FormData): Promise<void> {
     if (error && typeof error==="object" && "digest" in error && String(error.digest).startsWith("NEXT_REDIRECT")) throw error;
     err(error,id);
   }
+}
+
+/** Hard-confirmed CSRF-protected deletion. Never applies to prepared or sent campaigns. */
+export async function deletePressDraftAction(form:FormData):Promise<void> {
+  const id=str(form.get("id"));
+  try {
+    const p=await principal(form);
+    if(str(form.get("confirmation"))!=="DELETE")
+      throw new Error("Type DELETE to permanently delete this draft.");
+    await deletePressDraft(p,id);
+    await recordAdminAudit(p,"research.press.draft.deleted","research_press_release",id,
+      "Deleted unsent draft; no delivery records existed",{id});
+  } catch(error) {err(error,id);}
+  revalidatePath(path);
+  revalidatePath(path+"/reports");
+  redirect(url(undefined,"notice","deleted"));
 }

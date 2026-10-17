@@ -2,6 +2,7 @@ import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { assertAdminPermission, recordAdminAudit } from "./admin-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { sendAdminMail } from "./admin-mail-runtime";
+import {getSesAccountSendingStatus,sesMailConfigFromEnv} from "./admin-mail-ses";
 import { validateCustomMailHtml } from "./admin-mail-template";
 import { pressHtmlFragment } from "./research-press-template";
 import { combinePressContacts, contactsFromLanguages, parsePressCsv, validatePressEmail,
@@ -198,6 +199,22 @@ export async function savePressRelease(principal: SessionPrincipal, input: {
   return inserted.rows[0].id;
 }
 
+/** Deletes only unsent drafts. A prepared or attempted campaign remains immutable for audit. */
+export async function deletePressDraft(principal:SessionPrincipal,id:string):Promise<void> {
+  assertAdminPermission(principal,"research.publish.manage");
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    throw new Error("Invalid press draft.");
+  const deleted=await pool().query<{id:string}>(`
+    DELETE FROM public.research_press_releases AS r
+    WHERE r.id=$1 AND r.status='draft'
+      AND NOT EXISTS (
+        SELECT 1 FROM public.research_press_deliveries d WHERE d.release_id=r.id
+      )
+    RETURNING r.id`,[id]);
+  if(!deleted.rows.length)
+    throw new Error("Only an unsent draft can be deleted. Prepared or sent campaigns are preserved.");
+}
+
 export async function savePressList(principal: SessionPrincipal, name: string, csv: File): Promise<string> {
   assertAdminPermission(principal, "research.publish.manage");
   const safeName=name.replace(/[\r\n\x00-\x1f\x7f]/g," ").trim();
@@ -311,6 +328,12 @@ export async function dispatchPressBatch(principal:SessionPrincipal,id:string):P
   assertAdminPermission(principal,"research.publish.manage");
   if(process.env.BLS_PRESS_SENDING_ENABLED!=="true")
     throw new Error("Live press delivery disabled until SES approval and BLS_PRESS_SENDING_ENABLED=true.");
+  // Fail closed. A single accepted test email does NOT prove permission to email
+  // unverified media recipients; check authoritative SES account state per batch.
+  const aws=await getSesAccountSendingStatus(sesMailConfigFromEnv());
+  if(!aws.canSendToUnverifiedRecipients){
+    throw new Error("AWS SES does not currently authorize live press outreach in eu-north-1 (production access, sending, reputation or daily quota). No messages sent.");
+  }
   const db=pool();
   const release=(await db.query<PressRelease>(
     "SELECT * FROM public.research_press_releases WHERE id=$1 AND status IN ('prepared','sending') LIMIT 1",[id]
