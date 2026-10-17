@@ -2,6 +2,7 @@ import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { assertAdminPermission, recordAdminAudit } from "./admin-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { sendAdminMail } from "./admin-mail-runtime";
+import {getSesAccountSendingStatus,sesMailConfigFromEnv} from "./admin-mail-ses";
 import { validateCustomMailHtml } from "./admin-mail-template";
 import { pressHtmlFragment } from "./research-press-template";
 import { combinePressContacts, contactsFromLanguages, parsePressCsv, validatePressEmail,
@@ -327,6 +328,12 @@ export async function dispatchPressBatch(principal:SessionPrincipal,id:string):P
   assertAdminPermission(principal,"research.publish.manage");
   if(process.env.BLS_PRESS_SENDING_ENABLED!=="true")
     throw new Error("Live press delivery disabled until SES approval and BLS_PRESS_SENDING_ENABLED=true.");
+  // Fail closed. A single accepted test email does NOT prove permission to email
+  // unverified media recipients; check authoritative SES account state per batch.
+  const aws=await getSesAccountSendingStatus(sesMailConfigFromEnv());
+  if(!aws.canSendToUnverifiedRecipients){
+    throw new Error("AWS SES does not currently authorize live press outreach in eu-north-1 (production access, sending, reputation or daily quota). No messages sent.");
+  }
   const db=pool();
   const release=(await db.query<PressRelease>(
     "SELECT * FROM public.research_press_releases WHERE id=$1 AND status IN ('prepared','sending') LIMIT 1",[id]
