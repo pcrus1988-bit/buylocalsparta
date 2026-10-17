@@ -19,7 +19,7 @@ import { RESEARCH_SURVEY_ADMIN_SECTIONS, ResearchSurveyAdminNav, type ResearchSu
 import { WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../../../lib/admin-session";
-import { researchQualityReviewQueue } from "../../../../../../lib/research-survey-quality";
+import { researchQualityReviewPendingCount, researchQualityReviewQueue } from "../../../../../../lib/research-survey-quality";
 import { researchSurveyDesignAdminOverview } from "../../../../../../lib/research-survey-admin-design";
 import {
   researchDeliveryDelayQueue,
@@ -299,12 +299,15 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
           </div>}
     </section>;
   } else if (section === "quality") {
-    const queue = await researchQualityReviewQueue(principal, study.slug);
+    const [queue, queueTotal] = await Promise.all([
+      researchQualityReviewQueue(principal, study.slug),
+      researchQualityReviewPendingCount(principal, study.slug)
+    ]);
     content = <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Quality" title="Response QA" note="Only the manual quality-review queue is loaded here." />
       {canManage
-        ? <ResearchStudyQualityControls slug={study.slug} csrfToken={principal.csrfToken} initialItems={queue} />
-        : <div className="workspace-inline-note">{queue.length} item(s) currently require review. Resolution requires Research management permission.</div>}
+        ? <ResearchStudyQualityControls slug={study.slug} csrfToken={principal.csrfToken} initialItems={queue} initialTotal={queueTotal} />
+        : <div className="workspace-inline-note">{queueTotal} item(s) currently require review. Resolution requires Research management permission.</div>}
     </section>;
   } else if (section === "protocol") {
     const events = await researchProtocolEvents(principal, study.slug);
