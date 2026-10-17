@@ -123,32 +123,29 @@ export function AccountDashboardClient({ initial, setup }: { initial: Dashboard;
     {error && <div className="shell account-action-error" role="alert"><strong>Η ενέργεια δεν ολοκληρώθηκε.</strong><span>{error}</span><button type="button" onClick={() => setError("")} aria-label="Κλείσιμο μηνύματος">×</button></div>}
 
     <AccountHomeHub activeOrders={activeOrders.length} unreadNotifications={data.unreadNotifications} savedProducts={data.savedProducts.length} savedSearches={data.savedSearches.length}>
-    {latestActiveOrder && <section className={`${styles.priorityGrid} ${styles.priorityGridSolo}`} aria-label="Ενεργή παραγγελία">
-      <article className={`${styles.priorityCard} ${styles.trackerCard}`} id="order-tracking">
-        <div className={styles.priorityHead}>
-          <div><span className={styles.priorityKicker}>Τελευταία ενεργή παραγγελία</span><h2>{latestActiveOrder.referenceNumber}</h2></div>
-          <span className={styles.priorityStatus}>{latestActiveOrder.status}</span>
-        </div>
-        <div className={styles.orderMeta}><span>{date(latestActiveOrder.createdAt)}</span><span>{modeLabel(latestActiveOrder.fulfilmentMode)}</span><strong>{latestActiveOrder.total}</strong></div>
-        <CustomerLifecycle label={`Πορεία ${latestActiveOrder.referenceNumber}`} stages={customerOrderLifecycle(latestActiveOrder.status, latestActiveOrder.fulfilmentMode)} />
-        <div className={styles.priorityActions}>
-          <Link className={styles.primaryPriorityAction} href={`/account/orders/${latestActiveOrder.id}`}>Δες την πορεία της παραγγελίας</Link>
-          <Link className={styles.secondaryPriorityAction} href="/account/orders">Όλες οι παραγγελίες</Link>
-        </div>
-      </article>
-    </section>}
+      {attentionCount > 0 && <section className="customer-overview-attention" id="overview" aria-labelledby="customer-attention-title">
+            <div className="customer-overview-attention-head"><div><div className="eyebrow">Τώρα</div><h2 id="customer-attention-title">Χρειάζεται κάτι από εσένα</h2></div><p>Οι ενημερώσεις και οι παραγγελίες που χρειάζονται την προσοχή σου.</p></div>
+            <div className="customer-action-stack">
+              {attentionOrders.slice(0, 3).map((order) => <CustomerActionCard key={order.id} tone="action" title={`${order.referenceNumber} · ${order.status}`} body={orderAttentionBody(order.status)} href={`/account/orders/${order.id}`} action={orderAttentionAction(order.status)} />)}
+              {data.unreadNotifications > 0 && <CustomerActionCard tone="action" title={`${data.unreadNotifications} ${data.unreadNotifications === 1 ? "νέα ειδοποίηση" : "νέες ειδοποιήσεις"}`} body="Δες τι άλλαξε στις παραγγελίες, τα αιτήματα και τον λογαριασμό σου." href="/account/notifications" action="Δες ειδοποιήσεις" />}
+              {attentionOrders.length > 3 && <Link className="text-link" href="/account/orders">Δες και τις υπόλοιπες παραγγελίες που χρειάζονται ενέργεια →</Link>}
+            </div>
+          </section>}
 
-
-
-    {attentionCount > 0 && <section className="customer-overview-attention" id="overview" aria-labelledby="customer-attention-title">
-      <div className="customer-overview-attention-head"><div><div className="eyebrow">Τώρα</div><h2 id="customer-attention-title">"Χρειάζεται κάτι από εσένα"</h2></div><p>"Οι ενημερώσεις και οι παραγγελίες που χρειάζονται την προσοχή σου."</p></div>
-      <div className="customer-action-stack">
-        {attentionOrders.slice(0, 3).map((order) => <CustomerActionCard key={order.id} tone="action" title={`${order.referenceNumber} · ${order.status}`} body={orderAttentionBody(order.status)} href={`/account/orders/${order.id}`} action={orderAttentionAction(order.status)} />)}
-        {data.unreadNotifications > 0 && <CustomerActionCard tone="action" title={`${data.unreadNotifications} ${data.unreadNotifications === 1 ? "νέα ειδοποίηση" : "νέες ειδοποιήσεις"}`} body="Δες τι άλλαξε στις παραγγελίες, τα αιτήματα και τον λογαριασμό σου." href="/account/notifications" action="Δες ειδοποιήσεις" />}
-        {attentionOrders.length > 3 && <Link className="text-link" href="/account/orders">Δες και τις υπόλοιπες παραγγελίες που χρειάζονται ενέργεια →</Link>}
-      </div>
-    </section>}
-
+      {latestActiveOrder && <section className={`${styles.priorityGrid} ${styles.priorityGridSolo}`} aria-label="Ενεργή παραγγελία">
+            <article className={`${styles.priorityCard} ${styles.trackerCard}`} id="order-tracking">
+              <div className={styles.priorityHead}>
+                <div><span className={styles.priorityKicker}>Τελευταία ενεργή παραγγελία</span><h2>{latestActiveOrder.referenceNumber}</h2></div>
+                <span className={styles.priorityStatus}>{latestActiveOrder.status}</span>
+              </div>
+              <div className={styles.orderMeta}><span>{date(latestActiveOrder.createdAt)}</span><span>{modeLabel(latestActiveOrder.fulfilmentMode)}</span><strong>{latestActiveOrder.total}</strong></div>
+              <CustomerLifecycle label={`Πορεία ${latestActiveOrder.referenceNumber}`} stages={customerOrderLifecycle(latestActiveOrder.status, latestActiveOrder.fulfilmentMode)} />
+              <div className={styles.priorityActions}>
+                <Link className={styles.primaryPriorityAction} href={`/account/orders/${latestActiveOrder.id}`}>Δες την πορεία της παραγγελίας</Link>
+                <Link className={styles.secondaryPriorityAction} href="/account/orders">Όλες οι παραγγελίες</Link>
+              </div>
+            </article>
+          </section>}
 
       <CustomerAccountSetupChecklist setup={setup} embedded />
     </AccountHomeHub>
