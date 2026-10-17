@@ -110,12 +110,12 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
   }
 
   return <>
-    <section className="shell ask-local-workspace ask-local-premium-workspace">
+    <section id="new-ask-local" className="shell ask-local-workspace ask-local-premium-workspace account-ask-local-workspace" aria-labelledby="new-ask-local-title">
       <form className="ask-local-live-form ask-local-premium-form" onSubmit={submit}>
-        <div className="ask-local-full ask-local-form-heading"><div className="eyebrow">Νέο Ask Local</div><h2>Πες το όπως το σκέφτεσαι.</h2><p>Δεν χρειάζεται να γράψεις «σωστά». Περιέγραψε τι θέλεις, το πρόβλημα που προσπαθείς να λύσεις ή δείξε μας το αντικείμενο.</p><div className="ask-local-input-modes"><span>✍️ Κείμενο</span><span>🎤 Φωνή</span><span>📷 Φωτογραφία</span><span>▥ Barcode</span></div></div>
+        <div className="ask-local-full ask-local-form-heading"><div className="eyebrow">Νέο Ask Local</div><h2 id="new-ask-local-title">Πες μας τι χρειάζεσαι</h2><p>Δεν χρειάζεται να γράψεις «σωστά». Περιέγραψε τι θέλεις, το πρόβλημα που προσπαθείς να λύσεις ή δείξε μας το αντικείμενο.</p><div className="ask-local-input-modes"><span>✍️ Κείμενο</span><span>🎤 Φωνή</span><span>📷 Φωτογραφία</span><span>▥ Barcode</span></div></div>
         <label className="ask-local-full ask-local-main-question"><span>Τι ψάχνεις;</span><textarea name="need" maxLength={2000} defaultValue={context.need} placeholder="π.χ. Έσπασε αυτό το μικρό πλαστικό εξάρτημα από το πλυντήριο και δεν ξέρω πώς λέγεται. Μπορώ να ανεβάσω φωτογραφία." /><small>Όσο πιο φυσικά το περιγράψεις, τόσο καλύτερα. Δεν χρειάζεται τεχνική ορολογία.</small></label>
         <AskLocalRichCapture key={captureResetKey} />
-        <label><span>Ταχυδρομικός κώδικας</span><input name="postcode" inputMode="numeric" pattern="[0-9]{5}" maxLength={5} defaultValue="23100" required /></label>
+        <label><span>Ταχυδρομικός κώδικας</span><input name="postcode" inputMode="numeric" pattern="[0-9]{5}" maxLength={5} placeholder="π.χ. 23100" autoComplete="postal-code" required /></label>
         <label><span>Ποσότητα</span><input name="quantity" type="number" min={1} max={99} defaultValue={1} required /></label>
         <label><span>Κατηγορία (προαιρετικά)</span><input name="category" maxLength={100} placeholder="π.χ. ανταλλακτικό, παιχνίδι, εργαλείο" /></label>
         <label><span>Σύνδεσμος αναφοράς</span><input name="sourceUrl" type="url" maxLength={2000} defaultValue={context.sourceUrl} placeholder="https://…" /></label>
@@ -126,8 +126,8 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
         <div className="ask-local-submit-wrap ask-local-full"><button className="button ask-local-submit" disabled={busy} type="submit">{busy ? "Αποστολή…" : "Ρώτησε την τοπική αγορά"}</button><small>Το αίτημα δεν δημοσιεύεται δημόσια. Θα το βλέπεις μόνο εσύ και οι εξουσιοδοτημένοι χειριστές του.</small></div>
       </form>
     </section>
-    <section className="shell section ask-local-requests-section" aria-labelledby="requests-title">
-      <div className="section-heading"><div><div className="eyebrow">Τα αιτήματά μου</div><h2 id="requests-title">Από την ερώτηση μέχρι τη λύση.</h2></div><p className="section-note">Κάθε αίτημα έχει τη δική του ιδιωτική πορεία: ανάθεση, διευκρινίσεις, προσφορά, απόφαση και — όταν είναι έτοιμο — αγορά.</p></div>
+    <section id="my-ask-local" className="shell section ask-local-requests-section" aria-labelledby="requests-title">
+      <div className="section-heading"><div><div className="eyebrow">Τα αιτήματά μου</div><h2 id="requests-title">Τα αιτήματά μου <span className="account-inline-count">{requests.length}</span></h2></div><p className="section-note">Κάθε αίτημα έχει τη δική του ιδιωτική πορεία: ανάθεση, διευκρινίσεις, προσφορά, απόφαση και — όταν είναι έτοιμο — αγορά.</p></div>
       {requests.length ? <div className="ask-request-list">{requests.map((request) => <article className="ask-request-card" key={request.referenceNumber}>
         <div className="ask-request-head"><div><strong>{request.referenceNumber}</strong><small>{date(request.createdAt)}</small></div><span className="status-pill">{labels[request.status] ?? request.status}</span></div>
         <p>{request.need}</p>

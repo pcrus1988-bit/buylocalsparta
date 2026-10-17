@@ -1,0 +1,121 @@
+/* Final customer subpage pass — scoped to signed-in account pages. */
+.account-app .account-service-intro {padding-bottom:12px!important;}
+.account-app .account-service-intro .customer-page-heading {margin-bottom:13px;}
+.account-subpage-jumps {display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:6px 0 10px;}
+.account-subpage-jumps a {display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:9px 15px;border:1px solid #d7e5d3;border-radius:12px;background:#fff;color:#2b583e;font-size:13px;line-height:1.4;font-weight:850;transition:background .15s ease,box-shadow .15s ease;}
+.account-subpage-jumps a:hover {background:#edf6ec;box-shadow:0 5px 15px rgba(32,75,53,.08);}
+.account-subpage-jumps a.account-jump-primary {background:#28563e;border-color:#28563e;color:#fff;}
+.account-subpage-jumps a.account-jump-primary:hover {background:#346f4e;}
+.account-subpage-count {display:inline-flex;align-items:center;font-weight:800;font-size:12px;color:#62776b;margin-left:auto;white-space:nowrap;}
+.account-inline-count {font-size:14px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;min-width:29px;min-height:29px;padding:3px 8px;border-radius:999px;background:#eaf3e6;color:#3f6a49;vertical-align:middle;}
+.account-app :is(#new-ask-local,#my-ask-local,#book-account-appointment,#my-account-appointments,#account-support-new,#account-support-my-cases,#account-privacy-preferences,#account-privacy-cookies,#account-privacy-request,#account-privacy-history){scroll-margin-top:24px;}
+.account-app .account-ask-local-workspace {padding-top:14px;}
+.account-app .account-ask-local-workspace .ask-local-premium-form {border:1px solid #dbe7d9;border-radius:21px;padding:24px;background:#fff;box-shadow:0 9px 27px rgba(24,48,39,.045);}
+.account-app .ask-local-form-heading {padding-bottom:16px;border-color:#e1e9dd;}
+.account-app .ask-local-form-heading h2 {font-size:clamp(24px,3vw,35px);letter-spacing:-.03em;color:#173629;}
+.account-app .ask-local-form-heading p {font-size:13px;line-height:1.5;margin:6px 0;}
+.account-app .ask-local-input-modes {margin-top:12px;}
+.account-app .ask-local-input-modes span {font-size:11px;padding:8px 11px;background:#eff6ec;color:#325c3e;}
+.account-app .ask-local-main-question textarea {font-size:16px;min-height:126px;line-height:1.5;background:#fbfdf9;border-color:#cbdcc8;}
+.account-app .ask-local-premium-form label>span {color:#264732;font-size:13px;}
+.account-app .ask-local-premium-form input {min-height:46px;border-color:#d5e3d1;}
+.account-app .ask-local-capture-panel {background:#f8faf5;border-color:#dce8d7;}
+.account-app .ask-local-submit {min-height:47px;border-radius:12px;}
+.account-app .ask-local-action-center {padding-top:14px;}
+.account-app .ask-local-action-panel {border-radius:19px;border-color:#e4d3ac;background:#fffcf3;}
+.account-app .ask-local-action-panel h2 {font-size:clamp(22px,2.4vw,29px);}
+.account-app .ask-local-requests-section {padding-top:26px;padding-bottom:54px;}
+.account-app .ask-local-requests-section .section-heading h2 {font-size:clamp(22px,2.7vw,33px);color:#173629;}
+.account-app .ask-request-card {background:#fff;border:1px solid #dbe8da!important;border-radius:20px!important;box-shadow:0 7px 21px rgba(24,48,39,.04)!important;}
+.account-app .ask-request-head {border-color:#e1ebdf;}
+.account-app .ask-request-meta {flex-wrap:wrap;}
+.account-app .customer-account-stats {gap:12px;}
+.account-app .account-appointment-metrics {padding-top:0!important;padding-bottom:4px;}
+.account-app .customer-account-stats article {border:1px solid #dce9d8;border-radius:17px;background:#fff;box-shadow:0 5px 16px rgba(24,48,39,.035);}
+.account-app .customer-account-stats strong {color:#28563e;font-variant-numeric:tabular-nums;}
+.account-app .account-appointment-booking {padding-top:18px;}
+.account-app .account-appointment-booking .customer-page-heading,
+.account-app .account-appointment-list .customer-page-heading {margin-bottom:13px;}
+.account-app .account-appointment-booking .customer-preferences-form {border:1px solid #dce7d8;border-radius:20px;background:#fff;padding:23px;box-shadow:0 8px 24px rgba(24,48,39,.04);}
+.account-app .account-appointment-booking :is(input,select,textarea) {border:1px solid #cfdfcc;border-radius:12px;background:#fff;min-height:45px;max-width:100%;}
+.account-app .account-appointment-booking textarea {min-height:100px;}
+.account-app .account-appointment-booking .button {min-height:47px;}
+.account-app .account-appointment-list .workspace-queue-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;}
+.account-app .account-appointment-list .workspace-queue-card {border:1px solid #deeadb;border-radius:19px;background:#fff;box-shadow:0 6px 20px rgba(24,48,39,.045);min-width:0;}
+.account-app .account-appointment-list .workspace-queue-card .workspace-queue-head {align-items:flex-start;}
+.account-app .account-appointment-list .workspace-tool-panel {border-radius:14px;}
+.account-app .account-appointment-list .workspace-tool-body {max-width:100%;min-width:0;}
+.account-app .account-documents-page {padding-bottom:70px;}
+.account-app .account-documents-toolbar {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:19px;}
+.account-app .account-documents-total {display:flex;align-items:center;gap:12px;}
+.account-app .account-documents-total>div {display:grid;gap:3px;}
+.account-app .account-documents-total strong {font-size:26px;line-height:1;color:#1c4934;}
+.account-app .account-documents-total small {font-size:12px;color:#68806d;}
+.account-app .account-documents-icon {flex:none;display:grid;place-items:center;width:46px;height:46px;border-radius:14px;border:1px solid #d6e6d1;background:#eaf4e8;color:#306549;}
+.account-app .account-documents-icon svg {width:24px;height:24px;}
+.account-app .account-documents-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
+.account-app .account-document-card {min-width:0;display:flex;flex-direction:column;gap:11px;border-radius:20px;border:1px solid #dce8d8;background:#fff;padding:20px;box-shadow:0 9px 25px rgba(24,48,39,.045);}
+.account-app .account-document-card-top {display:flex;justify-content:space-between;gap:12px;align-items:flex-start;}
+.account-app .account-document-type {padding:6px 10px;font-size:11px;font-weight:900;color:#366145;background:#f0f7ee;border-radius:999px;line-height:1.4;}
+.account-app .account-document-card h2 {margin:3px 0 0;color:#173629;font-size:20px;line-height:1.25;overflow-wrap:anywhere;}
+.account-app .account-document-card p {font-size:12px;line-height:1.6;color:#607668;margin:0;}
+.account-app .account-document-card>small {font-size:11px;color:#61776b;}
+.account-app .account-document-download {display:inline-flex;justify-content:center;align-items:center;gap:9px;margin-top:auto;min-height:45px;border-radius:12px;}
+.account-app .account-documents-empty {padding:34px 26px;border:1px dashed #c9ddc4;border-radius:22px;background:#f7fbf5;display:grid;justify-items:start;gap:13px;}
+.account-app .account-documents-empty h2 {color:#173629;font-size:23px;margin:0;}
+.account-app .account-documents-empty p {max-width:580px;font-size:13px;line-height:1.6;color:#5c7063;margin:0;}
+.account-app .account-privacy-intro {padding-bottom:12px;}
+.account-app .account-privacy-policy-link {min-height:41px;display:inline-flex;align-items:center;padding:8px 0;color:#365f43;font-weight:800;text-underline-offset:4px;font-size:12px;}
+.account-app .account-privacy-summary {margin-top:8px;}
+.account-app .account-privacy-card {scroll-margin-top:24px;border:1px solid #dce9d8;border-radius:20px;background:#fff;min-width:0;}
+.account-app .account-privacy-card h2 {color:#173629;font-size:clamp(21px,2.3vw,28px);}
+.account-app .account-privacy-card .workspace-form-grid {min-width:0;}
+.account-app .account-privacy-card :is(input:not([type=checkbox]),textarea,select) {min-width:0;max-width:100%;border-radius:11px;border-color:#d0e0cd;}
+.account-app .account-privacy-card .preference-row {gap:12px;}
+.account-app .account-privacy-card .preference-row input {width:20px;height:20px;accent-color:#326746;flex:none;}
+.account-app .account-privacy-card .order-row {border-color:#e4eee1;}
+.account-app .account-privacy-card .order-total {overflow-wrap:anywhere;}
+.account-app .customer-support-layout {gap:15px;grid-template-columns:minmax(0,.83fr) minmax(0,1.17fr);}
+.account-app .customer-support-new-case {position:sticky;top:18px;}
+.account-app .customer-support-summary {padding:12px 15px;border:1px solid #dce9d9;border-radius:14px;background:#f5faf2;color:#214733;}
+.account-app .customer-support-case {padding:18px;}
+.account-app .customer-support-case-head h2 {font-size:19px;line-height:1.3;}
+.account-app .account-support-conversation {margin-top:6px;border:1px solid #e0ebdb;border-radius:13px;background:#fafdf9;overflow:hidden;}
+.account-app .account-support-conversation>summary {display:flex;justify-content:space-between;align-items:center;gap:10px;list-style:none;cursor:pointer;min-height:46px;padding:11px 14px;font-weight:850;color:#2d5940;font-size:12px;}
+.account-app .account-support-conversation>summary::-webkit-details-marker {display:none;}
+.account-app .account-support-conversation>summary::after {content:"⌄";font-size:17px;}
+.account-app .account-support-conversation[open]>summary::after {content:"⌃";}
+.account-app .account-support-conversation>summary span {margin-left:auto;font-size:11px;color:#6b8172;font-weight:700;}
+.account-app .account-support-conversation .customer-support-thread {padding:14px 12px;}
+.account-app .account-support-conversation .customer-support-reply {padding:12px;border-top:1px solid #e0ebdb;}
+.account-app .customer-support-message.is-customer {background:#e9f4e6;border-color:#d1e3cf;}
+.account-app .customer-support-message.is-support {background:#fff;border-color:#dfebdb;}
+.account-app .customer-support-new-case .customer-security-form {gap:12px;}
+.account-app .customer-support-new-case .customer-security-form .button {min-height:47px;}
+@media(max-width:1080px) {
+ .account-app .account-documents-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+ .account-app .customer-support-layout {grid-template-columns:1fr;}
+ .account-app .customer-support-new-case {position:static;}
+}
+@media(max-width:850px){.account-app .account-appointment-list .workspace-queue-list {grid-template-columns:1fr;}}
+@media(max-width:640px){
+ .account-subpage-jumps {flex-wrap:wrap;gap:7px;}
+ .account-subpage-jumps a {flex:1 1 auto;padding-inline:12px;min-height:44px;font-size:12px;}
+ .account-subpage-count {margin-left:0;width:100%;justify-content:start;}
+ .account-app .ask-local-premium-workspace {padding-top:12px;}
+ .account-app .account-ask-local-workspace .ask-local-premium-form {padding:16px;border-radius:17px;gap:12px;grid-template-columns:1fr;}
+ .account-app .ask-local-submit-wrap {flex-direction:column;align-items:stretch;}
+ .account-app .ask-local-submit {width:100%;min-width:0;}
+ .account-app .ask-local-capture-actions {grid-template-columns:1fr!important;}
+ .account-app .account-appointment-booking .customer-preferences-form {padding:16px;}
+ .account-app .account-documents-grid {grid-template-columns:1fr;}
+ .account-app .account-documents-toolbar .button {width:100%;}
+ .account-app .account-document-card {padding:16px;}
+ .account-app .account-privacy-card {padding:17px;}
+ .account-app .account-privacy-card .hero-actions {flex-direction:column;align-items:stretch;}
+ .account-app .account-privacy-card .hero-actions .button {width:100%;}
+ .account-app .customer-support-case {padding:14px;}
+ .account-app .customer-support-summary {flex-direction:column;align-items:flex-start;gap:3px;}
+ .account-app .account-support-conversation .customer-support-message {max-width:100%;}
+}
+@media(prefers-reduced-motion:reduce){.account-subpage-jumps a{transition:none;}}

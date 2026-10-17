@@ -18,8 +18,18 @@ export default async function AccountPrivacyPage() {
     <div className="announcement">Τα δικαιώματα απορρήτου συνδέονται με πραγματικό workflow και ορατή κατάσταση.</div>
     <SiteHeader compact />
     <AccountSectionNavigation />
-    <section className="shell page-hero account-hero dashboard-hero-refined">
-      <div><div className="eyebrow">Ιδιωτικότητα & δεδομένα</div><h1>Τα δεδομένα σου, οι επιλογές σου, τα αιτήματά σου.</h1><p className="lead">Ρύθμισε προαιρετικές λειτουργίες, άλλαξε cookies και υπέβαλε αίτημα δικαιωμάτων χωρίς να χρειάζεται να ψάχνεις τρόπο επικοινωνίας.</p><div className="hero-actions"><Link className="button button-secondary" href="/privacy">Πολιτική Απορρήτου</Link></div></div>
+    <section className="shell customer-account-page account-privacy-intro">
+      <div className="customer-page-heading">
+        <div><div className="eyebrow">Προφίλ & ασφάλεια</div><h1>Ιδιωτικότητα & δεδομένα</h1></div>
+        <p>Διαχειρίσου τις επιλογές σου, τα cookies και τα αιτήματα για τα προσωπικά σου δεδομένα.</p>
+      </div>
+      <nav className="account-subpage-jumps" aria-label="Ενότητες ιδιωτικότητας">
+        <a href="#account-privacy-preferences">Οι επιλογές μου</a>
+        <a href="#account-privacy-cookies">Cookies</a>
+        <a className="account-jump-primary" href="#account-privacy-request">Νέο αίτημα</a>
+        <a href="#account-privacy-history">Ιστορικό αιτημάτων</a>
+      </nav>
+      <Link className="account-privacy-policy-link" href="/privacy">Διάβασε την Πολιτική Απορρήτου →</Link>
     </section>
     <AccountPrivacyRightsClient
       csrfToken={principal.csrfToken}

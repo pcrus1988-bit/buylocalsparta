@@ -102,17 +102,17 @@ export function AccountPrivacyRightsClient({ csrfToken, email, preferences, requ
   }
 
   return <>
-    <section className="shell account-section-intro dashboard-section-heading" aria-labelledby="privacy-account-summary"><div><div className="eyebrow">Ιδιωτικότητα & δεδομένα</div><h2 id="privacy-account-summary">Ο έλεγχος των δεδομένων σου</h2></div><p>Συνδεδεμένος ως {email}. Οι επιλογές cookies και οι ρυθμίσεις λογαριασμού παραμένουν ξεχωριστές, ώστε κάθε σκοπός να ελέγχεται καθαρά.</p></section>
+    <section className="shell account-section-intro dashboard-section-heading account-privacy-summary" aria-labelledby="privacy-account-summary"><div><div className="eyebrow">Ιδιωτικότητα & δεδομένα</div><h2 id="privacy-account-summary">Ο έλεγχος των δεδομένων σου</h2></div><p>Συνδεδεμένος ως {email}. Οι επιλογές cookies και οι ρυθμίσεις λογαριασμού παραμένουν ξεχωριστές, ώστε κάθε σκοπός να ελέγχεται καθαρά.</p></section>
 
     <section className="shell account-live-grid">
-      <article className="account-live-card">
+      <article id="account-privacy-preferences" className="account-live-card account-privacy-card">
         <div className="account-card-head"><div><div className="eyebrow">Προσωποποίηση</div><h2>Οι επιλογές σου</h2></div></div>
         <label className="preference-row"><span><strong>Προσωποποιημένες προτάσεις</strong><small>Χρησιμοποιούνται μόνο δικά σου αποθηκευμένα και πρόσφατα σήματα ενδιαφέροντος.</small></span><input type="checkbox" checked={preferenceState.recommendationsEnabled} disabled={preferenceBusy} onChange={(event) => void updatePreferences({ recommendationsEnabled: event.target.checked })} /></label>
         <label className="preference-row"><span><strong>Πρόσφατα προβεβλημένα</strong><small>Η απενεργοποίηση σταματά την καταγραφή για αυτή τη λειτουργία και καθαρίζει το σχετικό ιστορικό όπου επιτρέπεται άμεσα.</small></span><input type="checkbox" checked={preferenceState.recentlyViewedEnabled} disabled={preferenceBusy} onChange={(event) => void updatePreferences({ recentlyViewedEnabled: event.target.checked })} /></label>
         <CustomerHowItWorks title="Τι αλλάζει με αυτές τις επιλογές;"><p>Οι ρυθμίσεις προσωποποίησης αφορούν μόνο λειτουργίες του συνδεδεμένου λογαριασμού. Δεν αντικαθιστούν τις ρυθμίσεις cookies και δεν αλλάζουν στοιχεία που πρέπει να διατηρούνται για παραγγελίες, φορολογικές υποχρεώσεις, ασφάλεια ή νόμιμη επίλυση διαφορών.</p></CustomerHowItWorks>
       </article>
 
-      <article className="account-live-card">
+      <article id="account-privacy-cookies" className="account-live-card account-privacy-card">
         <div className="account-card-head"><div><div className="eyebrow">Cookies</div><h2>Επιλογές browser</h2></div></div>
         <p className="account-muted">Analytics και marketing trackers παραμένουν προαιρετικά και μπορούν να ανακληθούν χωρίς αίτημα υποστήριξης.</p>
         <CookieSettingsButton className="button button-secondary privacy-button" label="Ρυθμίσεις cookies" />
@@ -120,7 +120,7 @@ export function AccountPrivacyRightsClient({ csrfToken, email, preferences, requ
         <CustomerHowItWorks title="Γιατί είναι ξεχωριστά από τον λογαριασμό;"><p>Τα cookies λειτουργούν σε επίπεδο browser και συσκευής, ενώ οι ρυθμίσεις προσωποποίησης συνδέονται με τον λογαριασμό σου. Γι’ αυτό ελέγχονται χωριστά.</p></CustomerHowItWorks>
       </article>
 
-      <article className="account-live-card account-wide">
+      <article id="account-privacy-request" className="account-live-card account-wide account-privacy-card">
         <div className="account-card-head"><div><div className="eyebrow">Δικαιώματα GDPR</div><h2>Υποβολή αιτήματος</h2></div></div>
         <div className="workspace-form-grid">
           <label><span>Τύπος αιτήματος</span><select value={type} onChange={(event) => setType(event.target.value as typeof type)}>{REQUEST_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
@@ -140,7 +140,7 @@ export function AccountPrivacyRightsClient({ csrfToken, email, preferences, requ
         <CustomerHowItWorks title="Τι γίνεται μετά την υποβολή;"><p>Το αίτημα αποκτά ορατή κατάσταση και δημιουργεί linked GDPR case στην ομάδα υποστήριξης. Ο Admin εκτελεί την κατάλληλη ενέργεια, ελέγχει το αποτέλεσμα και η τελική απάντηση με email αποστέλλεται μόνο μετά από χειροκίνητη επιβεβαίωση. Για access/export, όταν ετοιμαστεί η αναφορά, εμφανίζονται εδώ ασφαλή κουμπιά λήψης.</p></CustomerHowItWorks>
       </article>
 
-      <article className="account-live-card account-wide">
+      <article id="account-privacy-history" className="account-live-card account-wide account-privacy-card">
         <div className="account-card-head"><div><div className="eyebrow">Ιστορικό αιτημάτων</div><h2>Αιτήματα ιδιωτικότητας</h2></div><span className="count-pill">{requests.length}</span></div>
         {requests.length ? <div className="account-list">{requests.map((request) => <div className="order-row" key={request.id}>
           <div><strong>{requestLabel(request.type)}</strong><small>Υποβλήθηκε {formatDate(request.submittedAt)}</small></div>

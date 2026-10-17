@@ -96,7 +96,7 @@ export function CustomerAppointmentsClient({
   return <>
     {error && <div className="shell form-error" role="alert"><strong>Το ραντεβού δεν ενημερώθηκε.</strong> {error}</div>}
 
-    <section className="shell customer-account-page" style={{ paddingTop: 10 }}>
+    <section className="shell customer-account-page account-appointment-metrics" style={{ paddingTop: 10 }}>
       <div className="customer-account-stats">
         <article><span>Ενεργά</span><strong>{activeCount}</strong></article>
         <article><span>Σύμβουλοι</span><strong>{advisers.length}</strong></article>
@@ -104,8 +104,8 @@ export function CustomerAppointmentsClient({
       </div>
     </section>
 
-    <section className="shell customer-account-page">
-      <div className="customer-page-heading"><div><div className="eyebrow">Νέο ραντεβού</div><h2>Διάλεξε άνθρωπο και ώρα</h2></div><p>Η ώρα δεσμεύεται άμεσα στο ΚΟΝΤΑ ΜΟΥ. Δεν δημιουργούμε αυτόματα εξωτερικό Meet/Viber/WhatsApp link. Στα τηλεφωνικά ραντεβού καλείς εσύ το κατάστημα στην προγραμματισμένη ώρα από το δημόσιο τηλέφωνο της σελίδας του· δεν κοινοποιούμε ιδιωτικά στοιχεία λογαριασμού στον vendor για αυτόν τον σκοπό.</p></div>
+    <section id="book-account-appointment" className="shell customer-account-page account-appointment-booking">
+      <div className="customer-page-heading"><div><div className="eyebrow">Βήμα 1</div><h2>Διάλεξε σύμβουλο και ώρα</h2></div><p>Επίλεξε κατάστημα, ημερομηνία και τρόπο επικοινωνίας. Η διαθέσιμη ώρα ελέγχεται κατά την κράτηση.</p></div>
       {advisers.length === 0 ? <div className="empty-state"><h2>Δεν υπάρχουν ακόμη ενεργοί σύμβουλοι για online ραντεβού.</h2><p>Μπορείς να στείλεις ιδιωτικό αίτημα μέσω Ask Local.</p><Link className="button" href="/account/ask-local">Ask Local</Link></div> : <form className="customer-preferences-form" onSubmit={submitBooking}>
         <label><span>Σύμβουλος</span><select value={adviserId} onChange={(event) => changeAdviser(event.target.value)} required>{advisers.map((adviser) => <option value={adviser.id} key={adviser.id}>{adviser.displayName} · {adviser.vendorName}</option>)}</select></label>
         {selectedAdviser && <p className="form-help">{selectedAdviser.jobTitle ? `${selectedAdviser.jobTitle} · ` : ""}{selectedAdviser.specialties.length ? selectedAdviser.specialties.join(" · ") : selectedAdviser.vendorName}</p>}
@@ -115,13 +115,13 @@ export function CustomerAppointmentsClient({
           <label><span>Τρόπος</span><select value={channel} onChange={(event) => setChannel(event.target.value as "in_person" | "phone")}><option value="in_person">Στο κατάστημα</option><option value="phone" disabled={!selectedAdviser?.phoneAvailable}>Τηλεφωνικά{selectedAdviser?.phoneAvailable ? "" : " · μη διαθέσιμο"}</option></select></label>
         </div>
         {selectedAdviser && !selectedAdviser.phoneAvailable && <p className="form-help">Το συγκεκριμένο κατάστημα δεν έχει δημοσιευμένο τηλέφωνο, επομένως το ραντεβού μπορεί να γίνει μόνο στο κατάστημα.</p>}
-        {channel === "phone" && selectedAdviser?.phoneAvailable && <p className="form-help">Στην ώρα του ραντεβού άνοιξε τα <Link className="text-link" href={`/vendor/${encodeURIComponent(selectedAdviser.vendorId)}#store-info`}>δημόσια στοιχεία επικοινωνίας του {selectedAdviser.vendorName}</Link> και κάλεσε το κατάστημα.</p>}
+        {channel === "phone" && selectedAdviser?.phoneAvailable && <p className="form-help">Στην ώρα του ραντεβού άνοιξε τα <Link className="text-link" href={`/vendor/${encodeURIComponent(selectedAdviser.vendorId)}#store-info`}>δημόσια στοιχεία επικοινωνίας του {selectedAdviser.vendorName}</Link> και κάλεσε το κατάστημα. Για αυτόν τον σκοπό δεν κοινοποιούμε ιδιωτικά στοιχεία λογαριασμού στον πωλητή.</p>}
         <label><span>Τι θέλεις να συζητήσεις; <small>(προαιρετικό)</small></span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={1000} rows={3} placeholder="Π.χ. χρειάζομαι βοήθεια να επιλέξω σωστό μέγεθος / συμβατότητα…" /></label>
         <button className="button" disabled={Boolean(busy) || !startsAt || !selectedAdviser}>{busy === "create" ? "Δέσμευση…" : "Κλείσε το ραντεβού"}</button>
       </form>}
     </section>
 
-    <section className="shell customer-account-page" style={{ paddingBottom: 56 }}>
+    <section id="my-account-appointments" className="shell customer-account-page account-appointment-list" style={{ paddingBottom: 56 }}>
       <div className="customer-page-heading"><div><div className="eyebrow">Τα ραντεβού μου</div><h2>Προγραμματισμένες επαφές</h2></div><p>Μπορείς να ακυρώσεις ή να αλλάξεις ώρα όσο το ραντεβού παραμένει ενεργό. Η νέα ώρα ελέγχεται ξανά για σύγκρουση.</p></div>
       {initial.length === 0 ? <div className="empty-state"><h2>Δεν έχεις κλείσει ακόμη ραντεβού.</h2><p>Όταν κλείσεις το πρώτο, η πορεία του θα εμφανιστεί εδώ.</p></div> : <div className="workspace-queue-list">{initial.map((appointment) => {
         const active = ACTIVE.has(appointment.status);

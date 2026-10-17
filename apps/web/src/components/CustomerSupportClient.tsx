@@ -170,10 +170,12 @@ export function CustomerSupportClient({ csrfToken, initialCases, ready, readines
       <p>Δημιούργησε αίτημα, παρακολούθησε την πορεία του και απάντησε στην ίδια συνομιλία μέχρι να λυθεί το θέμα.</p>
     </div>
 
+    <nav className="account-subpage-jumps" aria-label="Ενέργειες υποστήριξης"><a href="#account-support-my-cases">Τα αιτήματά μου <span aria-hidden="true">↗</span></a><a className="account-jump-primary" href="#account-support-new">＋ Νέο αίτημα</a><span className="account-subpage-count">{activeCount} ενεργά</span></nav>
+
     {!ready && <div className="customer-action-card is-progress" role="status"><span className="customer-action-icon" aria-hidden="true">●</span><div className="customer-action-copy"><strong>Η υποστήριξη δεν είναι διαθέσιμη σε αυτό το preview</strong><p>{readinessMessage}</p></div></div>}
 
     <div className="customer-support-layout">
-      <article className="customer-account-panel customer-support-new-case">
+      <article id="account-support-new" className="customer-account-panel customer-support-new-case">
         <div className="eyebrow">Νέο αίτημα</div><h2>Τι χρειάζεσαι;</h2>
         {contextType && <div className="customer-support-context"><strong>{contextLabel ?? CONTEXT_LABELS[contextType]}</strong>{contextId && <span>{contextId}</span>}<small>Αυτό βοηθά την ομάδα να βρει γρηγορότερα τη σχετική αγορά ή ενέργεια.</small></div>}
         <form className="customer-security-form" onSubmit={createCase}>
@@ -185,16 +187,18 @@ export function CustomerSupportClient({ csrfToken, initialCases, ready, readines
         <CustomerHowItWorks title="Πώς λειτουργεί;"><p>Μόλις στείλεις το αίτημα, παίρνει αριθμό ticket. Η ομάδα μπορεί να σου ζητήσει επιπλέον πληροφορίες και όλες οι απαντήσεις παραμένουν συγκεντρωμένες εδώ μέχρι να ολοκληρωθεί η υπόθεση.</p></CustomerHowItWorks>
       </article>
 
-      <div className="customer-support-cases">
+      <div id="account-support-my-cases" className="customer-support-cases">
         <div className="customer-support-summary"><strong>{activeCount} ενεργά αιτήματα</strong><span>{cases.length} συνολικά</span></div>
         {cases.length === 0 ? <div className="customer-empty-state"><strong>Δεν έχεις αιτήματα υποστήριξης.</strong><p>Αν χρειάζεσαι βοήθεια, δημιούργησε το πρώτο σου αίτημα από τη φόρμα.</p></div> : cases.map((item) => <article className="customer-account-panel customer-support-case" key={item.referenceNumber}>
           <div className="customer-support-case-head"><div><span className="eyebrow">{item.referenceNumber}</span><h2>{item.subject}</h2><small>{CATEGORY_LABELS[item.category]} · ενημέρωση {formatDate(item.updatedAt)}</small></div><span className={`status-pill${item.status === "waiting_customer" ? " warning" : ""}`}>{STATUS_LABELS[item.status]}</span></div>
           {item.contextType && <div className="customer-support-context is-compact"><strong>{CONTEXT_LABELS[item.contextType]}</strong>{item.contextReference && <span>{item.contextReference}</span>}</div>}
           <CustomerLifecycle label={`Πορεία ${item.referenceNumber}`} stages={lifecycle(item.status)} />
+          <details className="account-support-conversation" open={item.status === "waiting_customer" || cases.length === 1}><summary>Συνομιλία & απάντηση <span>{item.messages.length} {item.messages.length === 1 ? "μήνυμα" : "μηνύματα"}</span></summary>
           <div className="customer-support-thread" aria-label={`Συνομιλία ${item.referenceNumber}`}>
             {item.messages.map((entry, index) => <div className={`customer-support-message is-${entry.sender}`} key={`${entry.sender}:${entry.createdAt}:${index}`}><div><strong>{entry.sender === "customer" ? "Εσύ" : "Ομάδα ΚΟΝΤΑ ΜΟΥ"}</strong><small>{formatDate(entry.createdAt)}</small></div><p>{entry.body}</p></div>)}
           </div>
           {item.status !== "closed" && <div className="customer-support-reply"><label><span>Απάντηση στο {item.referenceNumber}</span><textarea rows={4} value={replyDraftCaseId === item.id ? reply : ""} onFocus={() => { if (replyDraftCaseId !== item.id) { setReplyDraftCaseId(item.id); setReply(""); } }} onChange={(event) => { setReplyDraftCaseId(item.id); setReply(event.target.value); }} disabled={Boolean(replyBusyCaseId)} placeholder="Γράψε την απάντησή σου…" /></label><button className="button button-secondary" type="button" disabled={!reply.trim() || replyDraftCaseId !== item.id || Boolean(replyBusyCaseId)} onClick={() => void sendReply(item.id)}>{replyBusyCaseId === item.id ? "Αποστολή…" : "Αποστολή απάντησης"}</button></div>}
+          </details>
         </article>)}
       </div>
     </div>
