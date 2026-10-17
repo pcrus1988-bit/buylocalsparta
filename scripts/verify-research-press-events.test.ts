@@ -40,3 +40,11 @@ test("malformed and ambiguous feedback cannot invent positive delivery",()=>{
   assert.deepEqual(parseSesPressEvent({eventType:"Bounce",mail,bounce:{}}),[]);
   assert.deepEqual(parseSesPressEvent(null),[]);
 });
+
+test("shared research SNS topic ignores untagged SES notification without database access",()=>{
+  const surveyMail={messageId:"010001-research",destination:["survey@example.org"],timestamp:"2026-10-17T10:10:00.000Z",tags:{research_attempt:["1234"]}};
+  assert.deepEqual(parseSesPressEvent({eventType:"Delivery",mail:surveyMail,delivery:{recipients:["survey@example.org"]}}),[]);
+  assert.deepEqual(parseSesPressEvent({eventType:"Bounce",mail:surveyMail,bounce:{bounceType:"Permanent",bouncedRecipients:[{emailAddress:"survey@example.org"}]}}),[]);
+  const unknownCampaign={...mail,tags:{pressCampaign:["not-a-uuid"]}};
+  assert.deepEqual(parseSesPressEvent({eventType:"Complaint",mail:unknownCampaign,complaint:{complainedRecipients:[{emailAddress:"one@example.com"}]}}),[]);
+});
