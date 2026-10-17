@@ -106,7 +106,7 @@ export function AccountSecurityClient({ email, emailVerified, csrfToken, initial
     { label: "Νέα σύνδεση", description: "Μετά την αλλαγή θα αποσυνδεθούν όλες οι συνεδρίες.", state: "pending" as const }
   ] : [];
 
-  return <section className="shell customer-account-page">
+  return <section className="shell customer-account-page account-security-page">
     <div className="customer-page-heading"><div><div className="eyebrow">Ασφάλεια</div><h1>Σύνδεση, email & κωδικός</h1></div><p>Διαχειρίσου τα στοιχεία σύνδεσης χωρίς να χάνεται η επιβεβαίωση ιδιοκτησίας ή η ασφάλεια του λογαριασμού.</p></div>
     <div className="customer-account-grid customer-security-grid">
       <article className="customer-account-panel">
