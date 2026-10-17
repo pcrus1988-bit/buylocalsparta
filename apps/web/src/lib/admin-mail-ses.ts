@@ -147,8 +147,12 @@ export async function getSesAccountSendingStatus(config:SesMailConfig):Promise<S
     const result=await fetch(endpoint,{method:"GET",headers,cache:"no-store",
       redirect:"error",signal:abort.signal});
     if(!result.ok){
-      // Do not leak AWS payloads, credentials, or internal error details.
-      throw new Error(`SES GetAccount unavailable (HTTP ${result.status}); verify ses:GetAccount IAM permission.`);
+      const raw=await result.text();
+      const payload=safeJson(raw);
+      const hinted=String(result.headers.get("x-amzn-errortype")||
+        payload?.__type||payload?.code||payload?.Code||"").split(/[:#]/).pop()||"Unknown";
+      const code=/^[a-zA-Z0-9_.-]{1,90}$/.test(hinted)?hinted:"Unknown";
+      throw new Error(`SES GetAccount unavailable (HTTP ${result.status}, AWS error ${code}); verify ses:GetAccount on the exact application's IAM identity.`);
     }
     const data=await result.json() as Record<string,unknown>;
     const details=(data.Details&&typeof data.Details==="object")?
@@ -173,6 +177,28 @@ export async function getSesAccountSendingStatus(config:SesMailConfig):Promise<S
         enforcement==="HEALTHY"&&withinQuota
     };
   }finally{clearTimeout(timer);}
+}
+
+
+/** Read-only STS GetCallerIdentity, to identify WHICH IAM principal signs SES requests.
+ * This AWS identity is not an access key or secret; do not include credentials. */
+export async function getSesRuntimeAwsIdentity(config:SesMailConfig):Promise<string>{
+  const endpoint=new URL("https://sts.eu-north-1.amazonaws.com/");
+  endpoint.searchParams.set("Action","GetCallerIdentity");
+  endpoint.searchParams.set("Version","2011-06-15");
+  const headers=signAwsRequest({
+    method:"GET",url:endpoint,body:"",region:"eu-north-1",service:"sts",
+    accessKeyId:config.accessKeyId,secretAccessKey:config.secretAccessKey,
+    sessionToken:config.sessionToken,contentType:"application/json"
+  });
+  const response=await fetch(endpoint,{method:"GET",headers,cache:"no-store",
+    redirect:"error",signal:AbortSignal.timeout(6000)});
+  const body=await response.text();
+  if(!response.ok)throw new Error(`STS GetCallerIdentity returned HTTP ${response.status}`);
+  const match=/<Arn>([^<]{1,500})<\/Arn>/.exec(body);
+  if(!match||!/^arn:aws:(iam|sts)::[0-9]{12}:[A-Za-z0-9_+=,.@:/-]+$/.test(match[1]))
+    throw new Error("STS GetCallerIdentity principal was not parseable");
+  return match[1];
 }
 
 function signAwsRequest(input: {
