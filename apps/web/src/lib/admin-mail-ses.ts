@@ -173,8 +173,12 @@ export async function getSesAccountSendingStatus(config:SesMailConfig):Promise<S
     return {
       productionAccess,sendingEnabled,enforcementStatus:enforcement,reviewStatus,
       max24HourSend,sentLast24Hours,
-      canSendToUnverifiedRecipients:productionAccess&&sendingEnabled&&
-        enforcement==="HEALTHY"&&withinQuota
+      // SES PROBATION is under review but is not a sending pause (SHUTDOWN).
+      // Permit only GRANTED production accounts; Press Office requires
+      // an additional explicit probation acknowledgement for every batch.
+      canSendToUnverifiedRecipients:productionAccess&&sendingEnabled&&withinQuota&&
+        (enforcement==="HEALTHY"||
+          (enforcement==="PROBATION"&&reviewStatus==="GRANTED"))
     };
   }finally{clearTimeout(timer);}
 }
