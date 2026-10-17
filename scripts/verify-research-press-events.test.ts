@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {parseSesPressEvent,pressDeliveryOutcome} from "../apps/web/src/lib/research-press-provider-events.ts";
+import {isSesAccountEligibleForManualPress} from "../apps/web/src/lib/admin-mail-ses.ts";
 
 const mail={
   messageId:"010001-test-id",destination:["one@example.com","two@example.org"],
@@ -47,4 +48,18 @@ test("shared research SNS topic ignores untagged SES notification without databa
   assert.deepEqual(parseSesPressEvent({eventType:"Bounce",mail:surveyMail,bounce:{bounceType:"Permanent",bouncedRecipients:[{emailAddress:"survey@example.org"}]}}),[]);
   const unknownCampaign={...mail,tags:{pressCampaign:["not-a-uuid"]}};
   assert.deepEqual(parseSesPressEvent({eventType:"Complaint",mail:unknownCampaign,complaint:{complainedRecipients:[{emailAddress:"one@example.com"}]}}),[]);
+});
+
+test("SES live gate allows granted probation but blocks shutdown, review denial and exhausted quota",()=>{
+  const ok={productionAccess:true,sendingEnabled:true,enforcementStatus:"PROBATION",
+    reviewStatus:"GRANTED",max24HourSend:50000,sentLast24Hours:18980};
+  assert.equal(isSesAccountEligibleForManualPress(ok),true);
+  assert.equal(isSesAccountEligibleForManualPress({...ok,enforcementStatus:"HEALTHY"}),true);
+  assert.equal(isSesAccountEligibleForManualPress({...ok,enforcementStatus:"SHUTDOWN"}),false);
+  assert.equal(isSesAccountEligibleForManualPress({...ok,enforcementStatus:"UNKNOWN"}),false);
+  assert.equal(isSesAccountEligibleForManualPress({...ok,reviewStatus:"PENDING"}),false);
+  assert.equal(isSesAccountEligibleForManualPress({...ok,sendingEnabled:false}),false);
+  assert.equal(isSesAccountEligibleForManualPress({...ok,productionAccess:false}),false);
+  assert.equal(isSesAccountEligibleForManualPress({...ok,sentLast24Hours:50000}),false);
+  assert.equal(isSesAccountEligibleForManualPress({...ok,max24HourSend:-1,sentLast24Hours:999999}),true);
 });
