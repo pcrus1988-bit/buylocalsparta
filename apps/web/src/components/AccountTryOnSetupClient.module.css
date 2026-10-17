@@ -320,3 +320,46 @@
 
   .savedGrid { grid-template-columns: 1fr; }
 }
+
+
+/* Align the full Try On Me subpage with the customer account design system. */
+.pageRoot {
+  margin-top: 16px;
+  border-radius: 23px;
+  border-color: #dae7d7;
+  background: linear-gradient(155deg,#fff 0%,#f8fbf6 100%);
+  box-shadow: 0 8px 28px rgba(24,48,39,.05);
+}
+.hero {
+  padding: 3px 0 5px;
+  align-items: center;
+}
+.hero h1 {
+  font-size: clamp(28px,3.7vw,44px);
+  line-height: 1.14;
+  letter-spacing: -.035em;
+  color: #173629;
+}
+.hero p {max-width:680px;line-height:1.55;color:#60736b;font-size:14px;}
+.spark {color:#366e51;background:#eaf4e8;border-color:#d4e4d1;}
+.quotaBlock {border-color:#dce8d8;background:#f3f9f0;}
+.quotaBlock progress {accent-color:#2b6247;}
+.setupGrid {grid-template-columns:minmax(0,1.14fr) minmax(300px,.86fr);gap:14px;margin-top:20px;}
+.panel {border-color:#dde9da;border-radius:19px;background:#fff;min-width:0;padding:19px;}
+.panelHead h2,.autoCopy h2 {font-size:clamp(21px,2.6vw,27px);color:#173629;letter-spacing:-.025em;line-height:1.2;}
+.photoPreview,.photoPlaceholder {border-color:#d7e5d5;border-radius:17px;}
+.photoPanelBody {gap:15px;grid-template-columns:minmax(140px,185px) minmax(0,1fr);}
+.privacyNote {background:#f4f8f2;border:1px solid #e0eada;border-radius:13px;color:#506a5c;font-size:12px;}
+.toggle {min-height:46px;align-self:flex-start;border-color:#b4d0b3;background:#eff6ed;color:#285439;}
+.toggle[aria-pressed="true"] {background:#285a40;color:#fff;}
+.toggle:focus-visible,.textButton:focus-visible,.savedCard:focus-visible {outline:3px solid #599067;outline-offset:3px;}
+.savedSection {border-color:#e0eadf;}
+.savedHead h2 {font-size:clamp(22px,2.6vw,29px);color:#173629;}
+.savedCard {padding:9px;border:1px solid #e0eadd;border-radius:16px;background:#fff;}
+.savedCard img {border-radius:12px;}
+.savedCard strong {font-size:13px;color:#204b35;}
+.footerCta {background:linear-gradient(125deg,#eaf4e8,#f5f9ed);border:1px solid #d8e7d3;}
+.footerCta strong {font-size:18px;color:#214632;}
+@media(max-width:850px){.setupGrid,.photoPanelBody{grid-template-columns:1fr;}.photoPreview,.photoPlaceholder{max-width:210px;}.savedGrid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:520px){.pageRoot{margin-top:10px;padding:16px;border-radius:18px;}.hero{align-items:flex-start;}.spark{width:35px;height:35px;flex-basis:35px;}.quotaLine{flex-direction:column;align-items:flex-start;gap:4px;}.panel{padding:14px;}.savedGrid{grid-template-columns:1fr 1fr;gap:8px;}.savedHead{flex-direction:column;align-items:flex-start;}.savedHead .button{width:100%;}.footerCta .button{width:100%;}.actions{align-items:stretch;}.actions .button,.actions .textButton{min-height:44px;}}
+@media(prefers-reduced-motion:reduce){.toggle,.savedCard{transition:none;}}
