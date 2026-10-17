@@ -110,7 +110,7 @@ export async function dispatchPressAction(form: FormData): Promise<void> {
     if (str(form.get("confirmRecipients"))!=="yes" || str(form.get("confirmation"))!=="SEND") {
       throw new Error("Review the recipients, tick the acknowledgement and type SEND.");
     }
-    const result=await dispatchPressBatch(p,id);
+    const result=await dispatchPressBatch(p,id,str(form.get("confirmProbation"))==="yes");
     revalidatePath(path);
     redirect(url(id,"batch",result.sent+"/"+result.attempted+"/"+result.remaining));
   } catch(error) {
