@@ -10,7 +10,28 @@ const styles = read("apps/web/src/app/customer-notification-lifecycle.css");
 const layout = read("apps/web/src/app/layout.tsx");
 const postgresNotifications = read("packages/core/src/persistence/postgres-notifications.ts");
 const coreNotifications = read("packages/core/src/notifications/service.ts");
+const notificationPage = read("apps/web/src/app/account/notifications/page.tsx");
+const notificationsLoading = read("apps/web/src/app/account/notifications/loading.tsx");
+const notificationsError = read("apps/web/src/app/account/notifications/error.tsx");
 const failures: string[] = [];
+
+for (const contract of [
+  "customerNotificationsForUser(principal.userId)",
+  "notifications.map(customerBrowserNotification)",
+  "<Suspense",
+  "<CartRecoverySettings principal={principal}"
+]) if (!notificationPage.includes(contract)) failures.push(`Notifications page must be a lightweight, independently rendered feed: ${contract}`);
+if (notificationPage.includes("accountDashboard(") || notificationPage.includes("customerStateSnapshot(")) {
+  failures.push("Notifications page must not load the complete account dashboard or personalization.");
+}
+for (const contract of ["export async function customerNotificationsForUser", "limit: 100"]) {
+  if (!runtime.includes(contract)) failures.push(`Notification-only read is missing: ${contract}`);
+}
+for (const contract of ["limit?: number", "n.archived_at IS NULL", "LIMIT $2::integer"]) {
+  if (!postgresNotifications.includes(contract)) failures.push(`Bounded notification SQL contract missing: ${contract}`);
+}
+if (!notificationsLoading.includes('aria-busy="true"')) failures.push("Notifications need an accessible loading state.");
+if (!notificationsError.includes("reset()")) failures.push("Notifications need a recoverable route error boundary.");
 
 for (const contract of [
   "export async function markCustomerNotificationRead",
