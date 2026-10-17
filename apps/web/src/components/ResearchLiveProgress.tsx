@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { PublicResearchObservatorySnapshot, PublicResearchStudySummary } from "../lib/research-observatory-runtime";
+import { ResearchParticipationHeatmap } from "./ResearchParticipationHeatmap";
 import styles from "./ResearchObservatory.module.css";
 
 function percent(value: number): string {
@@ -101,7 +102,8 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
   ];
   const participationMax = Math.max(study.sent, study.selected, 1);
 
-  return <section className={styles.livePanel} aria-live="polite">
+  return <>
+  <section className={styles.livePanel} aria-live="polite">
     <div className={styles.liveHead}>
       <div>
         <div className={styles.eyebrow}>Πρόοδος μελέτης</div>
@@ -233,5 +235,7 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
         {stage.detail}
       </div>)}
     </div>
-  </section>;
+  </section>
+  {study.slug === "greek-retail-2026" && <ResearchParticipationHeatmap geography={study.participationGeography} />}
+  </>;
 }

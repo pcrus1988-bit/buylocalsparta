@@ -1,3 +1,4 @@
+import { summarizeGreekPrefectures } from "./research-geographic-core";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -52,6 +53,7 @@ export type PublicResearchStudySummary = Readonly<{
   delivered: number;
   opened: number;
   started: number;
+  participationGeography?: Readonly<{ regions: readonly Readonly<{ key: string; label: string; started: number }>[]; unresolved: number }>;
   completed: number;
   /** Completed following an explicit participant Submit action. */
   participantConfirmed?: number;
@@ -312,6 +314,40 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
       recoveryCounts = undefined;
     }
 
+    // Only coarse business geography leaves the server; no addresses or answers.
+    // Read responses, not invitations, so unsubmitted starts count once too.
+    const geographyByWave = new Map<string, NonNullable<PublicResearchStudySummary["participationGeography"]>>();
+    try {
+      const geography = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+        SELECT rr.study_id,rr.wave_id,
+               COALESCE(fu.sampling_attributes->>'prefecture','') AS prefecture,
+               count(*)::int AS started
+        FROM research_responses rr
+        JOIN research_invites ri ON ri.id=rr.invite_id
+        LEFT JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        LEFT JOIN research_frame_units fu ON fu.id=su.frame_unit_id
+        WHERE ri.fieldwork_phase='main'
+        GROUP BY rr.study_id,rr.wave_id,fu.sampling_attributes->>'prefecture'
+      `);
+      const grouped = new Map<string, { prefecture: string; respondents: number; answered: number; selected: number }[]>();
+      for (const row of geography.rows) {
+        const key = text(row.study_id) + ":" + text(row.wave_id);
+        const group = grouped.get(key) ?? [];
+        group.push({ prefecture: text(row.prefecture), respondents: numberValue(row.started), answered: 0, selected: 0 });
+        grouped.set(key, group);
+      }
+      for (const row of rows.rows) {
+        const key = text(row.id) + ":" + text(row.wave_id);
+        const mapped = summarizeGreekPrefectures(grouped.get(key) ?? []);
+        geographyByWave.set(key, {
+          regions: mapped.regions.map(region => ({ key: region.key, label: region.label, started: region.respondents })),
+          unresolved: mapped.unresolved
+        });
+      }
+    } catch {
+      // Unavailable geography must not become fabricated zero counts.
+    }
+
     const studies = rows.rows.map((row): PublicResearchStudySummary => {
       const completed = numberValue(row.completed);
       const adminFinalized = numberValue(row.admin_finalized);
@@ -345,6 +381,7 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
         delivered: numberValue(row.delivered),
         opened: numberValue(row.opened),
         started: numberValue(row.started),
+        participationGeography: geographyByWave.get(text(row.id) + ":" + text(row.wave_id)),
         completed,
         participantConfirmed: completed - adminFinalized,
         administrativelyFinalized: adminFinalized,
@@ -374,7 +411,7 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
 // with the 30-second client refresh to avoid repeated 100k+ invite/event scans.
 const cachedPublicResearchObservatory = unstable_cache(
   queryPublicResearchObservatory,
-  ["research-public-main-fieldwork-progress-v1"],
+  ["research-public-main-fieldwork-progress-v2"],
   { revalidate: 30 }
 );
 
