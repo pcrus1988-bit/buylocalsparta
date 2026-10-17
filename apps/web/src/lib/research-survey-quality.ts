@@ -82,7 +82,7 @@ export async function researchQualityReviewQueue(
     LEFT JOIN research_frame_units fu ON fu.id=su.frame_unit_id
     LEFT JOIN research_response_scores scores ON scores.response_id=rr.id
     WHERE latest.decision='review'
-    ORDER BY rr.completed_at,rr.id
+    ORDER BY CASE WHEN latest.source='admin_content_recovery' THEN 1 ELSE 0 END,rr.completed_at,rr.id
     LIMIT 50 OFFSET $2
   `, [slug, safeOffset]);
 
