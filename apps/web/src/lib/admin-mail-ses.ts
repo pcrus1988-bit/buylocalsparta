@@ -163,8 +163,9 @@ export async function getSesAccountSendingStatus(config:SesMailConfig):Promise<S
     const reviewStatus=typeof review.Status==="string"?review.Status:null;
     const max24HourSend=typeof quota.Max24HourSend==="number"?quota.Max24HourSend:null;
     const sentLast24Hours=typeof quota.SentLast24Hours==="number"?quota.SentLast24Hours:null;
+    // SES -1 represents unlimited daily quota.
     const withinQuota=max24HourSend===null||sentLast24Hours===null||
-      sentLast24Hours<max24HourSend;
+      max24HourSend<0||sentLast24Hours<max24HourSend;
     return {
       productionAccess,sendingEnabled,enforcementStatus:enforcement,reviewStatus,
       max24HourSend,sentLast24Hours,
