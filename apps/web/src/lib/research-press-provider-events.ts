@@ -28,7 +28,7 @@ export function parseSesPressEvent(input:unknown):PressProviderEvent[] {
   const tag=object(mail.tags);
   const taggedCampaign=list(tag?.pressCampaign)[0];
   const campaignId=validUuid(taggedCampaign)?taggedCampaign:null;
-  const section=object(record[
+  const section:Record<string,unknown>=object(record[
     type==="bounced"?"bounce":type==="complained"?"complaint":
     type==="delivered"?"delivery":type==="delivery_delayed"?"deliveryDelay":
     type==="rejected"?"reject":type==="opened"?"open":"click"
