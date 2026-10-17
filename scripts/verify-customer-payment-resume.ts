@@ -46,7 +46,7 @@ for (const contract of [
 
 for (const contract of [
   "data.sourceStatus === \"pending_payment\"",
-  "data.sourceStatus !== \"pending_payment\" && <CustomerFulfilmentProgress",
+  "data.sourceStatus !== \"pending_payment\" && <div id=\"order-fulfilment\"",
   "/payment`",
   "x-csrf-token",
   "window.location.assign(payload.redirectUrl)",
@@ -54,6 +54,7 @@ for (const contract of [
   "Δεν δημιουργείται νέα παραγγελία",
   "paymentError && <p className=\"form-error\" role=\"alert\""
 ]) if (!client.includes(contract)) failures.push(`Order detail payment recovery is missing ${contract}`);
+if (!client.includes("<CustomerFulfilmentProgress") || client.indexOf("data.sourceStatus !== \"pending_payment\" && <div id=\"order-fulfilment\"") > client.indexOf("<CustomerFulfilmentProgress")) failures.push("Order fulfillment must remain behind the pending-payment guard, including its navigation wrapper");
 
 if (!ordersPage.includes("Συνέχιση πληρωμής")) failures.push("Customer order list must expose the continue-payment CTA for pending-payment orders");
 
