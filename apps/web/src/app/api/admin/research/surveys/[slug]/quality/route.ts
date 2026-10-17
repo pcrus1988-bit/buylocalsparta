@@ -1,6 +1,7 @@
 import { recordAdminAudit } from "../../../../../../../lib/admin-runtime";
 import { requireAdminSession } from "../../../../../../../lib/admin-session";
 import {
+  researchQualityReviewPendingCount,
   researchQualityReviewQueue,
   resolveResearchQualityReview
 } from "../../../../../../../lib/research-survey-quality";
@@ -13,8 +14,14 @@ export async function GET(request: Request, context: { params: Promise<{ slug: s
     const principal = await requireAdminSession(request, { permission: "research.read" });
     const { slug: rawSlug } = await context.params;
     const slug = decodeURIComponent(rawSlug);
-    const items = await researchQualityReviewQueue(principal, slug);
-    return Response.json({ items }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
+    const requestedOffset = Number(new URL(request.url).searchParams.get("offset") ?? "0");
+    const offset = Number.isSafeInteger(requestedOffset) && requestedOffset >= 0
+      ? Math.min(requestedOffset, 100000) : 0;
+    const [items, total] = await Promise.all([
+      researchQualityReviewQueue(principal, slug, offset),
+      researchQualityReviewPendingCount(principal, slug)
+    ]);
+    return Response.json({ items, total, pageSize: 50 }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "RESEARCH_QA_LOAD_FAILED";
     return Response.json({ error: message }, {
