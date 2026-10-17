@@ -109,7 +109,7 @@ for (const id of ["account-privacy-preferences", "account-privacy-cookies", "acc
 }
 for (const phrase of ["CookieSettingsButton", 'onClick={() => void submit()}', "/api/account/privacy/report/"]) if (!privacyClient.includes(phrase)) failures.push(`Privacy controls lost ${phrase}`);
 const supportClient = read("apps/web/src/components/CustomerSupportClient.tsx");
-for (const phrase of ["account-support-conversation", "defaultOpen={item.status", "customer-support-thread", "customer-support-reply", "customer-support-new-case", "account-support-my-cases", "onSubmit={createCase}", "sendReply(item.id)"]) if (!supportClient.includes(phrase)) failures.push(`Support center missing ${phrase}`);
+for (const phrase of ["account-support-conversation", "open={item.status", "customer-support-thread", "customer-support-reply", "customer-support-new-case", "account-support-my-cases", "onSubmit={createCase}", "sendReply(item.id)"]) if (!supportClient.includes(phrase)) failures.push(`Support center missing ${phrase}`);
 const tryOnStyles = read("apps/web/src/components/AccountTryOnSetupClient.module.css");
 for (const phrase of [".pageRoot", ".quotaBlock", ".setupGrid", ".savedGrid", "@media(max-width:520px)"]) if (!tryOnStyles.includes(phrase)) failures.push(`Try On responsive styles missing ${phrase}`);
 
