@@ -678,3 +678,15 @@
 .activityContent :global(.shell) { max-width:100%; }
 .activityContent :global(.account-section-intro) { margin-top:12px; }
 @media(max-width:620px) { .compactDashboardIntro { padding-top:21px; } .activityToggle { padding:16px; } .activityContent { padding:0 8px 12px; } .priorityGridSolo .priorityCard { padding:18px; } }
+
+
+/* Context-aware account subpage navigation */
+.navLocation {display:flex;gap:10px;align-items:center;flex-wrap:wrap;min-width:0;}
+.navDivider {color:#a3b4a5;font-weight:900;}
+.navCurrent {font-size:13px;font-weight:900;color:#1f513a;max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.navNearby {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 0;padding-left:3px;}
+.navNearby > span {font-size:11px;font-weight:800;color:var(--ink-soft);}
+.navNearby a {display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:5px 12px;border:1px solid #dce8d8;border-radius:999px;background:#fff;color:#365a43;font-size:12px;font-weight:800;transition:background .15s ease;}
+.navNearby a:hover {background:#eaf4e8;}
+.navNearby a:focus-visible {outline:3px solid #598a61;outline-offset:2px;}
+@media(max-width:620px) {.navLocation {gap:6px;}.navCurrent {white-space:normal;font-size:12px;}.navNearby {flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;padding-bottom:5px;}.navNearby a,.navNearby > span {white-space:nowrap;flex:0 0 auto;}}
