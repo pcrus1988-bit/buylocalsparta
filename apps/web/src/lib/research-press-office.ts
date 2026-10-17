@@ -322,7 +322,7 @@ export async function sendPressTest(
 
 /** Each recipient is claimed immediately before attempting SES, never 8 at once.
  * Unknown provider outcomes remain held for manual investigation; no automatic resend. */
-export async function dispatchPressBatch(principal:SessionPrincipal,id:string):Promise<{
+export async function dispatchPressBatch(principal:SessionPrincipal,id:string,confirmedProbation=false):Promise<{
   attempted:number;sent:number;failed:number;remaining:number;
 }>{
   assertAdminPermission(principal,"research.publish.manage");
@@ -332,7 +332,12 @@ export async function dispatchPressBatch(principal:SessionPrincipal,id:string):P
   // unverified media recipients; check authoritative SES account state per batch.
   const aws=await getSesAccountSendingStatus(sesMailConfigFromEnv());
   if(!aws.canSendToUnverifiedRecipients){
-    throw new Error("AWS SES does not currently authorize live press outreach in eu-north-1 (production access, sending, reputation or daily quota). No messages sent.");
+    throw new Error("AWS SES is not presently eligible for sending (production access, enabled sending, review, enforcement or quota). No messages sent.");
+  }
+  // AWS allows sends on probation, but reputation is under review. This is a
+  // second admin confirmation separate from the standard recipient review/SEND.
+  if(aws.enforcementStatus==="PROBATION"&&!confirmedProbation){
+    throw new Error("SES reputation is under probation. Explicitly acknowledge the probation warning for this batch.");
   }
   const db=pool();
   const release=(await db.query<PressRelease>(
