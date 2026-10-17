@@ -34,14 +34,22 @@ export async function savePressAction(form: FormData): Promise<void> {
   try {
     const p = await principal(form);
     const file = form.get("attachment");
+    const fileEn = form.get("attachmentEn");
+    const csv = form.get("recipientCsv");
     nextId = await savePressRelease(p,{
       id: id || undefined,
       title: str(form.get("title")),
       subject: str(form.get("subject")),
       bodyHtml: str(form.get("bodyHtml")),
-      recipients: str(form.get("recipients")),
+      subjectEn: str(form.get("subjectEn")),
+      bodyHtmlEn: str(form.get("bodyHtmlEn")),
+      recipientCsv: csv instanceof File && csv.size ? csv : undefined,
+      selectedListId: str(form.get("selectedListId")) || undefined,
+      importMode: str(form.get("importMode"))==="append"?"append":"replace",
       file: file instanceof File && file.size ? file : undefined,
-      clearAttachment: form.get("clearAttachment") === "yes"
+      fileEn: fileEn instanceof File && fileEn.size ? fileEn : undefined,
+      clearAttachment: form.get("clearAttachment")==="yes",
+      clearAttachmentEn: form.get("clearAttachmentEn")==="yes"
     });
     await recordAdminAudit(p,"research.press.saved","research_press_release",nextId,"Draft saved");
   } catch(error) { err(error, id); }
@@ -52,7 +60,9 @@ export async function savePressAction(form: FormData): Promise<void> {
 export async function pressListAction(form: FormData): Promise<void> {
   try {
     const p = await principal(form);
-    await savePressList(p,str(form.get("listName")),str(form.get("listRecipients")));
+    const csv=form.get("listCsv");
+    if(!(csv instanceof File) || !csv.size) throw new Error("Upload a language-tagged contacts CSV first.");
+    await savePressList(p,str(form.get("listName")),csv);
     await recordAdminAudit(p,"research.press.list.saved","research_press_list","selection","Press list saved");
   } catch(error) { err(error,str(form.get("id"))); }
   revalidatePath(path);
@@ -87,7 +97,7 @@ export async function testPressAction(form: FormData): Promise<void> {
     const p=await principal(form);
     const target=str(form.get("testAddress"));
     if (str(form.get("confirmTest"))!=="yes") throw new Error("Confirm this real test email first.");
-    await sendPressTest(p,id,target);
+    await sendPressTest(p,id,target,str(form.get("testLanguage")) as "el"|"en");
   } catch(error) { err(error,id); }
   revalidatePath(path);
   redirect(url(id,"notice","test"));
