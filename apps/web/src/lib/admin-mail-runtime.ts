@@ -489,6 +489,8 @@ export async function sendAdminMail(
     locale?: "el" | "en";
     inReplyToId?: string;
     attachments?: readonly File[];
+    configurationSetName?: string;
+    emailTags?: readonly Readonly<{name:string;value:string}>[];
   }
 ): Promise<{ publicId: string; providerMessageId: string }> {
   const config = resolveMailConfig();
@@ -595,7 +597,9 @@ export async function sendAdminMail(
       from: fromAddress,
       to,
       cc,
-      bcc
+      bcc,
+      configurationSetName:input.configurationSetName,
+      emailTags:input.emailTags
     });
   } catch (error) {
     const deliveryError = (error instanceof Error ? error.message : String(error)).replace(/[\r\n]+/g, " ").slice(0, 1000);

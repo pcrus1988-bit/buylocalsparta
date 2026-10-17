@@ -348,7 +348,9 @@ export async function dispatchPressBatch(principal:SessionPrincipal,id:string):P
       result=await sendAdminMail(principal,{
         from:FROM,to:recipient.recipient,subject,text:"",
         html:pressHtmlFragment(html,recipient.language),locale:recipient.language,
-        format:"html",attachments:asAttachment(release,recipient.language)
+        format:"html",attachments:asAttachment(release,recipient.language),
+        configurationSetName:process.env.BLS_PRESS_SES_CONFIGURATION_SET?.trim()||undefined,
+        emailTags:[{name:"pressCampaign",value:id},{name:"pressLocale",value:recipient.language}]
       });
     }catch(error){
       // Even a timeout may mean SES accepted it. Never mark as retryable automatically.
