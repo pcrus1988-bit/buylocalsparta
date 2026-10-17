@@ -248,6 +248,22 @@ export async function reserveCustomerTryOnGeneration(input: { userId: string; no
   };
 }
 
+/**
+ * Notifications are an independent account surface. Do not load customer
+ * personalization, orders, catalogue or availability just to render this page.
+ * A bounded center read prevents a very active account from fetching an
+ * unlimited notification history on every page visit.
+ */
+export async function customerNotificationsForUser(userId: string): Promise<readonly (Notification & { group: string })[]> {
+  if (customerStateBackend() === "memory") return getAccountRuntime().notifications.centerForUser(userId);
+  const { runtime } = postgresServices();
+  return runtime.persistence.notificationOperations.centerForUser({
+    scope: customerScope(userId),
+    userId,
+    limit: 100
+  });
+}
+
 export async function customerStateSnapshot(userId: string, now = Date.now()): Promise<CustomerStateSnapshot> {
   if (customerStateBackend() === "memory") {
     const memory = getAccountRuntime();
