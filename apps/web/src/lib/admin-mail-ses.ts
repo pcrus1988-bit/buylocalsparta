@@ -130,6 +130,19 @@ export type SesAccountSendingStatus = Readonly<{
   canSendToUnverifiedRecipients:boolean;
 }>;
 
+/** Production eligibility for *manual* Press Office batches. Probation is only
+ * eligible after AWS grants production review; shutdown and unknown remain blocked.
+ * Not a sending authorization by itself: the dispatch action also needs admin
+ * permission, CSRF, typed SEND and a separate probation acknowledgement. */
+export function isSesAccountEligibleForManualPress(state:Pick<SesAccountSendingStatus,
+  "productionAccess"|"sendingEnabled"|"enforcementStatus"|"reviewStatus"|"max24HourSend"|"sentLast24Hours">):boolean {
+  if(!state.productionAccess||!state.sendingEnabled)return false;
+  if(state.max24HourSend!==null&&state.max24HourSend>=0&&
+     state.sentLast24Hours!==null&&state.sentLast24Hours>=state.max24HourSend)return false;
+  return state.enforcementStatus==="HEALTHY"||
+    (state.enforcementStatus==="PROBATION"&&state.reviewStatus==="GRANTED");
+}
+
 /** Read-only authoritative SES v2 GetAccount call. A successful send to a verified
  * internal mailbox alone does not prove production sending rights. */
 export async function getSesAccountSendingStatus(config:SesMailConfig):Promise<SesAccountSendingStatus> {
@@ -167,18 +180,10 @@ export async function getSesAccountSendingStatus(config:SesMailConfig):Promise<S
     const reviewStatus=typeof review.Status==="string"?review.Status:null;
     const max24HourSend=typeof quota.Max24HourSend==="number"?quota.Max24HourSend:null;
     const sentLast24Hours=typeof quota.SentLast24Hours==="number"?quota.SentLast24Hours:null;
-    // SES -1 represents unlimited daily quota.
-    const withinQuota=max24HourSend===null||sentLast24Hours===null||
-      max24HourSend<0||sentLast24Hours<max24HourSend;
-    return {
-      productionAccess,sendingEnabled,enforcementStatus:enforcement,reviewStatus,
-      max24HourSend,sentLast24Hours,
-      // SES PROBATION is under review but is not a sending pause (SHUTDOWN).
-      // Permit only GRANTED production accounts; Press Office requires
-      // an additional explicit probation acknowledgement for every batch.
-      canSendToUnverifiedRecipients:productionAccess&&sendingEnabled&&withinQuota&&
-        (enforcement==="HEALTHY"||
-          (enforcement==="PROBATION"&&reviewStatus==="GRANTED"))
+    const state={productionAccess,sendingEnabled,enforcementStatus:enforcement,reviewStatus,
+      max24HourSend,sentLast24Hours};
+    return {...state,
+      canSendToUnverifiedRecipients:isSesAccountEligibleForManualPress(state)
     };
   }finally{clearTimeout(timer);}
 }
