@@ -19,8 +19,9 @@ export default async function AccountAppointmentsPage({ searchParams }: Props) {
     <div className="announcement">Ραντεβού · κλείσε ιδιωτική επαφή με ενεργό σύμβουλο τοπικού καταστήματος.</div>
     <SiteHeader compact />
     <AccountSectionNavigation />
-    <section className="shell customer-account-page" style={{ paddingBottom: 18 }}>
-      <div className="customer-page-heading"><div><div className="eyebrow">Local advice</div><h1>Ραντεβού με τοπικό σύμβουλο</h1></div><p>Διάλεξε ενεργό σύμβουλο, ώρα και τρόπο επικοινωνίας. Το σύστημα δεσμεύει την ώρα με έλεγχο σύγκρουσης και κρατά την πορεία μόνο στον λογαριασμό σου και στο αντίστοιχο κατάστημα.</p></div>
+    <section className="shell customer-account-page account-service-intro" style={{ paddingBottom: 18 }}>
+      <div className="customer-page-heading"><div><div className="eyebrow">Τοπικές υπηρεσίες</div><h1>Τα ραντεβού μου</h1></div><p>Κλείσε ραντεβού με σύμβουλο καταστήματος και διαχειρίσου τις προγραμματισμένες επαφές σου.</p></div>
+      <div className="account-subpage-jumps" aria-label="Γρήγορες ενέργειες ραντεβού"><a className="account-jump-primary" href="#book-account-appointment">＋ Κλείσε ραντεβού</a><a href="#my-account-appointments">Οι κρατήσεις μου <span aria-hidden="true">↗</span></a><span className="account-subpage-count">{appointments.length} συνολικά</span></div>
       <CustomerHowItWorks><p>Η online κράτηση επιβεβαιώνεται άμεσα μέσα στο ΚΟΝΤΑ ΜΟΥ. Μπορείς να αλλάξεις ώρα ή να ακυρώσεις όσο το ραντεβού είναι ενεργό. Προς το παρόν υποστηρίζονται ραντεβού στο κατάστημα και τηλεφωνικά· δεν δημιουργείται αυτόματα εξωτερικό meeting link.</p></CustomerHowItWorks>
     </section>
     <CustomerAppointmentsClient csrfToken={principal.csrfToken} initial={appointments} advisers={advisers} preferredVendorId={typeof params.vendor === "string" ? params.vendor : undefined} />
