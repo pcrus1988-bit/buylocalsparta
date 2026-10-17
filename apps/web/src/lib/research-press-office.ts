@@ -228,153 +228,161 @@ export async function suppressPressRecipient(principal: SessionPrincipal, email:
   );
 }
 
+export function pressLanguageContent(row: PressRelease, language: PressLanguage) {
+  const subject = language==="el" ? row.subject : row.subject_en?.trim();
+  const html = language==="el" ? row.body_html : row.body_html_en?.trim();
+  if(!subject || !html) {
+    throw new Error(language==="el"
+      ? "Greek recipients need Greek subject and HTML content."
+      : "English recipients need English subject and HTML content.");
+  }
+  validateCustomMailHtml(html);
+  const name=language==="el" ? row.attachment_name : row.attachment_name_en;
+  if ((row.attachment_name || row.attachment_name_en) && !name) {
+    throw new Error(language==="el"
+      ? "Greek recipients need a Greek attachment because another language has an attachment."
+      : "English recipients need an English attachment because another language has an attachment.");
+  }
+  return {subject,html};
+}
+
 export async function preparePressRelease(principal: SessionPrincipal, id: string): Promise<number> {
-  assertAdminPermission(principal, "research.publish.manage");
-  const db = pool();
-  const client = await db.connect();
+  assertAdminPermission(principal,"research.publish.manage");
+  const db=pool(), client=await db.connect();
   try {
     await client.query("BEGIN");
-    const result = await client.query<PressRelease>(
-      "SELECT * FROM public.research_press_releases WHERE id=$1 FOR UPDATE", [id]
-    );
-    const release = result.rows[0];
-    if (!release || release.status !== "draft") throw new Error("Only a saved draft can be prepared.");
-    if (!release.recipients.length) throw new Error("Add recipients before preparing the campaign.");
-    validateCustomMailHtml(release.body_html);
-    await client.query(
-      `INSERT INTO public.research_press_deliveries(release_id,recipient,status)
-       SELECT $1,recipient,
-         CASE WHEN EXISTS(SELECT 1 FROM public.research_press_suppressions s WHERE s.recipient=recipient)
+    const row=(await client.query<PressRelease>(
+      "SELECT * FROM public.research_press_releases WHERE id=$1 FOR UPDATE",[id]
+    )).rows[0];
+    if(!row || row.status!=="draft")throw new Error("Only a saved draft can be prepared.");
+    if(!row.recipients.length)throw new Error("Upload or select a language-tagged CSV contact list first.");
+    const contacts=contactsFromLanguages(row.recipients,row.recipient_languages);
+    for(const language of new Set(contacts.map(c=>c.language)))pressLanguageContent(row,language);
+    await client.query(`INSERT INTO public.research_press_deliveries(release_id,recipient,language,status)
+       SELECT $1,r.email, r.language,
+         CASE WHEN EXISTS(SELECT 1 FROM public.research_press_suppressions s WHERE s.recipient=r.email)
            THEN 'suppressed' ELSE 'pending' END
-       FROM unnest($2::text[]) AS recipient
+       FROM jsonb_to_recordset($2::jsonb) AS r(email text, language text)
        ON CONFLICT(release_id,recipient) DO NOTHING`,
-      [id,release.recipients]
-    );
-    await client.query(
-      "UPDATE public.research_press_releases SET status='prepared',prepared_at=now(),updated_at=now() WHERE id=$1",
-      [id]
-    );
+      [id,JSON.stringify(contacts.map(({email,language})=>({email,language})))]);
+    await client.query("UPDATE public.research_press_releases SET status='prepared',prepared_at=now(),updated_at=now() WHERE id=$1",[id]);
     await client.query("COMMIT");
-    return release.recipients.length;
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => undefined);
+    return row.recipients.length;
+  } catch(error) {
+    await client.query("ROLLBACK").catch(()=>undefined);
     throw error;
-  } finally {
-    client.release();
-  }
+  } finally { client.release(); }
 }
 
-function asAttachment(row: PressRelease): File[] {
-  if (!row.attachment_name || !row.attachment_bytes) return [];
-  const bytes = new Uint8Array(row.attachment_bytes);
-  return [new File([bytes], row.attachment_name, { type: row.attachment_type || "application/octet-stream" })];
+function asAttachment(row:PressRelease,language:PressLanguage):File[] {
+  const name=language==="el"?row.attachment_name:row.attachment_name_en;
+  const type=language==="el"?row.attachment_type:row.attachment_type_en;
+  const bytes=language==="el"?row.attachment_bytes:row.attachment_bytes_en;
+  if(!name||!bytes)return [];
+  return [new File([new Uint8Array(bytes)],name,{type:type||"application/octet-stream"})];
 }
 
-export async function sendPressTest(principal: SessionPrincipal, id: string, target: string): Promise<string> {
-  assertAdminPermission(principal, "research.publish.manage");
-  const addresses = parsePressRecipients(target);
-  if (addresses.length !== 1) throw new Error("Provide exactly one test recipient.");
-  const row = (await pool().query<PressRelease>(
-    "SELECT * FROM public.research_press_releases WHERE id=$1 LIMIT 1", [id]
+export async function sendPressTest(
+  principal:SessionPrincipal,id:string,target:string,language:PressLanguage
+):Promise<string>{
+  assertAdminPermission(principal,"research.publish.manage");
+  const email=validatePressEmail(target);
+  if(language!=="el" && language!=="en")throw new Error("Select Greek or English for the test email.");
+  const row=(await pool().query<PressRelease>(
+    "SELECT * FROM public.research_press_releases WHERE id=$1 LIMIT 1",[id]
   )).rows[0];
-  if (!row) throw new Error("Save a press release before sending a test.");
-  const sent = await sendAdminMail(principal, {
-    from: FROM, to: addresses[0], subject: "[TEST] " + row.subject,
-    text: "", html: pressHtmlFragment(row.body_html), format: "html", attachments: asAttachment(row)
+  if(!row)throw new Error("Save the draft before testing.");
+  const {subject,html}=pressLanguageContent(row,language);
+  const sent=await sendAdminMail(principal,{
+    from:FROM,to:email,subject:"[TEST · "+language.toUpperCase()+"] "+subject,
+    text:"",html:pressHtmlFragment(html,language),locale:language,
+    format:"html",attachments:asAttachment(row,language)
   });
-  await recordAdminAudit(principal,"research.press.test","research_press_release",id,"One-recipient press release preview",{
-    mailId:sent.publicId,recipientCount:1
-  });
+  await recordAdminAudit(principal,"research.press.test","research_press_release",id,
+    "One-recipient press test", {mailId:sent.publicId,language,recipientCount:1});
   return sent.publicId;
 }
 
-/** A held "sending" status is deliberate: never auto-retry ambiguous SES acceptance. */
-export async function dispatchPressBatch(principal: SessionPrincipal, id: string): Promise<{
-  attempted: number; sent: number; failed: number; remaining: number;
-}> {
-  assertAdminPermission(principal, "research.publish.manage");
-  if (process.env.BLS_PRESS_SENDING_ENABLED !== "true") {
-    throw new Error("Press delivery is disabled until BLS_PRESS_SENDING_ENABLED=true is configured after SES approval.");
-  }
-  const db = pool();
-  const result = await db.query<PressRelease>(
-    "SELECT * FROM public.research_press_releases WHERE id=$1 AND status IN ('prepared','sending') LIMIT 1", [id]
-  );
-  const release = result.rows[0];
-  if (!release) throw new Error("Prepare a draft and confirm recipients before dispatch.");
-  // Claim only pending recipients and never requeue rows with a previous attempt.
-  await db.query(
-    `UPDATE public.research_press_deliveries d SET status='suppressed',updated_at=now()
+/** Each recipient is claimed immediately before attempting SES, never 8 at once.
+ * Unknown provider outcomes remain held for manual investigation; no automatic resend. */
+export async function dispatchPressBatch(principal:SessionPrincipal,id:string):Promise<{
+  attempted:number;sent:number;failed:number;remaining:number;
+}>{
+  assertAdminPermission(principal,"research.publish.manage");
+  if(process.env.BLS_PRESS_SENDING_ENABLED!=="true")
+    throw new Error("Live press delivery disabled until SES approval and BLS_PRESS_SENDING_ENABLED=true.");
+  const db=pool();
+  const release=(await db.query<PressRelease>(
+    "SELECT * FROM public.research_press_releases WHERE id=$1 AND status IN ('prepared','sending') LIMIT 1",[id]
+  )).rows[0];
+  if(!release)throw new Error("Prepare the campaign before sending.");
+
+  await db.query(`UPDATE public.research_press_deliveries d SET status='suppressed',updated_at=now()
      WHERE release_id=$1 AND status='pending'
-       AND EXISTS(SELECT 1 FROM public.research_press_suppressions s WHERE s.recipient=d.recipient)`,
-    [id]
-  );
-  const claimed = await db.query<{ recipient: string }>(
-    `WITH next AS (
-       SELECT recipient FROM public.research_press_deliveries
-       WHERE release_id=$1 AND status='pending'
-       ORDER BY recipient FOR UPDATE SKIP LOCKED LIMIT $2
-     )
-     UPDATE public.research_press_deliveries d
+       AND EXISTS(SELECT 1 FROM public.research_press_suppressions s WHERE s.recipient=d.recipient)`,[id]);
+  await db.query("UPDATE public.research_press_releases SET status='sending',updated_at=now() WHERE id=$1 AND status='prepared'",[id]);
+
+  let attempted=0,sent=0,failed=0;
+  for(let i=0;i<BATCH_SIZE;i++){
+    // Atomic one-row claim; other pending recipients remain safely available if this request crashes.
+    const claim=await db.query<{recipient:string;language:PressLanguage}>(`WITH next AS (
+      SELECT recipient FROM public.research_press_deliveries
+      WHERE release_id=$1 AND status='pending'
+      ORDER BY recipient FOR UPDATE SKIP LOCKED LIMIT 1
+    )
+    UPDATE public.research_press_deliveries d
        SET status='sending',updated_at=now()
-     FROM next WHERE d.release_id=$1 AND d.recipient=next.recipient RETURNING d.recipient`,
-    [id,BATCH_SIZE]
-  );
-  await db.query(
-    "UPDATE public.research_press_releases SET status='sending',updated_at=now() WHERE id=$1 AND status='prepared'",
-    [id]
-  );
-  let sent = 0;
-  let failed = 0;
-  for (const item of claimed.rows) {
-    // Recheck opt-outs even after the initial batch claim.
-    const optOut = await db.query(
-      "SELECT 1 FROM public.research_press_suppressions WHERE recipient=$1 LIMIT 1", [item.recipient]
-    );
-    if (optOut.rowCount) {
-      await db.query(
-        "UPDATE public.research_press_deliveries SET status='suppressed',updated_at=now() WHERE release_id=$1 AND recipient=$2",
-        [id,item.recipient]
-      );
+    FROM next WHERE d.release_id=$1 AND d.recipient=next.recipient
+    RETURNING d.recipient,d.language`,[id]);
+    const recipient=claim.rows[0];
+    if(!recipient)break;
+    attempted++;
+    const optOut=await db.query("SELECT 1 FROM public.research_press_suppressions WHERE recipient=$1 LIMIT 1",[recipient.recipient]);
+    if(optOut.rowCount){
+      await db.query("UPDATE public.research_press_deliveries SET status='suppressed',updated_at=now() WHERE release_id=$1 AND recipient=$2",[id,recipient.recipient]);
       continue;
     }
+    let result: Awaited<ReturnType<typeof sendAdminMail>>;
     try {
-      const res = await sendAdminMail(principal, {
-        from: FROM,to: item.recipient,subject: release.subject,text:"",
-        html:pressHtmlFragment(release.body_html),format:"html",attachments:asAttachment(release)
+      const {subject,html}=pressLanguageContent(release,recipient.language);
+      result=await sendAdminMail(principal,{
+        from:FROM,to:recipient.recipient,subject,text:"",
+        html:pressHtmlFragment(html,recipient.language),locale:recipient.language,
+        format:"html",attachments:asAttachment(release,recipient.language)
       });
-      await db.query(
-        `UPDATE public.research_press_deliveries
-         SET status='sent',admin_mail_id=$3,ses_message_id=$4,sent_at=now(),updated_at=now()
-         WHERE release_id=$1 AND recipient=$2`,
-        [id,item.recipient,res.publicId,res.providerMessageId]
-      );
-      sent += 1;
-    } catch (error) {
-      await db.query(
-        `UPDATE public.research_press_deliveries
-           SET status='failed',error_message=$3,updated_at=now()
-         WHERE release_id=$1 AND recipient=$2`,
-        [id,item.recipient,(error instanceof Error?error.message:String(error)).slice(0,800)]
-      ).catch(() => undefined);
-      failed += 1;
+    }catch(error){
+      // Even a timeout may mean SES accepted it. Never mark as retryable automatically.
+      failed++;
+      await db.query(`UPDATE public.research_press_deliveries
+        SET error_message=$3,updated_at=now()
+        WHERE release_id=$1 AND recipient=$2 AND status='sending'`,
+        [id,recipient.recipient,(error instanceof Error?error.message:String(error)).slice(0,800)]
+      ).catch(()=>undefined);
+      continue;
+    }
+    // SES accepted the message; persistence failures may not reclassify the send as failed.
+    try {
+      await db.query(`UPDATE public.research_press_deliveries
+        SET status='sent',admin_mail_id=$3,ses_message_id=$4,sent_at=now(),updated_at=now(),error_message=NULL
+        WHERE release_id=$1 AND recipient=$2 AND status='sending'`,
+        [id,recipient.recipient,result.publicId,result.providerMessageId]);
+      sent++;
+    }catch(error){
+      console.error("Press ledger update after SES acceptance requires manual reconciliation",{
+        releaseId:id,mailId:result.publicId,recipient:recipient.recipient,
+        error:error instanceof Error?error.message:String(error)
+      });
     }
   }
-  const remainingResult = await db.query<{ remaining: number; held: number }>(
-    `SELECT count(*) FILTER(WHERE status='pending')::int AS remaining,
-            count(*) FILTER(WHERE status='sending')::int AS held
-     FROM public.research_press_deliveries WHERE release_id=$1`, [id]
-  );
-  const remaining = remainingResult.rows[0]?.remaining ?? 0;
-  const held = remainingResult.rows[0]?.held ?? 0;
-  if (remaining===0 && held===0) {
-    await db.query(
-      "UPDATE public.research_press_releases SET status='completed',completed_at=now(),updated_at=now() WHERE id=$1",
-      [id]
-    );
-  }
-  await recordAdminAudit(principal,"research.press.batch","research_press_release",id,"Explicit press dispatch",{
-    attempted:claimed.rows.length,sent,failed,remaining,held
-  }).catch((error)=>console.error("Press dispatch audit failure",error));
-  return { attempted:claimed.rows.length,sent,failed,remaining };
+  const q=(await db.query<{remaining:number;held:number}>(`SELECT
+      count(*) FILTER(WHERE status='pending')::int AS remaining,
+      count(*) FILTER(WHERE status='sending')::int AS held
+    FROM public.research_press_deliveries WHERE release_id=$1`,[id])).rows[0];
+  const remaining=q?.remaining??0,held=q?.held??0;
+  if(remaining===0&&held===0) await db.query(
+    "UPDATE public.research_press_releases SET status='completed',completed_at=now(),updated_at=now() WHERE id=$1",[id]);
+  await recordAdminAudit(principal,"research.press.batch","research_press_release",id,"Explicit bilingual press distribution",{
+    attempted,sent,failed,remaining,held
+  }).catch(error=>console.error("Press dispatch audit failure",error));
+  return {attempted,sent,failed,remaining};
 }
