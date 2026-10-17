@@ -169,13 +169,22 @@ export class PostgresNotificationOperationsRepository implements NotificationDel
     });
   }
 
-  async centerForUser(input: { scope: DatabaseScope; userId: string; group?: NotificationCenterGroup; unreadOnly?: boolean; includeArchived?: boolean }): Promise<ReadonlyArray<Notification & { group: NotificationCenterGroup }>> {
+  async centerForUser(input: { scope: DatabaseScope; userId: string; group?: NotificationCenterGroup; unreadOnly?: boolean; includeArchived?: boolean; limit?: number }): Promise<ReadonlyArray<Notification & { group: NotificationCenterGroup }>> {
     return this.#uow.withTransaction(input.scope, async (tx) => {
       const userId = await targetUuid(tx, "users", input.userId);
-      const result = await tx.query<SqlRow>(`${NOTIFICATION_SELECT} WHERE n.user_id=$1 AND n.channel='in_app' ORDER BY n.created_at DESC`, [userId]);
+      // Preserve unlimited reads for existing callers (including deduplication),
+      // while allowing interactive notification pages to request a bounded feed.
+      const limit = input.limit === undefined ? null : Math.max(1, Math.min(200, Math.trunc(input.limit)));
+      const result = await tx.query<SqlRow>(`
+        ${NOTIFICATION_SELECT}
+        WHERE n.user_id=$1
+          AND n.channel='in_app'
+          AND ($3::boolean OR n.archived_at IS NULL)
+          AND (NOT $4::boolean OR n.read_at IS NULL)
+        ORDER BY n.created_at DESC, n.id DESC
+        LIMIT $2::integer
+      `, [userId, limit, input.includeArchived === true, input.unreadOnly === true]);
       return result.rows.map(mapNotification)
-        .filter((item) => input.includeArchived || !item.archivedAt)
-        .filter((item) => !input.unreadOnly || !item.readAt)
         .map((item) => ({ ...item, group: notificationCenterGroup(item.eventType) }))
         .filter((item) => !input.group || item.group === input.group);
     }, { readOnly: true });
