@@ -176,12 +176,30 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
     }
   }
 
-  return <section className="shell order-detail-grid is-refined">
+  return <section className="shell order-detail-grid is-refined account-order-detail-layout">
     <div className="order-detail-main">
       <div className="order-detail-heading is-refined">
-        <div><div className="eyebrow">Παραγγελία</div><h1>{data.status}</h1><p>{date(data.createdAt)} · {modeLabel[data.fulfilmentMode] ?? data.fulfilmentMode} · ΤΚ {data.postcode}</p><small className="order-detail-id">{data.referenceNumber}</small></div>
+        <div><div className="eyebrow">Στοιχεία παραγγελίας</div><h2>{data.status}</h2><p>{date(data.createdAt)} · {modeLabel[data.fulfilmentMode] ?? data.fulfilmentMode} · ΤΚ {data.postcode}</p><small className="order-detail-id">{data.referenceNumber}</small></div>
         <strong>{data.total}</strong>
       </div>
+
+      {data.sourceStatus === "pending_payment" && <div id="order-payment" className="order-summary needs-attention account-order-payment-cta">
+        <div className="eyebrow">Χρειάζεται ενέργεια</div>
+        <h2>Ολοκλήρωσε την πληρωμή</h2>
+        <p>Η παραγγελία έχει δημιουργηθεί, αλλά δεν θα προχωρήσει στο κατάστημα μέχρι να ολοκληρωθεί η ασφαλής πληρωμή. Το απόθεμα δεσμεύεται μόνο για περιορισμένο χρονικό διάστημα.</p>
+        <button className="button button-primary" type="button" disabled={paymentBusy} onClick={() => void resumePayment()}>{paymentBusy ? "Άνοιγμα ασφαλούς πληρωμής…" : "Συνέχιση ασφαλούς πληρωμής"}</button>
+        <small>Δεν δημιουργείται νέα παραγγελία. Αν υπάρχει ήδη ενεργή Mollie πληρωμή, συνεχίζεις την ίδια.</small>
+        {paymentError && <p className="form-error" role="alert">{paymentError}</p>}
+      </div>}
+
+
+      {data.pickups.length > 0 && <div id="order-pickups" className="order-detail-card is-refined account-order-pickup-panel">
+        <h2>Παραλαβή από το κατάστημα</h2>
+        {data.pickups.map((pickup) => <div key={pickup.id} style={{ display: "grid", gap: 16, marginTop: 14 }}>
+          <div><strong>{pickup.vendorName}</strong>{pickup.status === "ready" && <p style={{ marginBottom: 0 }}>Η παραγγελία είναι έτοιμη. Δείξε αυτό το QR στο κατάστημα. Ο συνεργάτης το σαρώνει για να ολοκληρωθεί με ασφάλεια η παραλαβή.</p>}{pickup.status === "collected" && <p style={{ marginBottom: 0 }}>Η παραλαβή ολοκληρώθηκε{pickup.collectedAt ? ` · ${date(pickup.collectedAt)}` : ""}.</p>}{pickup.status === "expired" && <p style={{ marginBottom: 0 }}>Ο κωδικός παραλαβής έχει λήξει. Επικοινώνησε με το κατάστημα ή την υποστήριξη πριν την παραλαβή.</p>}</div>
+          {pickup.status === "ready" && <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}><div style={{ background: "white", padding: 12, borderRadius: 14, width: 200, height: 200, display: "grid", placeItems: "center" }} aria-label="QR παραλαβής"><QRCode value={pickup.qrUrl} size={176} level="M" /></div><div style={{ display: "grid", gap: 8 }}><span>Εναλλακτικός κωδικός</span><strong style={{ fontSize: "2rem", letterSpacing: ".18em" }}>{pickup.shortCode}</strong><small>Έτοιμη από {date(pickup.readyAt)}</small><small>Ισχύει έως {date(pickup.expiresAt)}</small><small>Μην κοινοποιείς το QR ή τον κωδικό σε τρίτους.</small></div></div>}
+        </div>)}
+      </div>}
 
       {data.fulfilmentMode === "local_delivery" && manualSupplierDelivery && <div className="order-detail-card is-refined">
         <div className="eyebrow">Αποστολή παραγγελίας</div>
@@ -231,7 +249,7 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         </div>}
       </div>}
 
-      <div className="order-detail-card is-refined">
+      <div id="order-products" className="order-detail-card is-refined account-order-products">
         <h2>Προϊόντα</h2>
         {data.lines.map((line) => <div className="order-detail-line" key={line.id}>
           <div><Link href={productPublicPath({ id: line.canonicalVariantId, slug: line.productSlug })}><strong>{line.quantity}× {line.title}</strong></Link><small>από <Link href={`/vendor/${line.vendorId}`}>{line.vendorName}</Link></small>{line.refundedQuantity > 0 && <small>{line.refundedQuantity} {line.refundedQuantity === 1 ? "τεμάχιο έχει" : "τεμάχια έχουν"} ήδη επιστραφεί / αποζημιωθεί</small>}</div>
@@ -239,40 +257,24 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         </div>)}
       </div>
 
-      {data.sourceStatus !== "pending_payment" && <CustomerFulfilmentProgress
+      {data.sourceStatus !== "pending_payment" && <div id="order-fulfilment" className="account-order-progress-section"><CustomerFulfilmentProgress
         fulfilments={data.fulfilments}
         lines={data.lines.map((line) => ({ id: line.id, title: line.title, quantity: line.quantity }))}
         fulfilmentMode={data.fulfilmentMode}
-      />}
+      /></div>}
 
-      <CustomerReturnsPanel
+      <div id="order-returns" className="account-order-returns-section"><CustomerReturnsPanel
         orderId={data.id}
         csrfToken={data.csrfToken}
         initialLines={data.lines.map((line) => ({ id: line.id, title: line.title, returnableQuantity: line.returnableQuantity }))}
         initialReturns={data.returns}
-      />
+      /></div>
 
-      {data.pickups.length > 0 && <div className="order-detail-card is-refined">
-        <h2>Παραλαβή από το κατάστημα</h2>
-        {data.pickups.map((pickup) => <div key={pickup.id} style={{ display: "grid", gap: 16, marginTop: 14 }}>
-          <div><strong>{pickup.vendorName}</strong>{pickup.status === "ready" && <p style={{ marginBottom: 0 }}>Η παραγγελία είναι έτοιμη. Δείξε αυτό το QR στο κατάστημα. Ο συνεργάτης το σαρώνει για να ολοκληρωθεί με ασφάλεια η παραλαβή.</p>}{pickup.status === "collected" && <p style={{ marginBottom: 0 }}>Η παραλαβή ολοκληρώθηκε{pickup.collectedAt ? ` · ${date(pickup.collectedAt)}` : ""}.</p>}{pickup.status === "expired" && <p style={{ marginBottom: 0 }}>Ο κωδικός παραλαβής έχει λήξει. Επικοινώνησε με το κατάστημα ή την υποστήριξη πριν την παραλαβή.</p>}</div>
-          {pickup.status === "ready" && <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}><div style={{ background: "white", padding: 12, borderRadius: 14, width: 200, height: 200, display: "grid", placeItems: "center" }} aria-label="QR παραλαβής"><QRCode value={pickup.qrUrl} size={176} level="M" /></div><div style={{ display: "grid", gap: 8 }}><span>Εναλλακτικός κωδικός</span><strong style={{ fontSize: "2rem", letterSpacing: ".18em" }}>{pickup.shortCode}</strong><small>Έτοιμη από {date(pickup.readyAt)}</small><small>Ισχύει έως {date(pickup.expiresAt)}</small><small>Μην κοινοποιείς το QR ή τον κωδικό σε τρίτους.</small></div></div>}
-        </div>)}
-      </div>}
       {error && <p className="form-error" role="alert">{error}</p>}
     </div>
 
     <aside className="order-detail-side">
-      {data.sourceStatus === "pending_payment" && <div className="order-summary needs-attention">
-        <div className="eyebrow">Χρειάζεται ενέργεια</div>
-        <h2>Ολοκλήρωσε την πληρωμή</h2>
-        <p>Η παραγγελία έχει δημιουργηθεί, αλλά δεν θα προχωρήσει στο κατάστημα μέχρι να ολοκληρωθεί η ασφαλής πληρωμή. Το απόθεμα δεσμεύεται μόνο για περιορισμένο χρονικό διάστημα.</p>
-        <button className="button button-primary" type="button" disabled={paymentBusy} onClick={() => void resumePayment()}>{paymentBusy ? "Άνοιγμα ασφαλούς πληρωμής…" : "Συνέχιση ασφαλούς πληρωμής"}</button>
-        <small>Δεν δημιουργείται νέα παραγγελία. Αν υπάρχει ήδη ενεργή Mollie πληρωμή, συνεχίζεις την ίδια.</small>
-        {paymentError && <p className="form-error" role="alert">{paymentError}</p>}
-      </div>}
-
-      <div className="order-summary">
+      <div id="order-summary" className="order-summary account-order-summary">
         <h2>Σύνοψη</h2>
         <div className="summary-row"><span>Εμπορεύματα</span><strong>{data.merchandiseSubtotal}</strong></div>
         <div className="summary-row"><span>Παράδοση</span><strong>{data.deliveryCharge}</strong></div>
@@ -293,7 +295,7 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         {data.invoice.qrUrl && <a className="button button-secondary" href={data.invoice.qrUrl} target="_blank" rel="noreferrer">Επαλήθευση AADE</a>}
       </div>}
 
-      <div className="order-help-links" aria-label="Βοήθεια παραγγελίας">
+      <div id="order-support" className="order-help-links" aria-label="Βοήθεια παραγγελίας">
         <Link href={`/account/support?context=order&id=${encodeURIComponent(data.referenceNumber)}&label=${encodeURIComponent(`Παραγγελία ${data.referenceNumber}`)}&subject=${encodeURIComponent(`Βοήθεια με την παραγγελία ${data.referenceNumber}`)}`}><span>Υποστήριξη για αυτή την παραγγελία</span><span aria-hidden="true">→</span></Link>
         <Link href="/delivery-pickup"><span>Παράδοση & παραλαβή</span><span aria-hidden="true">→</span></Link>
         <Link href="/returns-refunds"><span>Πολιτική επιστροφών</span><span aria-hidden="true">→</span></Link>
