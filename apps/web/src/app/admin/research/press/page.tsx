@@ -95,8 +95,11 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
           {current&&<input type="hidden" name="id" value={current.id}/>}
           <PressEditorFields key={current?.id||"new"} editable={editable&&!locked}
             title={current?.title||""} subject={current?.subject||""}
-            bodyHtml={current?.body_html||""} recipients={current?.recipients.join("\n")||""}
-            attachmentName={current?.attachment_name} lists={workspace.lists}/>
+            bodyHtml={current?.body_html||""} bodyHtmlEn={current?.body_html_en||""}
+            subjectEn={current?.subject_en||""}
+            recipients={current?.recipients||[]} recipientLanguages={current?.recipient_languages||{}}
+            attachmentName={current?.attachment_name} attachmentNameEn={current?.attachment_name_en}
+            lists={workspace.lists}/>
         </form>
 
         {current&&<div className="press-actions-grid">
@@ -107,6 +110,11 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
               <input type="hidden" name="id" value={current.id}/>
               <label htmlFor="press-test-address">Test email address</label>
               <input type="email" name="testAddress" id="press-test-address" placeholder="your-address@example.com" required disabled={!editable}/>
+              <label htmlFor="press-test-language">Choose test language</label>
+              <select name="testLanguage" id="press-test-language" required disabled={!editable}>
+                <option value="el">🇬🇷 Greek — matching Greek attachment</option>
+                <option value="en">🇬🇧 English — matching English attachment</option>
+              </select>
               <label className="press-check"><input type="checkbox" name="confirmTest" value="yes" required disabled={!editable}/> I understand this sends a real TEST email.</label>
               <button className="button button-secondary" type="submit" disabled={!editable}>Send test email</button>
             </form>
@@ -117,7 +125,7 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
             {current.status==="draft" ? <form action={preparePressAction} className="press-action-form">
               <input type="hidden" name="csrfToken" value={principal.csrfToken}/>
               <input type="hidden" name="id" value={current.id}/>
-              <p className="press-help">{current.recipients.length} saved recipient addresses. Suppressions are applied automatically.</p>
+              <p className="press-help">{current.recipients.length} contacts from CSV (🇬🇷 {current.recipients.filter(email=>current.recipient_languages[email]==="el").length} Greek · 🇬🇧 {current.recipients.filter(email=>current.recipient_languages[email]==="en").length} English). Both matching messages and required attachments are checked before preparation.</p>
               <label htmlFor="press-prepare-confirm">Type PREPARE to freeze this version</label>
               <input id="press-prepare-confirm" name="confirm" placeholder="PREPARE" autoComplete="off" required disabled={!editable||!current.recipients.length}/>
               <button type="submit" className="button button-secondary" disabled={!editable||!current.recipients.length}>Prepare campaign (no send)</button>
@@ -148,8 +156,8 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
           </p>}
           {workspace.deliveries.length>0&&<details className="press-recipients-detail">
             <summary>View individual delivery records ({workspace.deliveries.length})</summary>
-            <div className="press-delivery-table-wrap"><table><thead><tr><th>Recipient</th><th>Status</th><th>Sent</th><th>Details</th></tr></thead><tbody>
-              {workspace.deliveries.map(d=><tr key={d.recipient}><td>{d.recipient}</td><td>{d.status}</td><td>{date(d.sent_at)}</td><td>{d.error_message||"—"}</td></tr>)}
+            <div className="press-delivery-table-wrap"><table><thead><tr><th>Recipient</th><th>Language</th><th>Status</th><th>Sent</th><th>Details</th></tr></thead><tbody>
+              {workspace.deliveries.map(d=><tr key={d.recipient}><td>{d.recipient}</td><td>{d.language==="el"?"Greek":"English"}</td><td>{d.status}</td><td>{date(d.sent_at)}</td><td>{d.error_message||"—"}</td></tr>)}
             </tbody></table></div>
           </details>}
         </section>}
@@ -163,11 +171,12 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
           <input type="hidden" name="csrfToken" value={principal.csrfToken}/>
           {current&&<input type="hidden" name="id" value={current.id}/>}
           <label htmlFor="press-list-name">List name</label><input id="press-list-name" name="listName" required maxLength={120} placeholder="Ελληνικός Τύπος · Οικονομία" disabled={!editable}/>
-          <label htmlFor="press-list-recipients">Contact emails · one per line</label>
-          <textarea id="press-list-recipients" name="listRecipients" rows={5} required placeholder="editor@newsroom.gr" disabled={!editable}/>
+          <label htmlFor="press-list-recipients">Upload UTF-8 CSV with email and language</label>
+          <input id="press-list-recipients" name="listCsv" type="file" accept=".csv,text/csv" required disabled={!editable}/>
+          <p className="press-help"><code>email,language,outlet,name</code> — specify el or en for every contact.</p>
           <button className="button button-secondary" disabled={!editable} type="submit">Save / replace named list</button>
         </form>
-        <div className="press-saved-lists">{workspace.lists.map(l=><div key={l.id}><strong>{l.name}</strong><span>{l.recipients.length} contacts</span></div>)}</div>
+        <div className="press-saved-lists">{workspace.lists.map(l=><div key={l.id}><strong>{l.name}</strong><span>{l.recipients.length} contacts · 🇬🇷 {l.recipients.filter(a=>l.recipient_languages[a]==="el").length} / 🇬🇧 {l.recipients.filter(a=>l.recipient_languages[a]==="en").length}</span></div>)}</div>
       </section>
       <section className="press-card">
         <div className="press-panel-head"><div><strong>Do-not-contact list</strong><small>Respect explicit opt-outs and bounced press emails before any batch.</small></div></div>
