@@ -210,7 +210,7 @@ export function AccountSavedClient({ initialProducts, searches: initialSearches,
     }
   }
 
-  return <section className="shell customer-account-page">
+  return <section className="shell customer-account-page account-saved-page">
     <div className="customer-page-heading"><div><div className="eyebrow">{wishlistOnly ? "Wishlist" : "Wishlist · Local Watch"}</div><h1>{wishlistOnly ? "Η Wishlist μου" : "Wishlist"}</h1></div><p>{wishlistOnly ? "Όλα τα προϊόντα που έχεις κρατήσει, με διαθεσιμότητα και ειδοποιήσεις Local Watch σε ένα ξεκάθαρο σημείο." : "Κράτησε ό,τι σε ενδιαφέρει και ζήτησε από το ΚΟΝΤΑ ΜΟΥ να σε ενημερώσει μόλις υπάρξει πραγματική τοπική διαθεσιμότητα."}</p></div>
     {error && <p className="account-action-error" role="alert">{error}</p>}
     {status && <p className="customer-saved-status" role="status">{status}</p>}
