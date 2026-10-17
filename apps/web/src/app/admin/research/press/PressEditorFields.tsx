@@ -3,10 +3,10 @@
 import { useMemo, useState } from "react";
 import { pressPreviewHtml } from "../../../../lib/research-press-template";
 
-type RecipientList = { id: string; name: string; recipients: string[] };
+type RecipientList = { id: string; name: string; recipients: readonly string[] };
 export function PressEditorFields(props: Readonly<{
   title: string; subject: string; bodyHtml: string; recipients: string;
-  attachmentName?: string | null; lists: RecipientList[]; editable: boolean;
+  attachmentName?: string | null; lists: readonly RecipientList[]; editable: boolean;
 }>) {
   const [title,setTitle] = useState(props.title);
   const [subject,setSubject] = useState(props.subject);
