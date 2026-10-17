@@ -52,7 +52,7 @@ function pool() {
 }
 
 export async function pressWorkspace(principal: SessionPrincipal, selectedId?: string) {
-  assertAdminPermission(principal, "research.read");
+  assertAdminPermission(principal, "research.publish.manage");
   const db = pool();
   const [releases, lists] = await Promise.all([
     db.query<Omit<PressRelease, "attachment_bytes"> & { recipient_count: number }>(
