@@ -57,6 +57,7 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
   try{sesStatus=await getSesAccountSendingStatus(sesMailConfigFromEnv());}
   catch(e){sesStatusError=e instanceof Error?e.message:"SES account check unavailable";}
   const deliveryReady=deliverySwitchEnabled&&sesStatus?.canSendToUnverifiedRecipients===true;
+  const probation=sesStatus?.enforcementStatus==="PROBATION";
 
   return <main className="vendor-app admin-app press-office">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research · Press Office"/>
@@ -81,9 +82,17 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
         ?`SES account status: production access ${sesStatus.productionAccess?"yes":"no"}, sending ${sesStatus.sendingEnabled?"on":"off"}, reputation ${sesStatus.enforcementStatus}, review ${sesStatus.reviewStatus||"not specified"}.`
         :""}
       {sesStatusError?`Live SES account verification failed: ${sesStatusError}.`:""}
-      {" "}You can still edit drafts and send individual authorized tests. Bulk media sending cannot proceed until AWS grants production access and the account is healthy.
+      {" "}You can still edit drafts and send individual authorized tests. Sending remains blocked until AWS confirms production access, enabled sending, sufficient quota and a permitted account status.
     </section>}
-    {deliveryReady&&<section className="shell press-alert" role="status">
+    {deliveryReady&&probation&&<section className="shell press-alert press-alert-warning" role="status">
+      <strong>Live manual sending enabled — AWS SES account on PROBATION.</strong>{" "}
+      AWS reports production sending enabled and review GRANTED, but the account is
+      still under reputation review. Send only to appropriate editorial contacts,
+      respect all opt-outs, and monitor complaints and bounces after every batch.
+      Each batch requires both the normal SEND confirmation and a separate probation acknowledgement.
+      No messages send automatically.
+    </section>}
+    {deliveryReady&&!probation&&<section className="shell press-alert" role="status">
       <strong>Press distribution available · AWS SES verified.</strong>{" "}
       Each batch sends at most eight recipients after your explicit confirmation.
       No press messages are sent automatically.
@@ -180,6 +189,8 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
             <input type="hidden" name="id" value={current.id}/>
             <label className="press-check"><input type="checkbox" name="confirmRecipients" value="yes" required disabled={!editable||!deliveryReady}/>
               I reviewed the recipient addresses, their contact basis, the attachment and the final content.</label>
+            {probation&&<label className="press-check"><input type="checkbox" name="confirmProbation" value="yes" required disabled={!editable||!deliveryReady}/>
+              I understand AWS SES has placed this account on probation. I am sending only to eligible press contacts, respecting opt-outs, and accept that complaints may affect the account.</label>}
             <label htmlFor="press-send-confirm">Type SEND to dispatch the next batch of up to 8 emails</label>
             <input id="press-send-confirm" name="confirmation" placeholder="SEND" required autoComplete="off" disabled={!editable||!deliveryReady}/>
             <button type="submit" className="button" disabled={!editable||!deliveryReady}>Send next batch · max 8 recipients</button>
