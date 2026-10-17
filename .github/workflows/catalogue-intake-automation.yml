@@ -10,11 +10,15 @@ on:
     paths:
       - ".github/workflows/catalogue-intake-automation.yml"
       - "workers/catalogue-intake-automation-worker.ts"
+      - "apps/web/src/app/api/internal/catalogue-intake-cycle/route.ts"
+      - "apps/web/src/lib/catalogue-intake-automation-runtime.ts"
+      - "apps/web/src/lib/github-actions-oidc.ts"
       - "apps/web/src/lib/admin-catalogue-intake.ts"
       - "apps/web/src/lib/admin-catalogue-operations.ts"
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: catalogue-intake-automation
@@ -24,40 +28,52 @@ jobs:
   run:
     name: Intelligence and canonicalization cycle
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     env:
-      NODE_ENV: production
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      PGSSLMODE: require
-      BLS_DB_APPLICATION_NAME: github-actions:catalogue-intake
-      BLS_DB_CONNECT_TIMEOUT_MS: "15000"
-      BLS_DB_POOL_MAX: "2"
-      BLS_CATALOGUE_INTAKE_WORKER_ID: github-actions:${{ github.run_id }}:${{ github.run_attempt }}
-      BLS_CATALOGUE_INTAKE_MAX_GROUPS: "3"
-      BLS_CATALOGUE_INTELLIGENCE_LIMIT: "25"
+      CATALOGUE_INTAKE_ENDPOINT: https://kontamou.site/api/internal/catalogue-intake-cycle
+      CATALOGUE_INTAKE_AUDIENCE: kontamou-catalogue-intake
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Use Node.js 24
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Verify production database credential
+      - name: Run authenticated catalogue intake cycle
         shell: bash
         run: |
-          if [[ -z "${DATABASE_URL}" ]]; then
-            echo "::error::GitHub Actions secret DATABASE_URL is missing."
-            exit 78
-          fi
+          set -euo pipefail
 
-      - name: Run one catalogue intake automation cycle
-        run: node --experimental-strip-types workers/catalogue-intake-automation-worker.ts
+          response_file="${RUNNER_TEMP}/catalogue-intake-response.json"
+          for attempt in $(seq 1 12); do
+            oidc_response="$(curl --fail --silent --show-error \
+              -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${CATALOGUE_INTAKE_AUDIENCE}")"
+            oidc_token="$(printf '%s' "${oidc_response}" | jq -r '.value // empty')"
+            if [[ -z "${oidc_token}" ]]; then
+              echo "::error::GitHub OIDC provider did not return an ID token."
+              exit 1
+            fi
+
+            status="$(curl --silent --show-error \
+              --output "${response_file}" \
+              --write-out '%{http_code}' \
+              --max-time 720 \
+              --request POST \
+              -H "Authorization: Bearer ${oidc_token}" \
+              -H "Content-Type: application/json" \
+              "${CATALOGUE_INTAKE_ENDPOINT}")"
+
+            cat "${response_file}" || true
+            echo
+
+            if [[ "${status}" -ge 200 && "${status}" -lt 300 ]]; then
+              exit 0
+            fi
+            if [[ "${status}" == "401" || "${status}" == "403" ]]; then
+              echo "::error::KONTA MOU rejected the GitHub OIDC identity (HTTP ${status})."
+              exit 1
+            fi
+            if [[ "${attempt}" -eq 12 ]]; then
+              echo "::error::Catalogue intake endpoint did not become healthy (last HTTP ${status})."
+              exit 1
+            fi
+
+            echo "Catalogue intake endpoint returned HTTP ${status}; retrying after deployment/transient delay."
+            sleep 15
+          done
