@@ -15,9 +15,9 @@ function SetupStep({ complete, title, body, href, action }: {
   </Link>;
 }
 
-export function CustomerAccountSetupChecklist({ setup }: { setup: CustomerAccountSetup }) {
+export function CustomerAccountSetupChecklist({ setup, embedded = false }: { setup: CustomerAccountSetup; embedded?: boolean }) {
   if (setup.complete) return null;
-  return <section className="shell customer-account-setup" aria-labelledby="customer-setup-title">
+  return <section className={embedded ? "customer-account-setup customer-setup-compact" : "shell customer-account-setup"} aria-labelledby="customer-setup-title">
     <div className="customer-account-setup-head">
       <div><div className="eyebrow">Ξεκίνα από εδώ</div><h2 id="customer-setup-title">Ρύθμισε τα βασικά του λογαριασμού σου</h2><p>Δύο σύντομα βήματα αρκούν για να είναι ο λογαριασμός έτοιμος για παραγγελίες, παραλαβές και τιμολόγηση.</p></div>
       <div className="customer-setup-progress" aria-label={`${setup.completedCount} από ${setup.totalCount} βήματα ολοκληρώθηκαν`}><strong>{setup.completedCount}/{setup.totalCount}</strong><span>βήματα</span></div>

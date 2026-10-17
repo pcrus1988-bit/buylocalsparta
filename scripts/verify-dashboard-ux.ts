@@ -51,7 +51,13 @@ const account = read("apps/web/src/components/AccountDashboardClient.tsx");
 for (const destination of ["/returns-refunds", "/delivery-pickup", "/privacy-controls", "/ask-local"]) if (!account.includes(`href: "${destination}"`) && !account.includes(`href="${destination}"`)) failures.push(`Account dashboard is missing task path ${destination}`);
 for (const requirement of ["AccountHomeHub", "priorityGrid", "order-tracking", "activityDisclosure", "secondaryDetails", 'role="alert"', 'x-csrf-token']) if (!account.includes(requirement)) failures.push(`Account dashboard is missing ${requirement}`);
 const accountPage = read("apps/web/src/app/account/page.tsx");
-for (const requirement of ["AccountSectionNavigation", "AccountDashboardClient", "CustomerAccountSetupChecklist", "compactDashboardIntro"]) if (!accountPage.includes(requirement)) failures.push(`Account dashboard page is missing ${requirement}`);
+for (const requirement of ["AccountDashboardClient", "setup={setup}", 'className={`account-app']) if (!accountPage.includes(requirement)) failures.push(`Account dashboard route is missing ${requirement}`);
+if (accountPage.includes("<h1>") || accountPage.includes("compactDashboardIntro")) failures.push("Account overview duplicates the main heading before the dashboard hub");
+for (const requirement of ["CustomerAccountSetupChecklist", "setup={setup} embedded", "latestActiveOrder", "unreadNotifications", "attentionOrders.length > 3"]) if (!account.includes(requirement)) failures.push(`Account focus is missing ${requirement}`);
+if (account.indexOf('customer-overview-attention') > account.indexOf('priorityGridSolo')) failures.push("Urgent account action must be displayed ahead of passive order tracking");
+const checklist = read("apps/web/src/components/CustomerAccountSetupChecklist.tsx");
+if (!checklist.includes('embedded ? "customer-account-setup customer-setup-compact"')) failures.push("Incomplete account setup must be embeddable without nested shell width");
+if (account.includes('<AccountTryOnSetupClient variant="dashboard" />') && !account.includes("activityDisclosure")) failures.push("Try On dashboard setup must stay in optional expanded content");
 const accountHub = read("apps/web/src/components/AccountHomeHub.tsx");
 for (const route of [
   "/account/orders", "/account/wishlist", "/account/delivery", "/posokanei", "/account/ask-local",
@@ -60,6 +66,11 @@ for (const route of [
   "/account/privacy", "/account/support"
 ]) if (!accountHub.includes(`href: "${route}"`)) failures.push(`Account card navigation is missing ${route}`);
 for (const requirement of ["TileIcon", "aria-label", "activeOrders", "unreadNotifications", "savedProducts", "savedSearches", "Αγορές", "Υπηρεσίες", "Προσωπικά & ρυθμίσεις"]) if (!accountHub.includes(requirement)) failures.push(`Account hub is missing ${requirement}`);
+if (!accountHub.includes("<h1>Ο λογαριασμός μου</h1>")) failures.push("Account homepage needs a single clear H1");
+if (!accountHub.includes('className={styles.focus}') || accountHub.indexOf('className={styles.focus}') > accountHub.indexOf('id="account-shopping"')) failures.push("Urgent orders and setup must appear before the account section directory");
+const hubCss = read("apps/web/src/components/AccountHomeHub.module.css");
+for (const requirement of [".focus", ".overview h1", ".stat", ".tile", "@media (max-width:740px)"]) if (!hubCss.includes(requirement)) failures.push(`Account mobile focus styles missing ${requirement}`);
+
 const accountNav = read("apps/web/src/components/AccountSectionNavigation.tsx");
 for (const requirement of ["Αγορές & παρακολούθηση", "Τοπική βοήθεια", "Προφίλ & ασφάλεια", "/account/ask-local", "/account/orders", "/account/privacy", "navDisclosure", 'pathname === "/account"']) if (!accountNav.includes(requirement)) failures.push(`Customer account navigation is missing ${requirement}`);
 const accountStyles = read("apps/web/src/components/CustomerAccountExperience.module.css");
