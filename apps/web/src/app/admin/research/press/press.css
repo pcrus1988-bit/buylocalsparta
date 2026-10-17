@@ -99,3 +99,23 @@
 .press-office .press-field>small {font-size:11px;line-height:1.4;color:#55715e;overflow-wrap:anywhere;}
 .press-office .press-preview-frame {min-height:420px;}
 @media(max-width:640px){.press-office .press-recipient-stats {grid-template-columns:repeat(3,minmax(0,1fr));}.press-office .press-recipient-stats strong {font-size:21px;}}
+
+/* Campaign feedback reporting: provider outcomes are distinct from SES acceptance. */
+.press-office .press-report-shortcut {margin:0 0 14px;}
+.press-office .press-report-global {margin-top:22px;}
+.press-office .press-report-metrics {display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px;margin:14px 0;}
+.press-office .press-report-metric {display:grid;gap:8px;align-content:start;padding:14px;background:#f3f8f4;border:1px solid #dde8df;border-radius:13px;}
+.press-office .press-report-metric span {font-size:12px;color:#587063;line-height:1.45;}
+.press-office .press-report-metric strong {font-size:27px;font-weight:900;letter-spacing:-.5px;color:#173e2a;font-variant-numeric:tabular-nums;}
+.press-office .press-report-global-metrics {grid-template-columns:repeat(5,minmax(0,1fr));}
+.press-office .press-report-layout {margin-bottom:34px;}
+.press-office .press-report-rate {display:flex;flex-wrap:wrap;gap:12px 26px;margin-top:16px;color:#5b6f62;font-size:12px;}
+.press-office .press-report-rate strong {color:#173e2a;}
+.press-office .press-report-filters {display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;}
+.press-office .press-report-filters a {padding:9px 15px;border:1px solid #d5e4d8;border-radius:20px;background:#fff;text-decoration:none;color:#335741;font-size:12px;font-weight:800;}
+.press-office .press-report-filters a.active {background:#173e2a;color:#fff;}
+.press-office .press-report-outcome {display:inline-block;white-space:nowrap;border-radius:8px;padding:5px 9px;background:#edf1ed;color:#49614e;font-size:11px;font-weight:800;}
+.press-office .press-outcome-delivered {background:#e4f3e6;color:#23633e;}
+.press-office .press-outcome-bounced,.press-office .press-outcome-complained,.press-office .press-outcome-rejected {background:#ffebea;color:#923f37;}
+.press-office .press-outcome-delivery_delayed,.press-office .press-outcome-accepted_unconfirmed,.press-office .press-outcome-held {background:#fff1d7;color:#825b20;}
+@media(max-width:800px){.press-office .press-report-global-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}.press-office .press-report-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}}
