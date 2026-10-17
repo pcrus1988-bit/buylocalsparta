@@ -55,7 +55,13 @@ export function ResearchParticipationHeatmap({ geography }: {
         <h2 id="participation-map-title">Από κάθε γωνιά της Ελλάδας</h2>
         <p>Από πού προέρχονται οι επιχειρήσεις που ξεκίνησαν το ερωτηματολόγιο.</p>
       </div>
-      {geography && <div className={styles.total}><strong>{format(mapped)}</strong><spa…234 tokens truncated…03bd πίνακα.</p>
+      {geography && <div className={styles.total}><strong>{format(mapped)}</strong><span>ενάρξεις με γνωστή Περιφέρεια</span></div>}
+    </header>
+    {!geography ? <p role="status">Τα γεωγραφικά στοιχεία δεν είναι διαθέσιμα αυτή τη στιγμή.</p> : <>
+      <div className={styles.layout}>
+        <div>
+          <div className={styles.map}>
+            {failed ? <p role="status">Ο χάρτης δεν φορτώθηκε. Δείτε τις Περιφέρειες στον πίνακα.</p>
               : !outlines ? <p role="status">Φόρτωση χάρτη Ελλάδας…</p>
               : <svg viewBox="0 0 810 650" role="group" aria-label="Ενάρξεις ερωτηματολογίων ανά Περιφέρεια της Ελλάδας">
                 {outlines.map(outline => {
