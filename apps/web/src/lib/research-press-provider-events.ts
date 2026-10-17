@@ -28,6 +28,10 @@ export function parseSesPressEvent(input:unknown):PressProviderEvent[] {
   const tag=object(mail.tags);
   const taggedCampaign=list(tag?.pressCampaign)[0];
   const campaignId=validUuid(taggedCampaign)?taggedCampaign:null;
+  // The Press Office shares an SNS topic with Research recruitment.
+  // Never open a press-ledger database connection for unrelated SES feedback.
+  // Every Press Office send now carries a signed SES campaign tag.
+  if(!campaignId)return [];
   const section:Record<string,unknown>=object(record[
     type==="bounced"?"bounce":type==="complained"?"complaint":
     type==="delivered"?"delivery":type==="delivery_delayed"?"deliveryDelay":
