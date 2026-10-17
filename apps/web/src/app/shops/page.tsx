@@ -212,7 +212,11 @@ export default async function ShopsPage({ searchParams }: Props) {
                               {location && <div className="shop-meta-row"><span>Τοποθεσία</span><strong>{location.addressLine1}, {location.postcode} {location.locality}{location.verified ? " · επαληθευμένο" : ""}</strong></div>}
                               {location?.phone && <div className="shop-meta-row"><span>Τηλέφωνο</span><strong>{location.phone}</strong></div>}
                               {website && <div className="shop-meta-row"><span>Ηλεκτρονικό κατάστημα</span><strong>Διαθέσιμος ιστότοπος</strong></div>}
-                              <div className="shop-meta-row"><span>Κατάλογος</span><strong>{vendor.canonicalCount} {vendor.canonicalCount === 1 ? "προϊόν" : "προϊόντα"}</strong></div>
+                              {vendor.canonicalCount > 0 ? (
+                                <div className="shop-meta-row"><span>Κατάλογος</span><strong>{vendor.canonicalCount} {vendor.canonicalCount === 1 ? "προϊόν" : "προϊόντα"}</strong></div>
+                              ) : (
+                                <div className="shop-meta-row"><span>Βιτρίνα</span><strong>Δες την παρουσία του καταστήματος</strong></div>
+                              )}
                             </div>
 
                             {vendor.taxonomies.length > 0 && <div className="shop-category-list" role="list" aria-label="Κατηγορίες καταστήματος">
