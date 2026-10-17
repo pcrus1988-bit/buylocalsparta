@@ -7,11 +7,17 @@ CREATE TABLE IF NOT EXISTS public.research_press_releases (
   title text NOT NULL CHECK (length(title) BETWEEN 1 AND 240),
   subject text NOT NULL CHECK (length(subject) BETWEEN 1 AND 240),
   body_html text NOT NULL CHECK (length(body_html) BETWEEN 1 AND 120000),
+  subject_en text CHECK (subject_en IS NULL OR length(subject_en) BETWEEN 1 AND 240),
+  body_html_en text CHECK (body_html_en IS NULL OR length(body_html_en) BETWEEN 1 AND 120000),
   from_address text NOT NULL DEFAULT 'research@kontamou.site',
   recipients text[] NOT NULL DEFAULT '{}'::text[],
+  recipient_languages jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(recipient_languages)='object'),
   attachment_name text,
   attachment_type text,
   attachment_bytes bytea,
+  attachment_name_en text,
+  attachment_type_en text,
+  attachment_bytes_en bytea,
   status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','prepared','sending','completed')),
   created_by text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -19,12 +25,15 @@ CREATE TABLE IF NOT EXISTS public.research_press_releases (
   prepared_at timestamptz,
   completed_at timestamptz,
   CHECK ((attachment_bytes IS NULL AND attachment_name IS NULL AND attachment_type IS NULL)
-      OR (attachment_bytes IS NOT NULL AND attachment_name IS NOT NULL AND attachment_type IS NOT NULL))
+      OR (attachment_bytes IS NOT NULL AND attachment_name IS NOT NULL AND attachment_type IS NOT NULL)),
+  CHECK ((attachment_bytes_en IS NULL AND attachment_name_en IS NULL AND attachment_type_en IS NULL)
+      OR (attachment_bytes_en IS NOT NULL AND attachment_name_en IS NOT NULL AND attachment_type_en IS NOT NULL))
 );
 
 CREATE TABLE IF NOT EXISTS public.research_press_deliveries (
   release_id uuid NOT NULL REFERENCES public.research_press_releases(id) ON DELETE RESTRICT,
   recipient text NOT NULL,
+  language text NOT NULL CHECK (language IN ('el','en')),
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sending','sent','failed','suppressed')),
   admin_mail_id text,
   ses_message_id text,
@@ -41,6 +50,7 @@ CREATE TABLE IF NOT EXISTS public.research_press_lists (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL UNIQUE CHECK (length(name) BETWEEN 1 AND 120),
   recipients text[] NOT NULL DEFAULT '{}'::text[],
+  recipient_languages jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(recipient_languages)='object'),
   created_by text NOT NULL,
   updated_at timestamptz NOT NULL DEFAULT now(),
   created_at timestamptz NOT NULL DEFAULT now()
