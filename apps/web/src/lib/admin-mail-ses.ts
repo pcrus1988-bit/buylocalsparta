@@ -180,27 +180,6 @@ export async function getSesAccountSendingStatus(config:SesMailConfig):Promise<S
 }
 
 
-/** Read-only STS GetCallerIdentity, to identify WHICH IAM principal signs SES requests.
- * This AWS identity is not an access key or secret; do not include credentials. */
-export async function getSesRuntimeAwsIdentity(config:SesMailConfig):Promise<string>{
-  const endpoint=new URL("https://sts.eu-north-1.amazonaws.com/");
-  endpoint.searchParams.set("Action","GetCallerIdentity");
-  endpoint.searchParams.set("Version","2011-06-15");
-  const headers=signAwsRequest({
-    method:"GET",url:endpoint,body:"",region:"eu-north-1",service:"sts",
-    accessKeyId:config.accessKeyId,secretAccessKey:config.secretAccessKey,
-    sessionToken:config.sessionToken,contentType:"application/json"
-  });
-  const response=await fetch(endpoint,{method:"GET",headers,cache:"no-store",
-    redirect:"error",signal:AbortSignal.timeout(6000)});
-  const body=await response.text();
-  if(!response.ok)throw new Error(`STS GetCallerIdentity returned HTTP ${response.status}`);
-  const match=/<Arn>([^<]{1,500})<\/Arn>/.exec(body);
-  if(!match||!/^arn:aws:(iam|sts)::[0-9]{12}:[A-Za-z0-9_+=,.@:/-]+$/.test(match[1]))
-    throw new Error("STS GetCallerIdentity principal was not parseable");
-  return match[1];
-}
-
 function signAwsRequest(input: {
   method: string;
   url: URL;
