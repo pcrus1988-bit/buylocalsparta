@@ -85,6 +85,34 @@ const ordersPage = read("apps/web/src/app/account/orders/page.tsx");
 if (!ordersPage.includes('className="filter-count"')) failures.push("Customer order filters are missing result counts");
 if (!read("apps/web/src/app/account/orders/[id]/page.tsx").includes("account-app account-order-page")) failures.push("Customer order detail is not in shared account shell");
 
+// Final account subpages: preserve real workflows while improving discoverability.
+const accountRemainingCss = read("apps/web/src/app/customer-account-remaining.css");
+for (const selector of [".account-subpage-jumps", ".account-ask-local-workspace", ".account-appointment-booking", ".account-documents-grid", ".account-privacy-card", ".account-support-conversation", "@media(max-width:640px)"]) if (!accountRemainingCss.includes(selector)) failures.push(`Final account subpage styles are missing ${selector}`);
+if (!read("apps/web/src/app/layout.tsx").includes('import "./customer-account-remaining.css"')) failures.push("Final customer account CSS must be loaded");
+const askLocalPage = read("apps/web/src/app/account/ask-local/page.tsx");
+const askLocalClient = read("apps/web/src/components/AskLocalClient.tsx");
+for (const id of ["#new-ask-local", "#my-ask-local"]) if (!askLocalPage.includes(id)) failures.push(`Ask Local page missing jump ${id}`);
+for (const id of ['id="new-ask-local"', 'id="my-ask-local"']) if (!askLocalClient.includes(id)) failures.push(`Ask Local section missing anchor ${id}`);
+if (askLocalClient.includes('defaultValue="23100"')) failures.push("Ask Local postcode must not default to Sparta for all customers");
+for (const phrase of ['name="postcode"', 'name="quantity"', 'name="need"', 'onSubmit={submit}', 'AskLocalRichCapture']) if (!askLocalClient.includes(phrase)) failures.push(`Ask Local client lost core field ${phrase}`);
+const appointmentsPage = read("apps/web/src/app/account/appointments/page.tsx");
+const appointmentClient = read("apps/web/src/components/CustomerAppointmentsClient.tsx");
+for (const id of ["#book-account-appointment", "#my-account-appointments"]) if (!appointmentsPage.includes(id)) failures.push(`Appointments page missing jump ${id}`);
+for (const id of ['id="book-account-appointment"', 'id="my-account-appointments"']) if (!appointmentClient.includes(id)) failures.push(`Appointments section missing anchor ${id}`);
+for (const phrase of ['onSubmit={submitBooking}', 'submitBooking', 'reschedule', 'cancel']) if (!appointmentClient.includes(phrase)) failures.push(`Appointments workflow lost ${phrase}`);
+const documentsPage = read("apps/web/src/app/account/documents/page.tsx");
+for (const phrase of ["account-documents-grid", "account-document-download", "documents.length", "/api/account/documents/", "paint-and-build-studio", "AccountSectionNavigation"]) if (!documentsPage.includes(phrase)) failures.push(`Documents page missing ${phrase}`);
+const privacyPage = read("apps/web/src/app/account/privacy/page.tsx");
+const privacyClient = read("apps/web/src/components/AccountPrivacyRightsClient.tsx");
+for (const id of ["account-privacy-preferences", "account-privacy-cookies", "account-privacy-request", "account-privacy-history"]) {
+  if (!privacyPage.includes(`#${id}`) || !privacyClient.includes(`id="${id}"`)) failures.push(`Privacy link target mismatch ${id}`);
+}
+for (const phrase of ["CookieSettingsButton", 'onClick={() => void submit()}', "/api/account/privacy/report/"]) if (!privacyClient.includes(phrase)) failures.push(`Privacy controls lost ${phrase}`);
+const supportClient = read("apps/web/src/components/CustomerSupportClient.tsx");
+for (const phrase of ["account-support-conversation", "defaultOpen={item.status", "customer-support-thread", "customer-support-reply", "customer-support-new-case", "account-support-my-cases", "onSubmit={createCase}", "sendReply(item.id)"]) if (!supportClient.includes(phrase)) failures.push(`Support center missing ${phrase}`);
+const tryOnStyles = read("apps/web/src/components/AccountTryOnSetupClient.module.css");
+for (const phrase of [".pageRoot", ".quotaBlock", ".setupGrid", ".savedGrid", "@media(max-width:520px)"]) if (!tryOnStyles.includes(phrase)) failures.push(`Try On responsive styles missing ${phrase}`);
+
 const vendorIaCss = read("apps/web/src/app/vendor-information-architecture.css");
 for (const requirement of [".vendor-settings-grid", ".vendor-subpage-back", ".vendor-app .workspace-page-metrics", ".vendor-app .workspace-form-actions", "@media(max-width:620px)", "Complete vendor mobile workspace pass", "height: 100dvh", "min-height: 52px", "overflow-x: clip", "grid-template-columns: 1fr"]) if (!vendorIaCss.includes(requirement)) failures.push(`Vendor subpage polish is missing ${requirement}`);
 
