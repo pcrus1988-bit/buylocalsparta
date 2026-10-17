@@ -94,6 +94,19 @@ const notificationPage = read("apps/web/src/app/account/notifications/page.tsx")
 for (const requirement of ["AccountNotificationsClient", "account-subpage-settings", "CartRecoveryPreferenceToggle"]) if (!notificationPage.includes(requirement)) failures.push(`Notification inbox preferences are missing ${requirement}`);
 const ordersPage = read("apps/web/src/app/account/orders/page.tsx");
 if (!ordersPage.includes('className="filter-count"')) failures.push("Customer order filters are missing result counts");
+
+const customerOrderDetailPage = read("apps/web/src/app/account/orders/[id]/page.tsx");
+const customerOrderDetailClient = read("apps/web/src/components/OrderDetailClient.tsx");
+const orderFinetuneCss = read("apps/web/src/app/customer-account-orders-finetune.css");
+for (const phrase of ['name="q"', 'role="search"', "normalizedQuery", "encodeURIComponent(query)", "account-orders-stats", "attentionCount", "account-orders-results", "sort((a, b) => b.createdAt - a.createdAt)", "account-order-progress", "orderActionLabel", "orderActionClass", "reconcileCustomerMollieOrder"]) if (!ordersPage.includes(phrase)) failures.push(`Order directory refinement missing ${phrase}`);
+for (const phrase of ["account-order-quicklinks", 'href="#order-payment"', 'href="#order-pickups"', 'href="#order-products"', 'href="#order-summary"', 'href="#order-support"', '<h1>Παραγγελία {detail.referenceNumber}</h1>']) if (!customerOrderDetailPage.includes(phrase)) failures.push(`Customer order detail navigation missing ${phrase}`);
+for (const phrase of ['id="order-payment"', 'id="order-pickups"', 'id="order-products"', 'id="order-fulfilment"', 'id="order-returns"', 'id="order-summary"', 'id="order-support"', "resumePayment()", "data.canCancel", "CustomerReturnsPanel"]) if (!customerOrderDetailClient.includes(phrase)) failures.push(`Order detail action or section missing ${phrase}`);
+if (customerOrderDetailClient.indexOf('id="order-payment"') > customerOrderDetailClient.indexOf('id="order-products"')) failures.push("Payment recovery must precede product cards on mobile");
+if (customerOrderDetailClient.indexOf('id="order-pickups"') > customerOrderDetailClient.indexOf('id="order-products"')) failures.push("Ready pickup QR must precede product cards on mobile");
+if (customerOrderDetailClient.includes("<h1>{data.status}</h1>")) failures.push("Order detail must not duplicate its server page H1");
+for (const phrase of [".account-orders-search", ".account-order-progress", ".account-order-quicklinks", ".account-order-payment-cta", ".account-order-pickup-panel", "@media(max-width:640px)", "prefers-reduced-motion"]) if (!orderFinetuneCss.includes(phrase)) failures.push(`Order fine-tune CSS missing ${phrase}`);
+if (!read("apps/web/src/app/layout.tsx").includes('import "./customer-account-orders-finetune.css"')) failures.push("Account order refinement CSS is not loaded");
+
 if (!read("apps/web/src/app/account/orders/[id]/page.tsx").includes("account-app account-order-page")) failures.push("Customer order detail is not in shared account shell");
 
 // Final account subpages: preserve real workflows while improving discoverability.
