@@ -5,9 +5,10 @@ import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeade
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { pressWorkspace } from "../../../../lib/research-press-office";
+import { getSesAccountSendingStatus,sesMailConfigFromEnv,type SesAccountSendingStatus } from "../../../../lib/admin-mail-ses";
 import { PressEditorFields } from "./PressEditorFields";
 import {
-  dispatchPressAction, preparePressAction, pressListAction, savePressAction,
+  deletePressDraftAction, dispatchPressAction, preparePressAction, pressListAction, savePressAction,
   suppressPressAction, testPressAction
 } from "./actions";
 import "./press.css";
@@ -23,7 +24,8 @@ const labels: Record<string,string> = {
   prepared: "Recipient list frozen. Review the queue before sending.",
   test: "SES accepted the one-recipient TEST email.",
   list: "Distribution list saved.",
-  suppressed: "The email is now suppressed for subsequent press sends."
+  suppressed: "The email is now suppressed for subsequent press sends.",
+  deleted: "The unsent draft was permanently deleted. Prepared and sent campaigns are never deleted."
 };
 const tally = (items: ReadonlyArray<{ status: string }>, status:string) => items.filter(d=>d.status===status).length;
 
@@ -49,7 +51,12 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
   const held = tally(workspace.deliveries,"sending");
   const suppressed = tally(workspace.deliveries,"suppressed");
   const batch = one(params.batch).split("/");
-  const deliveryReady = process.env.BLS_PRESS_SENDING_ENABLED === "true";
+  const deliverySwitchEnabled=process.env.BLS_PRESS_SENDING_ENABLED==="true";
+  let sesStatus:SesAccountSendingStatus|null=null;
+  let sesStatusError:string|null=null;
+  try{sesStatus=await getSesAccountSendingStatus(sesMailConfigFromEnv());}
+  catch(e){sesStatusError=e instanceof Error?e.message:"SES account check unavailable";}
+  const deliveryReady=deliverySwitchEnabled&&sesStatus?.canSendToUnverifiedRecipients===true;
 
   return <main className="vendor-app admin-app press-office">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research · Press Office"/>
@@ -68,8 +75,18 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
     {labels[one(params.notice)] && <section className="shell press-alert" role="status">{labels[one(params.notice)]}</section>}
     {one(params.batch) && <section className="shell press-alert" role="status">This batch: {batch[0]} accepted by SES from {batch[1]} attempted. {batch[2]} pending for future batches. Check failed/held records before retrying.</section>}
     {!deliveryReady && <section className="shell press-alert press-alert-warning" role="status">
-      <strong>Live distribution disabled.</strong> Drafts, recipient lists and previews remain available.
-      Live send requires the explicit press-delivery configuration and an SES account approved for sending.
+      <strong>Live distribution is not available.</strong>{" "}
+      {!deliverySwitchEnabled?"Press distribution has not been enabled in production. ":""}
+      {sesStatus&&!sesStatus.canSendToUnverifiedRecipients
+        ?`SES account status: production access ${sesStatus.productionAccess?"yes":"no"}, sending ${sesStatus.sendingEnabled?"on":"off"}, reputation ${sesStatus.enforcementStatus}, review ${sesStatus.reviewStatus||"not specified"}.`
+        :""}
+      {sesStatusError?`Live SES account verification failed: ${sesStatusError}.`:""}
+      {" "}You can still edit drafts and send individual authorized tests. Bulk media sending cannot proceed until AWS grants production access and the account is healthy.
+    </section>}
+    {deliveryReady&&<section className="shell press-alert" role="status">
+      <strong>Press distribution available · AWS SES verified.</strong>{" "}
+      Each batch sends at most eight recipients after your explicit confirmation.
+      No press messages are sent automatically.
     </section>}
 
     <section className="shell press-layout">
@@ -102,6 +119,20 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
             attachmentName={current?.attachment_name} attachmentNameEn={current?.attachment_name_en}
             lists={workspace.lists}/>
         </form>
+
+        {current?.status==="draft"&&<section className="press-card press-delete-draft">
+          <details>
+            <summary>Delete this unsent draft</summary>
+            <p className="press-help">This permanently removes only the selected unsent draft, including its content and attachments. Prepared or sent campaigns cannot be deleted.</p>
+            <form action={deletePressDraftAction} className="press-action-form">
+              <input type="hidden" name="csrfToken" value={principal.csrfToken}/>
+              <input type="hidden" name="id" value={current.id}/>
+              <label htmlFor="press-delete-confirm">Type DELETE to confirm</label>
+              <input id="press-delete-confirm" name="confirmation" placeholder="DELETE" autoComplete="off" required disabled={!editable}/>
+              <button className="button button-secondary" type="submit" disabled={!editable}>Permanently delete draft</button>
+            </form>
+          </details>
+        </section>}
 
         {current&&<div className="press-actions-grid">
           <section className="press-card">
