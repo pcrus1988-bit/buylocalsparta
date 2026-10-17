@@ -1,0 +1,103 @@
+/* Customer orders refinement: the actions customers need are the easiest to find. */
+.account-app .account-orders-intro {padding-top:14px;padding-bottom:14px;}
+.account-app .account-orders-intro .customer-page-heading {margin-bottom:14px;}
+.account-app .account-orders-stats {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 16px;}
+.account-app .account-orders-stats a {display:flex;justify-content:space-between;align-items:center;gap:10px;min-width:0;min-height:76px;padding:13px 17px;border:1px solid #dce8d9;border-radius:16px;background:#fff;color:#254f39;box-shadow:0 5px 15px rgba(25,58,37,.035);}
+.account-app .account-orders-stats a:hover {border-color:#9fbaa2;background:#f7fbf6;}
+.account-app .account-orders-stats a.needs-attention {background:#fff9ed;border-color:#e9d2a7;color:#855220;}
+.account-app .account-orders-stats span {font-size:12px;font-weight:800;line-height:1.4;}
+.account-app .account-orders-stats strong {font-size:29px;line-height:1;font-weight:900;flex:none;font-variant-numeric:tabular-nums;}
+.account-app .account-orders-search {display:grid;gap:7px;margin-bottom:15px;}
+.account-app .account-orders-search label {font-size:12px;font-weight:850;color:#31533c;}
+.account-app .account-orders-search>div {display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.account-app .account-orders-search input[type=search] {flex:1 1 300px;min-width:0;max-width:600px;height:47px;padding:10px 15px;border-radius:13px;border:1px solid #c8d9c5;background:#fff;color:#173629;font-size:15px;}
+.account-app .account-orders-search .button {min-height:47px;border-radius:13px;}
+.account-app .account-orders-clear {display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 12px;font-size:12px;font-weight:850;color:#3c6a4d;}
+.account-app .account-orders-intro .customer-filter-tabs {display:flex;flex-wrap:wrap;gap:8px;margin:0 0 13px;}
+.account-app .account-orders-intro .customer-filter-tabs a {min-height:44px;border-radius:13px;white-space:nowrap;font-size:12px;}
+.account-app .account-orders-intro .customer-how-it-works {margin-top:0;}
+.account-app .account-orders-results {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 10px;}
+.account-app .account-orders-results h2 {margin:5px 0 0;color:#193d2a;font-size:clamp(19px,2.5vw,26px);letter-spacing:-.025em;}
+.account-app .account-orders-results h2>span {margin-left:5px;display:inline-flex;align-items:center;justify-content:center;padding:3px 9px;min-width:29px;border-radius:999px;background:#e8f3e6;color:#396c47;font-size:13px;vertical-align:middle;}
+.account-app .account-orders-results p {margin:0;color:#5d7565;font-size:12px;overflow-wrap:anywhere;}
+.account-app .account-orders-directory {display:grid;gap:12px;padding-bottom:55px;}
+.account-app .account-order-card {padding:19px 21px;border:1px solid #dce9d8;border-radius:19px;box-shadow:0 5px 20px rgba(25,58,37,.04);}
+.account-app .account-order-card.needs-attention {border-left:4px solid #bb8b3e;background:linear-gradient(110deg,#fffcf5,#fff 40%);}
+.account-app .account-order-card .customer-order-card-head {gap:12px;}
+.account-app .account-order-card .customer-order-card-head a strong {font-size:18px;color:#173c2a;}
+.account-app .account-order-card .customer-order-card-total strong {font-size:19px;color:#254a35;}
+.account-app .account-order-card .customer-order-card-status {max-width:100%;line-height:1.4;text-align:center;}
+.account-app .account-order-card.needs-attention .customer-order-card-status {background:#fff0d8;color:#79501e;}
+.account-app .account-order-card .customer-order-card-lines {display:flex;gap:7px;flex-wrap:wrap;}
+.account-app .account-order-card .customer-order-card-lines span {font-size:11px;border-radius:9px;padding:6px 9px;line-height:1.4;overflow-wrap:anywhere;}
+.account-app .account-order-progress {margin-top:5px;border:1px solid #e1eadd;background:#fafdf9;border-radius:12px;overflow:hidden;}
+.account-app .account-order-progress>summary {display:flex;align-items:center;justify-content:space-between;gap:10px;list-style:none;min-height:43px;padding:10px 13px;font-size:12px;font-weight:850;color:#305840;cursor:pointer;}
+.account-app .account-order-progress>summary::-webkit-details-marker {display:none;}
+.account-app .account-order-progress[open]>summary span {transform:rotate(180deg);}
+.account-app .account-order-progress .customer-lifecycle {margin:0;padding:13px;border-top:1px solid #e1eadd;}
+.account-app .account-order-card .customer-order-card-actions {margin-top:10px;}
+.account-app .account-order-card .customer-order-card-actions .button {min-height:46px;border-radius:12px;}
+.account-app .account-orders-empty-actions {display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
+.account-app .account-orders-empty-actions .button {min-height:44px;}
+.account-app .account-order-intro {padding-top:13px;padding-bottom:12px!important;}
+.account-app .account-order-intro .customer-page-heading {margin-bottom:12px;}
+.account-app .account-order-intro .customer-page-heading h1 {font-size:clamp(24px,3vw,37px);overflow-wrap:anywhere;}
+.account-app .account-order-status-highlight {display:inline-flex;margin-top:12px;padding:6px 11px;border-radius:999px;background:#e9f4e5;color:#2d6944;font-size:12px;font-weight:850;line-height:1.45;}
+.account-app .account-order-quicklinks {display:flex;flex-wrap:wrap;gap:8px;margin:0 0 13px;}
+.account-app .account-order-quicklinks a {display:inline-flex;align-items:center;justify-content:center;min-height:43px;padding:8px 13px;border-radius:12px;border:1px solid #d5e5d0;color:#31583e;background:#fff;font-weight:800;font-size:12px;}
+.account-app .account-order-quicklinks a:hover {border-color:#9db79d;background:#f2f8f0;}
+.account-app .account-order-quicklinks a.account-order-jump-attention {background:#28563e;border-color:#28563e;color:#fff;}
+.account-app .account-order-detail-layout {align-items:start;gap:17px;padding-bottom:62px;}
+.account-app .account-order-detail-layout :is(#order-payment,#order-pickups,#order-products,#order-fulfilment,#order-returns,#order-summary,#order-support) {scroll-margin-top:24px;}
+.account-app .account-order-detail-layout .order-detail-main,.account-app .account-order-detail-layout .order-detail-side {min-width:0;}
+.account-app .account-order-detail-layout .order-detail-heading {border:1px solid #dce9d8;border-radius:19px;padding:20px;background:#fff;display:flex;gap:14px;justify-content:space-between;align-items:flex-start;box-shadow:0 7px 19px rgba(25,58,37,.035);}
+.account-app .account-order-detail-layout .order-detail-heading h2 {font-size:clamp(22px,2.8vw,31px);line-height:1.2;letter-spacing:-.03em;color:#173d2b;margin:6px 0 8px;overflow-wrap:anywhere;}
+.account-app .account-order-detail-layout .order-detail-heading p {font-size:12px;line-height:1.6;color:#5c7763;overflow-wrap:anywhere;}
+.account-app .account-order-detail-layout .order-detail-heading > strong {white-space:nowrap;font-size:clamp(19px,2.3vw,28px);color:#245139;font-variant-numeric:tabular-nums;}
+.account-app .account-order-detail-layout .order-detail-card,.account-app .account-order-detail-layout .order-summary {border-radius:19px;border-color:#dce9d8;box-shadow:0 7px 21px rgba(25,58,37,.04);}
+.account-app .account-order-detail-layout .account-order-payment-cta {background:#fff8e9;border:1px solid #e6c78c;color:#49371b;padding:21px;}
+.account-app .account-order-detail-layout .account-order-payment-cta h2 {font-size:clamp(23px,2.5vw,30px);line-height:1.2;margin:7px 0;}
+.account-app .account-order-detail-layout .account-order-payment-cta p {font-size:13px;line-height:1.6;}
+.account-app .account-order-detail-layout .account-order-payment-cta .button {min-height:49px;width:100%;justify-content:center;border-radius:12px;}
+.account-app .account-order-detail-layout .account-order-pickup-panel {border-color:#b9d5b6;background:#f9fcf8;}
+.account-app .account-order-detail-layout .account-order-pickup-panel h2 {color:#244b32;}
+.account-app .account-order-detail-layout .account-order-products .order-detail-line {overflow-wrap:anywhere;}
+.account-app .account-order-detail-layout .account-order-products .order-detail-line>span {white-space:nowrap;}
+.account-app .account-order-detail-layout .order-summary .summary-row {gap:10px;}
+.account-app .account-order-detail-layout .order-summary .summary-row strong {overflow-wrap:anywhere;text-align:right;}
+.account-app .account-order-detail-layout .order-help-links a {min-height:43px;}
+.account-app .account-order-detail-layout .order-cancel-disclosure {border-radius:15px;}
+.account-app .account-order-detail-layout .order-cancel-disclosure summary {min-height:45px;}
+.account-app .account-order-detail-layout :is(.order-detail-card,.order-summary,.order-help-links) :is(a,button,summary):focus-visible {outline:3px solid #599067;outline-offset:3px;}
+@media(max-width:860px) {
+ .account-app .account-order-detail-layout {grid-template-columns:1fr;gap:13px;}
+ .account-app .account-order-detail-layout .order-detail-side {position:static;}
+ .account-app .account-orders-stats a {padding:12px 13px;}
+}
+@media(max-width:640px){
+ .account-app .account-orders-intro {padding-top:10px;}
+ .account-app .account-orders-stats {grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+ .account-app .account-orders-stats a {min-height:74px;gap:6px;flex-direction:column;align-items:flex-start;}
+ .account-app .account-orders-stats a:last-child {grid-column:1 / -1;flex-direction:row;align-items:center;}
+ .account-app .account-orders-stats strong {font-size:25px;}
+ .account-app .account-orders-search>div {display:grid;grid-template-columns:1fr auto;gap:7px;}
+ .account-app .account-orders-search input[type=search] {width:100%;min-width:0;flex:auto;}
+ .account-app .account-orders-search .button {padding:0 13px;}
+ .account-app .account-orders-search .account-orders-clear {grid-column:1 / -1;justify-self:start;}
+ .account-app .account-orders-intro .customer-filter-tabs {overflow-x:auto;flex-wrap:nowrap;padding-bottom:7px;scrollbar-width:thin;scrollbar-color:#bdd0bb transparent;}
+ .account-app .account-orders-intro .customer-filter-tabs a {flex:none;padding:0 12px;font-size:11px;}
+ .account-app .account-order-card {padding:15px;border-radius:16px;}
+ .account-app .account-order-card .customer-order-card-head {align-items:flex-start;flex-wrap:wrap;}
+ .account-app .account-order-card .customer-order-card-total {flex-wrap:wrap;gap:7px;align-items:flex-start;}
+ .account-app .account-order-card .customer-order-card-total strong {font-size:19px;}
+ .account-app .account-order-card .customer-order-card-actions .button {width:100%;}
+ .account-app .account-order-quicklinks {flex-wrap:nowrap;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin;}
+ .account-app .account-order-quicklinks a {white-space:nowrap;flex:none;min-height:44px;}
+ .account-app .account-order-detail-layout .order-detail-heading {padding:16px;flex-wrap:wrap;gap:8px;}
+ .account-app .account-order-detail-layout .order-detail-heading > strong {font-size:23px;}
+ .account-app .account-order-detail-layout .account-order-payment-cta {padding:17px;}
+ .account-app .account-order-detail-layout .account-order-products .order-detail-line>span {white-space:normal;}
+ .account-app .account-order-detail-layout .order-summary .summary-row {flex-wrap:wrap;line-height:1.5;}
+ .account-app .account-order-detail-layout .order-detail-card {max-width:100%;}
+}
+@media(prefers-reduced-motion:reduce){.account-app .account-order-quicklinks a,.account-app .account-orders-stats a {transition:none;}}
