@@ -58,7 +58,8 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
         <h1>Press Office</h1>
         <p className="lead">Create and send branded press releases to media contacts — without mixing press outreach with survey invitations.</p>
         <div className="hero-actions"><Link href={releaseUrl} className="button">＋ New press release</Link>
-          <Link href="/admin/research/surveys" className="button button-secondary">Research Control Center</Link></div>
+          <Link href="/admin/research/surveys" className="button button-secondary">Research Control Center</Link>
+          <Link href="/admin/research/press/reports" className="button button-secondary">📊 Campaign delivery reports</Link></div>
       </div>
       <div className="press-hero-identity"><span>PRESS OFFICE</span><strong>ΚΟΝΤΑ ΜΟΥ</strong><small>Developed in Sparta for Greece</small></div>
     </section>
@@ -134,6 +135,7 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
         </div>}
 
         {current&&current.status!=="draft"&&<section className="press-card press-delivery">
+          <div className="press-report-shortcut"><Link href={"/admin/research/press/reports?id="+current.id} className="button button-secondary">View delivery, bounce & spam reports →</Link></div>
           <div className="press-panel-head"><div><strong>03 · Delivery queue</strong><small>Messages are sent individually; eight recipient addresses per confirmed batch.</small></div><span className={"press-status press-status-"+current.status}>{current.status}</span></div>
           <div className="press-delivery-metrics">
             <div><span>Pending</span><strong>{pending}</strong></div>
