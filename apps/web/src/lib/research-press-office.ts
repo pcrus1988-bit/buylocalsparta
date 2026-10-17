@@ -198,6 +198,22 @@ export async function savePressRelease(principal: SessionPrincipal, input: {
   return inserted.rows[0].id;
 }
 
+/** Deletes only unsent drafts. A prepared or attempted campaign remains immutable for audit. */
+export async function deletePressDraft(principal:SessionPrincipal,id:string):Promise<void> {
+  assertAdminPermission(principal,"research.publish.manage");
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    throw new Error("Invalid press draft.");
+  const deleted=await pool().query<{id:string}>(`
+    DELETE FROM public.research_press_releases AS r
+    WHERE r.id=$1 AND r.status='draft'
+      AND NOT EXISTS (
+        SELECT 1 FROM public.research_press_deliveries d WHERE d.release_id=r.id
+      )
+    RETURNING r.id`,[id]);
+  if(!deleted.rows.length)
+    throw new Error("Only an unsent draft can be deleted. Prepared or sent campaigns are preserved.");
+}
+
 export async function savePressList(principal: SessionPrincipal, name: string, csv: File): Promise<string> {
   assertAdminPermission(principal, "research.publish.manage");
   const safeName=name.replace(/[\r\n\x00-\x1f\x7f]/g," ").trim();
