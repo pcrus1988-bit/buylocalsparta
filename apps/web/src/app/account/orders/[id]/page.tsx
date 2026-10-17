@@ -33,8 +33,9 @@ export default async function OrderPage({ params }: Props) {
       <div className="announcement">Παραγγελία · πού βρίσκεται τώρα, τι ακολουθεί και τι χρειάζεται από εσένα.</div>
       <SiteHeader compact />
       <AccountSectionNavigation />
-      <section className="shell customer-account-page" style={{paddingBottom:18}}>
-        <div className="customer-page-heading"><div><div className="eyebrow">Παραγγελία {detail.referenceNumber}</div><h1>{detail.status}</h1></div><Link className="text-link" href="/account/orders">← Όλες οι παραγγελίες</Link></div>
+      <section className="shell customer-account-page account-order-intro" style={{paddingBottom:18}}>
+        <div className="customer-page-heading"><div><div className="eyebrow">Οι αγορές μου · Λεπτομέρειες</div><h1>Παραγγελία {detail.referenceNumber}</h1><span className="account-order-status-highlight">{detail.status}</span></div><Link className="text-link" href="/account/orders">← Όλες οι παραγγελίες</Link></div>
+        <nav className="account-order-quicklinks" aria-label="Μετάβαση σε στοιχεία παραγγελίας">{detail.sourceStatus === "pending_payment" && <a className="account-order-jump-attention" href="#order-payment">Πληρωμή</a>}{detail.pickups.some((pickup) => pickup.status === "ready") && <a className="account-order-jump-attention" href="#order-pickups">QR παραλαβής</a>}<a href="#order-products">Προϊόντα</a>{detail.fulfilments.length > 0 && detail.sourceStatus !== "pending_payment" && <a href="#order-fulfilment">Εξέλιξη</a>}{(detail.returns.length > 0 || detail.lines.some((line) => line.returnableQuantity > 0)) && <a href="#order-returns">Επιστροφές</a>}<a href="#order-summary">Σύνοψη</a><a href="#order-support">Βοήθεια</a></nav>
         <CustomerLifecycle label={`Πορεία παραγγελίας ${detail.referenceNumber}`} stages={customerOrderLifecycle(detail.status, detail.fulfilmentMode)} />
         <CustomerHowItWorks title="Τι σημαίνει η κατάσταση;"><p>Τα ολοκληρωμένα βήματα σημειώνονται με ✓. Το τρέχον βήμα δείχνει ποιος έχει τη σκυτάλη τώρα. Όταν χρειάζεται ενέργεια από εσένα, το βήμα επισημαίνεται ξεχωριστά και η διαθέσιμη ενέργεια εμφανίζεται μέσα στη σελίδα.</p></CustomerHowItWorks>
       </section>
