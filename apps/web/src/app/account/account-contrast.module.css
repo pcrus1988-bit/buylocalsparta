@@ -31,3 +31,23 @@
   border-color: rgba(24, 48, 39, 0.36);
   background: var(--white);
 }
+
+
+/* Identity controls stay usable with long emails and narrow Android viewports. */
+.accountPage :global(.dashboard-toolbar-refined) {
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin-top:12px;margin-bottom:8px;padding:10px 14px;
+  border-color:#dde8d8;border-radius:15px;background:#f9fbf8;
+}
+.accountPage :global(.dashboard-toolbar-refined .account-identity) {display:flex;align-items:center;gap:11px;min-width:0;flex:1 1 auto;}
+.accountPage :global(.dashboard-toolbar-refined .account-identity > span:last-child) {min-width:0;display:grid;gap:1px;}
+.accountPage :global(.dashboard-toolbar-refined .account-identity strong) {font-size:13px;overflow-wrap:anywhere;line-height:1.4;}
+.accountPage :global(.dashboard-toolbar-refined .account-avatar) {width:38px;height:38px;flex:0 0 38px;border-radius:12px;}
+.accountPage :global(.dashboard-toolbar-refined .button-secondary) {min-height:44px;flex:none;border-radius:11px;font-size:12px;}
+@media(max-width:520px) {
+  .accountPage :global(.dashboard-toolbar-refined) {padding:10px 11px;align-items:center;}
+  .accountPage :global(.dashboard-toolbar-refined .account-avatar) {width:34px;height:34px;flex-basis:34px;}
+  .accountPage :global(.dashboard-toolbar-refined .account-identity) {gap:8px;}
+  .accountPage :global(.dashboard-toolbar-refined .account-identity strong) {font-size:11px;}
+  .accountPage :global(.dashboard-toolbar-refined .button-secondary) {padding:0 10px;min-width:91px;}
+}
