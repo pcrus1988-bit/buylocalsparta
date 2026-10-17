@@ -53,7 +53,7 @@ SELECT s.source_key, s.authority, s.canonical_url,
        count(a.id) AS recorded_acquisition_rows,
        coalesce(bool_or(a.acquisition_authorized), false) AS recorded_acquisition_authorized,
        coalesce(bool_or(a.mirror_authorized), false) AS recorded_mirror_authorized,
-       coalesce(bool_or(a.retention_until IS NULL), false) AS missing_retention_deadline,
+       coalesce(bool_or(a.id IS NOT NULL AND a.retention_until IS NULL), false) AS missing_retention_deadline,
        coalesce(bool_or(a.approved_by ~* '(agent|bot|automation)'), false) AS agent_attributed_approval,
        'HOLD'::text AS publication_decision
 FROM public.nyxi_sources s
