@@ -4,6 +4,7 @@ import {
   scoreSportFitProduct,
   sportFitCandidateSupportsRequestedActivity,
   sportFitFamilyKey,
+  sportFitUniverseSelection,
   sportProductRole,
   sportProductTier,
   type SportAudience,
@@ -12,6 +13,7 @@ import {
   type SportFitScoredProduct
 } from "../../../../lib/sport-fit-engine";
 import { getSportFitCatalog } from "../../../../lib/sport-fit-catalog";
+import { getActiveSportFitCompatibilities } from "../../../../lib/sport-fit-compatibility-server";
 import { availableStoredSportSizeGuideBrands, resolveStoredSportSize } from "../../../../lib/sport-fit-size-guide-server";
 import { productionDatabaseConfigured } from "../../../../lib/postgres-runtime";
 import { sportSizeGuideBrandKey } from "../../../../lib/sport-fit-brand";
@@ -117,20 +119,16 @@ export async function GET(request: Request) {
 
     const allProducts = [...byId.values()].filter(usableForRecommendation);
     const families = uniqueFamilies(allProducts);
-    const withImagesFirst = [...families].sort((left, right) =>
-      Number(Boolean(right.previewImageSrc)) - Number(Boolean(left.previewImageSrc))
-      || right.availableToSell - left.availableToSell
-      || left.title.localeCompare(right.title, "el")
-    );
+    const { primaryCount, secondaryCount, universe } = sportFitUniverseSelection(families, UNIVERSE_LIMIT);
 
     return Response.json(
       {
         vendorId,
         vendorName: snapshots.find((snapshot) => snapshot.vendorName)?.vendorName ?? "",
         candidateCount: families.length,
-        survivingCount: families.length,
-        secondaryCount: 0,
-        universe: withImagesFirst.slice(0, UNIVERSE_LIMIT).map(universePreview)
+        survivingCount: primaryCount,
+        secondaryCount,
+        universe: universe.map(universePreview)
       },
       { headers: { "Cache-Control": "private, no-store" } }
     );
@@ -159,7 +157,7 @@ export async function POST(request: Request) {
         survivingCount: 0,
         secondaryCount: 0,
         universe: [],
-        recommendation: { finalistEvidenceMode: "heuristic_fallback", alternatives: [], kit: [], ranked: [] }
+        recommendation: { finalistEvidenceMode: "heuristic_fallback", alternatives: [], kit: [], kitCompatibility: [], ranked: [] }
       },
       { headers: { "Cache-Control": "no-store" } }
     );
@@ -225,7 +223,8 @@ export async function POST(request: Request) {
     const resolvedAnswers = Object.keys(brandSizeHints).length
       ? { ...answers, brandSizeHints }
       : answers;
-    const recommendation = buildSportFitRecommendation(catalog.products, resolvedAnswers);
+    const compatibilityEdges = await getActiveSportFitCompatibilities();
+    const recommendation = buildSportFitRecommendation(catalog.products, resolvedAnswers, compatibilityEdges);
     const primaryBrandKey = sportSizeGuideBrandKey(recommendation.primary?.brand);
     const primarySizeGuide = resolvedSizeGuides.find(({ brandKey: key }) => key === primaryBrandKey)?.guide;
 

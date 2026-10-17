@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
-import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, type SportFitProduct } from "./sport-fit-engine.ts";
+import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, sportProductRole, sportFitUniverseSelection, stockedSportFootwearVariantSizes, stockedSportSockVariantSizes, type SportFitProduct } from "./sport-fit-engine.ts";
 import { canonicalSportBrand, sportSizeGuideBrandKey } from "./sport-fit-brand.ts";
 
 function product(overrides: Partial<SportFitProduct> & Pick<SportFitProduct, "id" | "title" | "categoryCode">): SportFitProduct {
@@ -2148,7 +2149,25 @@ test("consultation summary explains the why in Greek and keeps only necessary te
       activities: ["walking"],
       useCases: ["all_day_standing"],
       widthProfile: "wide",
+      technologies: ["cloudfoam"],
+      manufacturerFitProfile: "regular",
       evidence: [
+        {
+          attributeCode: "footwear_technology",
+          value: "cloudfoam",
+          evidenceStrength: "manufacturer_claim",
+          confidence: 1,
+          identityConfidence: 1,
+          sourceType: "manufacturer_product"
+        },
+        {
+          attributeCode: "footwear_fit_profile",
+          value: "regular",
+          evidenceStrength: "manufacturer_claim",
+          confidence: 1,
+          identityConfidence: 1,
+          sourceType: "manufacturer_product"
+        },
         {
           attributeCode: "sport_activity",
           value: "walking",
@@ -2178,8 +2197,9 @@ test("consultation summary explains the why in Greek and keeps only necessary te
 
   assert.match(scored.consultationSummary ?? "", /πολύωρη ορθοστασία/i);
   assert.match(scored.consultationSummary ?? "", /Cloudfoam/);
-  assert.match(scored.consultationSummary ?? "", /memory foam/);
-  assert.match(scored.consultationSummary ?? "", /απορρόφηση κραδασμών/i);
+  assert.match(scored.consultationSummary ?? "", /Regular fit/);
+  assert.doesNotMatch(scored.consultationSummary ?? "", /memory foam/i);
+  assert.doesNotMatch(scored.consultationSummary ?? "", /απορρόφηση κραδασμών/i);
   assert.doesNotMatch(scored.consultationSummary ?? "", /confidence|match|support profile/i);
 });
 
@@ -2241,4 +2261,357 @@ test("missing weather evidence stays unknown instead of becoming a hard exclusio
   assert.ok(scored.technicalRequirements.some((item) =>
     item.id === "requirement.hiking_weather_protection" && item.status === "unknown"
   ));
+});
+
+test("secondary equipment with footwear words remains Tier-2 by governed category", () => {
+  const sock = product({
+    id: "football-sock",
+    title: "Football boot compatible sock",
+    categoryCode: "socks-hosiery",
+    description: "Designed for wearing with football boots",
+    sizes: ["40-42"]
+  });
+  const bag = product({
+    id: "running-shoe-bag",
+    title: "Running Shoe Carry Bag",
+    categoryCode: "fitness-accessories",
+    description: "Holds running shoes and spare socks",
+    sizes: []
+  });
+  const shorts = product({
+    id: "running-shorts",
+    title: "Running Shorts",
+    categoryCode: "fashion-mens-shorts",
+    description: "Pair these shorts with your running shoes",
+    sizes: ["M"]
+  });
+  const umbrellaShorts = product({
+    id: "basketball-short",
+    title: "Basketball Training Shorts",
+    categoryCode: "sports-clothing",
+    description: "Use with basketball shoes",
+    sizes: ["L"]
+  });
+  const shoe = product({
+    id: "running-shoe",
+    title: "Road Running Shoe",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42"]
+  });
+
+  assert.equal(sportProductRole(sock), "socks");
+  assert.equal(sportProductRole(bag), "accessory");
+  assert.equal(sportProductRole(shorts), "bottom");
+  assert.equal(sportProductRole(umbrellaShorts), "bottom");
+  assert.equal(sportProductRole(shoe), "footwear");
+
+  const onlyAccessories = buildSportFitRecommendation([sock, bag, shorts], {
+    activity: "running",
+    audience: "men",
+    size: "42",
+    surface: "road"
+  });
+  assert.equal(onlyAccessories.primary, undefined);
+  assert.equal(onlyAccessories.alternatives.length, 0);
+  assert.equal(onlyAccessories.ranked.length, 0);
+});
+
+test("known sport and surface conflict is never rescued by budget or description", () => {
+  const crossSport = product({
+    id: "football-in-running-category",
+    title: "Running Shoe Lookalike",
+    categoryCode: "mens-running-shoes",
+    priceMinor: 100,
+    sizes: ["42"],
+    description: "Great road shoe for everyone",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["football"],
+      surfaces: ["natural_grass_firm"]
+    }
+  });
+  const legitimate = product({
+    id: "verified-road",
+    title: "Verified Road Trainer",
+    categoryCode: "mens-running-shoes",
+    priceMinor: 9500,
+    sizes: ["42"],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"]
+    }
+  });
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    size: "42",
+    surface: "road" as const,
+    budgetMinor: 200
+  };
+
+  assert.equal(scoreSportFitProduct(crossSport, answers).technicalEligible, false);
+  const recommendation = buildSportFitRecommendation([crossSport, legitimate], answers);
+  assert.equal(recommendation.primary?.id, "verified-road");
+  assert.ok(!recommendation.ranked.some((item) => item.id === "football-in-running-category"));
+});
+
+test("bounded Sport & Fit catalogue rotates categories before global candidate limit", () => {
+  const source = readFileSync(new URL("./sport-fit-catalog.ts", import.meta.url), "utf8");
+  const categoryRotation = source.indexOf("ROW_NUMBER() OVER (");
+  const limit = source.indexOf("LIMIT 320", categoryRotation);
+  assert.ok(categoryRotation > -1, "category-balanced ordering must be present");
+  assert.ok(limit > categoryRotation, "round-robin category selection must precede the global limit");
+  assert.match(source.slice(categoryRotation, limit), /PARTITION BY c\.code/);
+});
+
+test("unverified footwear marketing is never presented as governed technical evidence", () => {
+  const misleading = product({
+    id: "marketing-only-technology",
+    title: "Cloudfoam Max Support Ultra",
+    categoryCode: "mens-running-shoes",
+    description: "Cloudfoam memory foam with waterproof arch support",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong"
+    }
+  });
+  const scored = scoreSportFitProduct(misleading, { activity: "running", audience: "men" });
+  assert.equal(scored.consultationSummary, undefined);
+});
+
+test("named exact technology may appear in explanation but never grades cushioning or support", () => {
+  const base = product({
+    id: "model-technical-neutral",
+    title: "Exact Model Neutral Trainer",
+    categoryCode: "mens-running-shoes",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"]
+    }
+  });
+  const verified = {
+    ...base,
+    knowledge: {
+      ...base.knowledge,
+      technologies: ["lightstrike_pro"],
+      manufacturerFitProfile: "regular",
+      evidence: [
+        { attributeCode: "footwear_technology", value: "lightstrike_pro", sourceType: "manufacturer_product", confidence: 1 },
+        { attributeCode: "footwear_fit_profile", value: "regular", sourceType: "manufacturer_product", confidence: 1 }
+      ]
+    }
+  };
+  const answers = { activity: "running" as const, audience: "men" as const, surface: "road" as const };
+  const a = scoreSportFitProduct(base, answers);
+  const b = scoreSportFitProduct(verified, answers);
+  assert.equal(a.technicalScore, b.technicalScore);
+  assert.equal(a.score, b.score);
+  assert.match(b.consultationSummary ?? "", /Lightstrike Pro/);
+  assert.match(b.consultationSummary ?? "", /Regular fit/);
+  assert.doesNotMatch(b.consultationSummary ?? "", /αυξημένη απορρόφηση/);
+});
+
+test("exact court-shoe category excludes unrelated sports even when activity evidence is missing", () => {
+  const court = product({
+    id: "unknown-basketball-shoe",
+    title: "Sport Shoe All Activities",
+    description: "Great for running and football as well",
+    categoryCode: "mens-basketball-shoes",
+    sizes: ["42"],
+    knowledge: { status: "partial", identityQuality: "strong" }
+  });
+  const runningAnswers = { activity: "running" as const, audience: "men" as const, size: "42" };
+  assert.equal(sportFitCandidateSupportsRequestedActivity(court, runningAnswers), false);
+  const scored = scoreSportFitProduct(court, runningAnswers);
+  assert.equal(scored.technicalEligible, false);
+  assert.ok(scored.appliedRules.includes("activity.category_hard_mismatch"));
+
+  // Documented exact manufacturer use can prove real cross-sport eligibility.
+  const verified = {
+    ...court,
+    knowledge: { ...court.knowledge, activities: ["basketball", "running"] }
+  };
+  assert.equal(sportFitCandidateSupportsRequestedActivity(verified, runningAnswers), true);
+  assert.equal(scoreSportFitProduct(verified, runningAnswers).technicalEligible, true);
+
+  const eligibleBasketball = { activity: "basketball" as const, audience: "men" as const, size: "42" };
+  assert.equal(scoreSportFitProduct(court, eligibleBasketball).technicalEligible, true);
+});
+
+test("sellable footwear size is bound to the exact canonical variant and rejects ambiguous metadata", () => {
+  assert.deepEqual(stockedSportFootwearVariantSizes("EU 42 2/3"), ["EU 42 2/3"]);
+  assert.deepEqual(stockedSportFootwearVariantSizes("4713"), ["4713"]);
+  assert.deepEqual(stockedSportFootwearVariantSizes("42"), ["42"]);
+  assert.deepEqual(stockedSportFootwearVariantSizes(null), []);
+  assert.deepEqual(stockedSportFootwearVariantSizes(""), []);
+  assert.deepEqual(stockedSportFootwearVariantSizes("One size"), []);
+  assert.deepEqual(stockedSportFootwearVariantSizes("42, 43, 44"), []);
+  assert.deepEqual(stockedSportFootwearVariantSizes("UK 8"), []);
+  assert.deepEqual(stockedSportFootwearVariantSizes("99"), []);
+  assert.deepEqual(stockedSportFootwearVariantSizes("4242"), []);
+});
+
+test("stock-positive shoe with unknown variant size cannot claim requested size", () => {
+  const unknown = product({
+    id: "unknown-size-offer",
+    title: "Verified Road Running Shoe",
+    categoryCode: "mens-running-shoes",
+    sizes: [],
+    knowledge: { status: "partial", identityQuality: "strong", activities: ["running"], surfaces: ["road"] }
+  });
+  const answers = { activity: "running" as const, audience: "men" as const, size: "42", surface: "road" as const };
+  const score = scoreSportFitProduct(unknown, answers);
+  assert.equal(score.technicalEligible, false);
+  assert.ok(score.appliedRules.includes("fit.variant_size_unknown"));
+  assert.doesNotMatch(score.reasons.join(" "), /διαθέσιμη παραλλαγή.*42/);
+  assert.equal(buildSportFitRecommendation([unknown], answers).primary, undefined);
+
+  // Browsing with no size requirement remains possible, without claiming an
+  // exact-size match that is absent from the canonical variant.
+  assert.equal(scoreSportFitProduct(unknown, { activity: "running", audience: "men", surface: "road" }).technicalEligible, true);
+});
+
+test("a single in-stock size is selected within a shared canonical family, without cross-variant leakage", () => {
+  const familyId = "family-verified-running-model";
+  const one = product({
+    id: "42-in-stock", familyId, title: "Same Verified Running Model",
+    categoryCode: "mens-running-shoes", sizes: ["42"], availableToSell: 1,
+    knowledge: { status: "partial", identityQuality: "strong", activities: ["running"], surfaces: ["road"] }
+  });
+  const other = product({
+    ...one, id: "43-in-stock", sizes: ["43"], availableToSell: 1
+  });
+  const answers = { activity: "running" as const, audience: "men" as const, size: "43", surface: "road" as const };
+  const recommendation = buildSportFitRecommendation([one, other], answers);
+  assert.equal(recommendation.primary?.id, "43-in-stock");
+  assert.equal(recommendation.primary?.matchedSize, "43");
+  assert.equal(recommendation.ranked.length, 1);
+  assert.ok(!recommendation.ranked.some((item) => item.id === "42-in-stock"));
+});
+
+test("initial 3D universe caps Tier-2 and keeps primary footwear in front", () => {
+  const shoes = Array.from({ length: 50 }, (_, i) => product({
+    id: `primary-${i}`, title: `Road Running Shoe ${i}`,
+    categoryCode: "mens-running-shoes",
+    previewImageSrc: `https://example.com/${i}.jpg`
+  }));
+  const socks = Array.from({ length: 300 }, (_, i) => product({
+    id: `secondary-${i}`, title: `Football Boot Socks ${i}`,
+    categoryCode: "socks-hosiery",
+    previewImageSrc: `https://example.com/sock-${i}.jpg`
+  }));
+  const result = sportFitUniverseSelection([...socks, ...shoes], 96);
+  assert.equal(result.primaryCount, 50);
+  assert.equal(result.secondaryCount, 300);
+  assert.equal(result.universe.length, 62);
+  assert.equal(result.universe.filter((p) => sportProductRole(p) === "footwear").length, 50);
+  assert.equal(result.universe.filter((p) => sportProductRole(p) === "socks").length, 12);
+  assert.ok(result.universe.slice(0, 50).every((p) => sportProductRole(p) === "footwear"));
+  assert.ok(result.universe.slice(50).every((p) => sportProductRole(p) === "socks"));
+});
+
+test("initial universe cannot be displaced by secondary products even at the 96-item cap", () => {
+  const shoes = Array.from({ length: 105 }, (_, i) => product({
+    id: `running-footwear-${i}`, title: `Shoe ${i}`, categoryCode: "womens-running-shoes"
+  }));
+  const extras = Array.from({ length: 150 }, (_, i) => product({
+    id: `socks-${i}`, title: `Sock ${i}`, categoryCode: "socks-hosiery"
+  }));
+  const result = sportFitUniverseSelection([...extras, ...shoes]);
+  assert.equal(result.universe.length, 96);
+  assert.equal(result.universe.filter((p) => sportProductRole(p) === "socks").length, 0);
+  assert.equal(result.secondaryCount, 150);
+});
+
+test("exact manufacturer sock heel/toe cushioning zones add evidence-based detail without inventing cushioning grade", () => {
+  const base = product({
+    id: "adidas-ht3437", title: "ADIDAS 3-Stripes Linear Half-Crew 3P",
+    categoryCode: "socks-hosiery", sizes: ["40-42"],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      sockHeight: "quarter",
+      sockCushionZones: ["heel", "toe"],
+      sockCottonPct: 71,
+      sockPolyesterPct: 26,
+      sockElastanePct: 2,
+      sockNylonPct: 1,
+      packQuantity: 3,
+      evidence: [
+        { attributeCode:"sock_cushion_zone",value:"heel",sourceType:"manufacturer_product",confidence:1 },
+        { attributeCode:"sock_cushion_zone",value:"toe",sourceType:"manufacturer_product",confidence:1 },
+        { attributeCode:"sock_cotton_pct",value:"71",sourceType:"manufacturer_product",confidence:1 }
+      ]
+    }
+  });
+  const withoutZoneEvidence = {
+    ...base,
+    id: "adidas-no-evidence",
+    knowledge: { ...base.knowledge, evidence: [] }
+  };
+  const answers = { activity: "walking" as const, audience: "men" as const, size: "42" };
+  const documented = scoreSportFitProduct(base, answers);
+  const unverified = scoreSportFitProduct(withoutZoneEvidence, answers);
+  assert.ok(documented.reasons.some((reason) => /φτέρνα και στα δάχτυλα/.test(reason)));
+  assert.ok(documented.reasons.some((reason) => /71% βαμβάκι/.test(reason)));
+  assert.ok(!unverified.reasons.some((reason) => /φτέρνα και στα δάχτυλα|71% βαμβάκι/.test(reason)));
+  assert.equal(documented.technicalScore, unverified.technicalScore);
+  assert.equal(documented.score, unverified.score);
+  assert.equal(documented.role, "socks");
+  assert.equal(documented.knowledge?.sockCushioning, undefined);
+});
+
+test("uncertified manufacturer blend and sock pack size do not invent moisture-wicking, arch support or sports", () => {
+  const thin = product({
+    id:"ic1305",title:"adidas Think Linear Ankle Socks 3 Pairs",categoryCode:"socks-hosiery",
+    knowledge: {
+      status:"partial",identityQuality:"strong",
+      sockHeight:"ankle",packQuantity:3,
+      sockCottonPct:68,sockPolyesterPct:29,sockElastanePct:2,sockNylonPct:1
+    }
+  });
+  const answer = { activity:"hiking" as const,audience:"men" as const,frequency:"high" as const };
+  const scored = scoreSportFitProduct(thin,answer);
+  assert.equal(scored.knowledge?.moistureWicking,undefined);
+  assert.equal(scored.knowledge?.sockArchSupport,undefined);
+  assert.ok(scored.technicalRequirements.some(r=>r.id==="requirement.kit_activity" && r.status==="unknown"));
+  assert.ok(!scored.appliedRules.includes("kit.moisture_management_verified"));
+});
+
+test("stocked socks accept one actual EU range and reject family-level sizing lists", () => {
+  assert.deepEqual(stockedSportSockVariantSizes("37-39"), ["37-39"]);
+  assert.deepEqual(stockedSportSockVariantSizes("43–46"), ["43–46"]);
+  assert.deepEqual(stockedSportSockVariantSizes("EU 40-42"), ["EU 40-42"]);
+  assert.deepEqual(stockedSportSockVariantSizes("40-42,43-46"), []);
+  assert.deepEqual(stockedSportSockVariantSizes("M"), []);
+  assert.deepEqual(stockedSportSockVariantSizes("43-80"), []);
+  assert.deepEqual(stockedSportSockVariantSizes("46-43"), []);
+  assert.deepEqual(stockedSportSockVariantSizes(null), []);
+});
+
+test("kit picks correctly sized sock variant of same canonical family and rejects unknown ranges", () => {
+  const shoe = product({
+    id:"walk-shoe-42",title:"Walking Road Shoe",categoryCode:"mens-sneakers",sizes:["42"],
+    knowledge:{status:"partial",identityQuality:"strong",activities:["walking"],surfaces:["road"]}
+  });
+  const shared = {
+    familyId:"ic1305-sock-model",title:"Walking Sock",categoryCode:"socks-hosiery",
+    knowledge:{status:"partial" as const,identityQuality:"strong" as const,activities:["walking"],sockHeight:"ankle"}
+  };
+  const wrong = product({id:"sock-43-46",...shared,sizes:["43-46"]});
+  const correct = product({id:"sock-40-42",...shared,sizes:["40-42"]});
+  const unknown = product({id:"sock-unknown",title:"Another Documented Sock",categoryCode:"socks-hosiery",sizes:[],
+    knowledge:{status:"partial",identityQuality:"strong",activities:["walking"],sockHeight:"ankle"}});
+  const answers={activity:"walking" as const,audience:"men" as const,size:"42"};
+  const out=buildSportFitRecommendation([shoe,wrong,correct,unknown],answers);
+  assert.equal(out.primary?.id,shoe.id);
+  assert.equal(out.kit.find(p=>p.role==="socks")?.id,correct.id);
+  assert.equal(out.kit.find(p=>p.role==="socks")?.matchedSize,"40-42");
+  const miss=buildSportFitRecommendation([shoe,wrong,unknown],answers);
+  assert.equal(miss.kit.find(p=>p.role==="socks"),undefined);
 });

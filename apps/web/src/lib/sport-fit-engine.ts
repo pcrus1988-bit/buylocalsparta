@@ -68,6 +68,10 @@ export type SportFitKnowledge = Readonly<{
   supportLevel?: string;
   fitLengthProfile?: string;
   widthProfile?: string;
+  // Named manufacturer technologies and qualitative fit labels are independent
+  // of graded cushioning, support level, shoe width and size selection.
+  technologies?: readonly string[];
+  manufacturerFitProfile?: string;
   dropMm?: number;
   heelStackMm?: number;
   forefootStackMm?: number;
@@ -77,6 +81,13 @@ export type SportFitKnowledge = Readonly<{
   weatherProtection?: readonly string[];
   sockHeight?: string;
   sockCushioning?: string;
+  // Exact-model padding zones are not a categorical cushioning intensity.
+  sockCushionZones?: readonly string[];
+  sockCottonPct?: number;
+  sockPolyesterPct?: number;
+  sockElastanePct?: number;
+  sockNylonPct?: number;
+  packQuantity?: number;
   moistureWicking?: boolean;
   sockArchSupport?: boolean;
   breathabilityLevel?: string;
@@ -166,6 +177,33 @@ export type SportFitScoredProduct = SportFitProduct & Readonly<{
   appliedRules: readonly string[];
 }>;
 
+export type SportFitCompatibilityRelation =
+  | "requires" | "recommended_with" | "compatible_with" | "optional_with"
+  | "incompatible_with" | "substitutes" | "complements"
+  | "primary_equipment" | "secondary_equipment";
+
+export type SportFitCompatibilityEdge = Readonly<{
+  sportCode: SportActivity;
+  useCase: string; // "all" or an exact governed sport use-case
+  primaryRole: SportProductRole;
+  secondaryRole: SportProductRole;
+  secondaryKind: string; // "all" or an exact documented equipment kind
+  relationshipType: SportFitCompatibilityRelation;
+  sourceUrl: string;
+  sourceTitle: string;
+  evidenceExcerpt: string;
+  confidence: number;
+}>;
+
+export type SportFitKitCompatibility = Readonly<{
+  productId: string;
+  relationshipType: SportFitCompatibilityRelation;
+  sourceUrl: string;
+  sourceTitle: string;
+  evidenceExcerpt: string;
+  confidence: number;
+}>;
+
 export type SportFitFinalistEvidenceMode = "governed" | "heuristic_fallback";
 
 export type SportFitRecommendation = Readonly<{
@@ -174,6 +212,7 @@ export type SportFitRecommendation = Readonly<{
   primary?: SportFitScoredProduct;
   alternatives: readonly SportFitScoredProduct[];
   kit: readonly SportFitScoredProduct[];
+  kitCompatibility: readonly SportFitKitCompatibility[];
   ranked: readonly SportFitScoredProduct[];
 }>;
 
@@ -273,6 +312,44 @@ function hasKnowledgeMatch(values: readonly string[] | undefined, expected: read
   return expected.some((value) => normalizedValues.has(normalize(value)));
 }
 
+/**
+ * A vendor's stock applies to its exact canonical variant, never every size
+ * mentioned in free-form product specifications or a family size catalogue.
+ * The only positive footwear-size claims Sport & Fit may make are bound to
+ * the *stocked* variant's explicit size identity. Unknown is an empty list.
+ * Do not convert UK/US/CM heuristically into EU; manufacturer size guide
+ * reconciliation happens separately, before matching.
+ */
+export function stockedSportFootwearVariantSizes(variantSize: unknown): readonly string[] {
+  if (typeof variantSize !== "string") return [];
+  const size = variantSize.trim();
+  if (!size || size.length > 32) return [];
+  const canonical = canonicalizeCatalogSize(size, "footwear");
+  // Suppress text/no-size/ambiguous tokens rather than treating them as EU.
+  if (!/^(?:EU\s*)?\d{2}(?:[.,]\d+|\s*(?:½|⅓|⅔|¼|¾|1\/2|1\/3|2\/3|1\/4|3\/4))?$|^\d{2}(?:12|13|23|14|34)$/.test(size)) return [];
+  const euToken = size.replace(/^EU\s*/i, "").match(/^(\d{2})/);
+  const integerPart = Number(euToken?.[1]);
+  if (!Number.isInteger(integerPart) || integerPart < 18 || integerPart > 55) return [];
+  return canonical.key ? [size] : [];
+}
+
+/**
+ * Sport socks are sold in manufacturer-sized ranges, but inventory is still
+ * attached to exactly one canonical variant. Accept one numeric EU interval
+ * per variant only; never inherit a full family catalogue of sock ranges.
+ */
+export function stockedSportSockVariantSizes(variantSize: unknown): readonly string[] {
+  if (typeof variantSize !== "string") return [];
+  const size = variantSize.trim();
+  const range = size.match(/^(?:EU\s*)?(\d{2})\s*[-–]\s*(\d{2})$/i);
+  if (range) {
+    const from = Number(range[1]);
+    const to = Number(range[2]);
+    return from >= 18 && to <= 55 && from <= to && to - from <= 12 ? [size] : [];
+  }
+  return stockedSportFootwearVariantSizes(size);
+}
+
 function matchingSize(product: SportFitProduct, requestedSize: string | undefined, role: SportProductRole): string | undefined {
   const requested = requestedSize?.trim() ?? "";
   if (!requested || (role !== "footwear" && role !== "socks")) return undefined;
@@ -331,7 +408,25 @@ export function sportFitCandidateSupportsRequestedActivity(product: SportFitProd
   const knowledge = usableKnowledge(product);
   const knownActivities = knowledgeList(knowledge?.activities);
   if (knownActivities.length > 0) {
-    return hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers));
+    // An evidence-backed mismatch hard-excludes a primary shoe, but apparel
+    // can serve a different training context without constituting unsafe
+    // footwear. Keep secondary equipment visible with a conflict/unknown
+    // status; final kit assembly already requires positive governed kit proof.
+    return sportProductRole(product) !== "footwear"
+      || hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers));
+  }
+
+  // The explicit court-footwear taxonomy is itself a reliable equipment
+  // identity signal. An unknown tennis shoe is not a football/running shoe
+  // just because the supplier description mentions other sports. Verified
+  // cross-sport manufacturer activity above can still override the category.
+  if (sportProductRole(product) === "footwear") {
+    const category = normalize(product.categoryCode);
+    for (const courtSport of ["basketball", "tennis", "padel", "volleyball"] as const) {
+      if (category.includes(`${courtSport} shoes`) && answers.activity !== courtSport) {
+        return false;
+      }
+    }
   }
 
   // Legacy core activities may still use the broad fallback pool when governed
@@ -352,34 +447,41 @@ export function sportFitCandidateSupportsRequestedActivity(product: SportFitProd
 
 export function sportProductRole(product: SportFitProduct): SportProductRole {
   const category = normalize(product.categoryCode);
-  const text = productText(product);
 
-  if (
-    category.includes("running shoes")
-    || category.includes("sneakers")
-    || hasAny(text, ["παπουτσι", "shoe", "sneaker", "trainer", "football boot", "ποδοσφαιρικο"])
-  ) return "footwear";
-  if (category.includes("socks hosiery") || hasAny(text, ["καλτσ", "sock"])) return "socks";
-  if (
-    category.includes("shorts")
-    || category.includes("trousers")
-    || hasAny(text, ["short", "σορτ", "κολαν", "legging", "παντελον", "track pant"])
-  ) return "bottom";
-  if (
-    category.includes("tshirts")
-    || category.includes("tops")
-    || hasAny(text, ["t shirt", "tshirt", "μπλουζ", "φανελ", "jersey"])
-  ) return "top";
-  if (
-    category.includes("activewear")
-    || category.includes("sports clothing")
-    || hasAny(text, ["ζακετ", "fleece", "hood", "jacket", "φουτερ"])
-  ) return "layer";
+  // A governed category outranks incidental wording in a title, description or
+  // supplier attributes. A "running-shoe sock" and a "shoe carry bag" are still
+  // Tier 2; otherwise a single keyword can incorrectly enter the Top 5.
+  if (category.includes("socks hosiery") || category.endsWith(" socks")) return "socks";
   if (
     category.includes("fitness accessories")
     || category.includes("team sports equipment")
-    || hasAny(text, ["μπαλα", "ball", "bag", "τσαντ", "bottle", "παγουρ", "glove"])
+    || category.includes("outdoor equipment")
+    || category.includes("racket sports equipment")
+    || category.includes("basketball equipment")
+    || category.includes("volleyball equipment")
   ) return "accessory";
+  if (category.includes("shorts") || category.includes("trousers")) return "bottom";
+  if (category.includes("tshirts") || category.includes("tops")) return "top";
+  if (category.includes("activewear") || category.includes("sports clothing")) {
+    // These two categories are garment umbrellas, not a single equipment
+    // role. A specific garment title may still distinguish shorts or jerseys.
+    const title = normalize(product.title);
+    if (hasAny(title, ["short", "σορτ", "κολαν", "legging", "παντελον", "track pant"])) return "bottom";
+    if (hasAny(title, ["t shirt", "tshirt", "μπλουζ", "φανελ", "jersey", "tank top"])) return "top";
+    return "layer";
+  }
+  if (category.includes("shoes") || category.includes("sneakers") || category.includes("footwear") || category.includes("boots")) return "footwear";
+
+  // Unknown/misclassified categories get a conservative title/category-only
+  // fallback. Do not let mentions in freeform descriptions or accessory
+  // compatibility claims promote non-footwear to primary equipment.
+  const text = strictIdentityText(product);
+  if (hasAny(text, ["παπουτσι", "shoe", "sneaker", "trainer", "football boot", "ποδοσφαιρικο"])) return "footwear";
+  if (hasAny(text, ["καλτσ", "sock"])) return "socks";
+  if (hasAny(text, ["short", "σορτ", "κολαν", "legging", "παντελον", "track pant"])) return "bottom";
+  if (hasAny(text, ["t shirt", "tshirt", "μπλουζ", "φανελ", "jersey"])) return "top";
+  if (hasAny(text, ["ζακετ", "fleece", "hood", "jacket", "φουτερ"])) return "layer";
+  if (hasAny(text, ["μπαλα", "ball", "bag", "τσαντ", "bottle", "παγουρ", "glove"])) return "accessory";
   return "other";
 }
 
@@ -917,17 +1019,6 @@ function matchProofsFor(
 }
 
 
-function rawProductText(product: SportFitProduct): string {
-  return [
-    product.title,
-    product.description,
-    product.fit,
-    ...Object.entries(product.attributes ?? {}).flatMap(([key, value]) => [key, value])
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
-
 function greekJoin(parts: readonly string[]): string {
   if (parts.length <= 1) return parts[0] ?? "";
   if (parts.length === 2) return `${parts[0]} και ${parts[1]}`;
@@ -968,52 +1059,6 @@ function consultativeBenefitSentence(answers: SportFitAnswers): string {
   return "Η επιλογή βασίζεται σε χαρακτηριστικά του ίδιου του προϊόντος και όχι μόνο στην κατηγορία του.";
 }
 
-function directSourceFeaturePhrases(product: SportFitProduct): readonly string[] {
-  const raw = rawProductText(product);
-  const text = normalize(raw);
-  const features: string[] = [];
-
-  function add(value: string) {
-    if (!features.includes(value)) features.push(value);
-  }
-
-  // These signals are explanatory only. They never change eligibility or score:
-  // the recommendation engine still uses governed Sport & Fit facts/rules.
-  if (text.includes("cloudfoam")) add("ενδιάμεση σόλα Cloudfoam");
-  else if (text.includes("fresh foam")) add("τεχνολογία Fresh Foam");
-  else if (text.includes("fuelcell")) add("τεχνολογία FuelCell");
-  else if (text.includes("lightstrike")) add("αφρό Lightstrike");
-  else if (text.includes("boost")) add("τεχνολογία BOOST");
-  else if (text.includes("cloudtec")) add("τεχνολογία CloudTec");
-  else if (text.includes("pwrrun")) add("αφρό PWRRUN");
-  else if (text.includes("air zoom")) add("τεχνολογία Air Zoom");
-  else if (text.includes("nike react") || text.includes("react foam")) add("αφρό React");
-  else if (text.includes("gel ")) add("τεχνολογία GEL");
-
-  if (text.includes("memory foam")) add("πάτο memory foam");
-  if (
-    (text.includes("απορροφησ") && text.includes("κραδασμ"))
-    || text.includes("shock absorption")
-    || text.includes("impact absorption")
-  ) add("τεκμηριωμένη απορρόφηση κραδασμών");
-
-  if (
-    (text.includes("εγκοπ") && (text.includes("ελαστικ") || text.includes("ευκαμπ")))
-    || text.includes("flex grooves")
-  ) add("εύκαμπτη σόλα με εγκοπές");
-
-  if (text.includes("στηριξη στην καμαρα") || text.includes("arch support")) {
-    add("στήριξη καμάρας");
-  }
-
-  if (text.includes("gore tex") || text.includes("gore-tex")) add("μεμβράνη GORE-TEX");
-  if (text.includes("continental") && (text.includes("outsole") || text.includes("σολ"))) {
-    add("εξωτερική σόλα Continental");
-  }
-
-  return features;
-}
-
 function structuredConsultationFeatures(
   product: SportFitProduct,
   answers: SportFitAnswers,
@@ -1025,6 +1070,25 @@ function structuredConsultationFeatures(
   const features: string[] = [];
   function add(value: string) {
     if (!features.includes(value)) features.push(value);
+  }
+
+  // Add only source-backed manufacturer technologies, not technology-shaped
+  // words from supplier descriptions. Named technologies never imply a graded
+  // cushioning, foot-support or waterproofing classification.
+  const technologyLabels: Readonly<Record<string,string>> = {
+    cloudfoam: "Cloudfoam", cloudfoam_plus: "Cloudfoam+", cloudfoam_comfort: "Cloudfoam Comfort",
+    lightstrike_pro: "Lightstrike Pro", traxion: "Traxion", rain_rdy: "RAIN.RDY"
+  };
+  for (const code of knowledge.technologies ?? []) {
+    if (matchingEvidence(knowledge, "footwear_technology", code)) {
+      add(`τεχνολογία ${technologyLabels[code] ?? code}`);
+    }
+  }
+  if (
+    knowledge.manufacturerFitProfile === "regular"
+    && matchingEvidence(knowledge, "footwear_fit_profile", "regular")
+  ) {
+    add("Regular fit σύμφωνα με τον κατασκευαστή (όχι κατάταξη πλάτους)");
   }
 
   const width = normalize(knowledge.widthProfile);
@@ -1080,9 +1144,7 @@ function consultationSummaryFor(
 ): string | undefined {
   if (role !== "footwear") return undefined;
 
-  const sourceFeatures = directSourceFeaturePhrases(product);
-  const governedFeatures = structuredConsultationFeatures(product, answers, matchedSize);
-  const combined = [...sourceFeatures, ...governedFeatures].filter((value, index, values) => values.indexOf(value) === index);
+  const combined = structuredConsultationFeatures(product, answers, matchedSize);
 
   if (!combined.length && !matchProofs.length) return undefined;
 
@@ -1115,6 +1177,19 @@ function reasonsFor(
   if (matchedSize) reasons.push("Διαθέσιμο στο μέγεθος " + matchedSize);
 
   const knowledge = usableKnowledge(product);
+  if (knowledge && role === "socks") {
+    const zones = knowledge.sockCushionZones ?? [];
+    const heel = zones.includes("heel") && Boolean(matchingEvidence(knowledge,"sock_cushion_zone","heel"));
+    const toe = zones.includes("toe") && Boolean(matchingEvidence(knowledge,"sock_cushion_zone","toe"));
+    if (heel && toe) reasons.push("Ενίσχυση στη φτέρνα και στα δάχτυλα (όχι βαθμός cushioning)");
+    else if (heel) reasons.push("Ενίσχυση στη φτέρνα (η ένταση παραμένει άγνωστη)");
+    else if (toe) reasons.push("Ενίσχυση στα δάχτυλα (η ένταση παραμένει άγνωστη)");
+    const cotton = knowledge.sockCottonPct;
+    if (typeof cotton === "number" && Number.isFinite(cotton)
+        && matchingEvidence(knowledge,"sock_cotton_pct",String(cotton))) {
+      reasons.push(`Σύνθεση κατασκευαστή: ${cotton}% βαμβάκι`);
+    }
+  }
   if (knowledge && hasKnowledgeMatch(knowledge.activities, requestedActivityCodes(answers))) {
     reasons.push("Τεκμηριωμένη αντιστοίχιση δραστηριότητας");
   }
@@ -1188,10 +1263,14 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
   const role = sportProductRole(product);
   const size = sizeScore(product, answers, role);
   const requested = requestedSizes(product, answers, role);
-  const hardSizeMismatch = role === "footwear" && requested.length > 0 && product.sizes.length > 0 && !size.matchedSize;
+  // An unavailable size and an unverified variant size are both ineligible
+  // once the visitor requests an exact shoe size. They remain distinct reasons.
+  const sizeUnverified = role === "footwear" && requested.length > 0 && product.sizes.length === 0;
+  const hardSizeMismatch = role === "footwear" && requested.length > 0 && !size.matchedSize;
   const ruleEvaluation = evaluateSportFitRules(product, answers, role);
   const stockEligible = product.available && product.availableToSell > 0;
-  const technicalEligible = stockEligible && !hardSizeMismatch && ruleEvaluation.eligible;
+  const identityEligible = sportFitCandidateSupportsRequestedActivity(product, answers);
+  const technicalEligible = stockEligible && identityEligible && !hardSizeMismatch && ruleEvaluation.eligible;
   let score = 5;
 
   if (technicalEligible) {
@@ -1213,9 +1292,13 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
     score = 0;
   }
 
-  const technicalReasons = hardSizeMismatch
-    ? ["Δεν υπάρχει το ζητούμενο μέγεθος σε διαθέσιμη παραλλαγή"]
-    : ruleEvaluation.reasons;
+  const technicalReasons = !identityEligible
+    ? ["Ο τεκμηριωμένος τύπος αθλητικού υποδήματος δεν αντιστοιχεί στη δραστηριότητα"]
+    : sizeUnverified
+      ? ["Το ακριβές μέγεθος της διαθέσιμης παραλλαγής δεν έχει επαληθευτεί"]
+      : hardSizeMismatch
+        ? ["Δεν υπάρχει το ζητούμενο μέγεθος σε διαθέσιμη παραλλαγή"]
+      : ruleEvaluation.reasons;
   const matchProofs = matchProofsFor(product, answers, role, size.matchedSize, ruleEvaluation.technicalRequirements);
 
   return {
@@ -1232,7 +1315,8 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
     consultationSummary: consultationSummaryFor(product, answers, role, size.matchedSize, matchProofs),
     appliedRules: [
       ...(stockEligible ? ["stock.positive"] : ["stock.unavailable"]),
-      ...(hardSizeMismatch ? ["fit.requested_size_mismatch"] : size.matchedSize ? ["fit.requested_size_match"] : []),
+      ...(!identityEligible ? ["activity.category_hard_mismatch"] : []),
+      ...(sizeUnverified ? ["fit.variant_size_unknown"] : hardSizeMismatch ? ["fit.requested_size_mismatch"] : size.matchedSize ? ["fit.requested_size_match"] : []),
       ...ruleEvaluation.ruleIds
     ]
   };
@@ -1280,12 +1364,14 @@ function kitSelectionEligible(
   );
   if (!hasGovernedKitMatch) return false;
 
-  if (product.role === "socks" && answers.size && product.sizes.length > 0) {
+  if (product.role === "socks" && answers.size) {
+    // Unknown-size socks are not a verified match for an explicit numeric EU
+    // foot size. Empty variant size metadata must not bypass this safeguard.
     const requestedNumeric = Number(
       normalize(answers.size).replace(/^eu\s*/, "").replace(",", ".")
     );
-    const hasComparableNumericSizing = product.sizes.some((size) => /\d/.test(size));
-    if (Number.isFinite(requestedNumeric) && hasComparableNumericSizing && !product.matchedSize) {
+    if (Number.isFinite(requestedNumeric) && requestedNumeric >= 18
+        && requestedNumeric <= 55 && !product.matchedSize) {
       return false;
     }
   }
@@ -1293,9 +1379,37 @@ function kitSelectionEligible(
   return true;
 }
 
+/**
+ * A browsing universe is a set of products, not the final evidence-filtered
+ * recommendation. Show all available Tier-1 footwear first, and bound
+ * accessories/apparel to 12 supporting previews regardless of catalogue mix.
+ * The API reports primary and secondary counts separately.
+ */
+export function sportFitUniverseSelection(
+  products: readonly SportFitProduct[],
+  limit = 96
+): Readonly<{ primaryCount: number; secondaryCount: number; universe: readonly SportFitProduct[] }> {
+  const safeLimit = Math.max(0, Math.min(96, Math.floor(Number.isFinite(limit) ? limit : 0)));
+  const byRelevance = (left: SportFitProduct, right: SportFitProduct): number =>
+    Number(Boolean(right.previewImageSrc)) - Number(Boolean(left.previewImageSrc))
+    || right.availableToSell - left.availableToSell
+    || left.title.localeCompare(right.title, "el");
+
+  const primary = products.filter((item) => sportProductTier(sportProductRole(item)) === "primary").sort(byRelevance);
+  const secondary = products.filter((item) => sportProductTier(sportProductRole(item)) === "secondary").sort(byRelevance);
+  const featured = primary.slice(0, safeLimit);
+  const secondarySlots = Math.min(12, safeLimit - featured.length);
+  return {
+    primaryCount: primary.length,
+    secondaryCount: secondary.length,
+    universe: [...featured, ...secondary.slice(0, secondarySlots)]
+  };
+}
+
 export function buildSportFitRecommendation(
   products: readonly SportFitProduct[],
-  answers: SportFitAnswers
+  answers: SportFitAnswers,
+  compatibilityEdges: readonly SportFitCompatibilityEdge[] = []
 ): SportFitRecommendation {
   const scored = products
     .filter((product) =>
@@ -1338,9 +1452,33 @@ export function buildSportFitRecommendation(
   const alternatives = finalistRanked.filter((product) => product.id !== primary?.id).slice(0, 4);
 
   const kit: SportFitScoredProduct[] = [];
+  const kitCompatibility: SportFitKitCompatibility[] = [];
   if (primary) {
     const usedIds = new Set([primary.id]);
     for (const role of ["socks", "top", "bottom", "layer", "accessory"] as const) {
+      // A reviewed class-level incompatibility is a hard negative, never a
+      // soft-score penalty and never outweighed by a competing positive edge.
+      const graphConflict = compatibilityEdges.some((edge) =>
+        edge.sportCode === answers.activity
+        && (edge.useCase === "all" || edge.useCase === answers.useCase)
+        && edge.primaryRole === "footwear"
+        && edge.secondaryRole === role
+        && edge.secondaryKind === "all"
+        && edge.relationshipType === "incompatible_with"
+      );
+      if (graphConflict) continue;
+      const matchingEdges = compatibilityEdges.filter((edge) =>
+        edge.sportCode === answers.activity
+        && (edge.useCase === "all" || edge.useCase === answers.useCase)
+        && edge.primaryRole === "footwear"
+        && edge.secondaryRole === role
+        && edge.secondaryKind === "all"
+        && edge.relationshipType !== "incompatible_with"
+      ).sort((left, right) =>
+        Number(right.useCase !== "all") - Number(left.useCase !== "all")
+        || right.confidence - left.confidence
+      );
+      const edge = matchingEdges[0];
       const item = eligible.find((product) =>
         product.role === role
         && !usedIds.has(product.id)
@@ -1349,7 +1487,22 @@ export function buildSportFitRecommendation(
       );
       if (!item) continue;
       usedIds.add(item.id);
-      kit.push(item);
+      // Compatibility is a second, separately sourced explanation:
+      // matching a class-level edge never fabricates model-level evidence.
+      kit.push(edge ? {
+        ...item,
+        appliedRules: [...item.appliedRules, `kit.compatibility.${edge.relationshipType}`]
+      } : item);
+      if (edge) {
+        kitCompatibility.push({
+          productId: item.id,
+          relationshipType: edge.relationshipType,
+          sourceUrl: edge.sourceUrl,
+          sourceTitle: edge.sourceTitle,
+          evidenceExcerpt: edge.evidenceExcerpt,
+          confidence: edge.confidence
+        });
+      }
     }
   }
 
@@ -1359,6 +1512,7 @@ export function buildSportFitRecommendation(
     primary,
     alternatives,
     kit,
+    kitCompatibility,
     ranked: finalistRanked.slice(0, 24)
   };
 }

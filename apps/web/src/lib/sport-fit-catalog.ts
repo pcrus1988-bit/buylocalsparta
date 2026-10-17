@@ -3,11 +3,13 @@ import { loadCatalogMetadata } from "./catalog-metadata";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 import { canonicalSportBrand } from "./sport-fit-brand";
+import { stockedSportFootwearVariantSizes, stockedSportSockVariantSizes } from "./sport-fit-engine";
 import type { SportAudience, SportFitKnowledge, SportFitKnowledgeEvidence, SportFitProduct, SportKnowledgeQueueStatus, SportKnowledgeStatus } from "./sport-fit-engine";
 
 type SportCatalogRow = Readonly<{
   id: string;
   family_id: string | null;
+  variant_size: string | null;
   slug: string;
   title: string;
   category_code: string;
@@ -129,6 +131,7 @@ function stringValue(value: unknown): string | undefined {
 }
 
 function numberValue(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
@@ -174,6 +177,8 @@ function sportKnowledge(
     supportLevel: stringValue(facts.support_level),
     fitLengthProfile: stringValue(facts.fit_length_profile),
     widthProfile: stringValue(facts.footwear_width_profile),
+    technologies: stringList(facts.footwear_technology),
+    manufacturerFitProfile: stringValue(facts.footwear_fit_profile),
     dropMm: numberValue(facts.heel_to_toe_drop_mm),
     heelStackMm: numberValue(facts.heel_stack_height_mm),
     forefootStackMm: numberValue(facts.forefoot_stack_height_mm),
@@ -183,6 +188,12 @@ function sportKnowledge(
     weatherProtection: stringList(facts.weather_protection),
     sockHeight: stringValue(facts.sock_height),
     sockCushioning: stringValue(facts.sock_cushioning),
+    sockCushionZones: stringList(facts.sock_cushion_zone),
+    sockCottonPct: numberValue(facts.sock_cotton_pct),
+    sockPolyesterPct: numberValue(facts.sock_polyester_pct),
+    sockElastanePct: numberValue(facts.sock_elastane_pct),
+    sockNylonPct: numberValue(facts.sock_nylon_pct),
+    packQuantity: numberValue(facts.pack_quantity),
     moistureWicking: booleanValue(facts.moisture_wicking),
     sockArchSupport: booleanValue(facts.sock_arch_support),
     breathabilityLevel: stringValue(facts.breathability_level),
@@ -264,6 +275,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
     SELECT
       cv.public_id AS id,
       pf.id AS family_id,
+      NULLIF(btrim(cv.variant_attributes->>'size'),'') AS variant_size,
       cv.slug,
       COALESCE(NULLIF(el.title,''),NULLIF(en.title,''),NULLIF(cv.model,''),NULLIF(pf.model,''),cv.slug) AS title,
       c.code AS category_code,
@@ -311,7 +323,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
         SELECT
           ad.code,
           CASE
-            WHEN ad.data_type='multienum'
+            WHEN ad.data_type='multienum' OR ad.code='footwear_technology'
               THEN to_jsonb(array_agg(av.code ORDER BY pfav.position) FILTER (WHERE av.code IS NOT NULL))
             WHEN ad.data_type='enum'
               THEN to_jsonb(max(av.code))
@@ -325,7 +337,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
         JOIN attribute_definitions ad ON ad.id=pfav.attribute_id
         LEFT JOIN attribute_values av ON av.id=pfav.attribute_value_id
         WHERE pfav.family_id=pf.id
-          AND ad.group_code LIKE 'sport%'
+          AND (ad.group_code LIKE 'sport%' OR ad.code='pack_quantity')
           AND coalesce(pfav.confidence,0)>=0.70
         GROUP BY ad.code,ad.data_type
       ) fact
@@ -373,6 +385,14 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
       AND ib.stock_confirmed_at IS NOT NULL
       AND ib.stock_confirmed_at + make_interval(secs=>COALESCE(ib.freshness_ttl_seconds,0))>now()
     ORDER BY
+      -- Round-robin across eligible sport categories BEFORE the bounded pool
+      -- limit. Previously 100+ shoe variants and 190+ socks could consume the
+      -- entire 320-row budget, starving apparel, hiking and court equipment.
+      -- Each category contributes one candidate before its second candidate.
+      ROW_NUMBER() OVER (
+        PARTITION BY c.code
+        ORDER BY vo.updated_at DESC, cv.public_id
+      ) ASC,
       CASE
         WHEN c.code LIKE '%running-shoes' THEN 0
         WHEN c.code LIKE '%sneakers' THEN 1
@@ -408,7 +428,13 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
       categoryLabel: details?.categoryLabel,
       brand: canonicalSportBrand(details?.brand ?? row.brand_name ?? row.feed_brand ?? undefined),
       color: details?.color,
-      sizes: details?.sizes ?? [],
+      // Never inherit family-level/translation size lists for a stocked
+      // footwear variant: availability is guaranteed only for cv.size.
+      sizes: /(?:shoes|sneakers|boots|footwear)$/.test(row.category_code)
+        ? stockedSportFootwearVariantSizes(row.variant_size)
+        : row.category_code === "socks-hosiery"
+          ? stockedSportSockVariantSizes(row.variant_size)
+          : details?.sizes ?? [],
       fit: details?.fit,
       description: details?.description,
       attributes: details?.attributes ?? {},
