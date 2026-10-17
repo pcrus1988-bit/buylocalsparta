@@ -200,7 +200,7 @@ export async function savePressRelease(principal: SessionPrincipal, input: {
 
 export async function savePressList(principal: SessionPrincipal, name: string, csv: File): Promise<string> {
   assertAdminPermission(principal, "research.publish.manage");
-  const safeName=name.replace(/[\\r\\n\\x00-\\x1f\\x7f]/g," ").trim();
+  const safeName=name.replace(/[\r\n\x00-\x1f\x7f]/g," ").trim();
   if(!safeName || safeName.length>120) throw new Error("List name must have 1–120 characters.");
   const contacts=await readPressCsvFile(csv);
   if(!contacts?.length)throw new Error("Upload a CSV with at least one contact.");
