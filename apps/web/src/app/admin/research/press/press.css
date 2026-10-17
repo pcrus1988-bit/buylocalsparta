@@ -75,3 +75,27 @@
 .press-office :is(input,textarea,select,button,a,summary):focus-visible {outline:3px solid #6ca77a;outline-offset:3px;}
 @media(max-width:1060px){.press-office .press-layout {grid-template-columns:200px minmax(0,1fr);gap:12px;}.press-office .press-edit-grid {grid-template-columns:1fr;}.press-office .press-preview-frame {min-height:340px;}}
 @media(max-width:700px){.press-office .press-hero-identity {display:none;}.press-office .press-layout {grid-template-columns:1fr;}.press-office .press-sidebar {position:static;max-height:240px;}.press-office .press-form-grid,.press-office .press-actions-grid,.press-office .press-support-grid {grid-template-columns:1fr;}.press-office .press-card {padding:14px;}.press-office .press-delivery-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}.press-office .press-save-row {flex-wrap:wrap;justify-content:flex-start;}.press-office .press-panel-head {flex-wrap:wrap;}}
+
+/* Language-aware Press Office additions */
+.press-office .press-bilingual {display:grid;gap:13px;}
+.press-office .press-language-switch {display:flex;gap:8px;flex-wrap:wrap;}
+.press-office .press-language-switch button {border:1px solid #c7d8ca;background:#f2f7f2;color:#2a5339;border-radius:12px;min-height:43px;padding:10px 16px;font-size:13px;font-weight:850;cursor:pointer;}
+.press-office .press-language-switch button.is-active {background:#173e2a;color:white;border-color:#173e2a;}
+.press-office .press-hidden-data {display:grid;gap:14px;}
+.press-office .press-hidden-data[hidden] {display:none!important;}
+.press-office .press-bilingual textarea {min-height:250px;font:12px/1.75 ui-monospace,SFMono-Regular,Consolas,monospace;resize:vertical;}
+.press-office .press-bilingual .press-field input {min-height:43px;}
+.press-office .press-csv-sample {display:grid;gap:5px;padding:12px;background:#f5f9f5;border-radius:11px;border:1px solid #e1eae2;overflow-x:auto;margin:8px 0 13px;}
+.press-office .press-csv-sample code {font-size:11px;color:#245137;white-space:nowrap;}
+.press-office .press-recipient-stats {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:15px 0;}
+.press-office .press-recipient-stats div {display:grid;gap:5px;padding:12px;background:#f2f8f1;border-radius:11px;border:1px solid #dbeadb;}
+.press-office .press-recipient-stats span {color:#526e5a;font-size:11px;}
+.press-office .press-recipient-stats strong {font-size:24px;color:#1e4c33;font-variant-numeric:tabular-nums;}
+.press-office .press-csv-preview {display:grid;gap:7px;padding:14px;margin:12px 0;background:#f0f8f2;border:1px solid #badac2;border-radius:12px;font-size:12px;}
+.press-office .press-csv-preview strong {font-size:14px;color:#1d5937;}
+.press-office .press-csv-preview small {color:#4e6c57;}
+.press-office .press-import-mode {margin-top:14px;max-width:550px;}
+.press-office .press-import-mode select {border:1px solid #c5d9ca;background:#fff;border-radius:11px;padding:10px;font-size:13px;width:100%;}
+.press-office .press-field>small {font-size:11px;line-height:1.4;color:#55715e;overflow-wrap:anywhere;}
+.press-office .press-preview-frame {min-height:420px;}
+@media(max-width:640px){.press-office .press-recipient-stats {grid-template-columns:repeat(3,minmax(0,1fr));}.press-office .press-recipient-stats strong {font-size:21px;}}
