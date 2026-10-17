@@ -25,7 +25,7 @@ const labels: Record<string,string> = {
   list: "Distribution list saved.",
   suppressed: "The email is now suppressed for subsequent press sends."
 };
-const tally = (items: { status: string }[], status:string) => items.filter(d=>d.status===status).length;
+const tally = (items: ReadonlyArray<{ status: string }>, status:string) => items.filter(d=>d.status===status).length;
 
 export default async function ResearchPressOfficePage({searchParams}: {searchParams:SearchParams}) {
   const principal = await getAdminSession();
