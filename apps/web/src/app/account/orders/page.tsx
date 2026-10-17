@@ -56,12 +56,13 @@ export default async function CustomerOrdersPage({ searchParams }: Props) {
     return !complete(order.status);
   });
 
+  const activeOrders = dashboard.orders.filter((order) => !complete(order.status));
   const tabs = [
-    ["active", "Ενεργές"],
-    ["pickup", "Παραλαβή"],
-    ["shipping", "Παράδοση / αποστολή"],
-    ["completed", "Ολοκληρωμένες"],
-    ["all", "Όλες"]
+    ["active", "Ενεργές", activeOrders.length],
+    ["pickup", "Παραλαβή", activeOrders.filter((order) => order.fulfilmentMode === "pickup").length],
+    ["shipping", "Παράδοση / αποστολή", activeOrders.filter((order) => order.fulfilmentMode !== "pickup").length],
+    ["completed", "Ολοκληρωμένες", dashboard.orders.length - activeOrders.length],
+    ["all", "Όλες", dashboard.orders.length]
   ] as const;
 
   return <main className="account-app">
@@ -70,7 +71,7 @@ export default async function CustomerOrdersPage({ searchParams }: Props) {
     <AccountSectionNavigation />
     <section className="shell customer-account-page">
       <div className="customer-page-heading"><div><div className="eyebrow">Οι αγορές μου</div><h1>Παραγγελίες</h1></div><p>Δες σε μία ματιά τι ολοκληρώθηκε, τι περιμένει το κατάστημα ή τον μεταφορέα και πότε χρειάζεται κάτι από εσένα.</p></div>
-      <div className="customer-filter-tabs" aria-label="Φίλτρα παραγγελιών">{tabs.map(([key, label]) => <Link className={selected === key ? "is-active" : undefined} aria-current={selected === key ? "page" : undefined} href={`/account/orders?view=${key}`} key={key}>{label}</Link>)}</div>
+      <div className="customer-filter-tabs" aria-label="Φίλτρα παραγγελιών">{tabs.map(([key, label, count]) => <Link className={selected === key ? "is-active" : undefined} aria-current={selected === key ? "page" : undefined} href={`/account/orders?view=${key}`} key={key}>{label} <span className="filter-count">{count}</span></Link>)}</div>
       <CustomerHowItWorks title="Πώς λειτουργεί η πορεία μιας παραγγελίας;"><p>Η γραμμή πορείας δείχνει τα βήματα που έχουν ολοκληρωθεί, το σημερινό βήμα και ό,τι ακολουθεί. Πορτοκαλί σημαίνει ότι χρειάζεται ενέργεια από εσένα· μπλε ότι η διαδικασία συνεχίζεται από κατάστημα, πλατφόρμα ή μεταφορέα.</p></CustomerHowItWorks>
     </section>
 
