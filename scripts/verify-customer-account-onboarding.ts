@@ -4,6 +4,7 @@ const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const service = read("apps/web/src/lib/customer-account-onboarding.ts");
 const component = read("apps/web/src/components/CustomerAccountSetupChecklist.tsx");
 const page = read("apps/web/src/app/account/page.tsx");
+const dashboardClient = read("apps/web/src/components/AccountDashboardClient.tsx");
 const css = read("apps/web/src/app/customer-account-onboarding.css");
 const layout = read("apps/web/src/app/layout.tsx");
 const failures: string[] = [];
@@ -38,9 +39,18 @@ if (component.includes("verify email") || component.includes("Επιβεβαίω
 for (const contract of [
   "customerAccountSetup",
   "Promise.all([accountHomeDashboard(principal), customerAccountSetup(principal)])",
-  "<CustomerAccountSetupChecklist setup={setup} />",
-  "<AccountDashboardClient initial={dashboard} />"
+  "<AccountDashboardClient initial={dashboard} setup={setup} />"
 ]) if (!page.includes(contract)) failures.push(`Account page onboarding integration is missing ${contract}`);
+
+for (const contract of [
+  "CustomerAccountSetupChecklist",
+  "setup: CustomerAccountSetup",
+  "<CustomerAccountSetupChecklist setup={setup} embedded />",
+  "<AccountHomeHub"
+]) if (!dashboardClient.includes(contract)) failures.push(`Account dashboard onboarding integration is missing ${contract}`);
+
+if (dashboardClient.indexOf("<CustomerAccountSetupChecklist setup={setup} embedded />") < dashboardClient.indexOf("<AccountHomeHub")) failures.push("Account setup must appear within the dashboard's primary area, not outside the hub");
+if (!component.includes('embedded ? "customer-account-setup customer-setup-compact"')) failures.push("Embedded account onboarding must avoid nested shell width constraints");
 
 for (const contract of [
   "var(--olive)",
