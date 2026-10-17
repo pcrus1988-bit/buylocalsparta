@@ -4,6 +4,8 @@ import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { sendAdminMail } from "./admin-mail-runtime";
 import { validateCustomMailHtml } from "./admin-mail-template";
 import { pressHtmlFragment } from "./research-press-template";
+import { combinePressContacts, contactsFromLanguages, parsePressCsv, validatePressEmail,
+  MAX_PRESS_CSV_BYTES, type PressCsvContact, type PressLanguage } from "./research-press-csv";
 
 const MAX_RECIPIENTS = 500;
 const BATCH_SIZE = 8;
@@ -16,11 +18,17 @@ export type PressRelease = {
   title: string;
   subject: string;
   body_html: string;
+  subject_en: string | null;
+  body_html_en: string | null;
+  recipient_languages: Record<string,PressLanguage>;
   from_address: string;
   recipients: string[];
   attachment_name: string | null;
   attachment_type: string | null;
   attachment_bytes: Uint8Array | null;
+  attachment_name_en: string | null;
+  attachment_type_en: string | null;
+  attachment_bytes_en: Uint8Array | null;
   status: "draft" | "prepared" | "sending" | "completed";
   created_at: string | Date;
   updated_at: string | Date;
@@ -29,11 +37,12 @@ export type PressRelease = {
 };
 export type PressDelivery = {
   recipient: string;
+  language: PressLanguage;
   status: "pending" | "sending" | "sent" | "failed" | "suppressed";
   error_message: string | null;
   sent_at: string | Date | null;
 };
-export type PressList = { id: string; name: string; recipients: string[] };
+export type PressList = { id: string; name: string; recipients: string[]; recipient_languages: Record<string,PressLanguage> };
 
 export function parsePressRecipients(value: string): string[] {
   const raw = value.split(/[;,\n]+/).map((entry) => entry.trim().toLowerCase()).filter(Boolean);
@@ -60,7 +69,7 @@ export async function pressWorkspace(principal: SessionPrincipal, selectedId?: s
        created_at,updated_at,prepared_at,completed_at,cardinality(recipients)::int AS recipient_count
        FROM public.research_press_releases ORDER BY updated_at DESC LIMIT 40`
     ),
-    db.query<PressList>("SELECT id,name,recipients FROM public.research_press_lists ORDER BY name LIMIT 100")
+    db.query<PressList>("SELECT id,name,recipients,recipient_languages FROM public.research_press_lists ORDER BY name LIMIT 100")
   ]);
   const current = selectedId
     ? await db.query<PressRelease>(
@@ -69,7 +78,7 @@ export async function pressWorkspace(principal: SessionPrincipal, selectedId?: s
     : undefined;
   const deliveries = selectedId
     ? await db.query<PressDelivery>(
-        "SELECT recipient,status,error_message,sent_at FROM public.research_press_deliveries WHERE release_id=$1 ORDER BY recipient LIMIT 500",
+        "SELECT recipient,language,status,error_message,sent_at FROM public.research_press_deliveries WHERE release_id=$1 ORDER BY recipient LIMIT 500",
         [selectedId]
       )
     : undefined;
@@ -101,54 +110,107 @@ async function attachmentInput(file?: File, clear?: boolean) {
   return { name, type: allowed[extension], bytes: Buffer.from(await file.arrayBuffer()) };
 }
 
-export async function savePressRelease(principal: SessionPrincipal, input: {
-  id?: string; title: string; subject: string; bodyHtml: string; recipients: string;
-  file?: File; clearAttachment?: boolean;
-}): Promise<string> {
-  assertAdminPermission(principal, "research.publish.manage");
-  const title = pressTitle(input.title, "Title");
-  const subject = pressTitle(input.subject, "Subject");
-  const body = validateCustomMailHtml(input.bodyHtml);
-  const recipients = parsePressRecipients(input.recipients);
-  const attachment = await attachmentInput(input.file, input.clearAttachment);
-  const db = pool();
-  if (input.id) {
-    const result = await db.query<{ id: string }>(
-      `UPDATE public.research_press_releases SET
-        title=$2,subject=$3,body_html=$4,recipients=$5::text[],
-        attachment_name=CASE WHEN $6::boolean THEN $7 ELSE attachment_name END,
-        attachment_type=CASE WHEN $6::boolean THEN $8 ELSE attachment_type END,
-        attachment_bytes=CASE WHEN $6::boolean THEN $9 ELSE attachment_bytes END,
-        updated_at=now()
-       WHERE id=$1 AND status='draft' RETURNING id`,
-      [input.id,title,subject,body,recipients,Boolean(attachment),attachment?.name ?? null,attachment?.type ?? null,attachment?.bytes ?? null]
-    );
-    if (!result.rows[0]) throw new Error("Only drafts can be edited. Create a new release to revise a prepared or sent campaign.");
-    return result.rows[0].id;
-  }
-  const result = await db.query<{ id: string }>(
-    `INSERT INTO public.research_press_releases
-       (title,subject,body_html,recipients,from_address,attachment_name,attachment_type,attachment_bytes,created_by)
-     VALUES ($1,$2,$3,$4::text[],$5,$6,$7,$8,$9) RETURNING id`,
-    [title,subject,body,recipients,FROM,attachment?.name ?? null,attachment?.type ?? null,attachment?.bytes ?? null,principal.userId]
-  );
-  return result.rows[0].id;
+async function readPressCsvFile(file?: File): Promise<PressCsvContact[] | undefined> {
+  if (!file || !file.size) return undefined;
+  if (!file.name.toLowerCase().endsWith(".csv")) throw new Error("Upload a .csv file.");
+  if (file.size > MAX_PRESS_CSV_BYTES) throw new Error("CSV must be 1 MB or smaller.");
+  let decoded: string;
+  try { decoded = new TextDecoder("utf-8", {fatal:true}).decode(await file.arrayBuffer()); }
+  catch { throw new Error("CSV must be UTF-8 encoded."); }
+  return parsePressCsv(decoded).contacts;
 }
 
-export async function savePressList(principal: SessionPrincipal, name: string, recipientsText: string): Promise<string> {
+function recipientColumns(contacts: readonly PressCsvContact[]) {
+  const recipients = contacts.map(c=>c.email);
+  const recipientLanguages: Record<string,PressLanguage> = Object.create(null);
+  for(const contact of contacts) recipientLanguages[contact.email]=contact.language;
+  return {recipients,recipientLanguages};
+}
+
+async function selectedContacts(listId?: string): Promise<PressCsvContact[] | undefined> {
+  if(!listId) return undefined;
+  const list = (await pool().query<PressList>(
+    "SELECT id,name,recipients,recipient_languages FROM public.research_press_lists WHERE id=$1 LIMIT 1",
+    [listId]
+  )).rows[0];
+  if(!list) throw new Error("Selected distribution list was not found.");
+  return contactsFromLanguages(list.recipients,list.recipient_languages);
+}
+
+export async function savePressRelease(principal: SessionPrincipal, input: {
+  id?: string; title: string; subject: string; bodyHtml: string;
+  subjectEn?: string; bodyHtmlEn?: string;
+  file?: File; fileEn?: File; clearAttachment?: boolean; clearAttachmentEn?: boolean;
+  recipientCsv?: File; selectedListId?: string; importMode?: "replace"|"append";
+}): Promise<string> {
   assertAdminPermission(principal, "research.publish.manage");
-  const safeName = name.replace(/[\r\n\x00-\x1f\x7f]/g, " ").trim();
-  if (!safeName || safeName.length > 120) throw new Error("List name must have 1–120 characters.");
-  const recipients = parsePressRecipients(recipientsText);
-  if (!recipients.length) throw new Error("Add at least one address to the list.");
-  const result = await pool().query<{ id: string }>(
-    `INSERT INTO public.research_press_lists(name,recipients,created_by)
-       VALUES ($1,$2::text[],$3)
-       ON CONFLICT(name) DO UPDATE SET recipients=EXCLUDED.recipients,updated_at=now()
-       RETURNING id`,
-    [safeName,recipients,principal.userId]
-  );
-  return result.rows[0].id;
+  const title=pressTitle(input.title,"Title");
+  const subject=pressTitle(input.subject,"Greek subject");
+  const body=validateCustomMailHtml(input.bodyHtml);
+  const subjectEn=input.subjectEn?.trim() ? pressTitle(input.subjectEn,"English subject") : null;
+  const bodyEn=input.bodyHtmlEn?.trim() ? validateCustomMailHtml(input.bodyHtmlEn) : null;
+  const [attachment,attachmentEn,importedCsv,fromList] = await Promise.all([
+    attachmentInput(input.file,input.clearAttachment),
+    attachmentInput(input.fileEn,input.clearAttachmentEn),
+    readPressCsvFile(input.recipientCsv),selectedContacts(input.selectedListId)
+  ]);
+  if(importedCsv && fromList) throw new Error("Choose either a CSV upload or an existing distribution list, not both.");
+  const db=pool();
+  const current=input.id
+    ? (await db.query<PressRelease>("SELECT * FROM public.research_press_releases WHERE id=$1 AND status='draft' LIMIT 1",[input.id])).rows[0]
+    : undefined;
+  if(input.id && !current)throw new Error("Only drafts can be edited.");
+  const existing = current ? contactsFromLanguages(current.recipients,current.recipient_languages) : [];
+  const incoming = importedCsv ?? fromList;
+  const contacts=incoming
+    ? combinePressContacts(existing,incoming,input.importMode==="append"?"append":"replace")
+    : existing;
+  const {recipients,recipientLanguages}=recipientColumns(contacts);
+  const common=[title,subject,body,subjectEn,bodyEn,recipients,JSON.stringify(recipientLanguages),
+    Boolean(attachment),attachment?.name??null,attachment?.type??null,attachment?.bytes??null,
+    Boolean(attachmentEn),attachmentEn?.name??null,attachmentEn?.type??null,attachmentEn?.bytes??null];
+  if(input.id) {
+    const updated=await db.query<{id:string}>(`UPDATE public.research_press_releases SET
+        title=$2, subject=$3, body_html=$4, subject_en=$5, body_html_en=$6,
+        recipients=$7::text[], recipient_languages=$8::jsonb,
+        attachment_name=CASE WHEN $9::boolean THEN $10 ELSE attachment_name END,
+        attachment_type=CASE WHEN $9::boolean THEN $11 ELSE attachment_type END,
+        attachment_bytes=CASE WHEN $9::boolean THEN $12 ELSE attachment_bytes END,
+        attachment_name_en=CASE WHEN $13::boolean THEN $14 ELSE attachment_name_en END,
+        attachment_type_en=CASE WHEN $13::boolean THEN $15 ELSE attachment_type_en END,
+        attachment_bytes_en=CASE WHEN $13::boolean THEN $16 ELSE attachment_bytes_en END,
+        updated_at=now()
+       WHERE id=$1 AND status='draft' RETURNING id`,[input.id,...common]);
+    if(!updated.rows[0])throw new Error("This release was prepared while being edited. Create a new draft.");
+    return updated.rows[0].id;
+  }
+  const inserted=await db.query<{id:string}>(`INSERT INTO public.research_press_releases
+    (title,subject,body_html,subject_en,body_html_en,recipients,recipient_languages,
+     attachment_name,attachment_type,attachment_bytes,attachment_name_en,attachment_type_en,attachment_bytes_en,
+     from_address,created_by)
+    VALUES ($1,$2,$3,$4,$5,$6::text[],$7::jsonb,$8,$9,$10,$11,$12,$13,$14,$15)
+    RETURNING id`,[
+    title,subject,body,subjectEn,bodyEn,recipients,JSON.stringify(recipientLanguages),
+    attachment?.name??null,attachment?.type??null,attachment?.bytes??null,
+    attachmentEn?.name??null,attachmentEn?.type??null,attachmentEn?.bytes??null,
+    FROM,principal.userId
+  ]);
+  return inserted.rows[0].id;
+}
+
+export async function savePressList(principal: SessionPrincipal, name: string, csv: File): Promise<string> {
+  assertAdminPermission(principal, "research.publish.manage");
+  const safeName=name.replace(/[\\r\\n\\x00-\\x1f\\x7f]/g," ").trim();
+  if(!safeName || safeName.length>120) throw new Error("List name must have 1–120 characters.");
+  const contacts=await readPressCsvFile(csv);
+  if(!contacts?.length)throw new Error("Upload a CSV with at least one contact.");
+  const {recipients,recipientLanguages}=recipientColumns(contacts);
+  const created=await pool().query<{id:string}>(`INSERT INTO public.research_press_lists
+     (name,recipients,recipient_languages,created_by) VALUES ($1,$2::text[],$3::jsonb,$4)
+     ON CONFLICT(name) DO UPDATE SET
+       recipients=EXCLUDED.recipients,recipient_languages=EXCLUDED.recipient_languages,updated_at=now()
+     RETURNING id`,[safeName,recipients,JSON.stringify(recipientLanguages),principal.userId]);
+  return created.rows[0].id;
 }
 
 export async function suppressPressRecipient(principal: SessionPrincipal, email: string, reason: string): Promise<void> {
