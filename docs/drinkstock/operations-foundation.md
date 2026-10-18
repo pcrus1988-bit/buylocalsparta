@@ -13,6 +13,15 @@ This is the first persistent data-model foundation. It **does not enable chargin
 - The demo trading feed must never be used as an input to billing or accounting.
 - All writes require venue scoping, idempotency keys, authorization, row locks, and auditable state transitions.
 
+## Implementation status (October 19, 2026)
+- Manager/owner session start, pause, resume, crash for 60 seconds, end and access-pass revocation are implemented on the feature branch.
+- Pre-session venue price boundaries are configurable from 50–100% (minimum) and 100–200% (maximum), initially 70–145%. These settings and catalogue additions are locked by the server for the full lifetime of any active operational session, including pause/crash, and while rehearsal is running. Session startup snapshots the configured limits.
+- Remote view-only screens show the venue board, visible crash countdown, red warning corners, opt-in/mutable alarm, and a feed of **manual rehearsal demand signals**, never claims of actual paid orders. Disconnected or revoked screens hide cached prices.
+- Venue staff have an authenticated fulfilment queue that accepts only payment-provider-verified paid orders. The legal receipt gate prevents marking orders served unless fiscal issuance was confirmed. Since providers are not connected, the queue will remain empty by design.
+- Printed per-table QR passes identify a venue and table but remain **read-only**: no guest order submission, payment collection or fiscal receipt creation is activated.
+- Public consumer demo remains isolated from venue and financial records, including during its simulated crash order rush.
+- Production migration 0451 is a prerequisite for deployment; at last check production schema ledger was 450.
+
 ## Activation gates
 1. Apply version 0451 to production through the existing versioned schema deployment process; keep the schema ledger and SHA checksums in sync.
 2. Implement authenticated manager controls, QR/screen token lifecycle, public scoped readers, and transactionally locked session actions.
