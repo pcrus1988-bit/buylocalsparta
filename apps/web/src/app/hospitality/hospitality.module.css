@@ -58,3 +58,7 @@
 .partnerCard h2{font-size:27px;margin:15px 0}
 .partnerCard p{margin:0 0 24px;line-height:1.6}
 @media(max-width:760px){.navigation{min-height:76px;padding:12px 17px}.navLinks{gap:10px;font-size:11px}.navLinks a:first-child{display:none}.navLogin{padding:9px 10px}.hero{padding:60px 0}.appGrid,.featureGrid{grid-template-columns:1fr}.appCard,.appCardMuted{min-height:315px;padding:30px}.strip{flex-direction:column;gap:12px}.footer{flex-direction:column}.authPane{margin:35px auto;padding:25px}.main{padding:0 18px 70px}}
+.partnerNav{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:12px;padding:17px 20px;background:#eef4ee;border-bottom:1px solid #d1dfd4}
+.partnerNav a{font-size:13px;font-weight:700;padding:9px 14px;border-radius:99px;border:1px solid #cfddd1}
+.partnerNav a:hover{background:#fff}
+.partnerNav button{font:inherit;font-size:13px}
