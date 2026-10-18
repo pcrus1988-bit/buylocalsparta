@@ -88,7 +88,7 @@ export function summarizeFiscalKybReviewQueue(records:readonly Raw[]):readonly F
  * Cursor values are never interpolated into SQL; the caller binds two params.
  * Sorting by urgent outcome remains restricted to the current 40-case page.
  */
-const cursorPattern=/^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z)\\|([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const cursorPattern=/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z)\|([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 export type FiscalKybQueueCursor=Readonly<{createdAt:string;id:string}>;
 export function parseFiscalKybReviewCursor(raw:unknown):FiscalKybQueueCursor|null{
  if(raw===undefined||raw===null)return null;
