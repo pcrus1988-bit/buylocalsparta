@@ -20,7 +20,7 @@ export default function HospitalityLayout({ children }: { children: React.ReactN
           </Link>
           <nav aria-label="Hospitality navigation" className={styles.navLinks}>
             <Link href="/">Εφαρμογές</Link>
-            <Link href="/drinkStock">DrinkStock</Link>
+            <Link href="https://hospitality.kontamou.site/drinkStock">DrinkStock</Link>
             <Link href="https://hospitality.kontamou.site/drinkStock/login" className={styles.navLogin}>Partner Login ↗</Link>
           </nav>
         </div>
