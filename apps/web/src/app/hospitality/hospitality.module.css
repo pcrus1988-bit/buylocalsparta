@@ -181,3 +181,48 @@
   .navLinks a:first-child{display:inline-flex}
   .navLogin{padding:10px 14px}
 }
+
+
+/* DrinkStock has its own visual identity. This is scoped to its route subtree
+   without changing the KONTA MOY hospitality gateway or any other service. */
+.drinkBrand{display:none;align-items:center;gap:12px;text-decoration:none;color:#fff}
+.drinkBrand>span:last-child{display:flex;flex-direction:column;gap:4px}
+.drinkBrand strong{font-size:22px;letter-spacing:-.07em;font-weight:950;line-height:1}
+.drinkBrand strong span{color:#b8ff52}
+.drinkBrand small{font-size:9px;letter-spacing:.14em;color:#aaa0c7;font-weight:850}
+.drinkBrandLogo{background:#b8ff52;color:#110c1f;display:grid;place-items:center;font-size:31px;font-weight:900;width:45px;height:45px;border-radius:13px}
+.shell:has([data-drinkstock]){background:#080816;color:#fff}
+.shell:has([data-drinkstock]) .header{background:#0e0b21;border-bottom:1px solid #65508b50}
+.shell:has([data-drinkstock]) .navigation{min-height:77px}
+.shell:has([data-drinkstock]) .brand{display:none}
+.shell:has([data-drinkstock]) .drinkBrand{display:flex}
+.shell:has([data-drinkstock]) .navLinks a{color:#eee7fc}
+.shell:has([data-drinkstock]) .navLinks .navLogin{background:#b8ff52;border-color:#b8ff52;color:#130b1d}
+.shell:has([data-drinkstock]) .footer{background:#0d0a1d;border-top:1px solid #61508070;color:#a79abf}
+.shell:has([data-drinkstock]) .footer a{color:#cbb6ff}
+.shell:has([data-drinkstock]) .main{background:#080816;color:#f8f5ff}
+.shell:has([data-drinkstock]) .eyebrow{color:#b8ff52}
+.shell:has([data-drinkstock]) .dashboardHeader h1,
+.shell:has([data-drinkstock]) .authPane h1{color:#f9f7ff}
+.shell:has([data-drinkstock]) .authPane h1 em{color:#b8ff52}
+.shell:has([data-drinkstock]) .dashboardHeader p,
+.shell:has([data-drinkstock]) .authPane>p{color:#c3b6da}
+.shell:has([data-drinkstock]) .authPane,
+.shell:has([data-drinkstock]) .partnerCard{background:linear-gradient(145deg,#262044,#151024);border:1px solid #684f925e;box-shadow:0 19px 55px #0004;color:#f7f1ff}
+.shell:has([data-drinkstock]) .partnerCard span{color:#b8ff52}
+.shell:has([data-drinkstock]) .partnerCard p{color:#c0b5d6}
+.shell:has([data-drinkstock]) .authPane>a,
+.shell:has([data-drinkstock]) .dashboardHeader>a{color:#b8ff52}
+.shell:has([data-drinkstock]) .action{background:#b8ff52;color:#171020}
+.shell:has([data-drinkstock]) .loginForm input{background:#110e23;border:1px solid #695989;color:#fff}
+.shell:has([data-drinkstock]) .loginForm button{background:#b8ff52;color:#15101e}
+.shell:has([data-drinkstock]) .helpCopy{border-top-color:#6a5a83}
+.shell:has([data-drinkstock]) .partnerNav{background:#17112d;border-color:#614879}
+.shell:has([data-drinkstock]) .partnerNav a{color:#eee7ff;border-color:#7d639d}
+@media(max-width:760px){
+  .drinkBrand strong{font-size:17px}
+  .drinkBrandLogo{width:35px;height:35px;font-size:25px}
+  .drinkBrand small{font-size:7px}
+  .shell:has([data-drinkstock]) .navLinks{gap:8px}
+  .shell:has([data-drinkstock]) .navLinks a:first-child{display:none}
+}

@@ -10,10 +10,10 @@ export const metadata: Metadata = { title: "DrinkStock Partner Login", robots: {
 export default async function HospitalityLogin() {
   const principal = await hospitalityIdentity();
   if (principal) redirect("/drinkStock/dashboard");
-  return <main className={styles.main}>
+  return <main className={styles.main} data-drinkstock>
     <section className={styles.authPane}>
-      <div className={styles.eyebrow}>DRINKSTOCK / RESTRICTED ACCESS</div>
-      <h1>Partner <em>login.</em></h1>
+      <div className={styles.eyebrow}>DRINKSTOCK / BACKSTAGE PASS</div>
+      <h1>Welcome <em>backstage.</em></h1>
       <p>Συνδέσου με τον εγγεγραμμένο λογαριασμό KONTA MOY που έχει εξουσιοδοτηθεί για συγκεκριμένη επιχείρηση hospitality.</p>
       <HospitalityLoginForm />
       <p className={styles.helpCopy}>Η εγγραφή στο KONTA MOY από μόνη της δεν επιτρέπει πρόσβαση στο DrinkStock. Απαιτείται ενεργή ανάθεση συνεργάτη και ενεργοποίηση εφαρμογής.</p>
