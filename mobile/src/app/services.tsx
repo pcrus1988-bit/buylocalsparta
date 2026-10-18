@@ -13,6 +13,7 @@ const CONSUMER:Service[]=[
  {title:"Ο λογαριασμός μου",subtitle:"Παραγγελίες, wishlist και επιλογές ασφάλειας",icon:"◉",native:"/account"}
 ];
 const INTELLIGENCE:Service[]=[
+ {title:"Color Finder Studios",subtitle:"9 εγγενή Studios · απόχρωση, παλέτα, πραγματικά προϊόντα",icon:"◉",native:"/color-studios"},
  {title:"Nearby",subtitle:"Προαιρετικός έλεγχος πραγματικού τοπικού αποθέματος",icon:"⌖",native:"/nearby"},
  {title:"Sport & Fit Intelligence",subtitle:"Από τα επιλέξιμα προϊόντα στην ιστοσελίδα",icon:"◈",web:{path:"/shop",query:{q:"αθλητικά παπούτσια"}}},
  {title:"Try-On Me",subtitle:"Από τις επιλέξιμες σελίδες ενδυμάτων",icon:"◎",web:{path:"/shop",query:{q:"ρούχα"}}},
