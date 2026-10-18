@@ -22,7 +22,8 @@ const PALETTE = [[105,167,114],[223,194,77],[226,131,43],[180,50,30]] as const;
 /** Smaller than a Greek Region but not an address, street or exact postcode. */
 const FINE_LON = 0.48, FINE_LAT = 0.39;
 const COARSE_LON = 0.96, COARSE_LAT = 0.78;
-const MIN_COHORT = 5;
+const MIN_OUTCOME = 5;
+const MIN_BASE = 15;
 
 function bucketKey(region:string, latitude:number, longitude:number,
   latStep:number, lonStep:number) {
@@ -47,8 +48,9 @@ function aggregateBuckets(buckets:readonly Bucket[], latStep:number,lonStep:numb
 function safeCohort(bucket: Bucket) {
   // Prevent a colour hotspot from encoding one respondent's choice, even for
   // a privileged analyst. Counts outside the detail image remain in all stats.
-  return bucket.matched >= MIN_COHORT
-    && bucket.answered - bucket.matched >= MIN_COHORT;
+  return bucket.answered >= MIN_BASE
+    && bucket.matched >= MIN_OUTCOME
+    && bucket.answered - bucket.matched >= MIN_OUTCOME;
 }
 function pixelColors(intensity: number, alpha: number, data:Uint8Array, index:number) {
   const normalized = Math.max(0, Math.min(1, intensity));
