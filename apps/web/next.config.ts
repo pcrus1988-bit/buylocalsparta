@@ -173,6 +173,21 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
+        source: "/",
+        has: [{ type: "host" as const, value: "hospitality.kontamou.site" }],
+        destination: "/hospitality"
+      },
+      {
+        source: "/drinkStock",
+        has: [{ type: "host" as const, value: "hospitality.kontamou.site" }],
+        destination: "/hospitality/drinkStock"
+      },
+      {
+        source: "/drinkStock/:path*",
+        has: [{ type: "host" as const, value: "hospitality.kontamou.site" }],
+        destination: "/hospitality/drinkStock/:path*"
+      },
+      {
         source: "/api/vendor/media/intents",
         has: [{ type: "cookie", key: "bls_daily_session" }],
         destination: "/api/daily/quickadd/media/intents"
@@ -211,6 +226,9 @@ const nextConfig: NextConfig = {
         ]
       }] : []),
       { source: "/timologio/:path*", headers: [...SEARCH_EXCLUDED_HEADERS] },
+      { source: "/hospitality/:path*", headers: [...SEARCH_EXCLUDED_HEADERS] },
+      { source: "/drinkStock/dashboard/:path*", headers: [...SEARCH_EXCLUDED_HEADERS] },
+      { source: "/api/hospitality/:path*", headers: [...SEARCH_EXCLUDED_HEADERS] },
       { source: "/timologio-admin/:path*", headers: [...SEARCH_EXCLUDED_HEADERS] },
       ...SEARCH_EXCLUDED_SOURCES.map((source) => ({ source, headers: [...SEARCH_EXCLUDED_HEADERS] }))
     ];
