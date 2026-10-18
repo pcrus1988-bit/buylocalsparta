@@ -50,7 +50,8 @@ export async function provisionHospitalityPartner(principal: SessionPrincipal, i
         AND u.status='active'
         AND u.email_verified_at IS NOT NULL
         AND u.closed_at IS NULL
-        AND u.password_hash IS NOT NULL
+        AND length(u.password_hash)>0
+        AND EXISTS(SELECT 1 FROM public.customer_profiles cp WHERE cp.user_id=u.id)
       LIMIT 1 FOR SHARE
     `, [input.ownerEmail]);
     const ownerId = found.rows[0]?.public_id;
