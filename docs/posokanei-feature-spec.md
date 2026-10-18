@@ -253,3 +253,13 @@ The dated 2026-10-17 source is checked against additional exact descriptions: la
 
 ### 2026-10-17 additional non-specialty product types
 Narrow cross-brand families include source-labelled frozen broccoli, bulgur, sliced frozen mushrooms, wafers with milk chocolate, granola with dark chocolate, milk candies and Cretan PDO graviera. Spinach-rice is eligible only when the normalized title is the exact one-token kind. Source title, category, reputable distinct brand evidence, complete matching physical pack and existing claim vetoes remain non-negotiable. No ingredient, allergen, nutrition, origin certification or local stock identity is implied.
+
+
+### Conservative October 17 ordinary-variant extension (round 7)
+
+Additional deterministic category-scoped checks recognize Honey Rings breakfast cereals, non-carbonated orangeade, country-style wholegrain rusks, wholegrain *medium* orzo and wholegrain No10 spaghettini. The source title must explicitly contain the variant; none of these rules permits ordinary, carbonated, different-shape or other numbered pasta, sugar-free, organic, vegan or unlabelled products to be substituted. Brand, exact normalized family, source category, corroborated physical quantity and all existing fail-closed approvals remain mandatory. As before, a comparable product type is not evidence of identical ingredients, allergens, nutrition or branch stock.
+
+
+### October 17 review hardening: subtype-scoped wholegrain waiver
+
+The ordinary wholegrain claim veto is waived only for the three precisely audited descriptive subtypes: country-style wholegrain rusks, medium wholegrain orzo, and No10 wholegrain **spaghettini**. Other wholegrain rusks, fine orzo, numbered pasta cuts and generic spaghetti do *not* qualify solely by belonging to the same source category. Regression fixtures verify that even two brands of an unaudited wholegrain subtype fail closed.
