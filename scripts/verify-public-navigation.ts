@@ -110,7 +110,15 @@ for (const absolutePath of linkSources) {
     if (pathname.startsWith("/api/")) { failures.push(`${displayPath} exposes API route ${pathname} as a navigation link`); continue; }
     // Deliberately do not treat the CMS catch-all as proof that a literal source-code
     // link exists. Otherwise a typo such as /shpo would silently pass navigation checks.
-    const exists = pageRouteSet.has(pathname) || pageRoutes.some((pattern) => pattern !== PUBLIC_CMS_CATCH_ALL && pattern.includes("[") && patternMatches(pattern, pathname));
+    // The DrinkStock vanity URL exists only on the isolated Hospitality host.
+    // Validate the exact internal destination instead of accepting a CMS fallback.
+    const hospitalityAlias = displayPath.startsWith("apps/web/src/app/hospitality/") &&
+      (pathname === "/drinkstock" || pathname.startsWith("/drinkstock/"))
+      ? "/hospitality/drinkStock" + pathname.slice("/drinkstock".length)
+      : undefined;
+    const routeExists = (target: string) => pageRouteSet.has(target) ||
+      pageRoutes.some((pattern) => pattern !== PUBLIC_CMS_CATCH_ALL && pattern.includes("[") && patternMatches(pattern, target));
+    const exists = routeExists(pathname) || (hospitalityAlias !== undefined && routeExists(hospitalityAlias));
     if (!exists) failures.push(`${displayPath} links to missing page ${pathname}`);
   }
 }
