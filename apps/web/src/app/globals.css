@@ -306,3 +306,10 @@ h3 { font-size:27px; line-height:1.04; margin:11px 0; }
   text-decoration-thickness: 3px;
   text-underline-offset: 6px;
 }
+
+
+/* Hospitality has its own partner-first navigation, not the shopping cart or Ask Local bottom bar. */
+body:has([data-hospitality-root]) .customer-mobile-commerce-nav,
+body:has([data-hospitality-root]) .customer-mobile-commerce-spacer {
+  display: none !important;
+}
