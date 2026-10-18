@@ -25,13 +25,17 @@ export default async function DrinkStockPartnerPage({ params }: { params: Promis
       <Link href="https://hospitality.kontamou.site/drinkStock/dashboard">← Συνεργασίες</Link>
       <span className={styles.eyebrow}>DRINKSTOCK / PARTNER WORKSPACE</span>
       <h1>{partner.partnerName}</h1>
-      <p>Ο ρόλος σου: {partner.role}. Η προβολή περιορίζεται σε χώρους αυτού του συνεργάτη.</p>
+      <p>Ο ρόλος σου: {partner.role}. Η προβολή περιορίζεται στους χώρους αυτού του συνεργάτη.</p>
     </section>
     <section className={styles.partnerGrid} aria-label="Your venues">
       {venues.length ? venues.map(venue=><article className={styles.partnerCard} key={venue.venueId}>
         <span>VENUE / {venue.status.toUpperCase()}</span>
         <h2>{venue.name}</h2>
-        <p>Ο πίνακας διαχείρισης τιμών και οθονών του χώρου βρίσκεται σε ανάπτυξη.</p>
+        <p>Ανεξάρτητος κατάλογος, ελεγχόμενες τιμές και ιστορικό προσομοίωσης αποκλειστικά για αυτόν τον χώρο.</p>
+        {venue.status==="active"?
+        <Link href={`/drinkStock/dashboard/${partnerId}/venues/${venue.venueId}`} className={styles.action}>
+          Άνοιγμα Trading Floor ↗
+        </Link>:<p>Ο χώρος είναι ανενεργός.</p>}
       </article>) : <article className={styles.partnerCard}>
         <h2>Δεν υπάρχουν καταχωρισμένοι χώροι.</h2>
         <p>Οι χώροι θα εμφανιστούν αφού προστεθούν από την ομάδα διαχείρισης KONTA MOY.</p>
