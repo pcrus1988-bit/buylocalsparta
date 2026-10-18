@@ -16,6 +16,15 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  // Narrow additional 2026-10-17 types: exact names, brands, units and packs.
+  ["κατεψυγμενο μπροκολο",["kg",/μπροκολ|broccoli/u]],
+  ["πλιγουρι",["kg",/πλιγουρ|bulgur/u]],
+  ["κατεψυγμενα μανιταρια",["kg",/(?=.*μανιταρ)(?=.*φετ)|sliced.*mushroom/u]],
+  ["γκοφρετες με σοκολατα γαλακτος",["kg",/(?=.*γκοφρετ)(?=.*σοκολατ)(?=.*γαλακ)/u]],
+  ["γκρανολα",["kg",/(?=.*granola)(?=.*μαυρ)(?=.*σοκολατ)/u]],
+  ["καραμελες",["kg",/καραμελ.*γαλακ/u]],
+  ["γραβιερα",["kg",/(?=.*γραβιερ)(?=.*κρητ)(?=.*π\.?ο\.?π)/u]],
+
   // 2026-10-17 full-source review: narrow named variants; avoid broad
   // vegetable, spread, alcohol, health and infant product categories.
   ["γατα",["kg",/(?=.*αμμ)(?=.*υγιειν)(?=.*γατ)(?=.*λεβαντ)/u]],
@@ -240,7 +249,7 @@ function accepted(p){
      size.amount<.02||size.amount>40||Math.abs(size.amount-label.quantity)>1e-6)return false;
   const fam=productFamily(p);
   const bits=fam?.split("|")[1]?.split(" ").filter(Boolean)||[];
-  if(bits.length<2 && !(category==="βουτηματα" && /μουστοκουλουρ/u.test(title)) && !["κεφιρ","γκαζοζα","αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη","κατεψυγμενος αρακας","αριανι","κοραλλια","αλλα ζυμαρικα","ταχινι","φαρινα","ανθοτυρο","κατεψυγμενες αγκιναρες","νισεστες","ρυζογαλο","ριγκατονι","λαζανια","στριφτο","σοδα","μακαρονια αστερακια","γλυκισματα ψυγειου"].includes(category))return false;
+  if(bits.length<2 && !(category==="βουτηματα" && /μουστοκουλουρ/u.test(title)) && !(category==="γευματα" && bits.length===1 && bits[0]==="σπανακορυζο") && !["πλιγουρι","κατεψυγμενο μπροκολο","κεφιρ","γκαζοζα","αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη","κατεψυγμενος αρακας","αριανι","κοραλλια","αλλα ζυμαρικα","ταχινι","φαρινα","ανθοτυρο","κατεψυγμενες αγκιναρες","νισεστες","ρυζογαλο","ριγκατονι","λαζανια","στριφτο","σοδα","μακαρονια αστερακια","γλυκισματα ψυγειου"].includes(category))return false;
   // Dairy requires fat information, otherwise packaging titles alone do not
   // distinguish normal, low fat, lactose-free and fermented variants.
   const listedFatPercent=/\b\d+(?:[.,]\d+)?\s*%/u.test(title);
