@@ -200,14 +200,23 @@ const dangerous=/\b(?:bio|organic|vegan|gluten|lactose|free|zero|light|diet|prot
 // source-described strings may be compared within their OWN variant, never
 // assumed equivalent to a conventional product or certified allergen-safe.
 const safeWholeGrainCategories=new Set([
-  "ταχινι","λιγκουινι","κριτσινια","κριστινια","βρωμη","παξιμαδι","φρυγανιες","κριθαρακι","σπαγγετι","σπαγγετινι"
+  "ταχινι","λιγκουινι","κριτσινια","κριστινια","βρωμη","παξιμαδι"
+]);
+const explicitWholeGrainSubtypes=new Map([
+  // Only the exact audited October 17 preparations qualify; the other
+  // wholegrain products within these source categories remain unreviewed.
+  ["φρυγανιες",/(?=.*φρυγανι)(?=.*χωριατικ)(?=.*ολικης\s+αλεσης)/u],
+  ["κριθαρακι",/(?=.*κριθαρακ)(?=.*μετρι)(?=.*ολικης\s+αλεσης)/u],
+  ["σπαγγετι",/(?=.*σπαγγετιν)(?=.*νο\s*10)(?=.*ολικης\s+αλεσης)/u],
+  ["σπαγγετινι",/(?=.*σπαγγετιν)(?=.*νο\s*10)(?=.*ολικης\s+αλεσης)/u]
 ]);
 const safeLabelledGlutenFreeCategories=new Set(["κετσαπ","μουσταρδα"]);
 const safeLabelledNonCarbonatedCategories=new Set(["πορτοκαλαδες"]);
 function hasForbiddenClaim(category,title){
   if(!dangerous.test(title))return false;
   let withoutApprovedVariant=title;
-  if(safeWholeGrainCategories.has(category) &&
+  if((safeWholeGrainCategories.has(category)||
+      explicitWholeGrainSubtypes.get(category)?.test(title)) &&
      /ολικης\s+αλεσης/u.test(title))
     withoutApprovedVariant=withoutApprovedVariant.replace(/ολικης\s+αλεσης/gu," ");
   if(safeLabelledGlutenFreeCategories.has(category) &&
