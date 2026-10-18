@@ -6,7 +6,7 @@ const ROUTES=new Set([
  "/account","/account/orders","/account/security",
  "/delivery-pickup","/payments-security","/choose-location",
  "/research","/research/greek-retail-2026","/timologio",
- "/vendor","/vendor/login"
+ "/vendor","/vendor/login","/color-finder"
 ]);
 export type MarketplaceDestination={
   path:string;
@@ -20,7 +20,7 @@ export function marketplaceUrl(destination:MarketplaceDestination):string{
   if(keys.length>3)throw new Error("INVALID_MARKETPLACE_QUERY");
   for(const key of keys){
    const value=destination.query[key];
-   if(!["q","category","page","view"].includes(key)
+   if(!["q","category","page","view","color"].includes(key)
      ||typeof value!=="string"||value.length>120
      ||Array.from(value).some(c=>c.charCodeAt(0)<32||c.charCodeAt(0)===127))
      throw new Error("INVALID_MARKETPLACE_QUERY");
