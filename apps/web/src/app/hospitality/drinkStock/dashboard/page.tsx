@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { HospitalityLogoutButton } from "../../../../components/HospitalityLogoutButton";
 import { redirect } from "next/navigation";
 import { accessibleDrinkStockPartners, hospitalityIdentity } from "../../../../lib/hospitality-partner-access";
 import styles from "../../hospitality.module.css";
@@ -23,7 +24,7 @@ export default async function DrinkStockDashboard() {
   return <main className={styles.main}>
     <section className={styles.dashboardHeader}>
       <span className={styles.eyebrow}>DRINKSTOCK / PRIVATE WORKSPACE</span>
-      <h1>Οι συνεργασίες σου.</h1>
+      <h1>Οι συνεργασίες σου.</h1><HospitalityLogoutButton />
       <p>Εμφανίζονται αποκλειστικά οι επιχειρήσεις στις οποίες ο λογαριασμός σου έχει ενεργή ανάθεση.</p>
     </section>
     {partners.length ? <section className={styles.partnerGrid} aria-label="Authorized partner accounts">
