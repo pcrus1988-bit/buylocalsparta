@@ -63,3 +63,15 @@
 @media(max-width:1050px){.board,.boardDisplay{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.stage{border-radius:16px;margin:12px 0 50px}.header{flex-direction:column;align-items:start}.statusWrap{min-width:0;width:100%}.stats{grid-template-columns:repeat(2,1fr)}.stats>div:nth-child(2){border-right:0}.stats>div:nth-child(-n+2){border-bottom:1px solid #23424a}.board,.boardDisplay,.lower{grid-template-columns:1fr}.toolbarButtons{width:100%}.toolbarButtons button{flex-grow:1}.disclaimer{padding:22px;display:block}.disclaimer button{margin-top:14px}}
 @media(prefers-reduced-motion:reduce){.drink,.bar i{transition:none}.drink:hover{transform:none}}
+
+
+.boundsEditor{margin:12px clamp(20px,3vw,42px);padding:25px;background:linear-gradient(120deg,#193742,#103143);border:1px solid #4c707a;border-radius:16px}
+.boundsEditor>p{font-size:13px;color:#bfd6d9;line-height:1.6;margin-bottom:17px;max-width:740px}
+.boundsForm{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end;gap:14px}
+.boundsForm label{display:grid;gap:7px;font-size:12px;color:#daedf0;font-weight:700}
+.boundsForm input{min-width:0;width:100%;padding:12px;background:#0b232c;color:#f4fbf2;border:1px solid #578b98;border-radius:9px;font-size:16px}
+.boundsForm input:disabled{opacity:.55}
+.boundsForm button{padding:15px 19px;border:0;border-radius:9px;background:#d8fa68;color:#143039;font-size:12px;font-weight:900;cursor:pointer}
+.boundsForm button:disabled{opacity:.5;cursor:not-allowed}
+.boundsEditor>small{display:block;margin-top:14px;color:#bacfd4;line-height:1.5}
+@media(max-width:700px){.boundsForm{grid-template-columns:1fr}.boundsEditor{padding:20px}}
