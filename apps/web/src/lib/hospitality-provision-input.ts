@@ -7,7 +7,11 @@ export type HospitalityProvisionInput = Readonly<{
 }>;
 
 export class HospitalityProvisionInputError extends Error {
-  constructor(public readonly code: string) { super(code); }
+  readonly code: string;
+  constructor(code: string) {
+    super(code);
+    this.code = code;
+  }
 }
 
 export function parseHospitalityProvisionInput(value: unknown): HospitalityProvisionInput {
