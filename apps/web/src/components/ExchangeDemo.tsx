@@ -5,7 +5,7 @@ import {
   freshExchangeDemoDrinks,
   simulateExchangeDemand,
 } from "../lib/exchange-demo-pricing";
-import styles from "../app/exchange/exchange.module.css";
+import styles from "../app/hospitality/drinkStock/drinkStock.module.css";
 
 const euros = new Intl.NumberFormat("el-GR", {
   style: "currency",
