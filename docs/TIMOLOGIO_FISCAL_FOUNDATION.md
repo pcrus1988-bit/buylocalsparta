@@ -395,3 +395,42 @@ acceptance pass on the final head SHA, and verify the isolated FISCAL Vercel
 production build, standalone routing and `issuanceEnabled=false`. This is
 merchant UX and readiness transparency, **not** certification, real merchant
 onboarding completion, statutory invoice issuance or live AADE connection.
+
+## Milestone 26 — internal operational release gates (18 October 2026)
+
+An authenticated FISCAL administrator can open
+`/timologio-admin/release-readiness` from the independent Control Centre.
+The page is **read-only** and is a *technical readiness diagnostic*, not a
+production activation wizard or a statutory certification decision.
+
+- Checks independent service mode, dedicated DB connectivity, core migration
+  marker and schema presence, operator MFA 0017, pending recovery 0018, alert
+  outbox 0019, receipt events 0020, reconciliation 0021, and internal
+  regulatory-control catalogue presence.
+- Checks only the true/false states of known feature flags for unsafe
+  combinations. It never prints database URLs, provider secrets, signer keys,
+  personally identifying merchant records, email addresses or account details.
+- Conflicting flags (premature issuance, public registration, marketplace draft
+  sync, recovery without prerequisite MFA, provider delivery without receipt
+  schema) generate explicit unsafe-configuration warnings.
+- A successful internal base health check **never** grants issuance:
+  `legalIssuanceEnabled=false`, `releaseAuthorized=false` and
+  `externalRegulatoryApprovalConfirmed=false` are unconditional.
+  Provider certification, lawful tax reversal, operator independence, customer
+  identity, evidence integrity, actual recipient delivery, AADE permissions,
+  B2G approvals and terminal certification remain external, independently
+  governed processes.
+- A single SELECT probes known schema migration names and physical tables.
+  Failure is reported only as not verified, never exposing raw SQL or PostgreSQL
+  errors. The operator's existing FISCAL authentication is required before the
+  probe. Route isolation and no-prerender checks protect the standalone route.
+- Dedicated Node tests cover fail-closed behavior, complete synthetic schemas,
+  unsafe flags, missing database, missing migrations, immutable diagnostic
+  output and the permanent external-certification boundary.
+- No migration, write API, env change, enrollment, activation, tax document
+  generation, refund, AADE submission or marketplace job was added.
+
+At the time this feature was authored, live FISCAL had migrations through
+0017; later migrations 0018–0021 intentionally remained pending. Do not
+apply them, enable recovery/security delivery, or announce issuance readiness
+based solely on this diagnostic.
