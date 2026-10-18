@@ -113,9 +113,9 @@ export function DrinkStockGuestCart({token,initial}:{token:string;initial:Sessio
         <strong style={{display:"block",marginTop:9,color:"#d5ff53",fontSize:23}}>{money(drink.priceCents)}</strong>
        </div>
        <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <button type="button" disabled={!live||count===0} onClick={()=>adjust(drink.id,-1)} aria-label={`Remove one ${drink.name}`} style={{...actionStyle,background:"#392b50",color:"#fff",opacity:!live||count===0?.4:1}}>−</button>
+        <button type="button" disabled={!live||count===0} onClick={()=>adjust(drink.id,-1)} aria-label={`Remove one ${drink.name}`} style={{...actionStyle,background:"#392b50",color:"#fff",opacity:(!live||count===0)?0.4:1}}>−</button>
         <span style={{minWidth:20,textAlign:"center",fontWeight:900}}>{count}</span>
-        <button type="button" disabled={!live||count===10||totalUnits>=24} onClick={()=>adjust(drink.id,1)} aria-label={`Add one ${drink.name}`} style={{...actionStyle,background:"#d5ff53",opacity:!live||count===10||totalUnits>=24?.4:1}}>+</button>
+        <button type="button" disabled={!live||count===10||totalUnits>=24} onClick={()=>adjust(drink.id,1)} aria-label={`Add one ${drink.name}`} style={{...actionStyle,background:"#d5ff53",opacity:(!live||count===10||totalUnits>=24)?0.4:1}}>+</button>
        </div>
       </article>;
      })}
@@ -132,7 +132,7 @@ export function DrinkStockGuestCart({token,initial}:{token:string;initial:Sessio
        })}
       </ul>}
      <button type="button" disabled={!live||!connected||!selected.length||loading} onClick={()=>void calculate()}
-      style={{...actionStyle,width:"100%",padding:17,background:"#d5ff53",fontSize:16,opacity:!live||!selected.length||loading?.5:1}}>
+      style={{...actionStyle,width:"100%",padding:17,background:"#d5ff53",fontSize:16,opacity:(!live||!selected.length||loading)?0.5:1}}>
       {loading?"Verifying current prices…":"↗ CHECK CURRENT PRICE"}
      </button>
      {error&&<p role="alert" style={{color:"#ff9fae",lineHeight:1.6}}>{error}</p>}
