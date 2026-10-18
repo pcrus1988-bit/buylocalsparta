@@ -132,6 +132,8 @@ export const ACCOUNT_UTILITY_NAVIGATION: ReadonlyArray<SiteLink> = [SITE_LINKS.l
 export const PUBLIC_DYNAMIC_ROUTE_PATTERNS = ["/posokanei", "/category/[slug]", "/brands/[slug]", "/product/[id]", "/vendor/[id]", "/collections/[slug]", "/bazaar/product/[slug]", "/look/[code]", "/research/[slug]", "/research/[slug]/methodology", "/research/[slug]/results", "/hubs/[hubSlug]", "/hubs/[hubSlug]/business/[id]", "/hubs/[hubSlug]/business"] as const;
 
 export const NON_INDEXABLE_PAGE_ROUTES = [
+  "/exchange",
+  "/hospitality",
   "/timologio",
   "/timologio/login",
   "/timologio/register",
