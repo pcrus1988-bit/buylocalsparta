@@ -1,0 +1,65 @@
+.stage{margin:26px auto 70px;max-width:1280px;background:#081920;color:#eff8fa;overflow:hidden;border:1px solid #215362;border-radius:24px;font-family:Arial,sans-serif;box-shadow:0 25px 65px #061a2630}
+.stage *{box-sizing:border-box}
+.header{display:flex;justify-content:space-between;align-items:center;gap:25px;padding:40px clamp(22px,4vw,50px);background:radial-gradient(circle at 95% 15%,#2847a7aa,transparent 47%),linear-gradient(120deg,#112c37,#071b22)}
+.header h1{font-size:clamp(32px,4.8vw,62px);line-height:1.02;margin:14px 0 16px;letter-spacing:-.055em;color:#fff}
+.header h1 span{color:#d6ff5e}
+.header p{margin:0;max-width:600px;color:#b8cbd0;line-height:1.65;font-size:14px}
+.header p strong{color:#d6ff5e}
+.overline{color:#dbfa62;font-size:11px;letter-spacing:.2em;font-weight:900}
+.statusWrap{min-width:180px;display:grid;align-content:center;justify-items:start;gap:7px;border:1px solid #3e6670;border-radius:15px;padding:18px;background:#0e2933a8;font-size:12px}
+.statusWrap strong{letter-spacing:.1em}
+.statusWrap small{font-size:10px;color:#9db9c3}
+.liveDot,.pauseDot{width:12px;height:12px;border-radius:50%;background:#caff5c;box-shadow:0 0 24px #caff5c}
+.pauseDot{background:#ff976b;box-shadow:0 0 24px #ff976b}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-block:1px solid #23424a;background:#0c252f}
+.stats>div{display:grid;gap:9px;padding:21px clamp(12px,2vw,28px);border-right:1px solid #23424a}
+.stats>div:last-child{border-right:0}
+.stats span{color:#94b7c1;letter-spacing:.1em;font-size:10px}
+.stats strong{font-size:clamp(18px,2.4vw,31px);font-weight:900;color:#f5fffb}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;padding:24px clamp(20px,3vw,42px);border-bottom:1px solid #1b414b}
+.toolbarInfo{display:grid;gap:8px}
+.toolbarInfo strong{font-size:12px;letter-spacing:.09em}
+.toolbarInfo span{color:#a3bfc7;font-size:11px}
+.toolbarButtons{display:flex;flex-wrap:wrap;gap:8px}
+.toolbarButtons button,.disclaimer button{border:1px solid #456b79;background:#16303a;color:#dff6fd;padding:11px 14px;border-radius:10px;cursor:pointer;font-weight:800;font-size:11px}
+.toolbarButtons .primary{background:#d8fc61;color:#10303a;border-color:#d8fc61}
+.toolbarButtons button:disabled,.buySignal:disabled,.form button:disabled{cursor:not-allowed;opacity:.45}
+.board,.boardDisplay{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;padding:26px clamp(20px,3vw,42px);background:radial-gradient(circle at 80% 50%,#173550,#071b22 75%)}
+.boardDisplay{grid-template-columns:repeat(3,minmax(0,1fr));padding-block:50px}
+.drink{background:linear-gradient(145deg,#14333c,#0a2530);border:1px solid #315260;border-radius:16px;padding:23px;min-width:0;display:flex;flex-direction:column;gap:13px;transition:transform .2s}
+.drink:hover{transform:translateY(-3px);border-color:#82c6b8}
+.drinkTop,.movements{display:flex;align-items:center;justify-content:space-between;gap:9px}
+.rank{color:#d5f960;font-size:11px;font-weight:900;letter-spacing:.13em}
+.category{font-size:11px;color:#c0d0d7}
+.drink h2{font-size:clamp(18px,2vw,26px);min-height:30px;line-height:1.22;color:#fff;margin:3px 0;letter-spacing:-.03em}
+.quote{font-size:clamp(32px,3.6vw,49px);font-weight:900;color:#eaff91;letter-spacing:-.06em}
+.movements{font-size:11px;color:#b0cbd2}
+.movements span:first-child{font-size:15px;font-weight:900}
+.up{color:#a2ff89}.down{color:#ffb37a}.flat{color:#d4e8e9}
+.bar{height:5px;background:#1b4550;border-radius:20px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,#b5ff61,#68ddc9);border-radius:20px;transition:width .25s}
+.buySignal{margin-top:6px;border:0;border-radius:10px;padding:13px 14px;background:#ddefff;color:#102a3b;font-size:11px;font-weight:900;display:flex;justify-content:space-between;cursor:pointer}
+.buySignal:not(:disabled):hover{background:#dafa73}
+.empty{margin:22px clamp(20px,3vw,42px);background:#102e36;border:1px dashed #59816f;padding:40px;text-align:center;border-radius:18px}
+.empty span{font-size:32px}.empty h2{font-size:24px}.empty p{color:#a6c5ca}
+.lower{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:20px clamp(20px,3vw,42px) 38px}
+.editor,.history{min-width:0;padding:24px;background:#102b34;border:1px solid #2d4c57;border-radius:15px}
+.heading span{font-size:10px;letter-spacing:.2em;color:#cced75}
+.heading h2{font-size:23px;color:#fff;margin:12px 0 20px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.form label{display:grid;gap:7px;color:#c5dfe3;font-size:12px}
+.form label:first-child{grid-column:1/-1}
+.form input,.form select{width:100%;padding:12px;min-width:0;border:1px solid #55717a;border-radius:8px;background:#091d25;color:#fff;font-size:15px}
+.form button{grid-column:1/-1;padding:14px;background:#d4ff63;border:0;border-radius:9px;color:#17333b;font-weight:900;cursor:pointer}
+.form small{grid-column:1/-1;color:#a4b8c2;line-height:1.6}
+.history ol{list-style:none;padding:0;max-height:330px;overflow-y:auto}
+.history li{display:flex;align-items:center;justify-content:space-between;gap:11px;padding:15px 0;border-bottom:1px solid #294450;font-size:12px;color:#e1f2f6;font-weight:800}
+.history li small{color:#8aaeb9;text-align:right;font-weight:400}
+.noEvents{color:#9bb6bd}
+.error,.success{margin:18px 30px;padding:15px 20px;border-radius:8px;color:#ffb4a4;border:1px solid #ab6556;background:#3d2225}
+.success{color:#d5fa8b;background:#193c2d;border-color:#527c50}
+.disclaimer{padding:22px 40px;color:#8daeb9;font-size:11px;line-height:1.7;background:#06171e;border-top:1px solid #1e444d;display:flex;align-items:center;gap:20px;justify-content:space-between}
+.stage :is(button,input,select):focus-visible{outline:3px solid #d5fc69;outline-offset:3px}
+@media(max-width:1050px){.board,.boardDisplay{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.stage{border-radius:16px;margin:12px 0 50px}.header{flex-direction:column;align-items:start}.statusWrap{min-width:0;width:100%}.stats{grid-template-columns:repeat(2,1fr)}.stats>div:nth-child(2){border-right:0}.stats>div:nth-child(-n+2){border-bottom:1px solid #23424a}.board,.boardDisplay,.lower{grid-template-columns:1fr}.toolbarButtons{width:100%}.toolbarButtons button{flex-grow:1}.disclaimer{padding:22px;display:block}.disclaimer button{margin-top:14px}}
+@media(prefers-reduced-motion:reduce){.drink,.bar i{transition:none}.drink:hover{transform:none}}
