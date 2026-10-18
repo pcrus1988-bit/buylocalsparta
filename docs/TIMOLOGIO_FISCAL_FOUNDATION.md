@@ -434,3 +434,41 @@ At the time this feature was authored, live FISCAL had migrations through
 0017; later migrations 0018–0021 intentionally remained pending. Do not
 apply them, enable recovery/security delivery, or announce issuance readiness
 based solely on this diagnostic.
+
+## Milestone 27 — membership-scoped merchant KYB status (18 October 2026)
+
+The standalone, authenticated route `/timologio/onboarding?organizationId=<uuid>`
+lets each assigned **owner** or **accountant** see a clear, privacy-minimized
+summary of the seven internal KYB evidence-checklist categories maintained by
+authorized Fiscal operators. A dashboard link is shown only for those roles.
+
+- Authenticated merchant and organization membership/role are checked by the
+  existing dashboard and again **inside the database SELECT**. An outsider,
+  tenant from another organization, revoked member or `viewer` never sees a
+  company's checklist. The route does not support arbitrary organization IDs.
+- The query returns only the latest `check_type` and `outcome` for each
+  organization/check. No evidence IDs, source URLs or references, beneficial
+  owner personal details, documents, reviewer identities, notes, emails or
+  attachments are selected. It never queries evidence for a rejected/suspended
+  account from this UI.
+- Labels distinguish *not recorded*, *requested*, *evidence recorded*,
+  *discrepancy* and unknown states requiring review. Entries marked as
+  recorded are **not** evidence verification or KYB approvals. Older evidence
+  may not override a newer discrepancy. No raw reviewer notes are disclosed.
+- If the DB is unavailable or permission disappears, the route shows a
+  generic failure message rather than a guessed default success result.
+- There are no upload forms, data mutations, notification sends, merchant
+  status transitions or actual legal-approval decisions. The UI **always**
+  says legal issuance/myDATA/AADE submissions remain disabled.
+- Node tests cover latest-event handling, redaction, unknown state failures,
+  no legal approval even with all seven evidence steps recorded, immutable
+  summaries and exact check count. A disposable PostgreSQL CI smoke test
+  executes the **same SQL as production** for owner, accountant, viewer and
+  cross-tenant identities; it rolls back all synthetic fixtures.
+- No migrations, credentials, environment flags, live fiscal document creation,
+  public onboarding or company approval actions are part of M27.
+
+Any real merchant evidence collection, secured document upload/retention,
+external registry verification, operator KYB decision, or official activation
+requires separate scoped workflows, policies, legal review and explicit release
+gates. This phase provides **visibility only**.

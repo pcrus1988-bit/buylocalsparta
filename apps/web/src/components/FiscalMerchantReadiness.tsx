@@ -59,6 +59,11 @@ export function FiscalMerchantReadiness({
       {ready.testJournalWritesAllowed
        ?<Link className="fiscal-button secondary" style={{color:"#10323c"}} href={"/timologio/journal?organizationId="+encodeURIComponent(account.id)}>Δοκιμαστικό ημερολόγιο</Link>
        :null}
+      {["owner","accountant"].includes(account.role)
+       ?<Link className="fiscal-button secondary" style={{color:"#10323c"}}
+        href={"/timologio/onboarding?organizationId="+encodeURIComponent(account.id)}>
+        Πρόοδος ελέγχου επιχείρησης</Link>
+       :null}
       <Link className="fiscal-button secondary" style={{color:"#10323c"}} href="/timologio/credit-lab">Εργαστήριο πιστώσεων</Link>
      </div>
     </article>;
