@@ -7,6 +7,7 @@ import {randomBytes} from "node:crypto";
 import pg from "pg";
 import {FISCAL_MERCHANT_KYB_PROGRESS_SQL} from "../apps/web/src/lib/fiscal-merchant-kyb-query.ts";
 import {summarizeFiscalMerchantKybProgress} from "../apps/web/src/lib/fiscal-merchant-kyb-progress.ts";
+import {FISCAL_KYB_REVIEW_QUEUE_SQL,summarizeFiscalKybReviewQueue} from "../apps/web/src/lib/fiscal-kyb-review-queue.ts";
 
 const connectionString=process.env.FISCAL_DATABASE_URL??"";
 let parsed;
@@ -97,7 +98,18 @@ try{
   const out=summarizeFiscalMerchantKybProgress(empty.rows.filter(x=>x.check_type!==null));
   assert.equal(out.outstandingCount,7);
  });
- console.log("FISCAL MERCHANT KYB TENANT ISOLATION PASSED (disposable CI, redacted summaries only)");
+ const triage=await db.query(FISCAL_KYB_REVIEW_QUEUE_SQL);
+ assert.ok(triage.rowCount>=3,"Synthetic open KYB cases should be present");
+ assert.ok(triage.rows.every(item=>Object.keys(item).sort().join(",")==="check_type,id,legal_name,outcome,status"));
+ const queue=summarizeFiscalKybReviewQueue(triage.rows);
+ const flagged=queue.find(item=>item.id===a);
+ assert.ok(flagged,"Synthetic discrepancy case missing");
+ assert.equal(flagged.priority,"follow_up");
+ assert.equal(flagged.progress.legalApproval,false);
+ assert.equal(flagged.progress.fiscalIssuanceEnabled,false);
+ assert.ok(!JSON.stringify(queue).includes("SECRET"));
+ assert.ok(!JSON.stringify(triage.rows).includes("SECRET"));
+  console.log("FISCAL MERCHANT KYB TENANT ISOLATION PASSED (disposable CI, redacted summaries only)");
 }finally{
  await db.query("ROLLBACK").catch(()=>undefined);
  await db.end();

@@ -472,3 +472,37 @@ Any real merchant evidence collection, secured document upload/retention,
 external registry verification, operator KYB decision, or official activation
 requires separate scoped workflows, policies, legal review and explicit release
 gates. This phase provides **visibility only**.
+
+## Milestone 28 — prioritized internal KYB review queue (18 October 2026)
+
+Authorized FISCAL administrators have a read-only review overview at
+`/timologio-admin/kyb-queue`, linked from the Control Centre.
+
+- A single bounded SQL query selects the **oldest 40 open** business cases
+  (`pending_review` / `under_review`) and each check's **latest** recorded
+  outcome. It does not retrieve VAT numbers, employee contacts, references,
+  source materials, personal beneficial-owner records or audit notes.
+- Cases are ranked for triage: discrepancies/unknown states first, then
+  incomplete evidence, cases without any checklist entries, finally cases
+  with seven recorded references *still requiring external review*.
+- Both the pure summarizer and the UI state that seven recorded entries
+  **do not mean legal KYB approval, genuine identity verification, or the
+  right to issue tax documents**.
+- Each case links to its existing authenticated operator file, where the
+  established review and MFA rules remain authoritative. No background
+  approvals, messages, risk scores, bulk actions, document uploads or
+  taxpayer transmission are introduced.
+- Route available only to existing authenticated FISCAL administrators;
+  if mandatory operator MFA is enabled, the same existing step-up
+  enforcement applies as on the case review page.
+- CI runs pure queue regression tests plus the **exact production SELECT**
+  against synthetic cases in a rolled-back, disposable `fiscal_ci`
+  PostgreSQL database to confirm no evidence references leak and that
+  latest discrepancies take priority.
+- **No migration, new data source, credentials, production activation
+  toggle, refund, AADE connector or fiscal issuance state changes**.
+
+A future merchant document-submission path is deliberately **not** part of
+M28. It requires a separately approved encrypted storage, malware scanning,
+retention/deletion policy, file-type/size controls, legally scoped consent,
+operator access audit, tenant isolation, and production readiness gate.
