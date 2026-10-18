@@ -5,7 +5,7 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 const TOKEN=/^[A-Za-z0-9_-]{43}$/;
 type State="running"|"paused"|"crashing"|"ended"|"scheduled";
 type R={id:string;state:State;revision:number;floor_percent:number;ceiling_percent:number;created_at:Date;started_at:Date|null;ended_at:Date|null;crash_until:Date|null};
-type Db={query<T extends Record<string,unknown>>(sql:string,values?:readonly unknown[]):Promise<{rows:T[];rowCount:number|null}>};
+type Db={query<T extends Record<string,unknown>>(sql:string,values?:readonly unknown[]):Promise<{rows:readonly T[];rowCount:number}>};
 export type SessionView={venue:{id:string;partnerId:string;name:string;role?:string};
  session:{id:string;state:State;revision:number;floorPercent:number;ceilingPercent:number;crashUntil:string|null;startedAt:string|null}|null;
  passes:{id:string;kind:string;tableLabel:string|null}[];
