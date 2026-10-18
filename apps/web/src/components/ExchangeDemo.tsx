@@ -1,10 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  freshExchangeDemoDrinks,
-  simulateExchangeCrash,
-  simulateExchangeDemand,
+  createExchangeShowState,
+  DEMO_ORDER_INTERVAL_MS,
+  DEMO_ORDER_SEQUENCE,
+  exchangeDemoSecondsRemaining,
+  processExchangeDemoOrder,
+  syncExchangeDemoClock,
+  triggerExchangeDemoCrash,
 } from "../lib/exchange-demo-pricing";
 import styles from "../app/hospitality/drinkStock/drinkStock.module.css";
 
@@ -23,65 +27,128 @@ const personalities: Record<string, { icon: string; label: string; code: string 
   espresso: { icon: "☕", label: "AFTER DARK", code: "ESPM" },
 };
 
-export function ExchangeDemo() {
-  const [drinks, setDrinks] = useState(freshExchangeDemoDrinks);
-  const [events, setEvents] = useState(0);
-  const [crashes, setCrashes] = useState(0);
-  const [lastAction, setLastAction] = useState("Select a drink to move the market.");
-
-  function boost(id: string) {
-    const selected = drinks.find((drink) => drink.id === id);
-    if (!selected) return;
-    setDrinks((previous) => simulateExchangeDemand(previous, id));
-    setEvents((previous) => previous + 1);
-    setLastAction(selected.name + " got a demand boost. Watch the other drinks move.");
+/**
+ * Only called inside a direct user click, so browser audio activation rules
+ * are respected. Short, moderate-level alarm; no autoplay or audio file.
+ */
+function playCrashAlarm() {
+  if (typeof window === "undefined" || !window.AudioContext) return;
+  try {
+    const context = new window.AudioContext();
+    void context.resume().catch(() => undefined);
+    const startAt = context.currentTime + 0.03;
+    for (const offset of [0, 0.36, 0.72]) {
+      const oscillator = context.createOscillator();
+      const volume = context.createGain();
+      const start = startAt + offset;
+      oscillator.type = "sawtooth";
+      oscillator.frequency.setValueAtTime(740, start);
+      oscillator.frequency.linearRampToValueAtTime(510, start + 0.25);
+      volume.gain.setValueAtTime(0.001, start);
+      volume.gain.linearRampToValueAtTime(0.05, start + 0.035);
+      volume.gain.exponentialRampToValueAtTime(0.001, start + 0.27);
+      oscillator.connect(volume);
+      volume.connect(context.destination);
+      oscillator.start(start);
+      oscillator.stop(start + 0.28);
+    }
+    window.setTimeout(() => { void context.close().catch(() => undefined); }, 1300);
+  } catch {
+    // Audio is optional: the visual alert and timer remain fully functional.
   }
+}
+
+export function ExchangeDemo() {
+  const [market, setMarket] = useState(createExchangeShowState);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // This predefined loop produces a believable trade feed without any backend
+  // access and without creating any venue orders or real transactions.
+  useEffect(() => {
+    const ticker = window.setInterval(() => {
+      setMarket((previous) => processExchangeDemoOrder(previous, Date.now()));
+    }, DEMO_ORDER_INTERVAL_MS);
+    return () => window.clearInterval(ticker);
+  }, []);
+
+  // Wall-clock deadline rather than decrementing counters: background tabs
+  // cannot accidentally extend the manager's 60-second market interruption.
+  useEffect(() => {
+    const clock = window.setInterval(() => {
+      setMarket((previous) => syncExchangeDemoClock(previous, Date.now()));
+    }, 500);
+    return () => window.clearInterval(clock);
+  }, []);
+
+  const crashing = market.crashEndsAt !== null;
+  const secondsRemaining = exchangeDemoSecondsRemaining(market);
+  const timerText = String(Math.floor(secondsRemaining / 60)).padStart(2, "0")
+    + ":" + String(secondsRemaining % 60).padStart(2, "0");
+  const topMover = market.drinks.reduce((best, drink) =>
+    drink.priceCents - drink.baseCents > best.priceCents - best.baseCents ? drink : best
+  , market.drinks[0]);
+  const nextOrder = DEMO_ORDER_SEQUENCE[market.nextOrderIndex];
+  const nextDrink = market.drinks.find((drink) => drink.id === nextOrder.drinkId);
 
   function crash() {
-    setDrinks((previous) => simulateExchangeCrash(previous));
-    setCrashes((previous) => previous + 1);
-    setEvents((previous) => previous + 1);
-    setLastAction("MARKET CRASH! All simulated prices dropped within their demo limits.");
+    if (crashing) return;
+    if (soundEnabled) playCrashAlarm();
+    setMarket((previous) => triggerExchangeDemoCrash(previous, Date.now()));
   }
 
   function reset() {
-    setDrinks(freshExchangeDemoDrinks());
-    setEvents(0);
-    setCrashes(0);
-    setLastAction("Market reset. Pick your first drink.");
+    setMarket(createExchangeShowState());
   }
-
-  const topMover = drinks.reduce((best, drink) =>
-    drink.priceCents - drink.baseCents > best.priceCents - best.baseCents ? drink : best
-  , drinks[0]);
 
   return (
     <section className={styles.exchange} id="exchange" aria-labelledby="exchange-heading">
       <div className={styles.intro}>
         <div>
-          <div className={styles.kicker}><span aria-hidden="true" className={styles.glowDot} /> ENTER THE EXCHANGE · PLAYABLE DEMO</div>
-          <h2 id="exchange-heading">DON&apos;T JUST DRINK.<br /><span>MOVE THE MARKET.</span></h2>
-          <p>Πάτησε ένα ποτό και δες τη ζήτηση να ανεβάζει την τιμή του, ενώ οι υπόλοιπες αντιδρούν. Ή πάτησε CRASH για να πέσουν όλες. Εσύ κινείς το παιχνίδι.</p>
+          <div className={styles.kicker}><span aria-hidden="true" className={styles.glowDot} /> ENTER THE EXCHANGE · AUTOMATED LIVE-STYLE DEMO</div>
+          <h2 id="exchange-heading">THE ORDERS ROLL IN.<br /><span>THE PRICES MOVE.</span></h2>
+          <p>Παρακολούθησε τη ροή προσομοιωμένων παραγγελιών: κάθε γύρος αλλάζει αυτόματα τις τιμές. Δοκίμασε το κουμπί του manager για ένα εντυπωσιακό market crash με συναγερμό και αντίστροφη μέτρηση 60 δευτερολέπτων.</p>
         </div>
-        <div className={styles.demoWarning}><span aria-hidden="true">◎</span><strong>SIMULATION MODE</strong><small>No real orders · No payments · No live venue prices</small></div>
+        <div className={styles.demoWarning}><span aria-hidden="true">◎</span><strong>SIMULATION MODE</strong><small>Predefined orders · No real customers, POS or payments</small></div>
       </div>
 
-      <div className={styles.terminal}>
+      <div className={[styles.terminal, crashing ? styles.crashing : ""].join(" ")}>
+        {crashing && (
+          <div className={styles.emergencyLights} aria-hidden="true">
+            <span className={[styles.emergencyLight, styles.lightTopLeft].join(" ")} />
+            <span className={[styles.emergencyLight, styles.lightTopRight].join(" ")} />
+            <span className={[styles.emergencyLight, styles.lightBottomLeft].join(" ")} />
+            <span className={[styles.emergencyLight, styles.lightBottomRight].join(" ")} />
+          </div>
+        )}
         <div className={styles.terminalHead}>
           <div className={styles.marketIdentity}>
             <div className={styles.marketGlyph} aria-hidden="true">↗</div>
             <div><span className={styles.overline}>DRINKSTOCK EXCHANGE</span><strong>THE PARTY MARKET</strong></div>
           </div>
-          <div className={styles.marketState}><span className={styles.liveDot} aria-hidden="true" /> DEMO MARKET OPEN</div>
+          <div className={[styles.marketState, crashing ? styles.marketStateCrash : ""].join(" ")}>
+            <span className={styles.liveDot} aria-hidden="true" />
+            {crashing ? "CRASH EVENT ACTIVE" : "SIMULATED MARKET OPEN"}
+          </div>
         </div>
 
-        <div className={styles.priceTape} aria-label="Simulated market ticker">
+        {crashing && (
+          <div className={styles.crashStrip} role="timer" aria-label={"Market crash ends in " + secondsRemaining + " seconds"}>
+            <span className={styles.crashEyebrow}>⚠ MANAGER INITIATED MARKET CRASH</span>
+            <div className={styles.crashCounter}>{timerText}</div>
+            <div className={styles.crashSubtitle}>MARKET HALTED · ORDERS PAUSED · REOPENING IN</div>
+            <div className={styles.crashProgress} aria-hidden="true"><span style={{ width: (secondsRemaining / 60 * 100) + "%" }} /></div>
+          </div>
+        )}
+
+        <div className={styles.priceTape} aria-label="Simulated market prices">
           <div className={styles.priceTapeInner}>
-            {[...drinks, ...drinks].map((drink, index) => (
-              <span className={styles.tapeItem} key={drink.id + "-" + index} aria-hidden={index >= drinks.length}>
+            {[...market.drinks, ...market.drinks].map((drink, index) => (
+              <span className={styles.tapeItem} key={drink.id + "-" + index} aria-hidden={index >= market.drinks.length}>
                 <b>{personalities[drink.id]?.code || drink.id.toUpperCase()}</b>
                 <strong>{currency.format(drink.priceCents / 100)}</strong>
-                <em className={drink.lastDeltaCents > 0 ? styles.positive : drink.lastDeltaCents < 0 ? styles.negative : styles.neutral}>{drink.lastDeltaCents > 0 ? "↗" : drink.lastDeltaCents < 0 ? "↘" : "→"}</em>
+                <em className={drink.lastDeltaCents > 0 ? styles.positive : drink.lastDeltaCents < 0 ? styles.negative : styles.neutral}>
+                  {drink.lastDeltaCents > 0 ? "↗" : drink.lastDeltaCents < 0 ? "↘" : "→"}
+                </em>
               </span>
             ))}
           </div>
@@ -89,32 +156,72 @@ export function ExchangeDemo() {
 
         <div className={styles.board}>
           <div className={styles.boardHead}>
-            <div><span className={styles.overline}>YOUR MARKET / TONIGHT</span><h3>Pick your next move <span aria-hidden="true">✳</span></h3></div>
-            <div className={styles.sessionNumber}>SESSION 001 <span>· DEMO</span></div>
+            <div><span className={styles.overline}>TONIGHT'S SIMULATED MARKET</span><h3>Drinks are trading <span aria-hidden="true">✳</span></h3></div>
+            <div className={styles.sessionNumber}>AUTO-PLAY <span>· DEMO SESSION</span></div>
           </div>
-          <div className={styles.drinkGrid}>
-            {drinks.map((drink) => {
-              const movePercent = drink.lastDeltaCents && drink.priceCents - drink.lastDeltaCents > 0
-                ? Math.abs(drink.lastDeltaCents / (drink.priceCents - drink.lastDeltaCents) * 100).toFixed(1)
-                : "0.0";
-              return (
-                <article className={styles.drinkCard} key={drink.id}>
-                  <div className={styles.drinkTop}>
-                    <span className={styles.drinkEmoji} aria-hidden="true">{personalities[drink.id]?.icon || "🥂"}</span>
-                    <span className={[styles.movement, drink.lastDeltaCents > 0 ? styles.rising : drink.lastDeltaCents < 0 ? styles.falling : styles.unchanged].join(" ")}>
-                      {drink.lastDeltaCents > 0 ? "↗ +" : drink.lastDeltaCents < 0 ? "↘ −" : "→ "}{movePercent}%
-                    </span>
+
+          <div className={styles.boardContent}>
+            <div className={styles.drinkGrid}>
+              {market.drinks.map((drink) => {
+                const previousPrice = drink.priceCents - drink.lastDeltaCents;
+                const movePercent = drink.lastDeltaCents !== 0 && previousPrice > 0
+                  ? Math.abs(drink.lastDeltaCents / previousPrice * 100).toFixed(1) : "0.0";
+                return (
+                  <article className={[styles.drinkCard, market.lastOrderDrinkId === drink.id && !crashing ? styles.recentlyOrdered : ""].join(" ")} key={drink.id}>
+                    <div className={styles.drinkTop}>
+                      <span className={styles.drinkEmoji} aria-hidden="true">{personalities[drink.id]?.icon || "🥂"}</span>
+                      <span className={[styles.movement, drink.lastDeltaCents > 0 ? styles.rising : drink.lastDeltaCents < 0 ? styles.falling : styles.unchanged].join(" ")}>
+                        {drink.lastDeltaCents > 0 ? "↗ +" : drink.lastDeltaCents < 0 ? "↘ −" : "→ "}{movePercent}%
+                      </span>
+                    </div>
+                    <span className={styles.personality}>{personalities[drink.id]?.label}</span>
+                    <h4>{drink.name}</h4>
+                    <div className={styles.drinkDescription}>{drink.description}</div>
+                    <div className={styles.priceRow}><strong>{currency.format(drink.priceCents / 100)}</strong><small>SIMULATED PRICE</small></div>
+                    <div className={styles.autoTradeTag}>
+                      <span aria-hidden="true">{market.lastOrderDrinkId === drink.id && !crashing ? "●" : "↗"}</span>
+                      {market.lastOrderDrinkId === drink.id && !crashing ? "LATEST ORDER" : "AUTOMATED TRADING"}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <aside className={styles.orderFeed} aria-label="Simulated live order feed">
+              <div className={styles.feedHeader}>
+                <span className={styles.feedBlink} aria-hidden="true" />
+                <div><strong>LIVE ORDER FLOW</strong><small>PREDEFINED DEMO SEQUENCE</small></div>
+                <span className={styles.feedCounter}>{String(market.orderCount).padStart(3, "0")}</span>
+              </div>
+              <div className={styles.feedNext}>
+                <span>UP NEXT {crashing ? "· ON HOLD" : "· AUTO-QUEUE"}</span>
+                <strong>{nextOrder.quantity}× {nextDrink?.name || nextOrder.drinkId}</strong>
+                <small>{nextOrder.table} · {crashing ? "RESUMES AFTER CRASH" : "EVERY 4.5 SECONDS"}</small>
+              </div>
+              <div className={styles.feedEntries} aria-live="off">
+                {market.feed.length === 0 && (
+                  <p className={styles.feedEmpty}>Order stream connecting…<br />The first simulated round appears automatically.</p>
+                )}
+                {market.feed.map((event) => (
+                  <div className={[styles.feedEntry, event.kind === "crash" ? styles.feedCrash : event.kind === "reopen" ? styles.feedReopen : ""].join(" ")} key={event.id}>
+                    <div className={styles.feedEntryTop}>
+                      <span>{event.kind === "order" ? "● ORDER FILLED" : event.kind === "crash" ? "⚠ HALT" : "● REOPENED"}</span>
+                      <time>{event.time}</time>
+                    </div>
+                    <strong>{event.label}</strong>
+                    <div className={styles.feedEntryFoot}>
+                      <small>{event.detail}</small>
+                      {event.kind === "order" && (
+                        <em className={event.deltaCents >= 0 ? styles.feedUp : styles.feedDown}>
+                          {event.deltaCents > 0 ? "+" : ""}{currency.format(event.deltaCents / 100)}
+                        </em>
+                      )}
+                    </div>
                   </div>
-                  <span className={styles.personality}>{personalities[drink.id]?.label}</span>
-                  <h4>{drink.name}</h4>
-                  <div className={styles.drinkDescription}>{drink.description}</div>
-                  <div className={styles.priceRow}><strong>{currency.format(drink.priceCents / 100)}</strong><small>DEMO PRICE</small></div>
-                  <button className={styles.boostButton} type="button" onClick={() => boost(drink.id)} aria-label={"Προσομοίωση αύξησης ζήτησης: " + drink.name}>
-                    BOOST DEMAND <span aria-hidden="true">↗</span>
-                  </button>
-                </article>
-              );
-            })}
+                ))}
+              </div>
+              <div className={styles.feedFootnote}>ILLUSTRATIVE ONLY · NO REAL TRADES</div>
+            </aside>
           </div>
         </div>
 
@@ -122,24 +229,31 @@ export function ExchangeDemo() {
           <div className={styles.marketReadout}>
             <span className={styles.overline}>MARKET ACTIVITY</span>
             <div className={styles.readoutStats}>
-              <div><strong>{String(events).padStart(2, "0")}</strong><small>DEMO MOVES</small></div>
-              <div><strong>{String(crashes).padStart(2, "0")}</strong><small>MARKET CRASHES</small></div>
+              <div><strong>{String(market.orderCount).padStart(2, "0")}</strong><small>SCRIPTED ORDERS</small></div>
+              <div><strong>{String(market.crashes).padStart(2, "0")}</strong><small>MARKET CRASHES</small></div>
               <div><strong>{topMover ? (personalities[topMover.id]?.code || topMover.id) : "—"}</strong><small>TOP MOVER</small></div>
             </div>
           </div>
           <div className={styles.controlButtons}>
-            <button className={styles.crashButton} type="button" onClick={crash}><span aria-hidden="true">⚡</span> CRASH THE MARKET</button>
-            <button className={styles.resetButton} type="button" onClick={reset}><span aria-hidden="true">↺</span> RESET</button>
+            <button className={styles.soundButton} type="button" onClick={() => setSoundEnabled((enabled) => !enabled)} aria-pressed={soundEnabled} title="Toggle crash alarm sound">
+              {soundEnabled ? "🔊 ALARM ON" : "🔇 ALARM OFF"}
+            </button>
+            <button className={styles.crashButton} type="button" onClick={crash} disabled={crashing} aria-label="Simulate manager-initiated 60-second market crash">
+              <span aria-hidden="true">⚡</span> {crashing ? "MARKET CRASH ACTIVE" : "SIMULATE MANAGER CRASH"}
+            </button>
+            <button className={styles.resetButton} type="button" onClick={reset}><span aria-hidden="true">↺</span> RESET DEMO</button>
           </div>
         </div>
 
         <div className={styles.statusBar} role="status" aria-live="polite">
           <span className={styles.statusLight} aria-hidden="true" />
-          <p>{lastAction}</p>
-          <strong>PLAY MONEY ONLY / 100% DEMO</strong>
+          <p>{market.status}</p>
+          <strong>PRE-SET DEMO / NO REAL ORDERS</strong>
         </div>
       </div>
-      <p className={styles.disclaimer}>Οι τιμές αλλάζουν μόνο στη δική σου τοπική προσομοίωση. Δεν πρόκειται για πραγματική αγορά, κατάλογο καταστήματος, απόθεμα, διαθεσιμότητα ή δυνατότητα συναλλαγής. Η παραγωγική τιμολόγηση θα έχει ξεχωριστούς κανόνες, ελέγχους και εξουσιοδότηση συνεργάτη.</p>
+      <p className={styles.disclaimer}>
+        Όλες οι «παραγγελίες» και οι τιμές είναι προσχεδιασμένη, τοπική προσομοίωση. Το δημόσιο κουμπί crash προσομοιώνει ενέργεια manager και δεν ελέγχει πραγματικό κατάστημα. Ο ήχος παίζει μόνο μετά από κλικ και μπορεί να απενεργοποιηθεί. Δεν γίνονται πραγματικές παραγγελίες, πληρωμές ή συνδέσεις POS.
+      </p>
     </section>
   );
 }
