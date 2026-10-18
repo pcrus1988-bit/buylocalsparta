@@ -167,3 +167,17 @@ The Companion startup screen is a functional, **cold-start-only** React Native a
 - `mobile/test/boot-animation.test.mjs` verifies that the official bundled logo is used, native and JS splash backgrounds are pure white, route mounting is gated correctly, and reduced-motion and cleanup behavior remain present.
 
 **Release note:** The code runs in the development branch until a new Preview APK is compiled and tested on a physical Android phone. Native system splash screens are static until JavaScript starts; the movement begins immediately after the first React layout is mounted. Production, previous APK installs and marketplace backend are unaffected.
+
+## Native KONTA MOY Color Finder Studios (October 2026)
+
+The Companion now provides native entry points for all nine existing marketplace Color Studios, sharing the exact category codes and initial shades already used by `/color-finder`: Nail, Lip, Eye, Makeup, Hair, Shoe, Accessory (bags), Fashion and Home. The dedicated Studio District is accessible from Home and Services, with a native shade laboratory for each category.
+
+**In the app:** 13 named swatches, exact `#RRGGBB` input, HSV hue/saturation/value fine tuning, a large selected-color board, and ranked real-color product cards. Results show shade labels, color precision (exact, canonicalized, or family estimate), indicative catalogue prices and product images when present. Customers can copy a matched canonical variant to the offline wishlist, add to the authenticated cart when enabled, or open the verified product in first-party HTTPS Custom Tabs.
+
+**Data:** a separate read-only `/api/mobile/companion/color-studios` adapter calls the governed existing `getColorFinderProducts` (CIE `ΔE2000` similarity) to retrieve only products for the selected approved studio category and exact six-digit HEX. It limits the public response to 24 distinct color-evidenced canonical products; it does not infer nonexistent availability or invent shades or price savings. Results may legitimately be empty, and no claim of current store stock is made.
+
+**Photo workflow:** tap “Πάρε χρώμα από φωτογραφία” to open the actual existing `/color-finder?category=...&color=...` photo sampler on the first-party website. It retains the website's pixel/area sampling and local-photo TTL/privacy protections. The Android app does not upload, cache or process personal photos; *native Android photo sampling is still outstanding* and must not be represented as shipped.
+
+**UX boundaries:** Color Studios use a swatch wall and ordered rectangular product cards, **not** the spherical 3D universe (reserved exclusively for Sport & Fit Studio). There is no automatic saving of a customer's selected colors on the server and no commerce ledger duplication.
+
+**Acceptance/release:** `mobile/test/color-studios.test.ts` checks the nine studio routes, HEX sanitation and HSV calculations; the standard Companion Android CI runs these plus catalogue/PKCE/permission/navigation checks, SDK 57 compatibility, strict TypeScript and JS export. A new Preview APK and physical device visual/testing remain independent gates before merging PR #1553 or releasing to users.
