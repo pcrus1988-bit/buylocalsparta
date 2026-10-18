@@ -548,3 +548,38 @@ per-object encryption, malware quarantine and out-of-band scan verification,
 short-lived single-use tenant-scoped authorization, immutable operator access
 audits, deletion/expiry, verified account recovery and a safe rollout.
 None of these external conditions are presumed complete.
+
+
+## Milestone 30 — paginated, bounded, private KYB operator queue (18 October 2026)
+
+The existing operator-only /timologio-admin/kyb-queue is no longer limited to
+the first 40 open cases. Cases are now traversed in **stable oldest-first
+keyset pages of 40** (a 41st sentinel only determines whether a next page
+exists). Both `pending_review` and `under_review` remain in scope.
+
+- A read-only, parameterized query uses the exact PostgreSQL creation timestamp
+  (UTC to microsecond precision) plus UUID to avoid offset drift and losing
+  same-second cases. There is no unbounded case query or all-record download.
+- The operator's pre-existing authentication and step-up MFA remain required
+  **before** reading the cursor, and on every page request. Invalid cursors
+  fail closed (404), rather than becoming arbitrary SQL or a fallback page.
+- A cursor carries only an organization UUID and timestamp. Evidence IDs,
+  VAT, beneficial-owner identifiers, URLs, source references, reviewer data,
+  notes and attachments are never queried for the queue. The server
+  calculates the next cursor from the **40th** case, excluding the extra
+  sentinel case from rendered data.
+- Urgent discrepancies are still prioritized *within each page*; cases are
+  fetched in immutable key order rather than falsely claiming a global risk
+  ranking. The operator can always return to the first page. Closed or
+  newly opened cases may alter later pages, but cursor movement never goes
+  backwards or duplicates the boundary case.
+- No account status transition, bulk approval, email, upload, document
+  processing, migration, new credential, taxation, myDATA transmission
+  or legal fiscal issuance is performed.
+- CI has cursor validation, injection rejection, 40/41 boundary tests and
+  executes the **same production SQL** against 45 temporary organizations
+  in a rolled-back disposable PostgreSQL database; it checks redaction,
+  case isolation, non-approval flags and page disjointness.
+
+M30 is a workflow capacity and accessibility improvement, not a certification
+or production authorization for tax documents. Issuance remains disabled.
