@@ -59,3 +59,19 @@ test("local prevalence uses answered denominator instead of absolute selected de
   assert.deepEqual(high.countPixels,low.countPixels);
   assert.notDeepEqual(high.ratePixels,low.ratePixels);
 });
+
+test("heatmap never leaks a rate at n=10 that read-only viewers cannot inspect",()=>{
+  const under=answerPostcodeHeatField([
+    {postcode:"23100",prefecture:"ΛΑΚΩΝΙΑΣ",answered:10,matched:5}
+  ],locations);
+  assert.equal(under.spatialCohorts,0);
+  assert.ok(under.countPixels.every(v=>v===0));
+  assert.ok(under.ratePixels.every(v=>v===0));
+  assert.equal(under.mappedAnswers,5);
+  // The same matched count in an adequately powered cell can be visualized.
+  const enough=answerPostcodeHeatField([
+    {postcode:"23100",prefecture:"ΛΑΚΩΝΙΑΣ",answered:15,matched:5}
+  ],locations);
+  assert.equal(enough.spatialCohorts,1);
+  assert.equal(enough.detailMatched,5);
+});
