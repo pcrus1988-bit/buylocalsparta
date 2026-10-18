@@ -5,6 +5,7 @@ import { fiscalCsrfValue, fiscalMerchantAccounts, getFiscalActor } from "../../.
 import { fiscalLanes } from "../../../lib/fiscal-runtime";
 import { fiscalEmailStatus,fiscalEmailVerificationEnabled } from "../../../lib/fiscal-email-verification";
 import { FiscalEmailVerificationRequest } from "../../../components/FiscalEmailVerification";
+import {FiscalMerchantReadiness} from "../../../components/FiscalMerchantReadiness";
 export const dynamic="force-dynamic";
 export default async function FiscalDashboard(){
  const actor=await getFiscalActor();
@@ -16,13 +17,8 @@ export default async function FiscalDashboard(){
    <nav><span>{actor.email}</span>{csrf&&<FiscalLogoutButton csrfToken={csrf}/>}</nav></header>
   <section className="fiscal-hero"><div className="fiscal-kicker">Business workspace</div><h1>Η επιχείρησή σας</h1>
    <p>Αυτός είναι ένας ανεξάρτητος λογαριασμός FISCAL. Η σύνδεση με το marketplace θα είναι προαιρετική και ελεγχόμενη.</p></section>
-  <section className="fiscal-panel"><h2>Επιχειρήσεις και έλεγχος</h2>
-   {accounts.length===0?<p className="fiscal-alert">Δεν υπάρχει ακόμη επιχείρηση συνδεδεμένη με αυτόν τον λογαριασμό.</p>:
-   <div className="fiscal-grid">{accounts.map(account=><article key={account.id} className="fiscal-card">
-    <small>ΑΦΜ · {account.vat_number}</small><h3>{account.legal_name}</h3>
-    <p>Κατάσταση: <strong>{account.status}</strong></p><p>Ρόλος: {account.role}</p>
-   </article>)}</div>}
-  </section>
+  <FiscalMerchantReadiness accounts={accounts} emailVerified={proof.verified}
+   emailVerificationEnabled={fiscalEmailVerificationEnabled()}/>
   {csrf&&<FiscalEmailVerificationRequest csrfToken={csrf} verified={proof.verified} enabled={fiscalEmailVerificationEnabled()}/>}
   <section className="fiscal-panel fiscal-section" style={{marginTop:20}}><h2>Κλάδοι παραστατικών</h2>
    <div className="fiscal-grid">{fiscalLanes.map(lane=><article key={lane.id} className="fiscal-card">
