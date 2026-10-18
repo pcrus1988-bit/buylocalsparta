@@ -42,3 +42,8 @@ test("nine Color Studios can hand off selected HEX into private first-party phot
   {category:"studio-nails",color:"#000000&returnTo=//evil.example"}
  ])assert.throws(()=>marketplaceUrl({path:"/color-finder",query}));
 });
+
+test("Sport & Fit full WebGL studio handoff stays on approved marketplace origin",()=>{
+ assert.equal(marketplaceUrl({path:"/sport-fit-studio"}),"https://kontamou.site/sport-fit-studio");
+ assert.throws(()=>marketplaceUrl({path:"//host.test/sport-fit-studio"}));
+});
