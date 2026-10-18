@@ -21,7 +21,9 @@ export function isHospitalityHostPathAllowed(pathname: string): boolean {
 }
 
 export function hospitalityPrivatePath(pathname: string): boolean {
-  return pathname === "/drinkStock/dashboard" ||
+  return pathname === "/drinkstock/dashboard" ||
+    pathname.startsWith("/drinkstock/dashboard/") ||
+    pathname === "/drinkStock/dashboard" ||
     pathname.startsWith("/drinkStock/dashboard/");
 }
 /**
