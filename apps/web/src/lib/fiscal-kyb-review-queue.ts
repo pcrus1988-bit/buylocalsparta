@@ -9,12 +9,15 @@ import type {FiscalMerchantKybProgress} from "./fiscal-merchant-kyb-progress.ts"
 
 export const FISCAL_KYB_REVIEW_QUEUE_SQL=`
 WITH selected AS (
- SELECT id,legal_name,status,created_at
+ SELECT id,legal_name,status,created_at,
+        to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at_key
    FROM public.fiscal_organizations
   WHERE status IN ('pending_review','under_review')
-  ORDER BY created_at ASC,id ASC LIMIT 40
+    AND (($1::timestamptz IS NULL AND $2::uuid IS NULL)
+         OR (created_at,id) > ($1::timestamptz,$2::uuid))
+  ORDER BY created_at ASC,id ASC LIMIT 41
 )
-SELECT selected.id::text,selected.legal_name,selected.status,
+SELECT selected.id::text,selected.legal_name,selected.status,selected.created_at_key,
        latest.check_type,latest.outcome
   FROM selected
   LEFT JOIN LATERAL (
@@ -77,4 +80,62 @@ export function summarizeFiscalKybReviewQueue(records:readonly Raw[]):readonly F
  });
  cases.sort((a,b)=>rank[a.priority]-rank[b.priority]||a.id.localeCompare(b.id));
  return Object.freeze(cases);
+}
+
+/**
+ * M30: deterministic keyset navigation across the entire pending case queue.
+ * The cursor contains only the exact UTC creation timestamp and opaque org ID.
+ * Cursor values are never interpolated into SQL; the caller binds two params.
+ * Sorting by urgent outcome remains restricted to the current 40-case page.
+ */
+const cursorPattern=/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z)\|([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+export type FiscalKybQueueCursor=Readonly<{createdAt:string;id:string}>;
+export function parseFiscalKybReviewCursor(raw:unknown):FiscalKybQueueCursor|null{
+ if(raw===undefined||raw===null)return null;
+ if(typeof raw!=="string"||raw.length>80)throw new Error("KYB_QUEUE_CURSOR_INVALID");
+ const match=cursorPattern.exec(raw);
+ if(!match)throw new Error("KYB_QUEUE_CURSOR_INVALID");
+ const date=new Date(match[1]);
+ if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,19)!==match[1].slice(0,19))
+  throw new Error("KYB_QUEUE_CURSOR_INVALID");
+ return Object.freeze({createdAt:match[1],id:match[2].toLowerCase()});
+}
+type PagedRaw=Raw&Readonly<{created_at_key:string}>;
+export type FiscalKybReviewPage=Readonly<{
+ cases:readonly FiscalKybQueueCase[];
+ hasNext:boolean;
+ nextCursor:string|null;
+ legalApproval:false;
+ issuanceEnabled:false;
+}>;
+export function summarizeFiscalKybReviewPage(records:readonly PagedRaw[]):FiscalKybReviewPage{
+ if(!Array.isArray(records)||records.length>328)throw new Error("KYB_QUEUE_PAGE_INVALID");
+ const ids:string[]=[];
+ const visited=new Set<string>();
+ let last="";
+ for(const record of records){
+  if(!record||typeof record!=="object"||!uuid.test(record.id)||
+     typeof record.created_at_key!=="string"||
+     !cursorPattern.test(record.created_at_key+"|"+record.id))
+   throw new Error("KYB_QUEUE_PAGE_INVALID");
+  parseFiscalKybReviewCursor(record.created_at_key+"|"+record.id);
+  if(record.id!==last){
+   if(visited.has(record.id))throw new Error("KYB_QUEUE_PAGE_INVALID");
+   if(ids.length===41)throw new Error("KYB_QUEUE_PAGE_INVALID");
+   ids.push(record.id);
+   visited.add(record.id);
+   last=record.id;
+  }
+ }
+ const hasNext=ids.length===41;
+ const visible=new Set(ids.slice(0,40));
+ const rows=records.filter(r=>visible.has(r.id));
+ const cases=summarizeFiscalKybReviewQueue(rows);
+ const terminal=hasNext?rows.find(r=>r.id===ids[39]):undefined;
+ return Object.freeze({
+  cases,hasNext,
+  nextCursor:terminal?terminal.created_at_key+"|"+terminal.id:null,
+  legalApproval:false as const,
+  issuanceEnabled:false as const
+ });
 }
