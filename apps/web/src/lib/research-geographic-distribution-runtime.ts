@@ -63,21 +63,23 @@ export async function researchSingleQuestionDistribution(
       "ORDER BY position LIMIT 80"
     ].join("\n"), [study.instrument_id]),
     pool.query<SqlRow>([
-      "SELECT DISTINCT fu.sector_code AS code FROM research_responses r",
+      "SELECT DISTINCT COALESCE(fu.sector_code,ctx.sector_code) AS code FROM research_responses r",
       "JOIN research_invites i ON i.id=r.invite_id",
-      "JOIN research_sample_units su ON su.id=i.sample_unit_id",
-      "JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
-      "WHERE r.study_id=$1 AND NULLIF(fu.sector_code,'') IS NOT NULL",
+      "LEFT JOIN research_sample_units su ON su.id=i.sample_unit_id",
+      "LEFT JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
+      "LEFT JOIN research_response_design_context ctx ON ctx.response_id=r.id",
+      "WHERE r.study_id=$1 AND NULLIF(COALESCE(fu.sector_code,ctx.sector_code),'') IS NOT NULL",
       "ORDER BY 1 LIMIT 40"
     ].join("\n"), [study.study_id]),
     pool.query<SqlRow>([
       "SELECT matched.code,count(*) AS n FROM research_responses r",
       "JOIN research_invites i ON i.id=r.invite_id",
-      "JOIN research_sample_units su ON su.id=i.sample_unit_id",
-      "JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
+      "LEFT JOIN research_sample_units su ON su.id=i.sample_unit_id",
+      "LEFT JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
+      "LEFT JOIN research_response_design_context ctx ON ctx.response_id=r.id",
       "CROSS JOIN LATERAL jsonb_array_elements_text(",
-      " CASE WHEN jsonb_typeof(fu.sampling_attributes->'matchedActivityCodes')='array'",
-      " THEN fu.sampling_attributes->'matchedActivityCodes' ELSE '[]'::jsonb END) matched(code)",
+      " CASE WHEN jsonb_typeof(COALESCE(fu.sampling_attributes->'matchedActivityCodes',ctx.matched_kad_codes))='array'",
+      " THEN COALESCE(fu.sampling_attributes->'matchedActivityCodes',ctx.matched_kad_codes) ELSE '[]'::jsonb END) matched(code)",
       "WHERE r.study_id=$1 GROUP BY matched.code ORDER BY n DESC,matched.code LIMIT 100"
     ].join("\n"), [study.study_id])
   ]);
@@ -106,19 +108,20 @@ export async function researchSingleQuestionDistribution(
   };
   const selected = await pool.query<SqlRow>([
     "WITH scoped AS (",
-    " SELECT COALESCE(fu.sampling_attributes->>'prefecture','') AS prefecture,",
+    " SELECT COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),NULLIF(ctx.source_prefecture,''),'') AS prefecture,",
     "  COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,a.answer",
     " FROM research_responses r",
     " JOIN research_invites i ON i.id=r.invite_id",
-    " JOIN research_sample_units su ON su.id=i.sample_unit_id",
-    " JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
+    " LEFT JOIN research_sample_units su ON su.id=i.sample_unit_id",
+    " LEFT JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
+    " LEFT JOIN research_response_design_context ctx ON ctx.response_id=r.id",
     " JOIN research_answers a ON a.response_id=r.id AND a.question_id=$3::uuid",
     " WHERE r.study_id=$1 AND r.instrument_id=$2",
     " AND r.status IN ('completed','in_progress') AND r.withdrawn_at IS NULL",
     " AND ($4::text='all' OR r.status=$4::text)",
     " AND i.fieldwork_phase=$5",
-    " AND ($6::text='' OR fu.sector_code=$6)",
-    " AND ($7::text='' OR COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb) ? $7::text)",
+    " AND ($6::text='' OR COALESCE(fu.sector_code,ctx.sector_code)=$6)",
+    " AND ($7::text='' OR COALESCE(fu.sampling_attributes->'matchedActivityCodes',ctx.matched_kad_codes,'[]'::jsonb) ? $7::text)",
     " AND CASE WHEN jsonb_typeof(a.answer)='array' THEN jsonb_array_length(a.answer)>0",
     "   WHEN jsonb_typeof(a.answer)='string' THEN btrim(a.answer #>> '{}')<>''",
     "   WHEN jsonb_typeof(a.answer) IN ('number','boolean') THEN true",
