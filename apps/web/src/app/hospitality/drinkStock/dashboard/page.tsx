@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "DrinkStock Partner Dashboard", robot
 
 export default async function DrinkStockDashboard() {
   const principal = await hospitalityIdentity();
-  if (!principal) redirect("/drinkStock/login");
+  if (!principal) redirect("/drinkstock/login");
   let partners;
   try {
     partners = await accessibleDrinkStockPartners(principal.userId);
@@ -32,7 +32,7 @@ export default async function DrinkStockDashboard() {
         <span>PARTNER / {partner.role.toUpperCase()}</span>
         <h2>{partner.partnerName}</h2>
         <p>{partner.venueCount} ενεργοί χώροι</p>
-        <Link className={styles.action} href={"/drinkStock/dashboard/" + partner.partnerId}>Άνοιγμα συνεργάτη ↗</Link>
+        <Link className={styles.action} href={"/drinkstock/dashboard/" + partner.partnerId}>Άνοιγμα συνεργάτη ↗</Link>
       </article>)}
     </section> : <section className={styles.authPane}>
       <h2>Δεν υπάρχει ενεργή συνεργασία DrinkStock.</h2>
