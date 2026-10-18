@@ -80,3 +80,25 @@
 .fiscal-credit-lab-row button{white-space:nowrap}
 @media(max-width:720px){.fiscal-credit-lab-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:430px){.fiscal-credit-lab-row{grid-template-columns:1fr}}
+
+/* Merchant account readiness: clear statuses without implying tax certification. */
+.fiscal-readiness-list{display:grid;gap:22px;margin:20px 0}
+.fiscal-readiness-card{border:1px solid #d5e6e1;border-radius:14px;padding:20px;background:#f8fbf9;min-width:0}
+.fiscal-readiness-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.fiscal-readiness-head h3{margin:8px 0;font-size:1.17rem;overflow-wrap:anywhere}
+.fiscal-readiness-pill{font-weight:750;background:#edf4f0;color:#17413c;
+ padding:8px 11px;border:1px solid #bad2c8;border-radius:999px;font-size:.8rem}
+.fiscal-readiness-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:12px;list-style:none;margin:20px 0;padding:0}
+.fiscal-readiness-step{min-width:0;border:1px solid #dce6e2;background:#fff;
+ border-radius:10px;padding:14px}
+.fiscal-readiness-step-head{display:flex;justify-content:space-between;align-items:start;
+ flex-wrap:wrap;gap:8px}
+.fiscal-readiness-step-head strong{color:#173a40;font-size:.9rem}
+.fiscal-readiness-step-head span{font-size:.76rem;color:#526970}
+.fiscal-readiness-step p{font-size:.84rem;line-height:1.5;margin:8px 0 0;color:#4d656a}
+.fiscal-readiness-complete{border-left:4px solid #51967b}
+.fiscal-readiness-pending{border-left:4px solid #b68d44}
+.fiscal-readiness-restricted,.fiscal-readiness-unavailable{border-left:4px solid #85949a}
+@media(max-width:650px){.fiscal-readiness-steps{grid-template-columns:1fr}
+ .fiscal-readiness-card{padding:14px}}
