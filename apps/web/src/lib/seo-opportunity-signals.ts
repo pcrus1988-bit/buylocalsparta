@@ -19,10 +19,14 @@ export type SeoKeywordOpportunity = SeoQuerySignal & Readonly<{
   recommendedAction: string;
 }>;
 
-const OWN_BRAND = /(?:κοντά\s*μου|konta[\s-]*mou|kontamou|buy\s*local\s*sparta|buylocalsparta)/iu;
+// The phrase "καταστήματα κοντά μου" is a generic local-shopping query,
+// not evidence that a person searched for the KONTA MOY brand.
+const OWN_BRAND_LATIN = /(?:kontamou|konta[\\s-]*mou|buy[\\s-]*local[\\s-]*sparta)/iu;
+const OWN_BRAND_GREEK = /^(?:κοντά[\\s-]*μου|κοντα[\\s-]*μου)(?:\\s+(?:marketplace|πλατφόρμα|eshop|e-shop))?$/iu;
 
 export function isOwnBrandQuery(query: string): boolean {
-  return OWN_BRAND.test(query);
+  const normalized = query.trim();
+  return OWN_BRAND_LATIN.test(normalized) || OWN_BRAND_GREEK.test(normalized);
 }
 
 export function rankSeoKeywordOpportunities(
