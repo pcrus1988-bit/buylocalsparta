@@ -37,9 +37,11 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  osc.connect(vol);vol.connect(ctx.destination);osc.start(start);osc.stop(start+.29);
  }
  },[crash,armed]);
- function enableSound(){
- if(!audio.current)audio.current=new AudioContext();
- void audio.current.resume();setArmed(true);
+ function toggleSound(){
+  if(armed){setArmed(false);return;}
+  if(typeof AudioContext==="undefined")return;
+  if(!audio.current)audio.current=new AudioContext();
+  void audio.current.resume();setArmed(true);
  }
  const online=data.session?.state==="running"||data.session?.state==="crashing";
  if(!connected)return <main role="alert" style={{minHeight:"100vh",padding:"clamp(30px,8vw,110px)",background:"#100b22",color:"#fff",fontFamily:"Arial,sans-serif",textAlign:"center"}}>
@@ -61,7 +63,7 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  <div><div style={{fontWeight:950,fontSize:"clamp(24px,3vw,50px)",letterSpacing:-2}}>DRINK<span style={{color:"#caff50"}}>STOCK</span> ↗</div>
  <div style={{fontSize:12,letterSpacing:3,color:"#beb5e7"}}>{data.venue.name.toUpperCase()} / THE PARTY MARKET</div></div>
  <div style={{display:"flex",gap:12,alignItems:"center"}}><strong style={{color:online?"#caff50":"#ffacac"}}>{online?"● LIVE SESSION":"Ⅱ MARKET CLOSED"}</strong>
- <button onClick={enableSound} style={{background:armed?"#d3ff53":"#23203f",color:armed?"#111":"#fff",border:"1px solid #caff50",borderRadius:12,padding:"12px 16px",cursor:"pointer"}}>{armed?"🔊 ALARM ON":"🔈 ENABLE ALARM"}</button></div>
+ <button onClick={toggleSound} style={{background:armed?"#d3ff53":"#23203f",color:armed?"#111":"#fff",border:"1px solid #caff50",borderRadius:12,padding:"12px 16px",cursor:"pointer"}}>{armed?"🔊 ALARM ON · MUTE":"🔈 ENABLE ALARM"}</button></div>
  </header>
  <h1 style={{fontSize:"clamp(34px,6vw,78px)",fontWeight:950,letterSpacing:-4,margin:"34px 0 22px"}}>THE DRINK EXCHANGE<span style={{color:"#caff50"}}>.</span></h1>
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,270px),1fr))",gap:13}}>
