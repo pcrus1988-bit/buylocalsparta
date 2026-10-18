@@ -249,3 +249,7 @@ Source inventory candidates for further safe automatic product-*type* comparison
 ### October 17 evidence pass — narrowly named types
 
 The dated 2026-10-17 source is checked against additional exact descriptions: lavender-scented cat litter in the cat category, explicitly full-fat long-life milk, chocolate custard, Greek diced tomato regardless of reversed title word order, plain kefir and gazosa. Each still requires its correct detailed source category, validated branded source label, reliable distinct brands and complete compatible pack quantity. These comparisons show type compatibility, not identical ingredient, dietary suitability, local availability or allergens. Different fragrances, milk processing/types, sugar-free variants and lactose-free variants remain non-matches. A single approved SKU is not evidence that all category members are interchangeable.
+
+
+### 2026-10-17 additional non-specialty product types
+Narrow cross-brand families include source-labelled frozen broccoli, bulgur, sliced frozen mushrooms, wafers with milk chocolate, granola with dark chocolate, milk candies and Cretan PDO graviera. Spinach-rice is eligible only when the normalized title is the exact one-token kind. Source title, category, reputable distinct brand evidence, complete matching physical pack and existing claim vetoes remain non-negotiable. No ingredient, allergen, nutrition, origin certification or local stock identity is implied.
