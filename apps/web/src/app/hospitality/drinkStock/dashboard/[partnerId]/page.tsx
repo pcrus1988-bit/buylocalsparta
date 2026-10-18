@@ -22,7 +22,7 @@ export default async function DrinkStockPartnerPage({ params }: { params: Promis
   }
   return <main className={styles.main}>
     <section className={styles.dashboardHeader}>
-      <Link href="/drinkStock/dashboard">← Συνεργασίες</Link>
+      <Link href="https://hospitality.kontamou.site/drinkStock/dashboard">← Συνεργασίες</Link>
       <span className={styles.eyebrow}>DRINKSTOCK / PARTNER WORKSPACE</span>
       <h1>{partner.partnerName}</h1>
       <p>Ο ρόλος σου: {partner.role}. Η προβολή περιορίζεται σε χώρους αυτού του συνεργάτη.</p>
