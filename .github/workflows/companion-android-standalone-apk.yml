@@ -1,3 +1,5 @@
+# Build the native nine-Color-Studios Android Preview with real Color Finder catalogue.
+# Debug-key signed internal APK only; no production rollout or marketplace writes.
 # Rebuild standalone internal Preview to validate official-logo startup assembly.
 # Native splash stays white; this does not enable customer auth, payments or FCM.
 # Internal Preview rebuild requested after native account-address edit/delete integration.
