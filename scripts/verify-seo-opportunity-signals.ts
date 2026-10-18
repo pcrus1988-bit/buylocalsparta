@@ -17,6 +17,7 @@ assert.equal(ranked[0]?.kind, "snippet_review");
 assert.equal(ranked[1]?.kind, "striking_distance");
 assert.ok(isOwnBrandQuery("KONTA MOU"));
 assert.ok(isOwnBrandQuery("ΚΟΝΤΑ ΜΟΥ"));
+assert.equal(isOwnBrandQuery("καταστήματα κοντά μου"), false, "Generic near-me shopping searches must not be excluded as branded");
 assert.equal(rankSeoKeywordOpportunities(sample, 0).length, 0);
 assert.equal(rankSeoKeywordOpportunities([{ key: "χαλασμένα δεδομένα", clicks: 1, impressions: 50, ctr: Number.NaN, position: 8 }]).length, 0);
 
