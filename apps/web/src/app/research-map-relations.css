@@ -147,3 +147,21 @@
 @media(max-width:720px){
  .research-distribution-statgrid{grid-template-columns:minmax(0,1fr)}
  .research-distribution-wide{grid-column:span 1}}
+
+
+/* Fluid postcode-area raster: all map marks are blended areas, never location pins. */
+.research-distribution-map-style{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.research-distribution-map-style button{
+  min-height:44px;cursor:pointer;padding:10px 15px;border-radius:10px;
+  background:var(--surface,#fff);color:var(--text,#203f36);
+  border:1px solid var(--border,#b6ccc2);font-weight:650
+}
+.research-distribution-map-style button.is-active{
+  background:#185e45;color:#fff;border-color:#185e45
+}
+.research-distribution-map-style button:disabled{opacity:.45;cursor:not-allowed}
+.research-distribution-map-style button:focus-visible{outline:3px solid #dfa536;outline-offset:2px}
+@media(max-width:520px){
+ .research-distribution-map-style{display:grid;grid-template-columns:minmax(0,1fr)}
+ .research-distribution-map-style button{width:100%;text-align:center}
+}
