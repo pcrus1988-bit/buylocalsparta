@@ -1,5 +1,5 @@
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { drinkPriceBand, priceRehearsalDemand, VENUE_MAX_PRODUCTS, DEFAULT_PRICE_BOUNDS, venueCanManageMarket, type MarketBounds, type RehearsalDrink, type RehearsalMovement, type DrinkStockCategory, type validateMarketAction } from "./drinkstock-market-pricing";
+import { drinkPriceBand, priceRehearsalDemand, VENUE_MAX_PRODUCTS, DEFAULT_PRICE_BOUNDS, venueCanManageMarket, mayEditPreSessionConfig, type MarketBounds, type RehearsalDrink, type RehearsalMovement, type DrinkStockCategory, type validateMarketAction } from "./drinkstock-market-pricing";
 
 type Action = ReturnType<typeof validateMarketAction>;
 export type MarketVenue = Readonly<{id:string;name:string;partnerId:string;role:string;rehearsalEnabled:boolean;activeSession:boolean;bounds:MarketBounds}>;
@@ -115,7 +115,7 @@ export async function mutateDrinkStockMarket(userId:string,partnerId:string,venu
       if(!action.product)throw new DrinkStockMarketError("INVALID_PRODUCT",400);
       const products=await authorizedProducts(client,userId,partnerId,venueId);
       if(products.length>=VENUE_MAX_PRODUCTS)throw new DrinkStockMarketError("PRODUCT_LIMIT_REACHED",409);
-      if(venue.rehearsalEnabled||venue.activeSession)throw new DrinkStockMarketError("SESSION_ACTIVE",409);
+      if(!mayEditPreSessionConfig(venue))throw new DrinkStockMarketError("SESSION_ACTIVE",409);
       const band=drinkPriceBand(action.product.baseCents,venue.bounds);
       const inserted=await client.query<{id:string}>(`
         INSERT INTO public.drinkstock_products(venue_id,partner_id,name,category,base_cents,price_cents,min_cents,max_cents)
@@ -125,7 +125,7 @@ export async function mutateDrinkStockMarket(userId:string,partnerId:string,venu
       eventType="product_added";
     }else if(action.action==="set_bounds"){
       // Serialize configuration changes against start/demand via the venue row lock.
-      if(venue.rehearsalEnabled||venue.activeSession)throw new DrinkStockMarketError("BOUNDS_LOCKED_DURING_SESSION",409);
+      if(!mayEditPreSessionConfig(venue))throw new DrinkStockMarketError("BOUNDS_LOCKED_DURING_SESSION",409);
       if(!action.bounds)throw new DrinkStockMarketError("INVALID_PRICE_BOUNDS",400);
       const bounds=action.bounds;
       await client.query(`
