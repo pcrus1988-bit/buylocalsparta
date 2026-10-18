@@ -207,8 +207,8 @@ function shopPageHref(params: Record<string, string | string[] | undefined>, pag
 
 export async function generateMetadata({ searchParams }: ShopProps): Promise<Metadata> {
   const base = await governedStaticSeoMetadata("/shop", {
-    title: "Προϊόντα",
-    description: "Ανακάλυψε προϊόντα διαθέσιμα από τοπικά καταστήματα της Σπάρτης."
+    title: "Προϊόντα στη Σπάρτη · κατηγορίες και αναζήτηση",
+    description: "Ανακάλυψε προϊόντα στη Σπάρτη ανά κατηγορία, τιμή και χαρακτηριστικά. Δες τις επιλογές και επιβεβαίωσε τη διαθεσιμότητα πριν από την αγορά."
   });
   const params = await searchParams;
   const hasQueryState = Object.entries(params).some(([key, value]) => {
@@ -584,6 +584,12 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const showColor = facets.colors.length > 0;
   const showSize = facets.sizes.length > 0 && storefrontFacetEnabled(activeLeaf, "size");
   const showFit = fitOptions.length > 0 && storefrontFacetEnabled(activeLeaf, "fit");
+  // On the clean /shop landing page, link directly to durable indexable
+  // category guides. The interactive chips above intentionally use noindex
+  // filter URLs; those must not be our sole internal discovery links.
+  const showCategoryGuides = page === 1 && !query && !category && !availability && !hasDetailedFilters
+    && !Object.values(params).some((value) => valueOf(value).trim().length > 0);
+  const guideCategories = STOREFRONT_CATEGORIES.filter((item) => availableCategories.some((candidate) => candidate.slug === item.slug));
   const { settings: seoSettings } = await getSeoGlobalSettingsSnapshot();
   const shopUrl = new URL("/shop", `${seoSettings.canonicalOrigin}/`).toString();
   const breadcrumbStructuredData = {
@@ -603,8 +609,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
 
       <section className="catalog-hero shell">
         <div className="eyebrow">Marketplace · Sparta 23100</div>
-        <h1>{categoryView ? categoryView.label : "Βρες το τοπικά."}</h1>
-        <p className="lead">{categoryView ? categoryView.description : "Ένα καθαρό αποτέλεσμα ανά προϊόν, με πραγματική τιμή και τοπική διαθεσιμότητα."}</p>
+        <h1>{categoryView ? categoryView.label : "Βρες προϊόντα στη Σπάρτη"}</h1>
+        <p className="lead">{categoryView ? categoryView.description : "Αναζήτησε ανά κατηγορία, τιμή, μέγεθος και χαρακτηριστικά. Δες τις διαθέσιμες επιλογές και τους όρους παραλαβής πριν αποφασίσεις."}</p>
         <div className="category-chip-row" aria-label="Κατηγορίες προϊόντων">
           <a className={!category ? "category-chip active" : "category-chip"} href="/shop">Όλα</a>
           {availableCategories.map((item) => <a className={category === item.slug ? "category-chip active" : "category-chip"} href={`/shop?category=${item.slug}`} key={item.slug}>{item.label}</a>)}
@@ -711,6 +717,27 @@ export default async function ShopPage({ searchParams }: ShopProps) {
           </nav> : null}
         </div>
       </section>
+      {showCategoryGuides && guideCategories.length > 0 ? <section className="shell section category-discovery" aria-labelledby="shop-category-guides-heading">
+        <div className="section-heading">
+          <div>
+            <div className="eyebrow">Οδηγοί κατηγοριών · Σπάρτη</div>
+            <h2 id="shop-category-guides-heading">Εξερεύνησε προϊόντα ανά κατηγορία</h2>
+          </div>
+          <p className="section-note">Ξεκίνα από μια κατηγορία για να δεις σχετικές επιλογές και χρήσιμα χαρακτηριστικά. Η τελική διαθεσιμότητα και οι όροι παραλαβής ελέγχονται πριν από την αγορά.</p>
+        </div>
+        <nav className="category-discovery-grid" aria-label="Μόνιμες σελίδες κατηγοριών">
+          {guideCategories.map((item) => <a
+            className={`category-discovery-card ${item.artClass}`}
+            href={`/category/${item.slug}`}
+            key={item.slug}
+          >
+            <span className="category-discovery-symbol" aria-hidden="true">{item.symbol}</span>
+            <span><strong>{item.label}</strong><small>Οδηγός κατηγορίας · {item.name}</small></span>
+            <span aria-hidden="true">↗</span>
+          </a>)}
+        </nav>
+        <p className="section-note">Ψάχνεις τοπικό κατάστημα; <a className="text-link" href="/shops">Ανακάλυψε επιχειρήσεις στη Σπάρτη</a>. Θέλεις να μάθεις για την παραλαβή; <a className="text-link" href="/delivery-pickup">Δες τις επιλογές παράδοσης και παραλαβής</a>.</p>
+      </section> : null}
       <SiteFooter />
     </main>
   );
