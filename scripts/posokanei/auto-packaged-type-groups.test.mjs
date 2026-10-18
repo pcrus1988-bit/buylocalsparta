@@ -678,3 +678,49 @@ test("instant cappuccino and lemon iced tea cannot match incompatible preparatio
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(x=>x.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["cap1","cap2"],["tea1","tea2"]]);
 });
+
+test("dated source: plain lavender-scent cat litter never matches another fragrance",()=>{
+ const v=[
+ p("c1","ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ","ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ Άμμος Υγιεινής Γάτας Λεβάντα 5kg","Γάτα","kg",5),
+ p("c2","ECONOMY","ECONOMY Γάτας Άμμος Υγιεινής Λεβάντα 5kg","Γάτα","kg",5),
+ p("cOther","OTHER","OTHER Άμμος Υγιεινής Γάτας Χαμομήλι 5kg","Γάτα","kg",5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(v).map(x=>x.memberIds),[["c1","c2"]]);
+});
+test("dated source: chocolate dairy cream stays separate from caramel and vanilla",()=>{
+ const v=[
+ p("ch1","ΣΤΑΜΟΥ","ΣΤΑΜΟΥ Κρέμα Σοκολάτα 180g","Επιδόρπιο Κρέμας","kg",.18),
+ p("ch2","ΡΟΔΟΠΗ","ΡΟΔΟΠΗ Κρέμα Σοκολάτα 160g","Επιδόρπιο Κρέμας","kg",.16),
+ p("van","OTHER","OTHER Κρέμα Βανίλια 180g","Επιδόρπιο Κρέμας","kg",.18)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(v).map(x=>x.memberIds),[["ch1","ch2"]]);
+});
+test("dated source: only explicitly named full-fat long-life milk shares its exact source family",()=>{
+ const v=[
+ p("m1","ROYAL","ROYAL Γάλα Μακράς Διάρκειας Πλήρες 1lt","Γάλα Υψηλής Παστερίωσης","l",1),
+ p("m2","ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ","ΜΙΚΡΕΣ ΦΑΡΜΕΣ ΤΟΥ ΒΟΥΝΟΥ Γάλα Μακράς Διάρκειας Πλήρες 1l","Γάλα Υψηλής Παστερίωσης","l",1),
+ p("light","OTHER","OTHER Γάλα Μακράς Διάρκειας Ελαφρύ 1lt","Γάλα Υψηλής Παστερίωσης","l",1),
+ p("short","OTHER2","OTHER2 Φρέσκο Γάλα Πλήρες 1lt","Γάλα Υψηλής Παστερίωσης","l",1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(v).map(x=>x.memberIds),[["m1","m2"]]);
+});
+test("dated source: diced tomatoes with reversed Greek token order are one type, never passata",()=>{
+ const v=[
+ p("t1","BARESA","BARESA Ψιλοκομμένες Τομάτες 400g","Σάλτσα από Αποφλοιωμένες Ντομάτες","kg",.4),
+ p("t2","GUSTONA","GUSTONA Τομάτα Ψιλοκομμένη 400g","Σάλτσα από Αποφλοιωμένες Ντομάτες","kg",.4),
+ p("t3","ΓΚΡΕΚΑ","ΓΚΡΕΚΑ Τομάτες Ψιλοκομμένες 400g","Σάλτσα από Αποφλοιωμένες Ντομάτες","kg",.4),
+ p("passata","OTHER","OTHER Τομάτα Passata 400g","Σάλτσα από Αποφλοιωμένες Ντομάτες","kg",.4)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(v).map(x=>x.memberIds),[["t1","t2","t3"]]);
+});
+test("dated source: plain kefir and gazosa families remain independently typed by category",()=>{
+ const v=[
+ p("k1","ΣΤΑΜΟΥ","ΣΤΑΜΟΥ Κεφίρ 330ml","Κεφίρ","l",.33),
+ p("k2","ΕΒΡΟΦΑΡΜΑ","ΕΒΡΟΦΑΡΜΑ Κεφίρ 500ml","Κεφίρ","l",.5),
+ p("k3","OTHER","OTHER Κεφίρ Χωρίς Λακτόζη 330ml","Κεφίρ","l",.33),
+ p("g1","ΓΕΡΑΝΙ","ΓΕΡΑΝΙ Γκαζόζα 1,5lt","Γκαζόζα","l",1.5),
+ p("g2","7UP","7UP Γκαζόζα 1,5lt","Γκαζόζα","l",1.5),
+ p("g-zero","OTHER","OTHER Γκαζόζα Zero 1,5lt","Γκαζόζα","l",1.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(v).map(x=>x.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["g1","g2"],["k1","k2"]]);
+});
