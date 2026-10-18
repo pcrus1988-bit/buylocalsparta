@@ -44,9 +44,8 @@ SELECT
   COALESCE(NULLIF(fu.sampling_attributes->>'classificationVersion',''),'unknown'),
   COALESCE(NULLIF(fu.sampling_attributes->>'source',''),'unknown'),
   COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),'unknown'),
-  CASE WHEN regexp_replace(COALESCE(fu.sampling_attributes->>'postcode',''),'\\s','','g')
-    ~ '^[0-9]{5}$'
-    THEN left(regexp_replace(fu.sampling_attributes->>'postcode','\\s','','g'),3)
+  CASE WHEN length(regexp_replace(COALESCE(fu.sampling_attributes->>'postcode',''),'[^0-9]','','g'))=5
+    THEN left(regexp_replace(COALESCE(fu.sampling_attributes->>'postcode',''),'[^0-9]','','g'),3)
     ELSE NULL END
 FROM public.research_responses rr
 JOIN public.research_invites ri ON ri.id=rr.invite_id
