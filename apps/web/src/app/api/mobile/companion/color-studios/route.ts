@@ -30,10 +30,10 @@ export async function GET(request:Request){
       imagePath:/^\/api\/(catalog-source-image|media)\/[A-Za-z0-9_-]+$/.test(p.imageSrc)
         ?p.imageSrc:null
     }));
-  return Response.json({source:"konτα-moy-color-catalog",category,color:hex.toUpperCase(),
+  return Response.json({source:"kontamou_color_catalog",category,color:hex.toUpperCase(),
     products,degraded:catalog.length===0,availabilityConfirmed:false},{headers:NO_STORE});
  }catch{
-  return Response.json({source:"konτα-moy-color-catalog",category,color:hex.toUpperCase(),
+  return Response.json({source:"kontamou_color_catalog",category,color:hex.toUpperCase(),
     products:[],degraded:true,availabilityConfirmed:false},{status:503,headers:{"Cache-Control":"no-store"}});
  }
 }
