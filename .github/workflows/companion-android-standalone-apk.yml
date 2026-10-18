@@ -1,3 +1,5 @@
+# Companion Sport & Fit guided native Studio Preview internal APK rebuild (2026-10-18).
+# Separate preview application ID; no production APK signing or backend flag changes.
 # Build the native nine-Color-Studios Android Preview with real Color Finder catalogue.
 # Debug-key signed internal APK only; no production rollout or marketplace writes.
 # Rebuild standalone internal Preview to validate official-logo startup assembly.
