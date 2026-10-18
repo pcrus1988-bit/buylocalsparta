@@ -6,6 +6,8 @@ import {
   simulateExchangeDemand,
   createExchangeShowState,
   DEMO_ORDER_SEQUENCE,
+  DEMO_ORDER_INTERVAL_MS,
+  DEMO_CRASH_ORDER_INTERVAL_MS,
   DEMO_CRASH_DURATION_MS,
   DEMO_FEED_LIMIT,
   processExchangeDemoOrder,
@@ -69,26 +71,64 @@ test("public demo replays predefined orders in order and keeps bounded real-like
   }
 });
 
-test("manager-style crash immediately drops prices, freezes scripted orders and counts 60 seconds", () => {
+test("crash is a 60-second faster trading window, never an order halt", () => {
+  assert.ok(DEMO_CRASH_ORDER_INTERVAL_MS < DEMO_ORDER_INTERVAL_MS, "crash rush must speed up scripted trading");
   const before = processExchangeDemoOrder(createExchangeShowState(), 20_000);
   const crash = triggerExchangeDemoCrash(before, 25_000);
   assert.equal(crash.crashEndsAt, 25_000 + DEMO_CRASH_DURATION_MS);
   assert.equal(exchangeDemoSecondsRemaining(crash), 60);
   assert.equal(crash.crashes, 1);
+  assert.equal(crash.crashOrderCount, 0);
   assert.equal(crash.feed[0].kind, "crash");
   assert.ok(crash.drinks.every((d, i) => d.priceCents <= before.drinks[i].priceCents));
-  assert.strictEqual(processExchangeDemoOrder(crash, 30_000), crash, "orders must not occur during crash");
-  assert.strictEqual(triggerExchangeDemoCrash(crash, 27_000), crash, "duplicate crash cannot restart timer");
-  const almost = syncExchangeDemoClock(crash, 84_001);
+
+  // Same predefined queue keeps advancing; each crash order has a live feed entry.
+  const firstBuy = processExchangeDemoOrder(crash, 26_700);
+  assert.equal(firstBuy.orderCount, before.orderCount + 1);
+  assert.equal(firstBuy.crashOrderCount, 1);
+  assert.equal(firstBuy.feed[0].kind, "order");
+  assert.equal(firstBuy.feed[0].duringCrash, true);
+  assert.match(firstBuy.feed[0].detail, /CRASH BUY/);
+  assert.equal(firstBuy.nextOrderIndex, (before.nextOrderIndex + 1) % DEMO_ORDER_SEQUENCE.length);
+  assert.notDeepEqual(firstBuy.drinks, crash.drinks, "crash orders still move prices");
+  assert.strictEqual(triggerExchangeDemoCrash(firstBuy, 27_000), firstBuy, "duplicate crash does not restart timer");
+
+  let active = firstBuy;
+  for (let t = 28_400; t < 84_000; t += DEMO_CRASH_ORDER_INTERVAL_MS) {
+    active = processExchangeDemoOrder(active, t);
+  }
+  assert.ok(active.crashOrderCount > 30, "many orders remain active during the crash");
+  assert.equal(active.crashes, 1);
+  assert.equal(active.crashEndsAt, 85_000);
+  assert.equal(active.orderCount, before.orderCount + active.crashOrderCount);
+  assert.ok(active.feed.length <= DEMO_FEED_LIMIT);
+  for (const drink of active.drinks) {
+    assert.ok(drink.priceCents >= Math.ceil(drink.baseCents * 0.7 / 5) * 5);
+    assert.ok(drink.priceCents <= Math.floor(drink.baseCents * 1.45 / 5) * 5);
+  }
+
+  const almost = syncExchangeDemoClock(active, 84_001);
   assert.equal(exchangeDemoSecondsRemaining(almost), 1);
-  assert.equal(almost.crashEndsAt, 85_000);
-  const reopened = syncExchangeDemoClock(almost, 85_000);
-  assert.equal(reopened.crashEndsAt, null);
-  assert.equal(reopened.feed[0].kind, "reopen");
-  assert.equal(reopened.crashes, 1);
-  const next = processExchangeDemoOrder(reopened, 85_100);
-  assert.equal(next.orderCount, before.orderCount + 1, "queued demo sequence resumes");
-  assert.equal(next.feed[0].kind, "order");
+  const recovered = syncExchangeDemoClock(almost, 85_000);
+  assert.equal(recovered.crashEndsAt, null);
+  assert.equal(recovered.feed[0].kind, "recovery");
+  assert.equal(recovered.crashes, 1);
+  const next = processExchangeDemoOrder(recovered, 85_100);
+  assert.equal(next.orderCount, recovered.orderCount + 1, "ordinary orders continue seamlessly");
+  assert.equal(next.crashOrderCount, recovered.crashOrderCount);
+  assert.equal(next.feed[0].duringCrash, false);
   assert.equal(exchangeDemoSecondsRemaining(next), 0);
   assert.equal(createExchangeShowState().orderCount, 0, "reset restarts scripted show");
+  assert.equal(createExchangeShowState().crashOrderCount, 0);
+});
+
+test("order at the crash deadline both completes recovery and executes without being lost", () => {
+  const crash = triggerExchangeDemoCrash(createExchangeShowState(), 1_000);
+  const order = processExchangeDemoOrder(crash, 61_000);
+  assert.equal(order.crashEndsAt, null);
+  assert.equal(order.orderCount, 1);
+  assert.equal(order.crashOrderCount, 0);
+  assert.equal(order.feed[0].kind, "order");
+  assert.equal(order.feed[0].duringCrash, false);
+  assert.equal(order.feed[1].kind, "recovery");
 });
