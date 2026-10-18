@@ -20,10 +20,10 @@ export default async function DrinkStockPartnerPage({ params }: { params: Promis
     if (error && typeof error === "object" && "digest" in error) throw error;
     throw new Error("HOSPITALITY_PARTNER_UNAVAILABLE");
   }
-  return <main className={styles.main}>
+  return <main className={styles.main} data-drinkstock>
     <section className={styles.dashboardHeader}>
       <Link href="https://hospitality.kontamou.site/drinkStock/dashboard">← Συνεργασίες</Link>
-      <span className={styles.eyebrow}>DRINKSTOCK / PARTNER WORKSPACE</span>
+      <span className={styles.eyebrow}>DRINKSTOCK / VENUE CONTROL ROOM</span>
       <h1>{partner.partnerName}</h1>
       <p>Ο ρόλος σου: {partner.role}. Η προβολή περιορίζεται σε χώρους αυτού του συνεργάτη.</p>
     </section>
