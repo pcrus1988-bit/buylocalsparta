@@ -16,10 +16,13 @@ const errorText:Record<string,string>={
  PRODUCT_LIMIT_REACHED:"Έφτασες το όριο των 60 ποτών.",
  MARKET_ROLE_FORBIDDEN:"Δεν έχεις δικαίωμα αλλαγών για αυτόν τον χώρο.",
  MARKET_NOT_FOUND:"Δεν έχεις εξουσιοδότηση για τον συγκεκριμένο χώρο.",
- INVALID_CSRF:"Η συνεδρία χρειάζεται ανανέωση. Κάνε νέα σύνδεση."
+ INVALID_CSRF:"Η συνεδρία χρειάζεται ανανέωση. Κάνε νέα σύνδεση.",
+ BOUNDS_LOCKED_DURING_SESSION:"Για αλλαγή ορίων, σταμάτησε πρώτα τη συνεδρία.",
+ INVALID_PRICE_BOUNDS:"Επιτρεπτό εύρος: κατώτατο 50–100%, ανώτατο 100–200%.",
+ SESSION_ACTIVE:"Ο κατάλογος αλλάζει μόνο όταν η συνεδρία είναι σταματημένη."
 };
-type Action="add_product"|"demand"|"pause"|"resume"|"reset";
-type ActionBody={action:Action;requestKey:string;productId?:string;product?:{name:string;category:DrinkStockCategory;basePriceEuros:number}};
+type Action="add_product"|"demand"|"pause"|"resume"|"reset"|"set_bounds";
+type ActionBody={action:Action;requestKey:string;productId?:string;product?:{name:string;category:DrinkStockCategory;basePriceEuros:number};bounds?:{floorPercent:number;ceilingPercent:number}};
 export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
   initial:MarketSnapshot;partnerId:string;venueId:string;csrfToken:string
 }){
@@ -31,6 +34,8 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
  const [category,setCategory]=useState<DrinkStockCategory>("beer");
  const [price,setPrice]=useState("5.00");
  const [display,setDisplay]=useState(false);
+ const [floor,setFloor]=useState(String(initial.venue.bounds.floorPercent));
+ const [ceiling,setCeiling]=useState(String(initial.venue.bounds.ceilingPercent));
  const endpoint=`/api/hospitality/partners/${partnerId}/venues/${venueId}/market`;
  useEffect(()=>{
    const timer=window.setInterval(()=>{
@@ -53,6 +58,7 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
      const data=await response.json() as MarketSnapshot & {error?:string};
      if(!response.ok)throw new Error(data.error??"MARKET_UNAVAILABLE");
      setMarket(data);
+     if(body.action==="set_bounds"){setFloor(String(data.venue.bounds.floorPercent));setCeiling(String(data.venue.bounds.ceilingPercent));}
      setSuccess(body.action==="demand"?"Η εικονική ζήτηση υπολογίστηκε.":body.action==="add_product"?"Το ποτό προστέθηκε.":"Η κατάσταση ενημερώθηκε.");
      if(body.action==="add_product"){setName("");setPrice("5.00");}
    }catch(cause){
@@ -65,6 +71,16 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
    const euros=Number(price);
    if(!Number.isFinite(euros))return;
    void act({action:"add_product",product:{name,category,basePriceEuros:euros}});
+ }
+ function submitBounds(e:FormEvent<HTMLFormElement>){
+   e.preventDefault();
+   const floorPercent=Number(floor),ceilingPercent=Number(ceiling);
+   if(!Number.isInteger(floorPercent)||floorPercent<50||floorPercent>100||
+      !Number.isInteger(ceilingPercent)||ceilingPercent<100||ceilingPercent>200){
+     setError(errorText.INVALID_PRICE_BOUNDS);return;
+   }
+   if(!window.confirm("Νέα όρια ανά ποτό; Οι τιμές δοκιμής θα επανέλθουν στις αρχικές τιμές καταλόγου."))return;
+   void act({action:"set_bounds",bounds:{floorPercent,ceilingPercent}});
  }
  const active=market.venue.rehearsalEnabled;
  const total=market.products.length;
@@ -82,7 +98,7 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
    <div><span>LISTED DRINKS</span><strong>{total}</strong></div>
    <div><span>PRICES MOVED</span><strong>{moved}</strong></div>
    <div><span>MARKET SIGNALS</span><strong>{market.events.filter(e=>e.type==="demand").length}{market.events.length===20?"+":""}</strong></div>
-   <div><span>ENGINE</span><strong>± BOUNDED</strong></div>
+   <div><span>ENGINE</span><strong>{market.venue.bounds.floorPercent}%–{market.venue.bounds.ceilingPercent}%</strong></div>
   </div>
   <div className={styles.toolbar}>
    <div className={styles.toolbarInfo}><strong>🎛 MARKET CONTROLS</strong><span>Άσκηση διαχείρισης χωρίς POS, πραγματικό stock ή εισπράξεις.</span></div>
@@ -109,6 +125,20 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
        </article>;
      })}
    </section>}
+  {!display&&market.canManage&&<section className={styles.boundsEditor} aria-label="Pre-session pricing settings">
+   <div className={styles.heading}><span>PRE-SESSION CONTROLS / OWNER & MANAGER</span><h2>⚙️ Set the price boundaries</h2></div>
+   <p>Καθόρισε τα ποσοστά πριν την έναρξη. Κατά τη διάρκεια της συνεδρίας είναι κλειδωμένα. Η αποθήκευση επαναφέρει τις δοκιμαστικές τιμές στις αρχικές τους.</p>
+   <form onSubmit={submitBounds} className={styles.boundsForm}>
+    <label>Minimum (% of base price)
+     <input type="number" min="50" max="100" step="1" required value={floor} disabled={active||Boolean(busy)} onChange={e=>setFloor(e.target.value)}/>
+    </label>
+    <label>Maximum (% of base price)
+     <input type="number" min="100" max="200" step="1" required value={ceiling} disabled={active||Boolean(busy)} onChange={e=>setCeiling(e.target.value)}/>
+    </label>
+    <button type="submit" disabled={active||Boolean(busy)}>SAVE LIMITS ↗</button>
+   </form>
+   <small>{active?"🔒 Limits locked while rehearsal is running. Pause before making changes.":"Editable now: floor 50–100%, ceiling 100–200%. Default 70–145%."}</small>
+  </section>}
   {!display&&<div className={styles.lower}>
     <section className={styles.editor}>
       <div className={styles.heading}><span>01 / BUILD THE BOARD</span><h2>+ Add a drink</h2></div>
@@ -116,15 +146,15 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
        <label>Drink name<input maxLength={80} minLength={2} required value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Moscow Mule"/></label>
        <label>Category<select value={category} onChange={e=>setCategory(e.target.value as DrinkStockCategory)}>{Object.entries(categoryNames).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
        <label>Base price (€)<input type="number" min="1" max="2000" step=".01" required value={price} onChange={e=>setPrice(e.target.value)}/></label>
-       <button type="submit" disabled={Boolean(busy)||total>=60}>LIST DRINK ↗</button>
-       <small>Price band: 70–145% of starting price. Up to 60 entries per venue.</small>
+       <button type="submit" disabled={Boolean(busy)||total>=60||active}>LIST DRINK ↗</button>
+       <small>Current venue band: {market.venue.bounds.floorPercent}–{market.venue.bounds.ceilingPercent}% of base. Up to 60 entries per venue. Add drinks while session is paused.</small>
       </form>:<p>Μόνο ιδιοκτήτες και διαχειριστές μπορούν να επεξεργαστούν τον κατάλογο.</p>}
     </section>
     <section className={styles.history}>
       <div className={styles.heading}><span>02 / MARKET TAPE</span><h2>Recent activity</h2></div>
       {!market.events.length?<p className={styles.noEvents}>Καμία καταγεγραμμένη κίνηση μέχρι στιγμής.</p>:
        <ol>{market.events.map(e=><li key={e.id}>
-        <span>{e.type==="demand"?"⚡":e.type==="product_added"?"✚":e.type==="reset"?"↺":e.type==="rehearsal_paused"?"Ⅱ":"▶"} {e.type.replaceAll("_"," ").toUpperCase()}</span>
+        <span>{e.type==="demand"?"⚡":e.type==="product_added"?"✚":e.type==="reset"?"↺":e.type==="rehearsal_paused"?"Ⅱ":e.type==="bounds_updated"?"⚙":"▶"} {e.type.replaceAll("_"," ").toUpperCase()}</span>
         <small>{new Date(e.createdAt).toLocaleString("el-GR",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"2-digit"})} · {e.movements.filter(m=>m.deltaCents!==0).length} price moves</small>
        </li>)}</ol>}
     </section>
