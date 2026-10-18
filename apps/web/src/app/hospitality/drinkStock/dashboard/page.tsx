@@ -16,15 +16,15 @@ export default async function DrinkStockDashboard() {
     partners = await accessibleDrinkStockPartners(principal.userId);
   } catch {
     // Fail closed: never show partner data from a demo, stale cache or another tenant.
-    return <main className={styles.main}><section className={styles.authPane}>
+    return <main className={styles.main} data-drinkstock><section className={styles.authPane}>
       <h1>Δεν είναι διαθέσιμος ο χώρος συνεργάτη.</h1>
       <p>Δεν είναι προσωρινά δυνατή η επαλήθευση της πρόσβασης. Δοκίμασε ξανά αργότερα.</p>
     </section></main>;
   }
-  return <main className={styles.main}>
+  return <main className={styles.main} data-drinkstock>
     <section className={styles.dashboardHeader}>
-      <span className={styles.eyebrow}>DRINKSTOCK / PRIVATE WORKSPACE</span>
-      <h1>Οι συνεργασίες σου.</h1><HospitalityLogoutButton />
+      <span className={styles.eyebrow}>DRINKSTOCK / YOUR BACKSTAGE</span>
+      <h1>Your venues.</h1><HospitalityLogoutButton />
       <p>Εμφανίζονται αποκλειστικά οι επιχειρήσεις στις οποίες ο λογαριασμός σου έχει ενεργή ανάθεση.</p>
     </section>
     {partners.length ? <section className={styles.partnerGrid} aria-label="Authorized partner accounts">
@@ -32,7 +32,7 @@ export default async function DrinkStockDashboard() {
         <span>PARTNER / {partner.role.toUpperCase()}</span>
         <h2>{partner.partnerName}</h2>
         <p>{partner.venueCount} ενεργοί χώροι</p>
-        <Link className={styles.action} href={"/drinkStock/dashboard/" + partner.partnerId}>Άνοιγμα συνεργάτη ↗</Link>
+        <Link className={styles.action} href={"/drinkStock/dashboard/" + partner.partnerId}>Enter backstage ↗</Link>
       </article>)}
     </section> : <section className={styles.authPane}>
       <h2>Δεν υπάρχει ενεργή συνεργασία DrinkStock.</h2>
