@@ -34,7 +34,7 @@ export function HospitalityLoginForm() {
     <label htmlFor="hospitality-email">Email λογαριασμού KONTA MOY</label>
     <input id="hospitality-email" type="email" autoComplete="username" required value={email} onChange={event=>setEmail(event.target.value)} />
     <label htmlFor="hospitality-password">Κωδικός πρόσβασης</label>
-    <input id="hospitality-password" type="password" minLength={10} autoComplete="current-password" required value={password} onChange={event=>setPassword(event.target.value)} />
+    <input id="hospitality-password" type="password" autoComplete="current-password" required value={password} onChange={event=>setPassword(event.target.value)} />
     {error?<p className={styles.error} role="alert">{error}</p>:null}
     <button type="submit" disabled={busy}>{busy?"Έλεγχος…":"Σύνδεση στον χώρο συνεργάτη ↗"}</button>
   </form>;
