@@ -17,7 +17,7 @@ export default async function HospitalityLogin() {
       <p>Συνδέσου με τον εγγεγραμμένο λογαριασμό KONTA MOY που έχει εξουσιοδοτηθεί για συγκεκριμένη επιχείρηση hospitality.</p>
       <HospitalityLoginForm />
       <p className={styles.helpCopy}>Η εγγραφή στο KONTA MOY από μόνη της δεν επιτρέπει πρόσβαση στο DrinkStock. Απαιτείται ενεργή ανάθεση συνεργάτη και ενεργοποίηση εφαρμογής.</p>
-      <Link href="/drinkStock">← Επιστροφή στο DrinkStock</Link>
+      <Link href="https://hospitality.kontamou.site/drinkStock">← Επιστροφή στο DrinkStock</Link>
     </section>
   </main>;
 }
