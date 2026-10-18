@@ -70,6 +70,8 @@ export default function RootLayout() {
     }}>
       <Stack.Screen name="index" options={{title:"KONTA MOY"}} />
       <Stack.Screen name="shop" options={{title:"Αγορές"}} />
+      <Stack.Screen name="color-studios" options={{title:"Color Studios"}} />
+      <Stack.Screen name="color-studio" options={{title:"Color Finder"}} />
       <Stack.Screen name="stores" options={{title:"Καταστήματα"}} />
       <Stack.Screen name="basket" options={{title:"Καλάθι"}} />
       <Stack.Screen name="services" options={{title:"Όλες οι υπηρεσίες"}} />
