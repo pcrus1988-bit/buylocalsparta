@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "DrinkStock Venue Management", robots
 
 export default async function DrinkStockPartnerPage({ params }: { params: Promise<{ partnerId: string }> }) {
   const principal = await hospitalityIdentity();
-  if (!principal) redirect("/drinkStock/login");
+  if (!principal) redirect("/drinkstock/login");
   const { partnerId } = await params;
   let partner; let venues;
   try {
@@ -22,7 +22,7 @@ export default async function DrinkStockPartnerPage({ params }: { params: Promis
   }
   return <main className={styles.main}>
     <section className={styles.dashboardHeader}>
-      <Link href="https://hospitality.kontamou.site/drinkStock/dashboard">← Συνεργασίες</Link>
+      <Link href="https://hospitality.kontamou.site/drinkstock/dashboard">← Συνεργασίες</Link>
       <span className={styles.eyebrow}>DRINKSTOCK / PARTNER WORKSPACE</span>
       <h1>{partner.partnerName}</h1>
       <p>Ο ρόλος σου: {partner.role}. Η προβολή περιορίζεται σε χώρους αυτού του συνεργάτη.</p>
