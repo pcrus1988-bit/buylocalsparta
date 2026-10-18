@@ -200,7 +200,8 @@ export function planFiscalKybVaultTransition(current:unknown,next:unknown){
   deleted:[]
  };
  if(typeof current!=="string"||typeof next!=="string"||
-  !(current in transitions)||!transitions[current].includes(next))
+  !Object.prototype.hasOwnProperty.call(transitions,current)||
+  !transitions[current].includes(next))
   throw new Error("VAULT_STATE_TRANSITION_INVALID");
  return Object.freeze({
   from:current,to:next,transitionIsRecognized:true as const,
