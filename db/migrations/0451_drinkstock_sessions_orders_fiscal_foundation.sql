@@ -1,11 +1,86 @@
--- DrinkStock: scoped operations. All new rows are private server-side.
--- Payments, receipt issuance, and live order dispatch remain OFF until certified adapters are connected.
+-- DrinkStock scoped operations. Payment, receipts, live dispatch OFF pending authorized adapters.
 BEGIN;
--- Reconstruct the existing production hospitality foundation for clean CI databases.
--- Existing production tables are preserved by IF NOT EXISTS and no data is modified.
+-- Recreate the already-operational hospitality/rehearsal schema on fresh CI databases only.
+-- IF NOT EXISTS preserves all existing production tables and rows.
 CREATE TABLE IF NOT EXISTS public.hospitality_partners (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
- slug text NOT NULL UNIQUE CHECK(slug ~ '^[a-z0-9][a-z0-9-]{1,62}CREATE TABLE IF NOT EXISTS public.drinkstock_sessions (
+ slug text NOT NULL UNIQUE CHECK(slug ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
+ name text NOT NULL CHECK(length(btrim(name)) BETWEEN 2 AND 200),
+ status text NOT NULL DEFAULT 'active' CHECK(status IN ('active','suspended')),
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS public.hospitality_venues (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ partner_id uuid NOT NULL REFERENCES public.hospitality_partners(id) ON DELETE CASCADE,
+ name text NOT NULL CHECK(length(btrim(name)) BETWEEN 2 AND 200),
+ status text NOT NULL DEFAULT 'active' CHECK(status IN ('active','inactive')),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ UNIQUE(id,partner_id)
+);
+CREATE TABLE IF NOT EXISTS public.hospitality_partner_memberships (
+ partner_id uuid NOT NULL REFERENCES public.hospitality_partners(id) ON DELETE CASCADE,
+ user_id text NOT NULL CHECK(length(btrim(user_id)) BETWEEN 1 AND 200),
+ role text NOT NULL CHECK(role IN ('owner','manager','staff','viewer')),
+ status text NOT NULL DEFAULT 'active' CHECK(status IN ('active','revoked')),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(partner_id,user_id)
+);
+CREATE TABLE IF NOT EXISTS public.hospitality_partner_apps (
+ partner_id uuid NOT NULL REFERENCES public.hospitality_partners(id) ON DELETE CASCADE,
+ app_key text NOT NULL CHECK(app_key ~ '^[A-Za-z][A-Za-z0-9]{1,63}$'),
+ enabled boolean NOT NULL DEFAULT false,
+ PRIMARY KEY(partner_id,app_key)
+);
+CREATE TABLE IF NOT EXISTS public.drinkstock_venue_settings (
+ venue_id uuid NOT NULL,partner_id uuid NOT NULL,
+ rehearsal_enabled boolean NOT NULL DEFAULT false,
+ updated_at timestamptz NOT NULL DEFAULT now(),
+ floor_percent integer NOT NULL DEFAULT 70 CHECK(floor_percent BETWEEN 50 AND 100),
+ ceiling_percent integer NOT NULL DEFAULT 145 CHECK(ceiling_percent BETWEEN 100 AND 200),
+ PRIMARY KEY(venue_id,partner_id),
+ FOREIGN KEY(venue_id,partner_id) REFERENCES public.hospitality_venues(id,partner_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS public.drinkstock_products (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),venue_id uuid NOT NULL,partner_id uuid NOT NULL,
+ name text NOT NULL CHECK(length(btrim(name)) BETWEEN 2 AND 80),
+ category text NOT NULL CHECK(category IN ('beer','cocktail','spirits','wine','soft_drink','other')),
+ base_cents integer NOT NULL CHECK(base_cents BETWEEN 100 AND 200000),
+ price_cents integer NOT NULL CHECK(price_cents BETWEEN 50 AND 400000),
+ min_cents integer NOT NULL CHECK(min_cents >= 50),
+ max_cents integer NOT NULL CHECK(max_cents <= 400000),
+ active boolean NOT NULL DEFAULT true,
+ created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),
+ UNIQUE(id,venue_id,partner_id),
+ FOREIGN KEY(venue_id,partner_id) REFERENCES public.hospitality_venues(id,partner_id) ON DELETE CASCADE,
+ CONSTRAINT drinkstock_product_price_band CHECK(min_cents<=price_cents AND price_cents<=max_cents AND min_cents<=base_cents AND base_cents<=max_cents)
+);
+CREATE TABLE IF NOT EXISTS public.drinkstock_market_events (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),venue_id uuid NOT NULL,partner_id uuid NOT NULL,
+ request_key uuid NOT NULL,actor_user_id text NOT NULL CHECK(length(actor_user_id) BETWEEN 1 AND 200),
+ event_type text NOT NULL CHECK(event_type IN ('product_added','rehearsal_started','rehearsal_paused','demand','reset','bounds_updated')),
+ selected_product_id uuid,movements jsonb NOT NULL DEFAULT '[]'::jsonb CHECK(jsonb_typeof(movements)='array'),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ UNIQUE(venue_id,request_key),
+ FOREIGN KEY(venue_id,partner_id) REFERENCES public.hospitality_venues(id,partner_id) ON DELETE CASCADE,
+ FOREIGN KEY(selected_product_id,venue_id,partner_id) REFERENCES public.drinkstock_products(id,venue_id,partner_id)
+);
+CREATE INDEX IF NOT EXISTS hospitality_venues_partner_idx ON public.hospitality_venues(partner_id,status,name);
+CREATE INDEX IF NOT EXISTS hospitality_memberships_user_idx ON public.hospitality_partner_memberships(user_id,status,partner_id);
+CREATE INDEX IF NOT EXISTS drinkstock_products_venue_idx ON public.drinkstock_products(partner_id,venue_id,active,created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS drinkstock_products_venue_name_uq ON public.drinkstock_products(venue_id,lower(name));
+CREATE INDEX IF NOT EXISTS drinkstock_events_history_idx ON public.drinkstock_market_events(partner_id,venue_id,created_at DESC);
+ALTER TABLE public.hospitality_partners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hospitality_venues ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hospitality_partner_memberships ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hospitality_partner_apps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.drinkstock_venue_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.drinkstock_products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.drinkstock_market_events ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.hospitality_partners,public.hospitality_venues,public.hospitality_partner_memberships,
+ public.hospitality_partner_apps,public.drinkstock_venue_settings,public.drinkstock_products,
+ public.drinkstock_market_events FROM anon,authenticated;
+
+CREATE TABLE IF NOT EXISTS public.drinkstock_sessions (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  partner_id uuid NOT NULL,
  venue_id uuid NOT NULL,
