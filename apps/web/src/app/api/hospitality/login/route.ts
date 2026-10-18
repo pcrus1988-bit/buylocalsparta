@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       return Response.json({error:"INVALID_CREDENTIALS"},{status:401,headers:{"cache-control":"no-store"}});
     const memberships=await accessibleDrinkStockPartners(result.principal.userId);
     if(!memberships.length)
-      return Response.json({error:"INVALID_CREDENTIALS"},{status:403,headers:{"cache-control":"no-store"}});
+      return Response.json({error:"INVALID_CREDENTIALS"},{status:401,headers:{"cache-control":"no-store"}});
     (await cookies()).set({
       name:ACCOUNT_SESSION_COOKIE,
       value:result.token,
