@@ -91,7 +91,7 @@ export function applySportAnswer(input:SportAnswers,key:SportQuestionKey,value:s
   return {activity:clean as SportActivity,audience:input.audience};
  }
  if(key==="size"){
-  if(clean&&!/^(?:EU\\s*)?\\d{2}(?:[.,]5)?$/.test(clean))throw Error("INVALID_SIZE");
+  if(clean&&!/^(?:EU\s*)?\d{2}(?:[.,]5)?$/.test(clean))throw Error("INVALID_SIZE");
   return {...input,size:clean?clean.replace(",","."):undefined};
  }
  if(key==="footLength"){
