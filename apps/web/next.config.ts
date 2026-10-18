@@ -171,33 +171,40 @@ const nextConfig: NextConfig = {
   // media mutations to Daily-specific handlers so Daily CSRF/session validation is
   // enforced without weakening the ordinary /api/vendor/* authentication boundary.
   async rewrites() {
-    return [
-      {
-        source: "/",
-        has: [{ type: "host" as const, value: "hospitality.kontamou.site" }],
-        destination: "/hospitality"
-      },
-      {
-        source: "/drinkStock",
-        has: [{ type: "host" as const, value: "hospitality.kontamou.site" }],
-        destination: "/hospitality/drinkStock"
-      },
-      {
-        source: "/drinkStock/:path*",
-        has: [{ type: "host" as const, value: "hospitality.kontamou.site" }],
-        destination: "/hospitality/drinkStock/:path*"
-      },
-      {
-        source: "/api/vendor/media/intents",
-        has: [{ type: "cookie", key: "bls_daily_session" }],
-        destination: "/api/daily/quickadd/media/intents"
-      },
-      {
-        source: "/api/vendor/media/complete",
-        has: [{ type: "cookie", key: "bls_daily_session" }],
-        destination: "/api/daily/quickadd/media/complete"
-      }
-    ];
+    return {
+      // Must precede filesystem routes: otherwise the marketplace's existing "/"
+      // page shadows the hospitality gateway on its own hostname.
+      beforeFiles: [
+        {
+          source: "/",
+          has: [{ type: "host" as const, value: "hospitality.kontamou.site" }],
+          destination: "/hospitality"
+        },
+        {
+          source: "/drinkStock",
+          has: [{ type: "host" as const, value: "hospitality.kontamou.site" }],
+          destination: "/hospitality/drinkStock"
+        },
+        {
+          source: "/drinkStock/:path*",
+          has: [{ type: "host" as const, value: "hospitality.kontamou.site" }],
+          destination: "/hospitality/drinkStock/:path*"
+        }
+      ],
+      afterFiles: [
+        {
+          source: "/api/vendor/media/intents",
+          has: [{ type: "cookie", key: "bls_daily_session" }],
+          destination: "/api/daily/quickadd/media/intents"
+        },
+        {
+          source: "/api/vendor/media/complete",
+          has: [{ type: "cookie", key: "bls_daily_session" }],
+          destination: "/api/daily/quickadd/media/complete"
+        }
+      ],
+      fallback: []
+    };
   },
   async headers() {
     return [
