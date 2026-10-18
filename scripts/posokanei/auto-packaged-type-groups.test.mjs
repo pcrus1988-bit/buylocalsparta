@@ -762,3 +762,53 @@ test("single-word spinach-rice matches only exact unprepared family and corrobor
  assert.deepEqual(deriveAutoPackagedTypeGroups([...v.slice(0,2),
   p("contradiction","OTHER","OTHER Σπανακόρυζο 1kg","Γεύματα","kg",.5)]),[]);
 });
+
+test("October 17: Honey Rings are a named cereal family, not Choco Balls or other children's cereals",()=>{
+ const xs=[
+  p("h1","ECONOMY","ECONOMY Δημητριακά Honey Rings 375γρ","Παιδικά Δημητριακά","kg",.375),
+  p("h2","BONORA","BONORA Δημητριακά Honey Rings 375g","Παιδικά Δημητριακά","kg",.375),
+  p("choco","OTHER","OTHER Δημητριακά Choco Balls 375g","Παιδικά Δημητριακά","kg",.375),
+  p("sugar-free","BETA","BETA Δημητριακά Honey Rings Χωρίς Ζάχαρη 375g","Παιδικά Δημητριακά","kg",.375)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(xs).map(g=>g.memberIds),[["h1","h2"]]);
+});
+test("October 17: village-style wholegrain rusks stay separate from non-wholegrain and other bread types",()=>{
+ const xs=[
+  p("r1","ΑΒ ΕΠΙΛΟΓΗ","ΑΒ ΕΠΙΛΟΓΗ Φρυγανιές Χωριάτικες Ολικής Άλεσης 240g","Φρυγανιές","kg",.24),
+  p("r2","ΒΟΣΙΝΑΚΗ","ΒΟΣΙΝΑΚΗ Φρυγανιές Χωριάτικες Ολικής Άλεσης 240g","Φρυγανιές","kg",.24),
+  p("rOther","OTHER","OTHER Φρυγανιές Χωριάτικες 240g","Φρυγανιές","kg",.24),
+  p("rOrganic","BIO BRAND","BIO BRAND Φρυγανιές Χωριάτικες Βιολογικές Ολικής Άλεσης 240g","Φρυγανιές","kg",.24)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(xs).map(g=>g.memberIds),[["r1","r2"]]);
+});
+test("October 17: explicitly noncarbonated orangeade compares only within the same fizz variant",()=>{
+ const xs=[
+  p("o1","ΛΟΥΞ","ΛΟΥΞ Πορτοκαλάδα Χωρίς Ανθρακικό 330ml","Πορτοκαλάδες","l",.33),
+  p("o2","ΚΛΙΑΦΑ","ΚΛΙΑΦΑ Πορτοκαλάδα Χωρίς Ανθρακικό 1.5lt","Πορτοκαλάδες","l",1.5),
+  p("with-bubbles","OTHER","OTHER Πορτοκαλάδα 1.5lt","Πορτοκαλάδες","l",1.5),
+  p("no-sugar","OTHER2","OTHER2 Πορτοκαλάδα Χωρίς Ανθρακικό Χωρίς Ζάχαρη 330ml","Πορτοκαλάδες","l",.33)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(xs).map(g=>g.memberIds),[["o1","o2"]]);
+});
+test("October 17: wholegrain medium orzo and No10 spaghettini retain pasta shape and size",()=>{
+ const xs=[
+  p("or1","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Κριθαράκι Μέτριο Ολικής Άλεσης 500g","Κριθαράκι","kg",.5),
+  p("or2","MELISSA","MELISSA Κριθαράκι Μέτριο Ολικής Αλέσης 500g","Κριθαράκι","kg",.5),
+  p("orFine","OTHER","OTHER Κριθαράκι Ψιλό Ολικής Άλεσης 500g","Κριθαράκι","kg",.5),
+  p("sp1","WORLD'S MARKET","WORLD'S MARKET Σπαγγετίνη Νο10 Ολικής Άλεσης 500g","Σπαγγέτι","kg",.5),
+  p("sp2","MELISSA","MELISSA Σπαγγετίνη Ολικής Άλεσης Νο10 500gr","Σπαγγέτι","kg",.5),
+  p("sp5","OTHER2","OTHER2 Σπαγγετίνη Ολικής Άλεσης Νο5 500g","Σπαγγέτι","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(xs).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["or1","or2"],["sp1","sp2"]]);
+});
+test("wholegrain and without-carbonation allowances cannot waive unrelated specialty or dietary claims",()=>{
+ const xs=[
+  p("a","A","A Λεμονάδα Χωρίς Ανθρακικό 1lt","Λεμονάδες","l",1),
+  p("b","B","B Λεμονάδα Χωρίς Ανθρακικό 1lt","Λεμονάδες","l",1),
+  p("c","C","C Πορτοκαλάδα Χωρίς Ανθρακικό Zero 1lt","Πορτοκαλάδες","l",1),
+  p("d","D","D Πορτοκαλάδα Χωρίς Ανθρακικό Zero 1lt","Πορτοκαλάδες","l",1),
+  p("e","E","E Φρυγανιές Χωριάτικες Ολικής Άλεσης Vegan 240g","Φρυγανιές","kg",.24),
+  p("f","F","F Φρυγανιές Χωριάτικες Ολικής Άλεσης Vegan 240g","Φρυγανιές","kg",.24)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(xs),[]);
+});
