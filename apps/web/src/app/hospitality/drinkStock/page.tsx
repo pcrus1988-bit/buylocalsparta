@@ -39,7 +39,7 @@ export default function DrinkStockLanding() {
           <a href="#how-it-works">HOW IT WORKS</a>
           <a href="#for-venues" className={styles.navVenue}>FOR VENUES</a>
         </nav>
-        <Link href="/drinkstock/login" className={styles.partnerLink}>PARTNER LOGIN <span aria-hidden="true">↗</span></Link>
+        <a href="/drinkstock/login" className={styles.partnerLink}>PARTNER LOGIN <span aria-hidden="true">↗</span></a>
       </header>
 
       <section className={styles.hero} aria-labelledby="drinkstock-hero-title">
@@ -107,7 +107,7 @@ export default function DrinkStockLanding() {
         <div className={styles.venueGrid}>
           {CAPABILITIES.map((feature) => <article className={styles.venueCard} key={feature.code}><div className={styles.venueSymbol} aria-hidden="true">{feature.symbol}</div><span>{feature.code}</span><h3>{feature.title}</h3><p>{feature.description}</p></article>)}
         </div>
-        <div className={styles.venueCallout}><div><strong>YOUR VENUE. YOUR RULES.</strong><p>Partner workspaces are accessible only to specifically authorized registered users. No generic marketplace account can access venue data.</p></div><Link href="/drinkstock/login" className={styles.ctaPrimary}>PARTNER ACCESS <span aria-hidden="true">↗</span></Link></div>
+        <div className={styles.venueCallout}><div><strong>YOUR VENUE. YOUR RULES.</strong><p>Partner workspaces are accessible only to specifically authorized registered users. No generic marketplace account can access venue data.</p></div><a href="/drinkstock/login" className={styles.ctaPrimary}>PARTNER ACCESS <span aria-hidden="true">↗</span></a></div>
       </section>
 
       <section className={styles.outro} aria-labelledby="drinkstock-outro-title">
@@ -119,7 +119,7 @@ export default function DrinkStockLanding() {
 
       <footer className={styles.footer}>
         <div className={styles.footerBrand}><strong>DRINK<span>STOCK</span> ↗</strong><small>A KONTA MOY HOSPITALITY EXPERIENCE</small></div>
-        <div className={styles.footerLinks}><a href="#exchange">DEMO</a><Link href="/drinkstock/login">PARTNERS</Link><Link href="/">HOSPITALITY GATEWAY</Link></div>
+        <div className={styles.footerLinks}><a href="#exchange">DEMO</a><a href="/drinkstock/login">PARTNERS</a><Link href="/">HOSPITALITY GATEWAY</Link></div>
         <p>Concept demo only. No real trading, ordering or payment functionality. Developed in Sparta for Greece.</p>
       </footer>
     </main>
