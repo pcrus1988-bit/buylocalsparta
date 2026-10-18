@@ -25,3 +25,7 @@ This directory versions the exact deployed Edge Function `nyxi-acquisition-worke
 Before expanding the queue: 303 registry records, three distinct archived FDA sources, 85 snapshots, 742 extracted private fragments, three authorized assets. After first production expansion and worker deployment: 32 authorized exact public-government HTML assets, 21 distinct archived sources, 103 snapshots, 777 private fragments. More processing runs are scheduled. Zero Drive mirrors and zero public release approvals were granted.
 
 These baseline counts are observations, not promises of ingesting all 303 sources. Broad manufacturer catalogues, SDS, ECHA registries, and linked images/documents remain outside this queue pending documented rights and technical checks.
+
+## Failure diagnostics (production worker v11, 18 Oct 2026)
+
+The worker now stores a short, redacted error detail alongside each unsuccessful acquisition in the internal approval metadata (`last_worker_error_detail`) and per-run response (`error_detail`). The detail is capped at 200 characters; bearer tokens and 64-character hexadecimal strings are redacted. Errors keep the same 24-hour backoff and never cause unauthorized retries or bypass a 403, redirect restriction, crawl delay or approval requirement. This is for diagnosing Australian upstream/collector failures without exposing private evidence or secret credentials.
