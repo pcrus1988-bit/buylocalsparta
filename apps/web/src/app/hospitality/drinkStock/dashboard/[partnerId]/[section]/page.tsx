@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import styles from "../../../hospitality.module.css";
+import styles from "../../../../hospitality.module.css";
 
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"DrinkStock Partner Module",robots:{index:false,follow:false}};
