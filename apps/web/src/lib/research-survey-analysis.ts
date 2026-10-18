@@ -547,19 +547,21 @@ export async function runGreekRetailAnalysis(
     )
     SELECT
       r.id AS response_id,
-      su.stratum_id,
+      COALESCE(su.stratum_id,ctx.stratum_id) AS stratum_id,
       st.code AS stratum_code,
-      COALESCE(fu.region_code,'unknown') AS region_code,
-      COALESCE(fu.sector_code,'unknown') AS sector_code,
-      su.base_weight
+      COALESCE(fu.region_code,ctx.region_code,'unknown') AS region_code,
+      COALESCE(fu.sector_code,ctx.sector_code,'unknown') AS sector_code,
+      COALESCE(su.base_weight,ctx.base_weight) AS base_weight
     FROM research_responses r
     JOIN research_invites ri ON ri.id=r.invite_id AND ri.fieldwork_phase='main'
-    JOIN research_sample_units su ON su.id=ri.sample_unit_id AND su.sample_draw_id=$3
-    JOIN research_strata st ON st.id=su.stratum_id
-    JOIN research_frame_units fu ON fu.id=su.frame_unit_id
+    LEFT JOIN research_sample_units su ON su.id=ri.sample_unit_id
+    LEFT JOIN research_frame_units fu ON fu.id=su.frame_unit_id
+    LEFT JOIN research_response_design_context ctx ON ctx.response_id=r.id
+    JOIN research_strata st ON st.id=COALESCE(su.stratum_id,ctx.stratum_id)
     LEFT JOIN latest_quality q ON q.response_id=r.id
     WHERE r.study_id=$1
       AND r.wave_id=$2
+      AND COALESCE(su.sample_draw_id,ctx.sample_draw_id)=$3
       AND r.status='completed'
       AND COALESCE(q.decision,'include') <> 'exclude'
     ORDER BY r.id
