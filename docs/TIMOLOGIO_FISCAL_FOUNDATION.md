@@ -506,3 +506,45 @@ A future merchant document-submission path is deliberately **not** part of
 M28. It requires a separately approved encrypted storage, malware scanning,
 retention/deletion policy, file-type/size controls, legally scoped consent,
 operator access audit, tenant isolation, and production readiness gate.
+
+## Milestone 29 — local-only KYB preparation and safe upload security contract (18 October 2026)
+
+The existing, tenant-protected merchant onboarding view now includes an
+interactive, mobile-responsive, seven-step **evidence preparation checklist**.
+Each step explains example source material and a specific privacy caution.
+Only organization owners and accountants who pass the M27 membership and
+review-state gate can see the checklist.
+
+- Checks live **only** in React component memory; refreshing or navigating
+  away discards them. No local storage, session storage, indexed database,
+  document collection, personal free text, telemetry, fetch, API write,
+  uploads or communications occur.
+- Each check is distinct from the existing operator KYB evidence state.
+  Checking all seven never changes an organization status, approves identity,
+  confirms document validity, signs a contract or enables issuance.
+- A pure, unit-tested *future attachment metadata policy* defines strict
+  allowlist candidates (PDF/PNG/JPEG, maximum 5 MiB), conservative ASCII
+  filenames, SHA-256 metadata, no dot-dot/double-extension paths, and
+  mandatory subsequent magic-byte validation and malware scanning. These
+  are **metadata only**, not sufficient to accept, persist or process bytes.
+- A separately tested storage-readiness contract tracks private-bucket,
+  tenant isolation, at-rest encryption, malware quarantine, access auditing,
+  retention/deletion, legal basis, incident drills and operator MFA.
+  Even with every technical input true, its immutable result is always
+  `acceptingUploads=false`, `goLiveApprovalConfirmed=false`,
+  `automaticKybApproval=false`, `issuanceEnabled=false`.
+- No upload endpoint, blob storage, storage credentials, migrations,
+  background processors, account transition, browser file reader, legal
+  issuance or myDATA/AADE transmission was introduced. Shipping this module
+  **does not** constitute an operational merchant evidence intake.
+- Dedicated CI verifies the local-only behavior and privacy limits in
+  addition to existing M27 membership isolation, KYB queue and standalone
+  Next.js build checks.
+
+To create a future *real* merchant document submission process, the owner
+must explicitly approve a lawful purpose/minimization/retention plan, and
+the team must separately provision a private EU-resident object store,
+per-object encryption, malware quarantine and out-of-band scan verification,
+short-lived single-use tenant-scoped authorization, immutable operator access
+audits, deletion/expiry, verified account recovery and a safe rollout.
+None of these external conditions are presumed complete.

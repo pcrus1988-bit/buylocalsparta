@@ -102,3 +102,16 @@
 .fiscal-readiness-restricted,.fiscal-readiness-unavailable{border-left:4px solid #85949a}
 @media(max-width:650px){.fiscal-readiness-steps{grid-template-columns:1fr}
  .fiscal-readiness-card{padding:14px}}
+
+/* M29: nonpersistent merchant evidence preparation. */
+.fiscal-kyb-prep-topline{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:15px 0}
+.fiscal-kyb-prep-topline p{margin:0}
+.fiscal-kyb-prep-list{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.fiscal-kyb-prep-item{border:1px solid #d6e7df;border-radius:12px;background:#fff;padding:16px;min-width:0}
+.fiscal-kyb-prep-item p{font-size:.87rem;line-height:1.55}
+.fiscal-kyb-prep-item small{display:block;color:#55716f;font-size:.77rem}
+.fiscal-kyb-prep-check{display:flex;align-items:flex-start;gap:12px;cursor:pointer}
+.fiscal-kyb-prep-check input{width:20px;height:20px;min-width:20px;accent-color:#216d50;margin:2px 0 0}
+.fiscal-kyb-prep-check span{display:grid;gap:4px}
+.fiscal-kyb-prep-check strong{color:#153d33;font-size:.96rem}
+@media(max-width:680px){.fiscal-kyb-prep-list{grid-template-columns:1fr}.fiscal-kyb-prep-item{padding:13px}}

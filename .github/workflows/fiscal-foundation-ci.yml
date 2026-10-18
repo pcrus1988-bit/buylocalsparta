@@ -87,6 +87,8 @@ jobs:
         run: node --test scripts/fiscal-sso-origin-policy.test.mjs
       - name: Verify operator KYB queue priorities and redacted SQL
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-review-queue.test.ts
+      - name: Verify local-only evidence preparation and fail-closed storage contract
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-evidence-preparation.test.ts
       - name: Verify merchant KYB progress never exposes records or grants approval
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-merchant-kyb-progress.test.ts
       - name: Verify strictly bounded KYB evidence checklist and non-approval states

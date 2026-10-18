@@ -2,6 +2,7 @@ import Link from "next/link";
 import {notFound,redirect} from "next/navigation";
 import {fiscalMerchantAccounts,getFiscalActor} from "../../../lib/fiscal-auth";
 import {loadFiscalMerchantKybProgress} from "../../../lib/fiscal-merchant-kyb-store";
+import {FiscalKybPreparationChecklist} from "../../../components/FiscalKybPreparationChecklist";
 
 export const dynamic="force-dynamic";
 
@@ -58,5 +59,6 @@ export default async function FiscalMerchantOnboarding({
    <div className="fiscal-actions"><Link className="fiscal-button secondary" style={{color:"#10323c"}}
     href="/timologio/dashboard">Επιστροφή στον λογαριασμό</Link></div>
   </section>
+  {active&&summary?<FiscalKybPreparationChecklist progressRows={summary.rows}/>:null}
  </div></main>;
 }
