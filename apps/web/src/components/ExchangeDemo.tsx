@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   createExchangeShowState,
   DEMO_ORDER_INTERVAL_MS,
+  DEMO_CRASH_ORDER_INTERVAL_MS,
   DEMO_ORDER_SEQUENCE,
   exchangeDemoSecondsRemaining,
   processExchangeDemoOrder,
@@ -61,18 +62,18 @@ function playCrashAlarm() {
 export function ExchangeDemo() {
   const [market, setMarket] = useState(createExchangeShowState);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const crashing = market.crashEndsAt !== null;
 
-  // This predefined loop produces a believable trade feed without any backend
-  // access and without creating any venue orders or real transactions.
+  // Orders always continue: the 60s crash increases the scripted order pace.
+  // The switch back to normal speed is automatic when the crash deadline ends.
   useEffect(() => {
     const ticker = window.setInterval(() => {
       setMarket((previous) => processExchangeDemoOrder(previous, Date.now()));
-    }, DEMO_ORDER_INTERVAL_MS);
+    }, crashing ? DEMO_CRASH_ORDER_INTERVAL_MS : DEMO_ORDER_INTERVAL_MS);
     return () => window.clearInterval(ticker);
-  }, []);
+  }, [crashing]);
 
-  // Wall-clock deadline rather than decrementing counters: background tabs
-  // cannot accidentally extend the manager's 60-second market interruption.
+  // Wall-clock deadline: background tabs cannot extend the 60s crash rush.
   useEffect(() => {
     const clock = window.setInterval(() => {
       setMarket((previous) => syncExchangeDemoClock(previous, Date.now()));
@@ -80,7 +81,6 @@ export function ExchangeDemo() {
     return () => window.clearInterval(clock);
   }, []);
 
-  const crashing = market.crashEndsAt !== null;
   const secondsRemaining = exchangeDemoSecondsRemaining(market);
   const timerText = String(Math.floor(secondsRemaining / 60)).padStart(2, "0")
     + ":" + String(secondsRemaining % 60).padStart(2, "0");
@@ -127,7 +127,7 @@ export function ExchangeDemo() {
           </div>
           <div className={[styles.marketState, crashing ? styles.marketStateCrash : ""].join(" ")}>
             <span className={styles.liveDot} aria-hidden="true" />
-            {crashing ? "CRASH EVENT ACTIVE" : "SIMULATED MARKET OPEN"}
+            {crashing ? "CRASH RUSH · TRADING LIVE" : "SIMULATED MARKET OPEN"}
           </div>
         </div>
 
@@ -135,7 +135,15 @@ export function ExchangeDemo() {
           <div className={styles.crashStrip} role="timer" aria-label={"Market crash ends in " + secondsRemaining + " seconds"}>
             <span className={styles.crashEyebrow}>⚠ MANAGER INITIATED MARKET CRASH</span>
             <div className={styles.crashCounter}>{timerText}</div>
-            <div className={styles.crashSubtitle}>MARKET HALTED · ORDERS PAUSED · REOPENING IN</div>
+            <div className={styles.crashSubtitle}>BUY THE DIP! · ORDERS STILL FLOWING · CRASH ENDS IN</div>
+            <div className={styles.crashOrderTally}><span>⚡ {market.crashOrderCount} CRASH ORDERS</span><span>TRADES EVERY 1.7s</span></div>
+            {market.crashOrderCount > 0 && market.feed[0]?.kind === "order" && (
+              <div className={styles.crashOrderSplash} key={market.orderCount} aria-hidden="true">
+                <span>⚡ NEW BUY</span>
+                <strong>{market.feed[0].label}</strong>
+                <small>PRICE MOVED ↗</small>
+              </div>
+            )}
             <div className={styles.crashProgress} aria-hidden="true"><span style={{ width: (secondsRemaining / 60 * 100) + "%" }} /></div>
           </div>
         )}
@@ -167,7 +175,7 @@ export function ExchangeDemo() {
                 const movePercent = drink.lastDeltaCents !== 0 && previousPrice > 0
                   ? Math.abs(drink.lastDeltaCents / previousPrice * 100).toFixed(1) : "0.0";
                 return (
-                  <article className={[styles.drinkCard, market.lastOrderDrinkId === drink.id && !crashing ? styles.recentlyOrdered : ""].join(" ")} key={drink.id}>
+                  <article className={[styles.drinkCard, market.lastOrderDrinkId === drink.id ? styles.recentlyOrdered : ""].join(" ")} key={drink.id}>
                     <div className={styles.drinkTop}>
                       <span className={styles.drinkEmoji} aria-hidden="true">{personalities[drink.id]?.icon || "🥂"}</span>
                       <span className={[styles.movement, drink.lastDeltaCents > 0 ? styles.rising : drink.lastDeltaCents < 0 ? styles.falling : styles.unchanged].join(" ")}>
@@ -179,9 +187,12 @@ export function ExchangeDemo() {
                     <div className={styles.drinkDescription}>{drink.description}</div>
                     <div className={styles.priceRow}><strong>{currency.format(drink.priceCents / 100)}</strong><small>SIMULATED PRICE</small></div>
                     <div className={styles.autoTradeTag}>
-                      <span aria-hidden="true">{market.lastOrderDrinkId === drink.id && !crashing ? "●" : "↗"}</span>
-                      {market.lastOrderDrinkId === drink.id && !crashing ? "LATEST ORDER" : "AUTOMATED TRADING"}
+                      <span aria-hidden="true">{market.lastOrderDrinkId === drink.id ? "●" : "↗"}</span>
+                      {market.lastOrderDrinkId === drink.id ? (crashing ? "⚡ CRASH BUY" : "LATEST ORDER") : "AUTOMATED TRADING"}
                     </div>
+                    {market.lastOrderDrinkId === drink.id && (
+                      <span className={crashing ? styles.crashCardBurst : styles.orderCardBurst} key={market.orderCount} aria-hidden="true">+1 TRADE ↗</span>
+                    )}
                   </article>
                 );
               })}
@@ -194,18 +205,18 @@ export function ExchangeDemo() {
                 <span className={styles.feedCounter}>{String(market.orderCount).padStart(3, "0")}</span>
               </div>
               <div className={styles.feedNext}>
-                <span>UP NEXT {crashing ? "· ON HOLD" : "· AUTO-QUEUE"}</span>
+                <span>UP NEXT {crashing ? "· BUY THE DIP" : "· AUTO-QUEUE"}</span>
                 <strong>{nextOrder.quantity}× {nextDrink?.name || nextOrder.drinkId}</strong>
-                <small>{nextOrder.table} · {crashing ? "RESUMES AFTER CRASH" : "EVERY 4.5 SECONDS"}</small>
+                <small>{nextOrder.table} · {crashing ? "EVERY 1.7 SECONDS" : "EVERY 4.5 SECONDS"}</small>
               </div>
               <div className={styles.feedEntries} aria-live="off">
                 {market.feed.length === 0 && (
                   <p className={styles.feedEmpty}>Order stream connecting…<br />The first simulated round appears automatically.</p>
                 )}
                 {market.feed.map((event) => (
-                  <div className={[styles.feedEntry, event.kind === "crash" ? styles.feedCrash : event.kind === "reopen" ? styles.feedReopen : ""].join(" ")} key={event.id}>
+                  <div className={[styles.feedEntry, event.kind === "crash" ? styles.feedCrash : event.kind === "recovery" ? styles.feedReopen : event.duringCrash ? styles.feedCrashOrder : ""].join(" ")} key={event.id}>
                     <div className={styles.feedEntryTop}>
-                      <span>{event.kind === "order" ? "● ORDER FILLED" : event.kind === "crash" ? "⚠ HALT" : "● REOPENED"}</span>
+                      <span>{event.kind === "order" ? event.duringCrash ? "⚡ CRASH BUY" : "● ORDER FILLED" : event.kind === "crash" ? "⚠ CRASH START" : "✓ CRASH ENDED"}</span>
                       <time>{event.time}</time>
                     </div>
                     <strong>{event.label}</strong>
@@ -252,7 +263,7 @@ export function ExchangeDemo() {
         </div>
       </div>
       <p className={styles.disclaimer}>
-        Όλες οι «παραγγελίες» και οι τιμές είναι προσχεδιασμένη, τοπική προσομοίωση. Το δημόσιο κουμπί crash προσομοιώνει ενέργεια manager και δεν ελέγχει πραγματικό κατάστημα. Ο ήχος παίζει μόνο μετά από κλικ και μπορεί να απενεργοποιηθεί. Δεν γίνονται πραγματικές παραγγελίες, πληρωμές ή συνδέσεις POS.
+        Οι εικονικές παραγγελίες συνεχίζονται και επιταχύνονται στη διάρκεια του 60-δευτερολέπτου crash. Όλες οι «παραγγελίες» και οι τιμές είναι προσχεδιασμένη, τοπική προσομοίωση. Το δημόσιο κουμπί crash προσομοιώνει ενέργεια manager και δεν ελέγχει πραγματικό κατάστημα. Ο ήχος παίζει μόνο μετά από κλικ και μπορεί να απενεργοποιηθεί. Δεν γίνονται πραγματικές παραγγελίες, πληρωμές ή συνδέσεις POS.
       </p>
     </section>
   );
