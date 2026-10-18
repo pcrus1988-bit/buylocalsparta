@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {grossVatSplit,mayAdvanceOrder,assertQuoteIsLive} from "./drinkstock-commerce-policy";
 import {validateSessionAction,SessionError} from "./drinkstock-session-service";
+import {validateFulfilmentAction,FulfilmentError} from "./drinkstock-fulfilment-service";
 const key="11111111-1111-4111-8111-111111111111";
 test("VAT split is inclusive and cent preserving",()=>{
  const r=grossVatSplit(1240,2400);
@@ -15,6 +16,16 @@ test("No fulfilment without confirmed payment",()=>{
  assert.equal(mayAdvanceOrder("ready","served","paid"),true);
  assert.equal(mayAdvanceOrder("served","ready","paid"),false);
  assert.equal(mayAdvanceOrder("served","refunded","refunded"),true);
+});
+test("staff fulfilment rejects fabricated order actions and states",()=>{
+ const command=validateFulfilmentAction({orderId:key,requestKey:key,next:"accepted"});
+ assert.equal(command.next,"accepted");
+ for(const action of [
+  {orderId:key,requestKey:key,next:"paid"},
+  {orderId:key,requestKey:key,next:"refunded"},
+  {orderId:"wrong",requestKey:key,next:"ready"},
+  {orderId:key,requestKey:"wrong",next:"served"}
+ ])assert.throws(()=>validateFulfilmentAction(action),FulfilmentError);
 });
 test("Expired quotes must be requoted",()=>{
  assert.equal(assertQuoteIsLive(1000,15999),true);
