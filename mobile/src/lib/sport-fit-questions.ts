@@ -86,6 +86,7 @@ export function sportQuestion(activity:SportActivity,key:SportQuestionKey):Sport
 }
 export function applySportAnswer(input:SportAnswers,key:SportQuestionKey,value:string):SportAnswers{
  const clean=value.trim();
+ if(key!=="activity"&&!sportQuestionSequence(input.activity).includes(key))throw Error("INAPPLICABLE_QUESTION");
  if(key==="activity"){
   if(!SPORT_ACTIVITIES.some(x=>x.key===clean))throw Error("INVALID_ACTIVITY");
   return {activity:clean as SportActivity,audience:input.audience};
