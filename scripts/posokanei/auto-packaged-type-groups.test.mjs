@@ -724,3 +724,41 @@ test("dated source: plain kefir and gazosa families remain independently typed b
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(v).map(x=>x.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["g1","g2"],["k1","k2"]]);
 });
+
+test("Oct17 frozen broccoli, bulgur and sliced mushrooms match only the named type",()=>{
+ const v=[
+ p("b1","ΜΠΑΡΜΠΑ ΣΤΑΘΗΣ","ΜΠΑΡΜΠΑ ΣΤΑΘΗΣ Μπρόκολο 750g","Κατεψυγμένο Μπρόκολο","kg",.75),
+ p("b2","ΑΙΝΟΣ","ΑΙΝΟΣ Μπρόκολο 750g","Κατεψυγμένο Μπρόκολο","kg",.75),
+ p("bu1","MR GRAND","MR GRAND Πλιγούρι 500gr","Πλιγούρι","kg",.5),
+ p("bu2","FYTRO","FYTRO Πλιγούρι 500g","Πλιγούρι","kg",.5),
+ p("m1","ARDO","ARDO Μανιτάρια σε Φέτες 350g","Κατεψυγμένα Μανιτάρια","kg",.35),
+ p("m2","ΜΠΑΡΜΠΑ ΣΤΑΘΗΣ","ΜΠΑΡΜΠΑ ΣΤΑΘΗΣ Μανιτάρια σε φέτες 450g","Κατεψυγμένα Μανιτάρια","kg",.45),
+ p("whole","OTHER","OTHER Μανιτάρια Ολόκληρα 450g","Κατεψυγμένα Μανιτάρια","kg",.45)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(v).map(x=>x.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["b1","b2"],["bu1","bu2"],["m1","m2"]]);
+});
+test("Oct17 wafer, dark-chocolate granola, milk candy and PDO graviera keep exact subtypes",()=>{
+ const v=[
+ p("w1","LACTA","LACTA Γκοφρέτα Σοκολάτα Γάλακτος 28.5gr","Γκοφρέτες με Σοκολάτα Γάλακτος","kg",.0285),
+ p("w2","BONORA","BONORA Γκοφρέτα με Σοκολάτα Γάλακτος 33g","Γκοφρέτες με Σοκολάτα Γάλακτος","kg",.033),
+ p("wWhite","OTHER","OTHER Γκοφρέτα Λευκή Σοκολάτα 33g","Γκοφρέτες με Σοκολάτα Γάλακτος","kg",.033),
+ p("g1","NUTRI VALLEY","NUTRI VALLEY Δημητριακά Granola με Μαύρη Σοκολάτα 320g","Γκρανόλα","kg",.32),
+ p("g2","MR GRAND","MR GRAND Granola Δημητριακά Με Μαύρη Σοκολάτα 375γρ","Γκρανόλα","kg",.375),
+ p("c1","ΛΑΒΔΑΣ","ΛΑΒΔΑΣ Καραμέλες Γάλακτος 300g","Καραμέλες","kg",.3),
+ p("c2","ΑΒ","ΑΒ Καραμέλες Γάλακτος 250γρ","Καραμέλες","kg",.25),
+ p("ch1","ΝΩΜΑ","ΝΩΜΑ Γραβιέρα Κρήτης Π.Ο.Π. 350g","Γραβιέρα","kg",.35),
+ p("ch2","ΓΑΛΠΟ","ΓΑΛΠΟ Γραβιέρα Κρήτης Π.Ο.Π. 400g","Γραβιέρα","kg",.4),
+ p("chDiff","OTHER","OTHER Γραβιέρα Νάξου Π.Ο.Π. 400g","Γραβιέρα","kg",.4)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(v).map(x=>x.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["c1","c2"],["ch1","ch2"],["g1","g2"],["w1","w2"]]);
+});
+test("single-word spinach-rice matches only exact unprepared family and corroborated packs",()=>{
+ const v=[
+ p("s1","ΑΙΝΟΣ","ΑΙΝΟΣ Σπανακόρυζο 1kg","Γεύματα","kg",1),
+ p("s2","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Σπανακόρυζο 1kg","Γεύματα","kg",1),
+ p("ready","OTHER","OTHER Σπανακόρυζο Έτοιμο 1kg","Γεύματα","kg",1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(v).map(x=>x.memberIds),[["s1","s2"]]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups([...v.slice(0,2),
+  p("contradiction","OTHER","OTHER Σπανακόρυζο 1kg","Γεύματα","kg",.5)]),[]);
+});
