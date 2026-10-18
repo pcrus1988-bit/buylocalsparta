@@ -85,13 +85,13 @@ export async function researchKadCoverageAudit(
       SELECT version,source,count(*)::int n
       FROM eligible GROUP BY version,source ORDER BY n DESC,version,source`,[study.id]),
     pool.query<SqlRow>(scoped+`
-      SELECT LEFT(k.code,4) AS code,count(DISTINCT e.id)::int n
+      SELECT LEFT(regexp_replace(k.code,'[^0-9]','','g'),4) AS code,count(DISTINCT e.id)::int n
       FROM eligible e
       CROSS JOIN LATERAL jsonb_array_elements_text(
         CASE WHEN jsonb_typeof(e.matched)='array' THEN e.matched ELSE '[]'::jsonb END
       ) k(code)
-      WHERE k.code ~ '^[0-9]{8}$'
-      GROUP BY LEFT(k.code,4) ORDER BY n DESC,code LIMIT 45`,[study.id])
+      WHERE length(regexp_replace(k.code,'[^0-9]','','g'))=8
+      GROUP BY LEFT(regexp_replace(k.code,'[^0-9]','','g'),4) ORDER BY n DESC,code LIMIT 45`,[study.id])
   ]);
   const row=totals.rows[0]??{};
   const retired=await pool.query<SqlRow>(
