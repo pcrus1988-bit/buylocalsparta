@@ -22,3 +22,15 @@ export function hospitalityPrivatePath(pathname: string): boolean {
   return pathname === "/drinkStock/dashboard" ||
     pathname.startsWith("/drinkStock/dashboard/");
 }
+/**
+ * Map only explicitly exposed hospitality URLs to their internal Next.js pages.
+ * Proxy rewrites run before filesystem route matching; config rewrites alone can
+ * allow the marketplace root page to win on the hospitality hostname.
+ */
+export function hospitalityRewritePath(pathname: string): string | undefined {
+  if (pathname === "/") return "/hospitality";
+  if (pathname === "/drinkStock" || pathname.startsWith("/drinkStock/")) {
+    return `/hospitality${pathname}`;
+  }
+  return undefined;
+}
