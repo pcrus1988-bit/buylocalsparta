@@ -24,7 +24,7 @@ export function HospitalityLoginForm() {
       if(!response.ok)throw new Error(response.status===503
         ?"Η επαλήθευση δεν είναι προσωρινά διαθέσιμη."
         :"Δεν είναι δυνατή η σύνδεση ή δεν υπάρχει ενεργή εξουσιοδότηση DrinkStock.");
-      router.replace("/drinkStock/dashboard");
+      router.replace("/drinkstock/dashboard");
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error?cause.message:"Αποτυχία σύνδεσης.");
