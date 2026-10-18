@@ -1,6 +1,6 @@
-import {hospitalityIdentity} from "../../../../../../../../../lib/hospitality-partner-access";
-import {assertCustomerCsrf} from "../../../../../../../../../lib/customer-state-runtime";
-import {managerSessionView,sessionCommand,validateSessionAction,SessionError} from "../../../../../../../../../lib/drinkstock-session-service";
+import {hospitalityIdentity} from "../../../../../../../../lib/hospitality-partner-access";
+import {assertCustomerCsrf} from "../../../../../../../../lib/customer-state-runtime";
+import {managerSessionView,sessionCommand,validateSessionAction,SessionError} from "../../../../../../../../lib/drinkstock-session-service";
 export const runtime="nodejs";export const dynamic="force-dynamic";
 const headers={"cache-control":"private, no-store","x-robots-tag":"noindex, nofollow"};
 type P={partnerId:string;venueId:string};
