@@ -10,7 +10,9 @@ export type SessionView={venue:{id:string;partnerId:string;name:string;role?:str
  session:{id:string;state:State;revision:number;floorPercent:number;ceilingPercent:number;crashUntil:string|null;startedAt:string|null}|null;
  passes:{id:string;kind:string;tableLabel:string|null}[];
  products:{id:string;name:string;category:string;priceCents:number}[];
- tableLabel?:string|null};
+ tableLabel?:string|null;
+ /** Rehearsal demand signals only; never imply confirmed customer orders. */
+ signals?:{id:string;productId:string;productName:string;createdAt:string}[];}
 function checkScope(partnerId:string,venueId:string){if(!UUID.test(partnerId)||!UUID.test(venueId))throw new SessionError("NOT_FOUND",404);
  if(!productionDatabaseConfigured())throw new SessionError("DATABASE_UNAVAILABLE",503);}
 function session(r:R|undefined):SessionView["session"]{
@@ -137,5 +139,15 @@ export async function publicSessionView(token:string,kind:"table"|"screen"):Prom
  if(!r.rows[0])throw new SessionError("NOT_FOUND",404);
  const x=r.rows[0];
  const [s,d]=await Promise.all([current(db,x.partner_id,x.venue_id),products(db,x.partner_id,x.venue_id)]);
- return {venue:{id:x.venue_id,partnerId:x.partner_id,name:x.name},session:session(s),products:d,passes:[],tableLabel:x.table_label};
+ // Only show venue-scoped, non-commercial rehearsal demand. Never expose actors.
+ const signals=kind==="screen"?await db.query<{id:string;product_id:string;product_name:string;created_at:Date}>(`
+ SELECT e.id::text,e.selected_product_id::text AS product_id,d.name AS product_name,e.created_at
+ FROM public.drinkstock_market_events e
+ JOIN public.drinkstock_products d ON d.id=e.selected_product_id
+  AND d.partner_id=e.partner_id AND d.venue_id=e.venue_id
+ WHERE e.partner_id=$1::uuid AND e.venue_id=$2::uuid AND e.event_type='demand'
+ ORDER BY e.created_at DESC,e.id DESC LIMIT 12
+ `,[x.partner_id,x.venue_id]):{rows:[]};
+ return {venue:{id:x.venue_id,partnerId:x.partner_id,name:x.name},session:session(s),products:d,passes:[],tableLabel:x.table_label,
+ signals:signals.rows.map(q=>({id:q.id,productId:q.product_id,productName:q.product_name,createdAt:new Date(q.created_at).toISOString()}))};
 }
