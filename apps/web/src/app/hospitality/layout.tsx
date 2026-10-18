@@ -29,6 +29,10 @@ export default function HospitalityLayout({ children }: { children: React.ReactN
             <img src="/brand/kontamou-sparta-logo.webp" width={62} height={48} alt="KONTA MOY" />
             <span><strong>HOSPITALITY</strong><small>BY KONTA MOY</small></span>
           </Link>
+          <Link href={`${HOSPITALITY_ORIGIN}/drinkStock`} className={styles.drinkBrand} aria-label="DrinkStock — public landing">
+            <span className={styles.drinkBrandLogo} aria-hidden="true">↗</span>
+            <span><strong>DRINK<span>STOCK</span></strong><small>THE BAR IS THE MARKET</small></span>
+          </Link>
           <nav aria-label="Hospitality navigation" className={styles.navLinks}>
             <Link href={`${HOSPITALITY_ORIGIN}/#applications`}>Εφαρμογές</Link>
             <Link href={`${HOSPITALITY_ORIGIN}/#how-it-works`} className={styles.gatewayNavSecondary}>Η φιλοσοφία μας</Link>
