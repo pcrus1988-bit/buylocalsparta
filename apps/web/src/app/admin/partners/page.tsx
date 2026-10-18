@@ -81,6 +81,9 @@ export default async function Page() {
         <Link className="partner-workflow-card" href="/admin/partners/design">
           <span>Storefront</span><strong>Design & DEMO</strong><p>Edit trading identity, contact/location data, copy, logo and storefront media across every vendor lifecycle stage.</p><b>{managed.shops.length + applications.applications.filter((item) => !item.vendorId).length}</b><i>Open storefront design →</i>
         </Link>
+        <Link className="partner-workflow-card" href="/admin/hospitality">
+          <span>Hospitality</span><strong>DrinkStock partners</strong><p>Διαχείριση συνεργατών, επαληθευμένων ιδιοκτητών και πρώτων χώρων στο Hospitality.</p><i>Άνοιγμα Hospitality →</i>
+        </Link>
         <Link className="partner-workflow-card" href="/admin/partners/gemi">
           <span>Acquisition tool</span><strong>ΓΕΜΗ Export</strong><p>Choose an official ΚΑΔ and area, preview matching businesses and export the complete public business dataset as CSV.</p><b>CSV</b><i>Open ΓΕΜΗ tool →</i>
         </Link>
