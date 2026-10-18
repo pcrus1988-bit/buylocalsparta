@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {drinkPriceBand,centsFromEuros,priceRehearsalDemand,validateMarketAction,validateNewDrink,venueCanManageMarket} from "../src/lib/drinkstock-market-pricing.ts";
+import {drinkPriceBand,centsFromEuros,priceRehearsalDemand,validateMarketAction,validateNewDrink,validateMarketBounds,venueCanManageMarket} from "../src/lib/drinkstock-market-pricing.ts";
 const a={id:"a",name:"Draft Beer",baseCents:500,priceCents:500};
 const b={id:"b",name:"Mojito",baseCents:900,priceCents:900};
 const key="f71b6509-469f-4dea-85df-b4d05371b9fa";
@@ -28,4 +28,28 @@ test("validates products and actions, no client-selected partner or role",()=>{
     assert.throws(()=>validateMarketAction(v));
   assert.equal(venueCanManageMarket("owner"),true);assert.equal(venueCanManageMarket("manager"),true);
   assert.equal(venueCanManageMarket("staff"),false);assert.equal(venueCanManageMarket("viewer"),false);
+});
+
+test("owner/manager may set venue-specific lower and upper bounds before starting",()=>{
+  assert.deepEqual(validateMarketBounds({floorPercent:60,ceilingPercent:170}),{floorPercent:60,ceilingPercent:170});
+  assert.deepEqual(drinkPriceBand(500,{floorPercent:60,ceilingPercent:170}),{minCents:300,maxCents:850});
+  assert.deepEqual(drinkPriceBand(900,{floorPercent:50,ceilingPercent:200}),{minCents:450,maxCents:1800});
+  const signal=priceRehearsalDemand([{...a,priceCents:350},b],"a",{floorPercent:50,ceilingPercent:200});
+  assert.equal(signal[0].afterCents,375);
+  const set=validateMarketAction({action:"set_bounds",requestKey:key,bounds:{floorPercent:55,ceilingPercent:190}});
+  assert.deepEqual(set.bounds,{floorPercent:55,ceilingPercent:190});
+});
+test("invalid bounds, non-integer percentages, and fabricated actions are rejected",()=>{
+  for(const bounds of [
+    {floorPercent:49,ceilingPercent:145},
+    {floorPercent:70,ceilingPercent:201},
+    {floorPercent:101,ceilingPercent:145},
+    {floorPercent:70.5,ceilingPercent:145},
+    {floorPercent:"70",ceilingPercent:145},
+    {floorPercent:70,ceilingPercent:99},
+    null
+  ]){
+    assert.throws(()=>validateMarketBounds(bounds));
+    assert.throws(()=>validateMarketAction({action:"set_bounds",requestKey:key,bounds}));
+  }
 });
