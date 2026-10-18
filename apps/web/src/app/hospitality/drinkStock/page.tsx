@@ -17,7 +17,7 @@ export default function DrinkStockLanding() {
       <p>Μετατρέπουμε την τιμολόγηση ποτών σε διαδραστική εμπειρία. Ζωντανός πίνακας, ελεγχόμενες μεταβολές τιμών και αυτοτελής διαχείριση για κάθε επιχείρηση.</p>
       <div className={styles.actions}>
         <a href="#demo" className={styles.action}>Δοκίμασε το demo ↗</a>
-        <Link href="/drinkStock/login" className={styles.secondaryAction}>Είσοδος συνεργάτη</Link>
+        <Link href="https://hospitality.kontamou.site/drinkStock/login" className={styles.secondaryAction}>Είσοδος συνεργάτη</Link>
       </div>
       <p className={styles.heroNote}>Υπό ανάπτυξη · Δεν γίνονται πραγματικές παραγγελίες ή πληρωμές.</p>
     </section>
