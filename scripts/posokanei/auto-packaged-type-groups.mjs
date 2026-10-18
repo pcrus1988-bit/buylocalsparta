@@ -222,6 +222,12 @@ const safeLabelledNonCarbonatedCategories=new Set(["πορτοκαλαδες"]);
 function hasForbiddenClaim(category,title){
   if(!dangerous.test(title))return false;
   let withoutApprovedVariant=title;
+  // 'Κονσέρβα' is the explicitly required physical product type for these
+  // two ordinary wet-pet-food categories, not by itself a special health or
+  // preparation claim. Do not waive any other restricted wording.
+  if(["υγρη τροφη για γατες","υγρη τροφη για σκυλους"].includes(category) &&
+     /κονσερβ/u.test(title))
+    withoutApprovedVariant=withoutApprovedVariant.replace(/κονσερβ[\p{L}]*/gu," ");
   if((safeWholeGrainCategories.has(category)||
       explicitWholeGrainSubtypes.get(category)?.test(title)) &&
      /ολικης\s+αλεσης/u.test(title))
