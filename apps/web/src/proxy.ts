@@ -1,3 +1,4 @@
+import { isHospitalityHost, isHospitalityHostPathAllowed } from "./lib/hospitality-routing";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getActivePublicCmsRedirect } from "./lib/public-cms-redirects";
@@ -35,7 +36,7 @@ const REDIRECT_PROTECTED_ROOTS = [
 // middleware before every catalogue/product/vendor render. That lookup becomes
 // especially expensive when the database pool is busy with catalogue work.
 const CMS_REDIRECT_BYPASS_ROOTS = [
-  "/shop", "/shops", "/category", "/product", "/vendor", "/hubs", "/bazaar", "/ask-local", "/advice"
+  "/shop", "/shops", "/category", "/product", "/vendor", "/hubs", "/bazaar", "/ask-local", "/advice", "/drinkStock", "/hospitality"
 ] as const;
 
 function validVisitor(value: string | undefined): string | undefined {
@@ -54,7 +55,7 @@ function isCacheNeutralVendorCatalogueRead(request: NextRequest): boolean {
 function needsOperationalPersistence(pathname: string): boolean {
   const routeRoots = [
     "/cart", "/checkout", "/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/account",
-    "/vendor", "/admin", "/daily",
+    "/vendor", "/admin", "/daily", "/drinkStock", "/api/hospitality",
     "/api/checkout", "/api/account", "/api/vendor", "/api/admin", "/api/daily", "/api/payments"
   ];
   return routeRoots.some((root) => pathname === root || pathname.startsWith(`${root}/`));
@@ -190,6 +191,16 @@ function productPrefetchResponse(request: NextRequest): NextResponse | undefined
 }
 
 export async function proxy(request: NextRequest) {
+  // Same deployment, separate hostname: deny marketplace operational routes.
+  if (isHospitalityHost(request.nextUrl.hostname) &&
+      !isHospitalityHostPathAllowed(request.nextUrl.pathname)) {
+    return new NextResponse(null, { status: 404, headers: {
+      "cache-control": "private, no-store",
+      "x-robots-tag": "noindex, nofollow",
+      "x-km-route-barrier": "HOSPITALITY_HOST_DENY"
+    }});
+  }
+
   // FISCAL's dedicated Vercel project is NOT allowed to serve marketplace routes
   // or access marketplace admin/vendor session endpoints. This is a routing barrier,
   // independent of the separate database and credentials.
