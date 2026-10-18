@@ -1,6 +1,8 @@
 /** Read-only DrinkStock guest cart estimates. No payment, order insertion, or sale authority. */
 export class GuestQuoteError extends Error {
- constructor(public readonly code:string,public readonly status:number){super(code);}
+ readonly code:string;
+ readonly status:number;
+ constructor(code:string,status:number){super(code);this.code=code;this.status=status;}
 }
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const MAX_GUEST_UNIQUE_DRINKS=12;
