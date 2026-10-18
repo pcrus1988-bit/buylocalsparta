@@ -45,6 +45,8 @@ export function GreeceSingleQuestionDistributionExplorer({
   const [region, setRegion] = useState<GreekRegionKey | "">(
     GREECE_REGIONS.some(r => r.key === initialRegion) ? initialRegion as GreekRegionKey : "");
   const [sort, setSort] = useState<"high" | "low" | "alphabetical">("high");
+  const [heatStyle,setHeatStyle]=useState<"fluid"|"regions">(
+    data.postcodeDensity?.hasDetail ? "fluid" : "regions");
   const [search, setSearch] = useState("");
   const selected = data.regions.find(r => r.key === region);
 
@@ -167,6 +169,7 @@ export function GreeceSingleQuestionDistributionExplorer({
         <div className="relation-explorer-toolbar-actions">
           <button type="button" className="button button-secondary" onClick={() => {
             setMetric("prevalence");setRegion("");setSort("high");setSearch("");
+            setHeatStyle(data.postcodeDensity?.hasDetail?"fluid":"regions");
           }}>Επαναφορά προβολής</button>
           <a className="button button-secondary" href={shareLink}>Σύνδεσμος προβολής</a>
         </div>
@@ -179,15 +182,40 @@ export function GreeceSingleQuestionDistributionExplorer({
       <p className="research-relation-small-note">
         {metricOptions.find(option => option.id === metric)?.detail}
       </p>
+      <div className="research-distribution-map-style" role="group" aria-label="Είδος θερμικού χάρτη">
+        <button type="button" aria-pressed={heatStyle==="fluid"}
+          disabled={!data.postcodeDensity?.hasDetail} className={heatStyle==="fluid"?"is-active":""}
+          onClick={()=>setHeatStyle("fluid")}>Ομαλός χάρτης Τ.Κ.</button>
+        <button type="button" aria-pressed={heatStyle==="regions"}
+          className={heatStyle==="regions"?"is-active":""} onClick={()=>setHeatStyle("regions")}>
+          Συγκεντρωτικός ανά Περιφέρεια</button>
+      </div>
+      {!data.postcodeDensity?.hasDetail && <p className="research-relation-small-note" role="status">
+        Για τη συγκεκριμένη επιλογή δεν υπάρχουν ακόμη αρκετές προστατευμένες
+        ταχυδρομικές ομάδες για ασφαλή τοπική απεικόνιση.
+        Τα πλήρη n και οι συγκεντρωτικές Περιφέρειες παραμένουν διαθέσιμα.
+      </p>}
     </section>
 
     <div className="research-relation-layout relation-explorer-layout">
       <div>
         <GreeceResearchHeatmap cells={cells} filters={mapFilters} root={root}
+          densityImage={heatStyle==="fluid"
+            ? (metric==="prevalence"
+              ? data.postcodeDensity?.prevalenceImage
+              : data.postcodeDensity?.countImage)
+            : undefined}
+          densityKind={metric==="prevalence"?"prevalence":"count"}
           onRegionSelect={key => setRegion(prev => prev === key ? "" : key)} />
         <p className="relation-explorer-map-instruction">
           Πατήστε Περιφέρεια για πραγματικό πλήθος, συνολικές απαντήσεις και το ποσοστό.
-          Το γκρι δηλώνει ότι δεν υπάρχει διαθέσιμη δημοσιοποιήσιμη τιμή — όχι αναγκαστικά μηδέν.
+          Ο ομαλός χάρτης χρησιμοποιεί ταχυδρομικές περιοχές συγχωνευμένες σε
+          ευρύτερες γεωγραφικές ομάδες και Gaussian εξομάλυνση, όπως στη δημόσια μελέτη.
+          Δεν υπάρχουν κουκκίδες, ονόματα πόλεων, μεμονωμένα Τ.Κ., επιχειρήσεις
+          ή συντεταγμένες στο πρόγραμμα περιήγησης.
+          Ορισμένες αραιές ομάδες αποκρύπτονται από τη λεπτομερή εικόνα για προστασία,
+          αλλά <strong>όλες οι πραγματικές απαντήσεις</strong> παραμένουν στο εθνικό
+          και περιφερειακό n. Το γκρι δεν σημαίνει αναγκαστικά μηδενική συμμετοχή.
         </p>
       </div>
       <div className="relation-explorer-sidebar">
