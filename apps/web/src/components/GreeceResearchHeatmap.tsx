@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { GeographicMapCell, GreekRegionKey } from "../lib/research-geographic-core";
 
 /** Browser receives only already-suppressed aggregates. Never send raw low-n cells. */
@@ -62,13 +62,20 @@ function differenceColor(delta?: number): string {
   return "rgb(" + from.map((n, index) => Math.round(n + t * (to[index] - n))).join(",") + ")";
 }
 
-export function GreeceResearchHeatmap({ cells, filters, root, onRegionSelect, visualization = "standard" }: {
+export function GreeceResearchHeatmap({ cells, filters, root, onRegionSelect, visualization = "standard", densityImage, densityKind = "count" }: {
   cells: readonly SafeGeographicMapCell[];
   filters: ResearchMapFilters;
   root: string;
   onRegionSelect?: (region: GreekRegionKey) => void;
   visualization?: "standard" | "difference";
+  /** Optional server-rendered Gaussian raster: no postcode points are sent to client. */
+  densityImage?: string;
+  densityKind?: "count" | "prevalence";
 }) {
+  const imageId = useId().replace(/:/g,"");
+  const drag = useRef<{x:number;y:number;cx:number;cy:number;active:boolean}|null>(null);
+  const suppressNextClick = useRef(false);
+  const [center,setCenter] = useState({x:405,y:325});
   const [geo, setGeo] = useState<GeoJSON | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -86,26 +93,68 @@ export function GreeceResearchHeatmap({ cells, filters, root, onRegionSelect, vi
   const max = Math.max(1, ...cells.map(x => x.respondents ?? 0));
   const cellByRegion = useMemo(() => new Map(cells.map(c => [c.key, c])), [cells]);
   const viewWidth = 810 / zoom, viewHeight = 650 / zoom;
-  const viewBox = `${(810 - viewWidth) / 2} ${(650 - viewHeight) / 2} ${viewWidth} ${viewHeight}`;
+  const viewBox = `${center.x-viewWidth/2} ${center.y-viewHeight/2} ${viewWidth} ${viewHeight}`;
+  function changeZoom(next:number) {
+    const z=Math.max(1,Math.min(4,next));
+    setZoom(z);
+    if(z===1)setCenter({x:405,y:325});
+    else setCenter(p=>({x:Math.max(810/z/2,Math.min(810-810/z/2,p.x)),
+      y:Math.max(650/z/2,Math.min(650-650/z/2,p.y))}));
+  }
 
   return <div style={{ display: "grid", gap: 10 }}>
     <div className="workspace-action-bar" style={{ flexWrap: "wrap", gap: 14 }}>
-      <strong>Χάρτης 13 Περιφερειών</strong>
+      <strong>{densityImage ? "Ομαλός θερμικός χάρτης Τ.Κ. · χωρίς σημεία" : "Χάρτης 13 Περιφερειών"}</strong>
       <div className="workspace-action-buttons" style={{ gap: 8 }}>
         <button type="button" className="button button-secondary"
           aria-label="Σμίκρυνση χάρτη" disabled={zoom <= 1}
-          onClick={() => setZoom(v => Math.max(1, +(v / 1.25).toFixed(2)))}>−</button>
+          onClick={() => changeZoom(+(zoom / 1.25).toFixed(2))}>−</button>
         <button type="button" className="button button-secondary"
-          aria-label="Μεγέθυνση χάρτη" disabled={zoom >= 2.5}
-          onClick={() => setZoom(v => Math.min(2.5, +(v * 1.25).toFixed(2)))}>+</button>
-        <button type="button" className="button button-secondary" onClick={() => setZoom(1)}>Επαναφορά</button>
+          aria-label="Μεγέθυνση χάρτη" disabled={zoom >= 4}
+          onClick={() => changeZoom(+(zoom * 1.25).toFixed(2))}>+</button>
+        <button type="button" className="button button-secondary" onClick={() => changeZoom(1)}>Επαναφορά</button>
       </div>
     </div>
     <div style={{ background: "#edf7fa", borderRadius: 16, overflow: "hidden", border: "1px solid #cbdde1" }}>
       {loadError && <div className="workspace-inline-note form-error" role="alert">Τα γεωγραφικά όρια δεν φορτώθηκαν. Οι συγκεντρωτικοί πίνακες παραμένουν διαθέσιμοι.</div>}
       {!geo && !loadError && <div className="workspace-inline-note" role="status">Φόρτωση χάρτη Ελλάδας…</div>}
-      {geo && <svg viewBox={viewBox} role={onRegionSelect ? "group" : "img"} aria-label="Διαδραστικός χάρτης συγκεντρωτικών απαντήσεων ανά ελληνική Περιφέρεια"
-        style={{ display: "block", width: "100%", maxHeight: 650 }} preserveAspectRatio="xMidYMid meet">
+      {geo && <svg viewBox={viewBox} role={onRegionSelect ? "group" : "img"}
+        aria-label={densityImage ? "Συνεχής ομαλός θερμικός χάρτης από προστατευμένες ομάδες ταχυδρομικών περιοχών, χωρίς ακριβείς τοποθεσίες" : "Διαδραστικός χάρτης συγκεντρωτικών απαντήσεων ανά ελληνική Περιφέρεια"}
+        style={{display:"block",width:"100%",maxHeight:650,
+          touchAction:densityImage&&zoom>1?"none":"pan-y",
+          cursor:densityImage&&zoom>1?"grab":undefined}}
+        preserveAspectRatio="xMidYMid meet"
+        onPointerDown={densityImage && zoom>1 ? event=>{
+          drag.current={x:event.clientX,y:event.clientY,cx:center.x,cy:center.y,active:false};
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }:undefined}
+        onPointerMove={densityImage && zoom>1 ? event=>{
+          const prior=drag.current;if(!prior)return;
+          if(Math.abs(event.clientX-prior.x)>4||Math.abs(event.clientY-prior.y)>4)
+            prior.active=true;
+          if(!prior.active)return;
+          const box=event.currentTarget.getBoundingClientRect();
+          const scale=Math.max(viewWidth/box.width,viewHeight/box.height);
+          setCenter({
+            x:Math.max(viewWidth/2,Math.min(810-viewWidth/2,prior.cx-(event.clientX-prior.x)*scale)),
+            y:Math.max(viewHeight/2,Math.min(650-viewHeight/2,prior.cy-(event.clientY-prior.y)*scale))
+          });
+        }:undefined}
+        onPointerUp={densityImage ? ()=>{
+          suppressNextClick.current=Boolean(drag.current?.active);
+          drag.current=null;
+        }:undefined}
+        onPointerCancel={densityImage ? ()=>{drag.current=null;}:undefined}>
+        {densityImage && <><defs><clipPath id={imageId+"land"}>
+          {geo.features.map(feature=><path key={feature.properties.name}
+            d={pathForGeometry(feature.geometry)} fillRule="evenodd" clipRule="evenodd"/>)}
+        </clipPath></defs>
+        {geo.features.map(feature=><path key={feature.properties.name}
+          d={pathForGeometry(feature.geometry)} fill="#e5eee7" fillRule="evenodd"/>)}
+        <image href={densityImage} x="0" y="0" width="810" height="650"
+          preserveAspectRatio="none" clipPath={`url(#${imageId}land)`}
+          pointerEvents="none" />
+        </>}
         {geo.features.map(feature => {
           const key = feature.properties.name as GreekRegionKey;
           const cell = cellByRegion.get(key);
@@ -113,7 +162,7 @@ export function GreeceResearchHeatmap({ cells, filters, root, onRegionSelect, vi
           const normalized = valueFor(cell, filters.metric, max);
           const difference = visualization === "difference" ? cell.differencePoints : undefined;
           const clippedDifference = difference == null ? undefined : Math.max(-40, Math.min(40, difference));
-          const color = visualization === "difference" ? differenceColor(clippedDifference) : heatColor(normalized);
+          const color = densityImage ? "transparent" : visualization === "difference" ? differenceColor(clippedDifference) : heatColor(normalized);
           const valueLabel = filters.metric === "share"
             ? cell.ratioPercent !== undefined
               ? cell.ratioPercent == null ? "ανεπαρκής βάση για ασφαλή απεικόνιση" : cell.ratioPercent + "% (συγκεντρωτικό ποσοστό)"
@@ -127,7 +176,11 @@ export function GreeceResearchHeatmap({ cells, filters, root, onRegionSelect, vi
           params.set("region", key);
           const href = (root.endsWith("/map/relations") || root.endsWith("/map/distribution") ? root : root + "/map") + "?" + params.toString();
           return <a href={href} key={key} aria-label={cell.label + ": " + label}
-            onClick={onRegionSelect ? event => { event.preventDefault(); onRegionSelect(key); } : undefined}>
+            onClick={onRegionSelect ? event => {
+              event.preventDefault();
+              if(suppressNextClick.current){suppressNextClick.current=false;return;}
+              onRegionSelect(key);
+            } : undefined}>
             <path d={pathForGeometry(feature.geometry)} fill={color} fillRule="evenodd"
               stroke={filters.region === key ? "#ec7f23" : "#538693"}
               strokeWidth={filters.region === key ? 2.8 : 0.95}
@@ -140,7 +193,7 @@ export function GreeceResearchHeatmap({ cells, filters, root, onRegionSelect, vi
       </svg>}
     </div>
     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-      {visualization === "difference" ? <small>−40 π.μ. <span aria-hidden="true" style={{ display: "inline-block", verticalAlign: "middle", width: 115, height: 12, borderRadius: 5, background: "linear-gradient(90deg,#a85152,#f5f5ee,#087783)" }} /> +40 π.μ.</small> : <small>Χαμηλή ένταση <span aria-hidden="true" style={{ display: "inline-block", verticalAlign: "middle", width: 115, height: 12, borderRadius: 5, background: "linear-gradient(90deg,#d7ecee,#056777)" }} /> Υψηλή ένταση</small>}
+      {densityImage ? <small>{densityKind === "prevalence" ? "Χαμηλότερο τοπικό ποσοστό" : "Μικρότερη συγκέντρωση"} <span aria-hidden="true" style={{display:"inline-block",verticalAlign:"middle",width:115,height:12,borderRadius:5,background:"linear-gradient(90deg,#69a772,#dfc24d,#e2832b,#b4321e)"}}/> {densityKind === "prevalence" ? "Υψηλότερο τοπικό ποσοστό" : "Μεγαλύτερη συγκέντρωση"}</small> : visualization === "difference" ? <small>−40 π.μ. <span aria-hidden="true" style={{ display: "inline-block", verticalAlign: "middle", width: 115, height: 12, borderRadius: 5, background: "linear-gradient(90deg,#a85152,#f5f5ee,#087783)" }} /> +40 π.μ.</small> : <small>Χαμηλή ένταση <span aria-hidden="true" style={{ display: "inline-block", verticalAlign: "middle", width: 115, height: 12, borderRadius: 5, background: "linear-gradient(90deg,#d7ecee,#056777)" }} /> Υψηλή ένταση</small>}
       <small><span style={{ display: "inline-block", width: 11, height: 11, background: "#d9e2e7", marginRight: 5 }} /> Χωρίς επαρκή βάση · όχι μηδενική τιμή</small>
     </div>
   </div>;
