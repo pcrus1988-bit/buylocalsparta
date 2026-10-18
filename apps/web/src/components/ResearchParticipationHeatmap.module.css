@@ -28,3 +28,12 @@
 .selectedRow { background: #edf6ef; }
 .note { font-size: 12px; margin: 16px 0 0; }
 @media (max-width: 760px) { .layout { grid-template-columns: minmax(0, 1fr); gap: 16px; } .heading { flex-direction: column; } .total { text-align: left; } }
+
+.mapTools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; font-size: 12px; }
+.mapTools > div { display: flex; gap: 6px; }
+.mapTools button { border: 1px solid #cbded0; border-radius: 8px; padding: 8px 12px; min-height: 40px; background: #fff; color: #184d38; cursor: pointer; }
+.mapTools button:disabled { opacity: .4; cursor: default; }
+.mapTools button:focus-visible, .map circle:focus-visible { outline: 2px solid #d29e34; outline-offset: 3px; }
+.map circle[role="button"] { cursor: pointer; }
+.townLabel { fill: #174330; font-weight: 750; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+.legend .densityLegend { background: linear-gradient(90deg, #e5eee7, #71aa6c, #e6a833, #d35b26); }
