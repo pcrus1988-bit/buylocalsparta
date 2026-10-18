@@ -60,9 +60,8 @@ test("rejects oversized or invalid synthetic inputs",()=>{
   {original:"0,01",previouslyCredited:"0",proposedCredit:"0"}
  ]}),/LAB_TOTAL_TOO_LARGE/);
  assert.throws(()=>previewFiscalCreditLab({...sample(),lane:"official" as "b2c"}),/LAB_INVALID_INPUT/);
- assert.throws(()=>previewFiscalCreditLab({...sample(),rows:[
-  {...sample().rows[0],taxNumber:"123456789"}
- ]}),/LAB_INVALID_INPUT/);
+ const forged={...sample().rows[0],taxNumber:"123456789"};
+ assert.throws(()=>previewFiscalCreditLab({...sample(),rows:[forged]}),/LAB_INVALID_INPUT/);
 });
 test("handles zero historical allocation and fully allocates a synthetic original",()=>{
  const result=previewFiscalCreditLab({lane:"b2g",rows:[
