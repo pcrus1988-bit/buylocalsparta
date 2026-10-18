@@ -7,7 +7,7 @@ import {randomBytes} from "node:crypto";
 import pg from "pg";
 import {FISCAL_MERCHANT_KYB_PROGRESS_SQL} from "../apps/web/src/lib/fiscal-merchant-kyb-query.ts";
 import {summarizeFiscalMerchantKybProgress} from "../apps/web/src/lib/fiscal-merchant-kyb-progress.ts";
-import {FISCAL_KYB_REVIEW_QUEUE_SQL,summarizeFiscalKybReviewQueue} from "../apps/web/src/lib/fiscal-kyb-review-queue.ts";
+import {FISCAL_KYB_REVIEW_QUEUE_SQL,summarizeFiscalKybReviewPage,parseFiscalKybReviewCursor} from "../apps/web/src/lib/fiscal-kyb-review-queue.ts";
 
 const connectionString=process.env.FISCAL_DATABASE_URL??"";
 let parsed;
@@ -98,16 +98,35 @@ try{
   const out=summarizeFiscalMerchantKybProgress(empty.rows.filter(x=>x.check_type!==null));
   assert.equal(out.outstandingCount,7);
  });
- const triage=await db.query(FISCAL_KYB_REVIEW_QUEUE_SQL);
- assert.ok(triage.rowCount>=3,"Synthetic open KYB cases should be present");
- assert.ok(triage.rows.every(item=>Object.keys(item).sort().join(",")==="check_type,id,legal_name,outcome,status"));
- const queue=summarizeFiscalKybReviewQueue(triage.rows);
- const flagged=queue.find(item=>item.id===a);
+ // Force a second page without relying on persistent production or staging data.
+ await db.query(`
+  INSERT INTO fiscal_organizations(legal_name,vat_number,status,created_at)
+  SELECT 'CI Pagination '||$1||'-'||n, '8'||lpad(n::text,8,'0'),
+         'pending_review',now()+n*interval '1 second'
+    FROM generate_series(1,42) AS n
+ `,[suffix]);
+ const triage=await db.query(FISCAL_KYB_REVIEW_QUEUE_SQL,[null,null]);
+ assert.ok(triage.rowCount>=40,"Synthetic open KYB cases should be present");
+ assert.ok(triage.rows.every(item=>
+  Object.keys(item).sort().join(",")==="check_type,created_at_key,id,legal_name,outcome,status"));
+ const first=summarizeFiscalKybReviewPage(triage.rows);
+ assert.equal(first.cases.length,40);
+ assert.equal(first.hasNext,true);
+ const cursor=parseFiscalKybReviewCursor(first.nextCursor);
+ assert.ok(cursor);
+ const next=await db.query(FISCAL_KYB_REVIEW_QUEUE_SQL,[cursor.createdAt,cursor.id]);
+ const second=summarizeFiscalKybReviewPage(next.rows);
+ assert.equal(second.hasNext,false);
+ assert.ok(second.cases.length>=5);
+ const firstIds=new Set(first.cases.map(c=>c.id));
+ assert.ok(second.cases.every(c=>!firstIds.has(c.id)),"No keyset boundary duplicates");
+ const flagged=first.cases.find(item=>item.id===a);
  assert.ok(flagged,"Synthetic discrepancy case missing");
  assert.equal(flagged.priority,"follow_up");
  assert.equal(flagged.progress.legalApproval,false);
  assert.equal(flagged.progress.fiscalIssuanceEnabled,false);
- assert.ok(!JSON.stringify(queue).includes("SECRET"));
+ assert.ok(!JSON.stringify(first).includes("SECRET"));
+ assert.ok(!JSON.stringify(second).includes("SECRET"));
  assert.ok(!JSON.stringify(triage.rows).includes("SECRET"));
   console.log("FISCAL MERCHANT KYB TENANT ISOLATION PASSED (disposable CI, redacted summaries only)");
 }finally{
