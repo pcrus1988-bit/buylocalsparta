@@ -1,5 +1,6 @@
 import postcodePoints from "../../public/research/greece-postcode-points.json";
-import { participationTowns, type ParticipationTown } from "./research-participation-towns";
+import sharp from "sharp";
+import { participationHeatField } from "./research-participation-density";
 import { summarizeGreekPrefectures } from "./research-geographic-core";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { unstable_cache } from "next/cache";
@@ -55,7 +56,7 @@ export type PublicResearchStudySummary = Readonly<{
   delivered: number;
   opened: number;
   started: number;
-  participationGeography?: Readonly<{ regions: readonly Readonly<{ key: string; label: string; started: number }>[]; unresolved: number; towns?: readonly ParticipationTown[]; postcodeUnmatched?: number; townWithheld?: number }>;
+  participationGeography?: Readonly<{ regions: readonly Readonly<{ key: string; label: string; started: number }>[]; unresolved: number; densityImage?: string; densityMapped?: number; postcodeUnmatched?: number }>;
   completed: number;
   /** Completed following an explicit participant Submit action. */
   participantConfirmed?: number;
@@ -342,11 +343,13 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
       for (const row of rows.rows) {
         const key = text(row.id) + ":" + text(row.wave_id);
         const mapped = summarizeGreekPrefectures(grouped.get(key) ?? []);
-        const local = participationTowns(grouped.get(key) ?? [], postcodePoints);
+        const local = participationHeatField(grouped.get(key) ?? [], postcodePoints);
+        const image = await sharp(Buffer.from(local.pixels), { raw: { width: local.width, height: local.height, channels: 4 } })
+          .png().toBuffer();
         geographyByWave.set(key, {
           regions: mapped.regions.map(region => ({ key: region.key, label: region.label, started: region.respondents })),
           unresolved: mapped.unresolved,
-          towns: local.towns, postcodeUnmatched: local.unmatched, townWithheld: local.withheld
+          densityImage: "data:image/png;base64," + image.toString("base64"), densityMapped: local.mapped, postcodeUnmatched: local.unmatched
         });
       }
     } catch {
@@ -416,7 +419,7 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
 // with the 30-second client refresh to avoid repeated 100k+ invite/event scans.
 const cachedPublicResearchObservatory = unstable_cache(
   queryPublicResearchObservatory,
-  ["research-public-main-fieldwork-progress-v3-postcode"],
+  ["research-public-main-fieldwork-progress-v4-density"],
   { revalidate: 30 }
 );
 
