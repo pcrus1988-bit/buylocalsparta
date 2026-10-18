@@ -7,7 +7,7 @@ import {dirname,resolve} from "node:path";
 const root=resolve(dirname(fileURLToPath(import.meta.url)),"../src/app");
 const layout=readFileSync(resolve(root,"_layout.tsx"),"utf8");
 const routes=["index","shop","stores","basket","services","lists","account",
- "nearby","pickups","orders","addresses","notifications","diagnostics"];
+ "nearby","pickups","orders","addresses","notifications","color-studios","color-studio","diagnostics"];
 
 test("every flagship buyer and service journey resolves to an Expo Router screen",()=>{
  for(const route of routes){
