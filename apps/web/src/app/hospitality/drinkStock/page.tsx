@@ -5,13 +5,13 @@ import styles from "./landing.module.css";
 
 export const metadata: Metadata = {
   title: "DrinkStock — The Party Is The Market",
-  description: "DrinkStock is a gamified drink-exchange concept. Explore an interactive simulated bar market, changing prices and market crashes. Powered by KONTA MOY Hospitality.",
+  description: "DrinkStock is a gamified drink-exchange concept. Watch scripted drink orders change simulated prices, then trigger a manager-style 60-second market crash. Powered by KONTA MOY Hospitality.",
   alternates: { canonical: "https://hospitality.kontamou.site/drinkstock" },
   robots: { index: false, follow: false }
 };
 
 const HOW_IT_WORKS = [
-  { number: "01", symbol: "🍸", title: "PICK YOUR DRINK", description: "Διάλεξε τι θέλεις να πιεις. Κάθε ποτό εμφανίζεται σε έναν εντυπωσιακό, δυναμικό πίνακα τιμών." },
+  { number: "01", symbol: "🍸", title: "PICK YOUR DRINK", description: "Η προσομοίωση δέχεται αυτόματα μία προκαθορισμένη ακολουθία παραγγελιών. Κάθε ποτό εμφανίζεται σε δυναμικό πίνακα τιμών." },
   { number: "02", symbol: "📈", title: "WATCH IT MOVE", description: "Η ζήτηση αλλάζει τις τιμές μέσα σε προκαθορισμένα όρια. Όταν ένα ανεβαίνει, κάποιο άλλο μπορεί να γίνει ευκαιρία." },
   { number: "03", symbol: "⚡", title: "WAIT FOR THE CRASH", description: "Τα market crashes φέρνουν ανατροπές και κάνουν την οθόνη μέρος του party. Οι κανόνες ελέγχονται από το venue." },
 ] as const;
@@ -19,7 +19,7 @@ const HOW_IT_WORKS = [
 const CAPABILITIES = [
   { code: "LIVE BOARD", symbol: "▦", title: "Your bar. Your exchange.", description: "Πίνακες τιμών σχεδιασμένοι για τηλεοράσεις και μεγάλες οθόνες στον χώρο." },
   { code: "VENUE CONTROL", symbol: "⚙", title: "You make the rules.", description: "Όρια, επιλογές ποτών, κανόνες και δυνατότητα παύσης, ανά επιχείρηση και venue." },
-  { code: "PLAYFUL EXPERIENCE", symbol: "✳", title: "The crowd becomes part of it.", description: "Δυναμικές αλλαγές και μεγάλα οπτικά moments που κρατούν αμείωτο το ενδιαφέρον." },
+  { code: "PLAYFUL EXPERIENCE", symbol: "✳", title: "The venue becomes a spectacle.", description: "Προσομοιωμένη ροή παραγγελιών, ζωντανές μεταβολές τιμών και manager-triggered crash με κόκκινα φώτα και countdown." },
   { code: "BUILT TO CONNECT", symbol: "⇄", title: "POS independent by design.", description: "Η αρχιτεκτονική προβλέπει μελλοντικές συνδέσεις με διαφορετικά POS, χωρίς να ισχυρίζεται ότι είναι ήδη διαθέσιμες." },
 ] as const;
 
@@ -46,9 +46,9 @@ export default function DrinkStockLanding() {
         <div className={styles.heroCopy}>
           <div className={styles.heroKicker}><span className={styles.kickerDot} aria-hidden="true" /> THE FIRST-EVER NIGHT OUT THAT PLAYS THE MARKET <span className={styles.heroKickerEnd}>/ CONCEPT DEMO</span></div>
           <h1 id="drinkstock-hero-title">DRINKS <span className={styles.lime}>UP.</span><br />PRICES <span className={styles.pink}>DOWN.</span><br /><span className={styles.italic}>PARTY ON.</span></h1>
-          <p>What if every round could change the game? <strong>Welcome to DrinkStock.</strong> Το bar γίνεται χρηματιστήριο ποτών. Οι τιμές κινούνται, το κοινό συμμετέχει και κάθε βράδυ έχει τη δική του ενέργεια.</p>
+          <p>What if every round could change the game? <strong>Welcome to DrinkStock.</strong> Το bar γίνεται χρηματιστήριο ποτών. Οι εικονικές παραγγελίες κυλούν, οι τιμές αλλάζουν και ο manager μπορεί να προκαλέσει crash ενός λεπτού.</p>
           <div className={styles.heroActions}>
-            <a href="#exchange" className={styles.ctaPrimary}>PLAY THE DEMO <span aria-hidden="true">↗</span></a>
+            <a href="#exchange" className={styles.ctaPrimary}>WATCH THE LIVE DEMO <span aria-hidden="true">↗</span></a>
             <a href="#how-it-works" className={styles.ctaGhost}>HOW IT WORKS <span aria-hidden="true">↓</span></a>
           </div>
           <div className={styles.heroTrust}><span aria-hidden="true">◎</span> REAL ENERGY. SIMULATED PRICES. NO REAL PURCHASES.</div>
