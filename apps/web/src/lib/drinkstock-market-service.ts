@@ -1,8 +1,8 @@
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { drinkPriceBand, priceRehearsalDemand, VENUE_MAX_PRODUCTS, venueCanManageMarket, type RehearsalDrink, type RehearsalMovement, type DrinkStockCategory, type validateMarketAction } from "./drinkstock-market-pricing";
+import { drinkPriceBand, priceRehearsalDemand, VENUE_MAX_PRODUCTS, DEFAULT_PRICE_BOUNDS, venueCanManageMarket, type MarketBounds, type RehearsalDrink, type RehearsalMovement, type DrinkStockCategory, type validateMarketAction } from "./drinkstock-market-pricing";
 
 type Action = ReturnType<typeof validateMarketAction>;
-export type MarketVenue = Readonly<{id:string;name:string;partnerId:string;role:string;rehearsalEnabled:boolean}>;
+export type MarketVenue = Readonly<{id:string;name:string;partnerId:string;role:string;rehearsalEnabled:boolean;bounds:MarketBounds}>;
 export type MarketProduct = Readonly<{id:string;name:string;category:DrinkStockCategory;baseCents:number;priceCents:number;minCents:number;maxCents:number;active:boolean}>;
 export type MarketEvent = Readonly<{id:string;type:string;selectedProductId:string|null;movements:RehearsalMovement[];createdAt:string}>;
 export type MarketSnapshot = Readonly<{venue:MarketVenue;products:MarketProduct[];events:MarketEvent[];canManage:boolean;mode:"rehearsal_only"}>;
@@ -20,10 +20,12 @@ function assertScope(userId:string,partnerId:string,venueId:string){
   if(!productionDatabaseConfigured())throw new DrinkStockMarketError("MARKET_UNAVAILABLE",503);
 }
 type ReadDb = {query<T extends Record<string,unknown>>(sql:string,values?:readonly unknown[]):Promise<{rows:readonly T[];rowCount:number}>};
-type VenueRow = {id:string;name:string;partner_id:string;role:string;rehearsal_enabled:boolean};
+type VenueRow = {id:string;name:string;partner_id:string;role:string;rehearsal_enabled:boolean;floor_percent:number;ceiling_percent:number};
 const venueQuery=(lock:boolean)=>`
 SELECT v.id::text AS id,v.name,v.partner_id::text AS partner_id,m.role,
-  COALESCE(s.rehearsal_enabled,FALSE) AS rehearsal_enabled
+  COALESCE(s.rehearsal_enabled,FALSE) AS rehearsal_enabled,
+ COALESCE(s.floor_percent,70)::int AS floor_percent,
+ COALESCE(s.ceiling_percent,145)::int AS ceiling_percent
 FROM public.hospitality_venues v
 JOIN public.hospitality_partners p ON p.id=v.partner_id AND p.status='active'
 JOIN public.hospitality_partner_memberships m ON m.partner_id=p.id AND m.user_id=$1 AND m.status='active'
@@ -36,7 +38,8 @@ async function authorizedVenue(db:ReadDb,userId:string,partnerId:string,venueId:
   const result=await db.query<VenueRow>(venueQuery(lock),[userId,partnerId,venueId]);
   const row=result.rows[0];
   if(!row)throw new DrinkStockMarketError("MARKET_NOT_FOUND",404);
-  return {id:row.id,name:row.name,partnerId:row.partner_id,role:row.role,rehearsalEnabled:row.rehearsal_enabled};
+  return {id:row.id,name:row.name,partnerId:row.partner_id,role:row.role,rehearsalEnabled:row.rehearsal_enabled,
+    bounds:{floorPercent:Number(row.floor_percent),ceilingPercent:Number(row.ceiling_percent)}};
 }
 type ProductRow={id:string;name:string;category:DrinkStockCategory;base_cents:number;price_cents:number;min_cents:number;max_cents:number;active:boolean};
 const productSql=`
@@ -107,13 +110,40 @@ export async function mutateDrinkStockMarket(userId:string,partnerId:string,venu
       if(!action.product)throw new DrinkStockMarketError("INVALID_PRODUCT",400);
       const products=await authorizedProducts(client,userId,partnerId,venueId);
       if(products.length>=VENUE_MAX_PRODUCTS)throw new DrinkStockMarketError("PRODUCT_LIMIT_REACHED",409);
-      const band=drinkPriceBand(action.product.baseCents);
+      if(venue.rehearsalEnabled)throw new DrinkStockMarketError("SESSION_ACTIVE",409);
+      const band=drinkPriceBand(action.product.baseCents,venue.bounds);
       const inserted=await client.query<{id:string}>(`
         INSERT INTO public.drinkstock_products(venue_id,partner_id,name,category,base_cents,price_cents,min_cents,max_cents)
         VALUES($1::uuid,$2::uuid,$3,$4,$5,$5,$6,$7) RETURNING id::text AS id
       `,[venueId,partnerId,action.product.name,action.product.category,action.product.baseCents,band.minCents,band.maxCents]);
       selectedProductId=inserted.rows[0]?.id??null;
       eventType="product_added";
+    }else if(action.action==="set_bounds"){
+      // Serialize configuration changes against start/demand via the venue row lock.
+      if(venue.rehearsalEnabled)throw new DrinkStockMarketError("BOUNDS_LOCKED_DURING_SESSION",409);
+      if(!action.bounds)throw new DrinkStockMarketError("INVALID_PRICE_BOUNDS",400);
+      const bounds=action.bounds;
+      await client.query(`
+        INSERT INTO public.drinkstock_venue_settings
+          (venue_id,partner_id,rehearsal_enabled,floor_percent,ceiling_percent,updated_at)
+        VALUES($1::uuid,$2::uuid,FALSE,$3,$4,now())
+        ON CONFLICT(venue_id,partner_id) DO UPDATE
+        SET floor_percent=EXCLUDED.floor_percent,ceiling_percent=EXCLUDED.ceiling_percent,updated_at=now()
+      `,[venueId,partnerId,bounds.floorPercent,bounds.ceilingPercent]);
+      // Recalculate every listing atomically. Reset to base so a new session
+      // always begins consistently within the owner's newly chosen bounds.
+      const products=await authorizedProducts(client,userId,partnerId,venueId);
+      for(const d of products){
+        const band=drinkPriceBand(d.baseCents,bounds);
+        movements.push({id:d.id,name:d.name,beforeCents:d.priceCents,
+          afterCents:d.baseCents,deltaCents:d.baseCents-d.priceCents});
+        await client.query(`
+          UPDATE public.drinkstock_products
+          SET min_cents=$1,max_cents=$2,price_cents=base_cents,updated_at=now()
+          WHERE id=$3::uuid AND venue_id=$4::uuid AND partner_id=$5::uuid
+        `,[band.minCents,band.maxCents,d.id,venueId,partnerId]);
+      }
+      eventType="bounds_updated";
     }else if(action.action==="resume"||action.action==="pause"){
       await client.query(`
         INSERT INTO public.drinkstock_venue_settings(venue_id,partner_id,rehearsal_enabled,updated_at)
@@ -137,7 +167,7 @@ export async function mutateDrinkStockMarket(userId:string,partnerId:string,venu
         try{
           movements=priceRehearsalDemand(products.map((p):RehearsalDrink=>({
             id:p.id,name:p.name,baseCents:p.baseCents,priceCents:p.priceCents
-          })),selectedProductId);
+          })),selectedProductId,venue.bounds);
         }catch{throw new DrinkStockMarketError("DRINK_NOT_IN_VENUE",404);}
         eventType="demand";
       }else{
