@@ -11,6 +11,9 @@ export function isHospitalityHostPathAllowed(pathname: string): boolean {
     pathname.startsWith("/drinkstock/") ||
     pathname === "/drinkStock" ||
     pathname.startsWith("/drinkStock/") ||
+    // Shared, signed consent endpoint is required by the global cookie banner.
+    // Keep the exception exact: all other marketplace/privacy APIs remain blocked.
+    pathname === "/api/privacy/consent" ||
     pathname === "/api/hospitality/login" ||
     pathname === "/api/hospitality/logout" ||
     pathname.startsWith("/api/hospitality/partners/") ||
