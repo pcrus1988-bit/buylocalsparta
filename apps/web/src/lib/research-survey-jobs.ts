@@ -4754,8 +4754,10 @@ async function processIdentityDestructionJob(job: ResearchJobRow): Promise<Recor
         COALESCE(NULLIF(fu.sampling_attributes->>'classificationVersion',''),'unknown'),
         COALESCE(NULLIF(fu.sampling_attributes->>'source',''),'unknown'),
         COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),'unknown'),
-        CASE WHEN regexp_replace(COALESCE(fu.sampling_attributes->>'postcode',''),'\\s','','g')
-          ~ '^[0-9]{5}
+        CASE WHEN length(regexp_replace(COALESCE(fu.sampling_attributes->>'postcode',''),'[^0-9]','','g'))=5
+          THEN left(regexp_replace(COALESCE(fu.sampling_attributes->>'postcode',''),'[^0-9]','','g'),3)
+          ELSE NULL END
+      FROM research_responses rr
       JOIN research_invites ri ON ri.id=rr.invite_id
       JOIN research_sample_units su ON su.id=ri.sample_unit_id
       JOIN research_frame_units fu ON fu.id=su.frame_unit_id
