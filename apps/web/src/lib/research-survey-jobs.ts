@@ -4730,7 +4730,10 @@ async function processIdentityDestructionJob(job: ResearchJobRow): Promise<Recor
       INSERT INTO research_response_design_context (
         response_id,study_id,wave_id,sample_draw_id,stratum_id,
         region_code,sector_code,size_band,
-        inclusion_probability,base_weight,fieldwork_phase
+        inclusion_probability,base_weight,fieldwork_phase,
+        matched_kad_codes,source_activity_codes,
+        kad_classification_version,kad_source_kind,
+        source_prefecture,postcode_district3
       )
       SELECT
         rr.id,
@@ -4743,7 +4746,17 @@ async function processIdentityDestructionJob(job: ResearchJobRow): Promise<Recor
         COALESCE(fu.size_band,'unknown'),
         su.inclusion_probability,
         su.base_weight,
-        ri.fieldwork_phase
+        ri.fieldwork_phase,
+        CASE WHEN jsonb_typeof(fu.sampling_attributes->'matchedActivityCodes')='array'
+          THEN fu.sampling_attributes->'matchedActivityCodes' ELSE '[]'::jsonb END,
+        CASE WHEN jsonb_typeof(fu.sampling_attributes->'activityCodes')='array'
+          THEN fu.sampling_attributes->'activityCodes' ELSE '[]'::jsonb END,
+        COALESCE(NULLIF(fu.sampling_attributes->>'classificationVersion',''),'unknown'),
+        COALESCE(NULLIF(fu.sampling_attributes->>'source',''),'unknown'),
+        COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),'unknown'),
+        CASE WHEN length(regexp_replace(COALESCE(fu.sampling_attributes->>'postcode',''),'[^0-9]','','g'))=5
+          THEN left(regexp_replace(COALESCE(fu.sampling_attributes->>'postcode',''),'[^0-9]','','g'),3)
+          ELSE NULL END
       FROM research_responses rr
       JOIN research_invites ri ON ri.id=rr.invite_id
       JOIN research_sample_units su ON su.id=ri.sample_unit_id
@@ -4761,6 +4774,28 @@ async function processIdentityDestructionJob(job: ResearchJobRow): Promise<Recor
     const contextCount = numberValue(contextCoverage.rows[0]?.context_count);
     if (responseCount !== contextCount) {
       throw new Error("RESEARCH_IDENTITY_DESTRUCTION_DESIGN_CONTEXT_INCOMPLETE");
+    }
+    // A preserved sector is not a substitute for the original versioned KAD.
+    // Irreversible unlink is blocked whenever a source code set was present
+    // but the detached append-only response context lacks that evidence.
+    const kadCoverage = await client.query<SqlRow>(`
+      SELECT
+        count(*) FILTER (WHERE jsonb_typeof(fu.sampling_attributes->'matchedActivityCodes')='array'
+          AND jsonb_array_length(fu.sampling_attributes->'matchedActivityCodes')>0
+          AND (jsonb_typeof(ctx.matched_kad_codes)<>'array'
+            OR jsonb_array_length(ctx.matched_kad_codes)=0))::integer AS missing_kad,
+        count(*) FILTER (WHERE COALESCE(NULLIF(fu.sampling_attributes->>'classificationVersion',''),'unknown')
+          <> ctx.kad_classification_version)::integer AS version_mismatch
+      FROM research_responses rr
+      JOIN research_invites ri ON ri.id=rr.invite_id
+      JOIN research_sample_units su ON su.id=ri.sample_unit_id
+      JOIN research_frame_units fu ON fu.id=su.frame_unit_id
+      LEFT JOIN research_response_design_context ctx ON ctx.response_id=rr.id
+      WHERE rr.wave_id=$1
+    `, [wave.id]);
+    if (numberValue(kadCoverage.rows[0]?.missing_kad) > 0 ||
+        numberValue(kadCoverage.rows[0]?.version_mismatch) > 0) {
+      throw new Error("RESEARCH_IDENTITY_DESTRUCTION_KAD_CONTEXT_INCOMPLETE");
     }
 
     const inviteMessagesDetached = await client.query(`

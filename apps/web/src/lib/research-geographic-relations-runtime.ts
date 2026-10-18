@@ -115,21 +115,23 @@ export async function researchRelationshipMap(
       "ORDER BY position LIMIT 80"
     ].join("\n"),[study.instrument_id]),
     pool.query<SqlRow>([
-      "SELECT DISTINCT fu.sector_code AS code FROM research_responses r",
+      "SELECT DISTINCT COALESCE(fu.sector_code,ctx.sector_code) AS code FROM research_responses r",
       "JOIN research_invites i ON i.id=r.invite_id",
-      "JOIN research_sample_units su ON su.id=i.sample_unit_id",
-      "JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
-      "WHERE r.study_id=$1 AND NULLIF(fu.sector_code,'') IS NOT NULL",
+      "LEFT JOIN research_sample_units su ON su.id=i.sample_unit_id",
+      "LEFT JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
+      "LEFT JOIN research_response_design_context ctx ON ctx.response_id=r.id",
+      "WHERE r.study_id=$1 AND NULLIF(COALESCE(fu.sector_code,ctx.sector_code),'') IS NOT NULL",
       "ORDER BY 1 LIMIT 40"
     ].join("\n"),[study.study_id]),
     pool.query<SqlRow>([
       "SELECT matched.code, count(*) AS n FROM research_responses r",
       "JOIN research_invites i ON i.id=r.invite_id",
-      "JOIN research_sample_units su ON su.id=i.sample_unit_id",
-      "JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
+      "LEFT JOIN research_sample_units su ON su.id=i.sample_unit_id",
+      "LEFT JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
+      "LEFT JOIN research_response_design_context ctx ON ctx.response_id=r.id",
       "CROSS JOIN LATERAL jsonb_array_elements_text(",
-      " CASE WHEN jsonb_typeof(fu.sampling_attributes->'matchedActivityCodes')='array'",
-      " THEN fu.sampling_attributes->'matchedActivityCodes' ELSE '[]'::jsonb END) AS matched(code)",
+      " CASE WHEN jsonb_typeof(COALESCE(fu.sampling_attributes->'matchedActivityCodes',ctx.matched_kad_codes))='array'",
+      " THEN COALESCE(fu.sampling_attributes->'matchedActivityCodes',ctx.matched_kad_codes) ELSE '[]'::jsonb END) AS matched(code)",
       "WHERE r.study_id=$1 GROUP BY matched.code ORDER BY n DESC,matched.code LIMIT 100"
     ].join("\n"),[study.study_id])
   ]);
@@ -159,7 +161,7 @@ export async function researchRelationshipMap(
   // Unknown/none responses are recorded answers, not silently discarded.
   const records=await pool.query<SqlRow>([
     "WITH labeled AS (",
-    " SELECT COALESCE(fu.sampling_attributes->>'prefecture','') AS prefecture,",
+    " SELECT COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),NULLIF(ctx.source_prefecture,''),'') AS prefecture,",
     "   CASE WHEN jsonb_typeof(a.answer)='array' THEN jsonb_array_length(a.answer)>0",
     "     WHEN jsonb_typeof(a.answer)='string' THEN btrim(a.answer #>> '{}')<>''",
     "     WHEN jsonb_typeof(a.answer) IN ('number','boolean') THEN true",
@@ -184,16 +186,17 @@ export async function researchRelationshipMap(
     "     ELSE NULL END AS outcome",
     " FROM research_responses r",
     " JOIN research_invites i ON i.id=r.invite_id",
-    " JOIN research_sample_units su ON su.id=i.sample_unit_id",
-    " JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
+    " LEFT JOIN research_sample_units su ON su.id=i.sample_unit_id",
+    " LEFT JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
+    " LEFT JOIN research_response_design_context ctx ON ctx.response_id=r.id",
     " LEFT JOIN research_answers a ON a.response_id=r.id AND a.question_id=$5::uuid",
     " LEFT JOIN research_answers b ON b.response_id=r.id AND b.question_id=$6::uuid",
     " WHERE r.study_id=$1 AND r.instrument_id=$2",
     " AND r.withdrawn_at IS NULL AND r.status IN ('completed','in_progress')",
     " AND ($3::text='all' OR r.status=$3::text)",
     " AND i.fieldwork_phase=$4",
-    " AND ($9::text='' OR fu.sector_code=$9)",
-    " AND ($10::text='' OR COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb) ? $10::text)",
+    " AND ($9::text='' OR COALESCE(fu.sector_code,ctx.sector_code)=$9)",
+    " AND ($10::text='' OR COALESCE(fu.sampling_attributes->'matchedActivityCodes',ctx.matched_kad_codes,'[]'::jsonb) ? $10::text)",
     ")",
     "SELECT prefecture,segment,",
     " count(*) FILTER (WHERE has_a AND has_b)::integer AS answered,",
