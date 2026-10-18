@@ -131,7 +131,7 @@ export function summarizeFiscalKybReviewPage(records:readonly PagedRaw[]):Fiscal
  const visible=new Set(ids.slice(0,40));
  const rows=records.filter(r=>visible.has(r.id));
  const cases=summarizeFiscalKybReviewQueue(rows);
- const terminal=hasNext?rows.findLast(r=>r.id===ids[39]):undefined;
+ const terminal=hasNext?rows.find(r=>r.id===ids[39]):undefined;
  return Object.freeze({
   cases,hasNext,
   nextCursor:terminal?terminal.created_at_key+"|"+terminal.id:null,
