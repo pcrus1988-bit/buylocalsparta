@@ -812,3 +812,17 @@ test("wholegrain and without-carbonation allowances cannot waive unrelated speci
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(xs),[]);
 });
+
+test("unaudited wholegrain variants cannot inherit the exact audited wholegrain waiver",()=>{
+ const xs=[
+  p("rA","A","A Φρυγανιές Σταρένιες Ολικής Άλεσης 240g","Φρυγανιές","kg",.24),
+  p("rB","B","B Φρυγανιές Σταρένιες Ολικής Άλεσης 240g","Φρυγανιές","kg",.24),
+  p("oA","A","A Κριθαράκι Ψιλό Ολικής Άλεσης 500g","Κριθαράκι","kg",.5),
+  p("oB","B","B Κριθαράκι Ψιλό Ολικής Άλεσης 500g","Κριθαράκι","kg",.5),
+  p("spA","A","A Σπαγγετίνη Νο5 Ολικής Άλεσης 500g","Σπαγγέτι","kg",.5),
+  p("spB","B","B Σπαγγετίνη Νο5 Ολικής Άλεσης 500g","Σπαγγέτι","kg",.5),
+  p("spOtherA","A","A Σπαγγέτι Νο10 Ολικής Άλεσης 500g","Σπαγγέτι","kg",.5),
+  p("spOtherB","B","B Σπαγγέτι Νο10 Ολικής Άλεσης 500g","Σπαγγέτι","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(xs),[]);
+});
