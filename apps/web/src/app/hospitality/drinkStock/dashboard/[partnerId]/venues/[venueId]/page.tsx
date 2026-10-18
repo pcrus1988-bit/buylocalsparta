@@ -1,9 +1,9 @@
 import type {Metadata} from "next";
 import Link from "next/link";
 import {notFound,redirect} from "next/navigation";
-import {hospitalityIdentity} from "../../../../../../../../lib/hospitality-partner-access";
-import {drinkStockMarketSnapshot,DrinkStockMarketError} from "../../../../../../../../lib/drinkstock-market-service";
-import {DrinkStockVenueMarket} from "../../../../../../../../components/DrinkStockVenueMarket";
+import {hospitalityIdentity} from "../../../../../../../lib/hospitality-partner-access";
+import {drinkStockMarketSnapshot,DrinkStockMarketError} from "../../../../../../../lib/drinkstock-market-service";
+import {DrinkStockVenueMarket} from "../../../../../../../components/DrinkStockVenueMarket";
 import styles from "../../../../../hospitality.module.css";
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"DrinkStock Trading Floor · Venue",robots:{index:false,follow:false}};
