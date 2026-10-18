@@ -26,10 +26,12 @@ export function DrinkStockGuestCart({token,initial}:{token:string;initial:Sessio
  const crashSeconds=crashUntil?Math.max(0,Math.ceil((Date.parse(crashUntil)-now)/1000)):0;
  const totalUnits=Object.values(cart).reduce((sum,count)=>sum+count,0);
  const selected=useMemo(()=>Object.entries(cart).filter(([,count])=>count>0),[cart]);
- const unexpired=Boolean(preview&&connected&&Date.parse(preview.expiresAt)>now);
+ const unexpired=Boolean(preview&&connected&&live&&Date.parse(preview.expiresAt)>now);
+ const snapshotKey=`${view.session?.id??""}:${view.session?.state??""}:${view.products.map(x=>`${x.id}:${x.priceCents}`).join("|")}`;
  const secondsRemaining=preview?Math.max(0,Math.ceil((Date.parse(preview.expiresAt)-now)/1000)):0;
  const endpoint=`/api/hospitality/public/table/${token}`;
 
+ useEffect(()=>{setPreview(null);},[snapshotKey]);
  useEffect(()=>{
   const clock=window.setInterval(()=>setNow(Date.now()),500);
   return ()=>window.clearInterval(clock);
@@ -50,12 +52,12 @@ export function DrinkStockGuestCart({token,initial}:{token:string;initial:Sessio
  },[endpoint]);
 
  function adjust(productId:string,delta:number){
-  if(!connected||!live)return;
-  const current=cart[productId]??0,next=current+delta;
-  if(next<0||next>10)return;
-  if(next>0&&current===0&&selected.length>=12){setError("A preview can contain at most 12 different drinks.");return;}
-  if(delta>0&&totalUnits>=24){setError(errorCopy.CART_LIMIT_EXCEEDED);return;}
+  if(!connected||!live||loading)return;
   setCart(previous=>{
+   const count=previous[productId]??0,next=count+delta;
+   if(next<0||next>10)return previous;
+   if(delta>0&&Object.values(previous).reduce((sum,q)=>sum+q,0)>=24)return previous;
+   if(next>0&&count===0&&Object.keys(previous).length>=12)return previous;
    const updated={...previous};
    if(next===0)delete updated[productId];else updated[productId]=next;
    return updated;
@@ -113,9 +115,9 @@ export function DrinkStockGuestCart({token,initial}:{token:string;initial:Sessio
         <strong style={{display:"block",marginTop:9,color:"#d5ff53",fontSize:23}}>{money(drink.priceCents)}</strong>
        </div>
        <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <button type="button" disabled={!live||count===0} onClick={()=>adjust(drink.id,-1)} aria-label={`Remove one ${drink.name}`} style={{...actionStyle,background:"#392b50",color:"#fff",opacity:(!live||count===0)?0.4:1}}>−</button>
+        <button type="button" disabled={!live||loading||count===0} onClick={()=>adjust(drink.id,-1)} aria-label={`Remove one ${drink.name}`} style={{...actionStyle,background:"#392b50",color:"#fff",opacity:(!live||count===0)?0.4:1}}>−</button>
         <span style={{minWidth:20,textAlign:"center",fontWeight:900}}>{count}</span>
-        <button type="button" disabled={!live||count===10||totalUnits>=24} onClick={()=>adjust(drink.id,1)} aria-label={`Add one ${drink.name}`} style={{...actionStyle,background:"#d5ff53",opacity:(!live||count===10||totalUnits>=24)?0.4:1}}>+</button>
+        <button type="button" disabled={!live||loading||count===10||totalUnits>=24} onClick={()=>adjust(drink.id,1)} aria-label={`Add one ${drink.name}`} style={{...actionStyle,background:"#d5ff53",opacity:(!live||count===10||totalUnits>=24)?0.4:1}}>+</button>
        </div>
       </article>;
      })}
