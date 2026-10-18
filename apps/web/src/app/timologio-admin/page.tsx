@@ -42,7 +42,7 @@ export default async function FiscalAdmin(){
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:20}}>
    <h2>Business applications</h2>
-   <div className="fiscal-actions"><Link className="fiscal-button" href="/timologio-admin/kyb-queue">Εκκρεμότητες ελέγχου · KYB</Link><Link className="fiscal-button secondary" style={{color:"#10323c"}} href="/timologio-admin/invitations">Ελεγχόμενες προσκλήσεις επιχειρήσεων</Link></div>
+   <div className="fiscal-actions"><Link className="fiscal-button" href="/timologio-admin/kyb-queue">Εκκρεμότητες ελέγχου · KYB</Link><Link className="fiscal-button secondary" style={{color:"#10323c"}} href="/timologio-admin/kyb-intake-readiness">Ασφαλής υποβολή δικαιολογητικών · Ετοιμότητα</Link><Link className="fiscal-button secondary" style={{color:"#10323c"}} href="/timologio-admin/invitations">Ελεγχόμενες προσκλήσεις επιχειρήσεων</Link></div>
    {!data?.accounts.length?<p className="fiscal-muted">No reviewed merchant applications in the independent Fiscal database yet.</p>:
    <div style={{overflowX:"auto"}}><table className="fiscal-table"><thead><tr><th>Business</th><th>AFM</th><th>State</th><th>Created</th><th>Review</th></tr></thead>
     <tbody>{data.accounts.map(account=><tr key={account.id}><td><Link href={"/timologio-admin/accounts/"+account.id}>{account.legal_name}</Link></td><td>{account.vat_number}</td>

@@ -583,3 +583,44 @@ exists). Both `pending_review` and `under_review` remain in scope.
 
 M30 is a workflow capacity and accessibility improvement, not a certification
 or production authorization for tax documents. Issuance remains disabled.
+
+
+## Milestone 31 — sensitive KYB evidence intake security foundation (19 October 2026)
+
+An authenticated operator-only, read-only view at
+`/timologio-admin/kyb-intake-readiness` now documents the **nine independent
+security and privacy prerequisites** for a future merchant evidence service.
+
+- The view uses the existing FISCAL administrator authentication and enforces
+  operator MFA step-up when configured, exactly as the existing KYB queue does.
+- It reports **zero independently verified external prerequisites** because
+  no external audit/approval feed has been provisioned. An operator, database
+  record or environment flag cannot mark these independently completed.
+- Controls: EU-resident private object storage, organization segregation,
+  per-object encryption/keys, content-type sniffing and malware quarantine,
+  immutable operator access audits, retention/deletion, legal basis and data
+  minimization, incident response, and verified operator MFA/recovery.
+- A suspicious non-false `FISCAL_KYB_UPLOADS_ENABLED` request is surfaced as
+  an unsafe configuration attempt, but does not activate any capability.
+- A pure, strictly bounded *candidate policy evaluator* accepts only exact
+  server-derived organization scope, membership role, organization status,
+  one of the existing seven KYB categories and conservative M29 metadata.
+  Cross-tenant, viewer, suspended/rejected, unknown-category and malformed
+  file candidates are rejected. Even a valid candidate gets **no upload grant**,
+  document write, evidence approval or statutory issuance.
+- Dedicated Node tests enforce immutable negative authorization, zero approval
+  for any flag combination, cross-tenant rejection and an authenticated,
+  MFA-gated route. CI also retains the existing disposal-only PostgreSQL tests.
+- No real evidence is requested or processed; no file chooser, bytes, presigned
+  URL, multipart endpoint, private storage credential, migration, sensitive
+  record, message or external data transfer was introduced.
+- The independent Fiscal app and separate B2C/POS/B2B/B2G certification gates
+  remain intact. Legal invoicing and AADE/myDATA transmission remain **OFF**.
+
+M31 is deliberately a **security-readiness and authorization-policy
+foundation**, not the actual storage service. To enable genuine collection,
+the organization must approve the lawful purpose and retention schedule,
+independently verify all controls, provision a dedicated private EU-resident
+store and scanning/quarantine pipeline, implement short-lived server-signed
+single-use grants, audit access and deletion, and pass an explicit separate
+release gate. None of those are claimed complete by M31.
