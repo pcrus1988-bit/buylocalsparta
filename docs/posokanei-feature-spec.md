@@ -263,3 +263,8 @@ Additional deterministic category-scoped checks recognize Honey Rings breakfast 
 ### October 17 review hardening: subtype-scoped wholegrain waiver
 
 The ordinary wholegrain claim veto is waived only for the three precisely audited descriptive subtypes: country-style wholegrain rusks, medium wholegrain orzo, and No10 wholegrain **spaghettini**. Other wholegrain rusks, fine orzo, numbered pasta cuts and generic spaghetti do *not* qualify solely by belonging to the same source category. Regression fixtures verify that even two brands of an unaudited wholegrain subtype fail closed.
+
+
+### 2026-10-17 exact-source follow-up: ordinary complete packs
+
+A narrow follow-up audit proposes only five textually explicit product kinds from the unreviewed same-day retailer archive: canned wet food described as chicken and turkey for cats or dogs respectively; sausage puff-pastry bites; powdered chocolate drink (not instant cocoa); and plant-based pastry cream (not dairy cream). Source product description, source category, genuine distinct brands, physical whole-package quantity and existing special-claim vetoes remain mandatory. In the pastry cream family only, an explicitly named plant-based pastry product is a sufficient preparation descriptor when the fat percentage is not on the front label; this does **not** waive the percentage requirement for ordinary dairy cream or other dairy groups. Pet-food family comparisons are shopper opt-in shopping *type* suggestions, never veterinary, nutrient, hypoallergenic or ingredient equivalence; follow an animal's veterinary diet if relevant. No automatic substitution or branch-stock inference is introduced.
