@@ -114,9 +114,10 @@ export async function researchKadCoverageAudit(
     classificationVersions:versions.rows.map(x=>({
       version:text(x.version),source:text(x.source),count:num(x.n)
     })),
-    sectors:toSectors,
-    kadFourDigit:kad.rows.map(x=>({code:text(x.code),
-      respondents:exact||num(x.n)>=15?num(x.n):null})),
+    // Read-only users receive national coverage, not a partition whose small
+    // sectors can be recovered by subtraction from the national total.
+    sectors:exact?toSectors:[],
+    kadFourDigit:exact?kad.rows.map(x=>({code:text(x.code),respondents:num(x.n)})):[],
     exactSmallCells:exact
   };
 }
