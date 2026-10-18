@@ -1,4 +1,7 @@
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
+import sharp from "sharp";
+import postcodePoints from "../../public/research/greece-postcode-points.json";
+import { answerPostcodeHeatField } from "./research-answer-postcode-density";
 import { assertAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { rawResearchAnswerAccess } from "./research-survey-response-admin";
@@ -21,6 +24,10 @@ export type SingleQuestionDistribution = Readonly<{
   regions: readonly SafeDistributionRegion[];
   hasUnmappedGeography: boolean;
   exactCountsAvailable: boolean;
+  /** Server-rendered rasters. No postcode, coordinates or individual points in props. */
+  postcodeDensity?: Readonly<{
+    countImage: string; prevalenceImage: string; hasDetail: boolean;
+  }>;
   capturedAt: string;
 }>;
 
@@ -99,7 +106,8 @@ export async function researchSingleQuestionDistribution(
   };
   const selected = await pool.query<SqlRow>([
     "WITH scoped AS (",
-    " SELECT COALESCE(fu.sampling_attributes->>'prefecture','') AS prefecture,a.answer",
+    " SELECT COALESCE(fu.sampling_attributes->>'prefecture','') AS prefecture,",
+    "  COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,a.answer",
     " FROM research_responses r",
     " JOIN research_invites i ON i.id=r.invite_id",
     " JOIN research_sample_units su ON su.id=i.sample_unit_id",
@@ -116,19 +124,36 @@ export async function researchSingleQuestionDistribution(
     "   WHEN jsonb_typeof(a.answer) IN ('number','boolean') THEN true",
     "   ELSE false END",
     ")",
-    "SELECT prefecture,count(*)::integer AS answered,",
+    "SELECT prefecture,postcode,count(*)::integer AS answered,",
     " count(*) FILTER (WHERE CASE WHEN jsonb_typeof(answer)='array'",
     "  THEN answer ? $8::text ELSE answer #>> '{}' = $8::text END)::integer AS matched",
-    " FROM scoped GROUP BY prefecture ORDER BY prefecture"
+    " FROM scoped GROUP BY prefecture,postcode ORDER BY prefecture,postcode"
   ].join("\n"), [
     study.study_id, study.instrument_id, id,
     filters.mode === "draft" ? "in_progress" : filters.mode,
     filters.phase, filters.sector, filters.kad, answer.key
   ]);
-  const aggregate = aggregateDistribution(selected.rows.map(row => ({
+  const detailInput = selected.rows.map(row => ({
+    postcode: asText(row.postcode),
     prefecture: asText(row.prefecture),
-    answered: Number(row.answered ?? 0), matched: Number(row.matched ?? 0)
-  })));
+    answered: Number(row.answered ?? 0),
+    matched: Number(row.matched ?? 0)
+  }));
+  const aggregate = aggregateDistribution(detailInput);
+  // Same GISCO postcode reference and smooth-Gaussian colour field as the
+  // public participation map. Never send fine-grained input to the browser.
+  const detailed = answerPostcodeHeatField(detailInput, postcodePoints);
+  const toPng = async (pixels:Uint8Array) => "data:image/png;base64," +
+    (await sharp(Buffer.from(pixels), {
+      raw:{width:detailed.width,height:detailed.height,channels:4}
+    }).png().toBuffer()).toString("base64");
+  const postcodeDensity = detailed.spatialCohorts > 0 ? {
+    countImage:await toPng(detailed.countPixels),
+    prevalenceImage:await toPng(detailed.ratePixels),
+    hasDetail:true
+  } : undefined;
+  // Keep all answer rows in the normal regions/national denominators, whether
+  // or not they qualify for the more revealing local raster.
   const exact = rawResearchAnswerAccess(principal);
   await recordAdminPersonalDataAccess(principal, {
     route: "/admin/research/surveys/" + encodeURIComponent(slug) + "/map/distribution",
@@ -143,6 +168,7 @@ export async function researchSingleQuestionDistribution(
     national: safeDistributionCounts(aggregate.national, aggregate.mappedMatched, exact),
     regions: aggregate.regions.map(row => safeDistributionRegion(row, aggregate.mappedMatched, exact)),
     hasUnmappedGeography: aggregate.unknown.answered > 0,
+    postcodeDensity,
     exactCountsAvailable: exact, capturedAt: new Date().toISOString()
   };
 }
