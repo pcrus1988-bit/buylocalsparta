@@ -143,14 +143,23 @@ export function GreeceResearchHeatmap({ cells, filters, root, onRegionSelect, vi
         onPointerUp={densityImage ? ()=>{
           suppressNextClick.current=Boolean(drag.current?.active);
           drag.current=null;
+          // The next click after panning should not trigger region navigation.
+          // Clear immediately after the synthetic click dispatch, not on
+          // the next intentional tap.
+          window.setTimeout(()=>{suppressNextClick.current=false;},0);
         }:undefined}
         onPointerCancel={densityImage ? ()=>{drag.current=null;}:undefined}>
         {densityImage && <><defs><clipPath id={imageId+"land"}>
           {geo.features.map(feature=><path key={feature.properties.name}
             d={pathForGeometry(feature.geometry)} fillRule="evenodd" clipRule="evenodd"/>)}
         </clipPath></defs>
-        {geo.features.map(feature=><path key={feature.properties.name}
-          d={pathForGeometry(feature.geometry)} fill="#e5eee7" fillRule="evenodd"/>)}
+        {geo.features.map(feature=>{
+          const mapCell=cellByRegion.get(feature.properties.name as GreekRegionKey);
+          const val=mapCell?valueFor(mapCell,filters.metric,max):undefined;
+          return <path key={feature.properties.name} d={pathForGeometry(feature.geometry)}
+            fill={heatColor(val)} fillOpacity={val===undefined?0.15:0.24}
+            fillRule="evenodd"/>;
+        })}
         <image href={densityImage} x="0" y="0" width="810" height="650"
           preserveAspectRatio="none" clipPath={`url(#${imageId}land)`}
           pointerEvents="none" />
