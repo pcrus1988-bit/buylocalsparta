@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 export default function HospitalityLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className={styles.shell} data-hospitality-root>
-      <a className={styles.gatewaySkipLink} href="#main-content">Μετάβαση στο περιεχόμενο</a>
+      <a className={styles.gatewaySkipLink} href="#hospitality-main">Μετάβαση στο περιεχόμενο</a>
       <header className={styles.header}>
         <div className={styles.navigation}>
           <Link href={HOSPITALITY_ORIGIN} className={styles.brand} aria-label="KONTA MOY Hospitality – αρχική">
@@ -37,7 +37,7 @@ export default function HospitalityLayout({ children }: { children: React.ReactN
           </nav>
         </div>
       </header>
-      {children}
+      <div id="hospitality-main" tabIndex={-1}>{children}</div>
       <footer className={styles.footer}>
         <span>© KONTA MOY Hospitality · Developed in Sparta for Greece</span>
         <div className={styles.gatewayFooterLinks}>
