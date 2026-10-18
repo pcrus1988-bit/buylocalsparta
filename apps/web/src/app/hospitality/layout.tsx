@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function HospitalityLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-hospitality-root>
       <a className={styles.gatewaySkipLink} href="#main-content">Μετάβαση στο περιεχόμενο</a>
       <header className={styles.header}>
         <div className={styles.navigation}>
