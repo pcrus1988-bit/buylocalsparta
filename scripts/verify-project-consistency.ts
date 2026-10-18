@@ -401,7 +401,16 @@ for (const file of walk(join(root, "apps/web/src")).filter((path) => path.endsWi
     // API hrefs resolve through app-router route.ts handlers, including dynamic segments.
     // This static check validates navigational page routes only; API contracts have dedicated verifiers.
     if (pathname.startsWith("/api/")) continue;
-    if (!routes.has(pathname) && !matchesDynamicPage(pathname)) errors.push(`Broken static Next.js link ${href} in ${relative(root, file)} (no ${pathname} page)`);
+    // Hospitality has a host-isolated public path that proxy.ts rewrites to its
+    // internal App Router path. Validate the actual destination rather than
+    // incorrectly requiring a duplicate public filesystem page.
+    const hospitalitySource = relative(root, file).split(sep).join("/").startsWith("apps/web/src/app/hospitality/");
+    const hostnameAlias = hospitalitySource && (pathname === "/drinkstock" || pathname.startsWith("/drinkstock/"))
+      ? "/hospitality/drinkStock" + pathname.slice("/drinkstock".length)
+      : undefined;
+    const resolves = routes.has(pathname) || matchesDynamicPage(pathname) ||
+      (hostnameAlias !== undefined && (routes.has(hostnameAlias) || matchesDynamicPage(hostnameAlias)));
+    if (!resolves) errors.push(`Broken static Next.js link ${href} in ${relative(root, file)} (no ${pathname} page)`);
   }
 }
 
