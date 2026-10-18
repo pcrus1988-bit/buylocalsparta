@@ -20,7 +20,8 @@ export function CompanionDock(){
   const hidden=Keyboard.addListener("keyboardDidHide",()=>setKeyboard(false));
   return()=>{shown.remove();hidden.remove();};
  },[]);
- if(keyboard)return null;
+ // Sport & Fit uses a fullscreen, distraction-free guided consultation.
+ if(keyboard||pathname==="/sport-fit")return null;
  return <View accessibilityRole="tablist" style={[styles.bar,{paddingBottom:Math.max(insets.bottom,9)}]}>
    {TABS.map(t=><Link href={t.href as Href} asChild key={t.href}>
       <Pressable accessibilityRole="tab"
