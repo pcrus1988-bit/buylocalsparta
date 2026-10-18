@@ -32,8 +32,8 @@ export default function HospitalityLayout({ children }: { children: React.ReactN
           <nav aria-label="Hospitality navigation" className={styles.navLinks}>
             <Link href={`${HOSPITALITY_ORIGIN}/#applications`}>Εφαρμογές</Link>
             <Link href={`${HOSPITALITY_ORIGIN}/#how-it-works`} className={styles.gatewayNavSecondary}>Η φιλοσοφία μας</Link>
-            <Link href={`${HOSPITALITY_ORIGIN}/drinkStock`}>DrinkStock <span aria-hidden="true">↗</span></Link>
-            <Link href={`${HOSPITALITY_ORIGIN}/drinkStock/login`} className={styles.navLogin}>Partner Login</Link>
+            <Link href={`${HOSPITALITY_ORIGIN}/drinkstock`}>DrinkStock <span aria-hidden="true">↗</span></Link>
+            <Link href={`${HOSPITALITY_ORIGIN}/drinkstock/login`} className={styles.navLogin}>Partner Login</Link>
           </nav>
         </div>
       </header>
@@ -42,8 +42,8 @@ export default function HospitalityLayout({ children }: { children: React.ReactN
         <span>© KONTA MOY Hospitality · Developed in Sparta for Greece</span>
         <div className={styles.gatewayFooterLinks}>
           <Link href={HOSPITALITY_ORIGIN}>Gateway</Link>
-          <Link href={`${HOSPITALITY_ORIGIN}/drinkStock`}>DrinkStock</Link>
-          <Link href={`${HOSPITALITY_ORIGIN}/drinkStock/login`}>Partner access</Link>
+          <Link href={`${HOSPITALITY_ORIGIN}/drinkstock`}>DrinkStock</Link>
+          <Link href={`${HOSPITALITY_ORIGIN}/drinkstock/login`}>Partner access</Link>
           <a href="https://kontamou.site">KONTA MOY Universe ↗</a>
         </div>
       </footer>
