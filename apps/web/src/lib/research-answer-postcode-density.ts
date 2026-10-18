@@ -77,8 +77,11 @@ function rasterize(anchors:readonly Anchor[]) {
       }
     }
   }
-  const maxMatched=Math.max(0,...numerator);
-  const maxAnswered=Math.max(0,...denominator);
+  let maxMatched=0,maxAnswered=0;
+  for(let i=0;i<numerator.length;i++){
+    if(numerator[i]>maxMatched)maxMatched=numerator[i];
+    if(denominator[i]>maxAnswered)maxAnswered=denominator[i];
+  }
   const counts=new Uint8Array(WIDTH*HEIGHT*4);
   const rates=new Uint8Array(WIDTH*HEIGHT*4);
   for(let i=0;i<numerator.length;i++) {
