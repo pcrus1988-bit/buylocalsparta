@@ -143,7 +143,7 @@ export default function SportFitStudio(){
      <Text style={styles.progressLabel}>{Math.round((index+1)/sequence.length*100)}%</Text>
     </View>
     <View style={styles.progressTrack}>
-     <View style={[styles.progressFill,{width:(index+1)/sequence.length*100+"%"}]}/>
+     <View style={[styles.progressFill,{width:((index+1)/sequence.length*100+"%") as `${number}%`}]}/>
     </View>
     <Text style={styles.headline}>{question.title}</Text>
     <Text style={styles.subline}>Μία ερώτηση κάθε φορά. Κάθε απάντηση καθοδηγεί την επιλογή των σωστών προϊόντων.</Text>
