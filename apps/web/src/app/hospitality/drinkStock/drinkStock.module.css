@@ -114,3 +114,103 @@
   .priceTapeInner{animation:none}
   .drinkCard,.boostButton,.crashButton,.resetButton{transition:none}
 }
+
+
+/* Scripted, self-running market board and manager-crash theatre. */
+.boardContent{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,305px);gap:17px;align-items:stretch}
+.boardContent .drinkGrid{min-width:0}
+.boardContent .drinkCard{min-height:270px;padding:18px}
+.boardContent .drinkCard h4{font-size:clamp(19px,2.1vw,26px)}
+.boardContent .drinkCard .priceRow{padding:16px 0 10px}
+.boardContent .drinkCard .priceRow strong{font-size:clamp(27px,2.8vw,38px)}
+.recentlyOrdered{border-color:#caff4e!important;box-shadow:inset 0 0 18px #caff4e14,0 0 26px #caff4e20}
+.autoTradeTag{margin-top:4px;display:flex;align-items:center;justify-content:center;gap:8px;min-height:41px;padding:10px;border:1px solid #51436a;color:#b7a5d9;border-radius:10px;font-size:10px;font-weight:900;letter-spacing:.09em;text-align:center}
+.recentlyOrdered .autoTradeTag{border-color:#b9f66d;background:#caff4e1c;color:#dcff8a}
+.autoTradeTag span{color:#caff4e}
+.orderFeed{display:flex;flex-direction:column;min-width:0;min-height:0;border:1px solid #584672;border-radius:16px;background:linear-gradient(160deg,#19152e,#0d1020);overflow:hidden}
+.feedHeader{display:flex;align-items:center;gap:11px;padding:20px 17px;border-bottom:1px solid #4f3c65}
+.feedBlink{flex:none;width:9px;height:9px;border-radius:50%;background:#caff4e;box-shadow:0 0 0 5px #caff4e14,0 0 16px #caff4e6d;animation:feedPulse 2.6s ease-in-out infinite}
+.feedHeader>div{display:flex;flex-direction:column;min-width:0;gap:6px}
+.feedHeader strong{font-size:13px;letter-spacing:.075em;font-weight:950}
+.feedHeader small{color:#8d88af;font-size:9px;letter-spacing:.085em;font-weight:850}
+.feedCounter{margin-left:auto;font-size:15px;letter-spacing:-.04em;color:#d4ff72;font-weight:950;font-variant-numeric:tabular-nums}
+.feedNext{display:flex;flex-direction:column;gap:9px;padding:19px 17px;background:#caff4e12;border-bottom:1px solid #53435f}
+.feedNext>span{color:#caff4e;font-size:9px;letter-spacing:.14em;font-weight:950}
+.feedNext strong{font-size:21px;font-weight:950;letter-spacing:-.05em}
+.feedNext small{font-size:10px;color:#b1abc7;letter-spacing:.04em;font-weight:800}
+.feedEntries{flex:1;display:flex;flex-direction:column;min-height:325px;max-height:495px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#554d73 transparent}
+.feedEmpty{margin:auto;padding:25px 13px;text-align:center;color:#9a94b5;font-size:12px;line-height:1.75}
+.feedEntry{border-bottom:1px solid #39314d;padding:16px 16px 15px;display:flex;flex-direction:column;gap:8px;background:#ffffff02}
+.feedEntry:first-child{background:#caff4e0b}
+.feedEntryTop,.feedEntryFoot{display:flex;align-items:center;justify-content:space-between;gap:7px}
+.feedEntryTop>span{font-size:9px;letter-spacing:.13em;color:#b9e879;font-weight:950}
+.feedEntryTop time{color:#77708f;font-size:10px;font-variant-numeric:tabular-nums}
+.feedEntry>strong{font-size:16px;font-weight:900;letter-spacing:-.04em;line-height:1.3}
+.feedEntryFoot small{font-size:9px;letter-spacing:.06em;color:#9993af;line-height:1.4}
+.feedEntryFoot em{white-space:nowrap;font-size:11px;font-style:normal;font-weight:900}
+.feedUp{color:#caff4e}.feedDown{color:#ff79aa}
+.feedCrash{background:#ff32321f!important;border-left:4px solid #ff4a58}
+.feedCrash .feedEntryTop>span,.feedCrash>strong{color:#ff7880}
+.feedReopen{background:#a8f75012!important;border-left:4px solid #caff4e}
+.feedFootnote{margin-top:auto;text-align:center;padding:13px 11px;color:#726c8d;font-size:9px;font-weight:850;letter-spacing:.095em;border-top:1px solid #352e49}
+.soundButton{background:#241d3d;border:1px solid #5c4c7a;border-radius:11px;color:#e5def5;min-height:53px;padding:10px 15px;white-space:nowrap;font-family:inherit;cursor:pointer;font-size:10px;font-weight:900;letter-spacing:.04em}
+.soundButton[aria-pressed="false"]{color:#a4a0b5}
+.crashButton:disabled{opacity:.63;cursor:not-allowed;box-shadow:none}
+.crashing{border-color:#ff4c5d;box-shadow:0 0 0 1px #e62a4377,0 25px 125px #c8003036!important}
+.crashing .marketGlyph{background:#ff495d}
+.marketStateCrash{color:#ff8592}
+.marketStateCrash .liveDot{background:#ff4258;box-shadow:0 0 0 5px #ff425820,0 0 15px #ff4258}
+.crashStrip{position:relative;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:7px;padding:20px 18px 23px;background:radial-gradient(ellipse at 50% 5%,#a5294c99,transparent 66%),linear-gradient(100deg,#290d20,#4c102c 52%,#290d20);border-bottom:2px solid #ff5b6a;border-top:1px solid #ff4c645e;min-height:188px}
+.crashEyebrow{color:#ffb7bb;font-size:10px;letter-spacing:.2em;font-weight:950}
+.crashCounter{font-size:clamp(63px,8vw,100px);font-weight:950;letter-spacing:-.055em;line-height:.98;color:#fff;font-variant-numeric:tabular-nums;text-shadow:0 0 34px #ff3b5899}
+.crashSubtitle{font-size:10px;letter-spacing:.13em;color:#ffb7bd;font-weight:850}
+.crashProgress{height:5px;width:min(100%,390px);background:#ffffff31;border-radius:999px;overflow:hidden;margin-top:7px}
+.crashProgress>span{display:block;height:100%;background:#ff6a75;box-shadow:0 0 18px #ff4b5c;transition:width .45s linear}
+.emergencyLights{position:absolute;inset:0;pointer-events:none;z-index:7}
+.emergencyLight{position:absolute;display:block;width:20px;height:20px;background:#ff354c;border:3px solid #ffe0e1;border-radius:50%;box-shadow:0 0 14px 6px #ff203d9c,0 0 45px 25px #ed153a76;animation:crashBeacon 1.3s ease-in-out infinite}
+.lightTopLeft{top:17px;left:14px}
+.lightTopRight{top:17px;right:14px;animation-delay:-.65s}
+.lightBottomLeft{bottom:17px;left:14px;animation-delay:-.65s}
+.lightBottomRight{bottom:17px;right:14px}
+@keyframes crashBeacon{0%,100%{opacity:.52;box-shadow:0 0 8px 3px #ff203d90,0 0 25px 10px #ed153a48}50%{opacity:1;box-shadow:0 0 16px 8px #ff203dda,0 0 55px 28px #ed153a8b}}
+@keyframes feedPulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media(max-width:1150px){
+  .boardContent{grid-template-columns:minmax(0,1fr) 270px;gap:11px}
+  .boardContent .drinkGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+}
+@media(max-width:830px){
+  .boardContent{grid-template-columns:1fr}
+  .boardContent .drinkGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .feedEntries{min-height:120px;max-height:270px}
+  .orderFeed{max-height:none}
+  .controlDeck{flex-direction:column;align-items:stretch}
+}
+@media(max-width:620px){
+  .boardContent .drinkGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .boardContent .drinkCard{padding:14px 12px;min-height:233px}
+  .boardContent .drinkCard h4{font-size:19px}
+  .boardContent .drinkCard .priceRow strong{font-size:27px}
+  .autoTradeTag{font-size:8px;min-height:40px;letter-spacing:.04em}
+  .feedEntries{max-height:245px}
+  .crashStrip{padding:26px 15px;min-height:172px}
+  .crashCounter{font-size:70px}
+  .crashEyebrow{font-size:9px}
+  .crashSubtitle{font-size:9px;line-height:1.5}
+  .emergencyLight{width:13px;height:13px;border-width:2px}
+  .lightTopLeft{top:7px;left:7px}
+  .lightTopRight{top:7px;right:7px}
+  .lightBottomLeft{bottom:7px;left:7px}
+  .lightBottomRight{bottom:7px;right:7px}
+  .controlButtons{display:grid;grid-template-columns:1fr 1fr}
+  .soundButton{grid-column:1 / -1}
+  .crashButton{min-height:57px;line-height:1.4}
+  .resetButton{min-height:57px}
+}
+@media(max-width:360px){
+  .boardContent .drinkGrid{grid-template-columns:1fr}
+  .boardContent .drinkCard{min-height:212px}
+}
+@media(prefers-reduced-motion:reduce){
+  .emergencyLight,.feedBlink{animation:none}
+  .crashProgress>span{transition:none}
+}
