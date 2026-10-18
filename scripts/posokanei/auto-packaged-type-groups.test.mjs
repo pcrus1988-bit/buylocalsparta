@@ -826,3 +826,61 @@ test("unaudited wholegrain variants cannot inherit the exact audited wholegrain 
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(xs),[]);
 });
+
+
+test("October 17: chicken-turkey wet cat food matches only exactly labelled ordinary canned type",()=>{
+ const items=[
+ p("cat1","MY FRIENDS","MY FRIENDS Κονσέρβα Γάτας με Κοτόπουλο & Γαλοπούλα 400g","Υγρή Τροφή για Γάτες","kg",.4),
+ p("cat2","BEST PRICE","BEST PRICE Κονσέρβα Γάτας Κοτόπουλο-Γαλοπούλα 405g","Υγρή Τροφή για Γάτες","kg",.405),
+ p("cat3","OTHER","OTHER Κονσέρβα Γάτας με Κοτόπουλο & Μοσχάρι 400g","Υγρή Τροφή για Γάτες","kg",.4),
+ p("cat4","BETA","BETA Κονσέρβα Γάτας με Κοτόπουλο & Γαλοπούλα Vegan 400g","Υγρή Τροφή για Γάτες","kg",.4)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(x=>x.memberIds),[["cat1","cat2"]]);
+});
+test("October 17: regular wet dog chicken-turkey cans remain separate from other meats and diets",()=>{
+ const items=[
+ p("dog1","BEST PRICE","BEST PRICE Κονσέρβα Σκύλου Κοτόπουλο & Γαλοπούλα 1250g","Υγρή Τροφή για Σκύλους","kg",1.25),
+ p("dog2","MY FRIENDS","MY FRIENDS Κονσέρβα Σκύλου με Κοτόπουλο & Γαλοπούλα 400g","Υγρή Τροφή για Σκύλους","kg",.4),
+ p("dog3","OTHER","OTHER Κονσέρβα Σκύλου με Κοτόπουλο & Μοσχάρι 400g","Υγρή Τροφή για Σκύλους","kg",.4),
+ p("dog4","BETA","BETA Κονσέρβα Σκύλου με Κοτόπουλο & Γαλοπούλα Υποαλλεργική 400g","Υγρή Τροφή για Σκύλους","kg",.4)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(x=>x.memberIds),[["dog1","dog2"]]);
+});
+test("October 17: sausage puff-pastry bites are distinct from cheese pies and vegan specialty pastries",()=>{
+ const items=[
+ p("pie1","ΑΒ ΕΠΙΛΟΓΗ","ΑΒ ΕΠΙΛΟΓΗ Λουκανικοπιτάκια Σφολιάτας 1kg","Πίτες και Πιτάκια","kg",1),
+ p("pie2","ΧΡΥΣΗ ΖΥΜΗ","ΧΡΥΣΗ ΖΥΜΗ Λουκανικοπιτάκια Σφολιάτας 800g","Πίτες και Πιτάκια","kg",.8),
+ p("pie3","OTHER","OTHER Τυροπιτάκια Σφολιάτας 800g","Πίτες και Πιτάκια","kg",.8),
+ p("pie4","OTHER2","OTHER2 Λουκανικοπιτάκια Σφολιάτας Vegan 800g","Πίτες και Πιτάκια","kg",.8)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(x=>x.memberIds),[["pie1","pie2"]]);
+});
+test("October 17: chocolate drink powder is never conflated with instant cocoa powder",()=>{
+ const items=[
+ p("c1","CADBURY'S","CADBURY'S Ρόφημα Σοκολάτας 500g","Σοκολάτα - Κακάο","kg",.5),
+ p("c2","MARCHOC","MARCHOC Ρόφημα Σοκολάτας 400g","Σοκολάτα - Κακάο","kg",.4),
+ p("c3","MR GRAND","MR GRAND Ρόφημα Σοκολάτας 250γρ","Σοκολάτα - Κακάο","kg",.25),
+ p("c4","OTHER","OTHER Ρόφημα Στιγμής Κακάο 400g","Σοκολάτα - Κακάο","kg",.4),
+ p("c5","OTHER2","OTHER2 Ρόφημα Σοκολάτας Zero 500g","Σοκολάτα - Κακάο","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(x=>x.memberIds),[["c1","c2","c3"]]);
+});
+test("October 17: explicitly plant-based pastry cream matches only its own named preparation type",()=>{
+ const items=[
+ p("v1","MY DAY","MY DAY Φυτική Κρέμα Ζαχαροπλαστικής 1l","Κρέμα Γάλακτος","l",1),
+ p("v2","ROYAL","ROYAL Φυτική Κρέμα Ζαχαροπλαστικής 500ml","Κρέμα Γάλακτος","l",.5),
+ p("v3","MR GRAND","MR GRAND Φυτική Κρέμα Ζαχαροπλαστικής 500ml","Κρέμα Γάλακτος","l",.5),
+ p("d1","OTHER","OTHER Κρέμα Γάλακτος 500ml","Κρέμα Γάλακτος","l",.5),
+ p("v4","OTHER2","OTHER2 Φυτική Κρέμα Ζαχαροπλαστικής Vegan 500ml","Κρέμα Γάλακτος","l",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(x=>x.memberIds),[["v1","v2","v3"]]);
+});
+test("new October 17 product kinds still veto contradictory or ambiguous whole-package labels",()=>{
+ const items=[
+ p("cat1","A","A Κονσέρβα Γάτας με Κοτόπουλο & Γαλοπούλα 400g","Υγρή Τροφή για Γάτες","kg",.4),
+ p("cat2","B","B Κονσέρβα Γάτας με Κοτόπουλο & Γαλοπούλα 400g","Υγρή Τροφή για Γάτες","kg",.2),
+ p("c1","C","C Ρόφημα Σοκολάτας 250g","Σοκολάτα - Κακάο","kg",.25),
+ p("c2","D","D Ρόφημα Σοκολάτας 250g","Σοκολάτα - Κακάο","l",.25)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items),[]);
+});

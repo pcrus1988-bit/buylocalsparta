@@ -16,6 +16,13 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  // Narrow, source-described ordinary family types from the dated Oct 17
+  // unreviewed queue. Variants, veterinary diets and claim-bearing goods do
+  // not inherit eligibility from their broader source categories.
+  ["υγρη τροφη για γατες",["kg",/(?=.*κονσερβα)(?=.*γατ)(?=.*κοτοπουλ)(?=.*γαλοπουλ)/u]],
+  ["υγρη τροφη για σκυλους",["kg",/(?=.*κονσερβα)(?=.*σκυλ)(?=.*κοτοπουλ)(?=.*γαλοπουλ)/u]],
+  ["πιτες και πιτακια",["kg",/λουκανικοπιτακ.*σφολιατ/u]],
+
   // Narrow additional 2026-10-17 types: exact names, brands, units and packs.
   ["κατεψυγμενο μπροκολο",["kg",/μπροκολ|broccoli/u]],
   ["πλιγουρι",["kg",/πλιγουρ|bulgur/u]],
@@ -139,7 +146,7 @@ const specs=new Map([
   ["αλευρι για ολες τις χρησεις",["kg",/αλευρι.*ολες.*χρησεις|all purpose flour/u]],
   ["στιγμιαιος καφες",["kg",/στιγμιαι.*καφ|καφ.*στιγμιαι|instant.*coffee/u]],
   ["σοκολατα γαλακτος",["kg",/σοκολατ.*γαλακ|γαλακ.*σοκολατ|milk chocolate/u]],
-  ["σοκολατα κακαο",["kg",/κακαο.*σκονη|σκονη.*κακαο|cocoa powder/u]],
+  ["σοκολατα κακαο",["kg",/κακαο.*σκονη|σκονη.*κακαο|cocoa powder|ροφημα.*σοκολατ/u]],
   ["σοκολατουχο γαλα με γευσεις",["l",/σοκολατουχ.*γαλα|γαλα.*σοκολατουχ|γαλα.*κακαο|chocolate milk/u]],
   ["αγγελαδινο γιαουρτι",["kg",/γιαουρτ.*αγελαδ|αγελαδ.*γιαουρτ|cow.*yogurt/u]],
   ["πουρες",["kg",/πουρ.*πατατ|πατατ.*πουρ|potato puree/u]],
@@ -169,7 +176,7 @@ const specs=new Map([
   ["φαρινα",["kg",/φαριν|flour/u]],
   ["ζαχαρη αχνη",["kg",/ζαχαρη|αχνη|sugar/u]],
   ["μη επεξεργασμενη ζαχαρη",["kg",/ζαχαρ|sugar/u]],
-  ["κρεμα γαλακτος",["l",/κρεμα γαλακτος|cream/u]],
+  ["κρεμα γαλακτος",["l",/κρεμα γαλακτος|cream|φυτικ.*κρεμα.*ζαχαροπλαστικ/u]],
   ["στραγγιστο γιαουρτι",["kg",/στραγγιστ.*γιαουρτ|γιαουρτ.*στραγγιστ|strained yogurt/u]],
   ["φρεσκο γαλα",["l",/φρεσκ.*γαλα|γαλα.*φρεσκ|fresh milk/u]],
   ["βουτυρο",["kg",/βουτυρ|butter/u]],
@@ -215,6 +222,12 @@ const safeLabelledNonCarbonatedCategories=new Set(["πορτοκαλαδες"]);
 function hasForbiddenClaim(category,title){
   if(!dangerous.test(title))return false;
   let withoutApprovedVariant=title;
+  // 'Κονσέρβα' is the explicitly required physical product type for these
+  // two ordinary wet-pet-food categories, not by itself a special health or
+  // preparation claim. Do not waive any other restricted wording.
+  if(["υγρη τροφη για γατες","υγρη τροφη για σκυλους"].includes(category) &&
+     /κονσερβ/u.test(title))
+    withoutApprovedVariant=withoutApprovedVariant.replace(/κονσερβ[\p{L}]*/gu," ");
   if((safeWholeGrainCategories.has(category)||
       explicitWholeGrainSubtypes.get(category)?.test(title)) &&
      /ολικης\s+αλεσης/u.test(title))
@@ -267,8 +280,10 @@ function accepted(p){
   // distinguish normal, low fat, lactose-free and fermented variants.
   const listedFatPercent=/\b\d+(?:[.,]\d+)?\s*%/u.test(title);
   const explicitMilkType=category==="φρεσκο γαλα" && /(?:^|\s)(?:πληρες|ελαφρυ)(?=\s|$)/u.test(title);
+  const explicitPlantPastryCream=category==="κρεμα γαλακτος"&&
+    /φυτικ.*κρεμα.*ζαχαροπλαστικ/u.test(title);
   if(["φρεσκο γαλα","στραγγιστο γιαουρτι","αγγελαδινο γιαουρτι","κρεμα γαλακτος"].includes(category) &&
-    !listedFatPercent&&!explicitMilkType)return false;
+    !listedFatPercent&&!explicitMilkType&&!explicitPlantPastryCream)return false;
   return true;
 }
 export function deriveAutoPackagedTypeGroups(products,previous=[]){
