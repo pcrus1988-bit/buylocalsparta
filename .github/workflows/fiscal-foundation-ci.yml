@@ -58,6 +58,10 @@ jobs:
         run: node scripts/fiscal-migrate.mjs
       - name: Verify schema and forbidden fiscal transitions
         run: node scripts/fiscal-db-smoke.mjs
+      - name: Verify merchant KYB ownership and tenant isolation in disposable DB
+        env:
+          CI: "true"
+        run: node --experimental-strip-types scripts/fiscal-merchant-kyb-db-smoke.mjs
       - name: Verify isolated dual-approval recovery constraints
         env:
           CI: "true"
@@ -81,6 +85,8 @@ jobs:
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-preview-calculator.test.ts
       - name: Verify browser Origin policy for super-admin form handoff
         run: node --test scripts/fiscal-sso-origin-policy.test.mjs
+      - name: Verify merchant KYB progress never exposes records or grants approval
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-merchant-kyb-progress.test.ts
       - name: Verify strictly bounded KYB evidence checklist and non-approval states
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-checks.test.ts
       - name: Verify RFC6238 FISCAL operator MFA and AES-GCM sealing
