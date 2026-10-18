@@ -173,3 +173,11 @@
 .gatewayFooterLinks a:hover{text-decoration:underline}
 @media(max-width:880px){.gatewayNavSecondary{display:none}}
 @media(max-width:760px){.gatewayFooterLinks{justify-content:flex-start}.navLinks{gap:9px}.navLinks a:first-child{display:none}.navLogin{white-space:nowrap}}
+
+@media(max-width:600px){
+  .navigation{flex-wrap:wrap;justify-content:center;gap:14px;padding:13px 16px 16px}
+  .brand{justify-content:center;width:100%}
+  .navLinks{width:100%;justify-content:center;gap:15px;font-size:12px}
+  .navLinks a:first-child{display:inline-flex}
+  .navLogin{padding:10px 14px}
+}
