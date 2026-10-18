@@ -112,6 +112,12 @@ export function ResearchSurveyAdminNav({
               {item.label}
             </Link>;
           })}
+          {group.key === "fieldwork" && <Link prefetch={false}
+            className={current === "kad" ? "button" : "button button-secondary"}
+            href={root + "/kad/audit"}
+            title="Πληρότητα ταξινόμησης ΚΑΔ ανά συμμετοχή και διατήρηση μετά το κλείσιμο">
+            ΚΑΔ · Κάλυψη απαντήσεων
+          </Link>}
         </div>
       </div>)}
     </div>
