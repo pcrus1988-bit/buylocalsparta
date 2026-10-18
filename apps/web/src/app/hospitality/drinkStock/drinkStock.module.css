@@ -1,0 +1,33 @@
+.demoSection{max-width:1230px;margin:auto}
+.demoIntro{display:flex;justify-content:space-between;align-items:end;gap:25px;margin-bottom:25px}
+.eyebrow{font-size:11px;letter-spacing:.18em;color:#57856d;font-weight:800}
+.demoIntro h2{font-size:clamp(25px,4vw,44px);letter-spacing:-.04em;margin:13px 0}
+.demoIntro p{margin:0;line-height:1.7;color:#536d5d}
+.demoState{display:flex;align-items:center;gap:9px;border:1px solid #d1dcd1;border-radius:50px;padding:11px 15px;font-size:12px;background:#fff;white-space:nowrap}
+.demoLamp{display:block;width:9px;height:9px;background:#63a279;border-radius:50%}
+.demoPanel{background:#0b2523;color:#f1faf0;border:1px solid #23504a;border-radius:26px;padding:clamp(18px,3.4vw,35px);box-shadow:0 30px 90px #082b1e1f}
+.demoTopline{display:flex;justify-content:space-between;align-items:start;gap:22px;margin-bottom:27px}
+.demoTopline>div{display:grid;gap:8px}
+.demoOverline{font-size:10px;letter-spacing:.2em;color:#78b38e}
+.demoTopline strong{font-size:23px;letter-spacing:.035em}
+.demoTag{font-size:10px;letter-spacing:.07em;color:#091e1a;background:#d4af67;padding:5px 9px;border-radius:4px;vertical-align:middle}
+.resetButton{cursor:pointer;color:#cae0d2;background:transparent;border:1px solid #45625b;border-radius:35px;padding:10px 15px}
+.drinkGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.drinkCard{border:1px solid #30574d;background:#153630;border-radius:15px;padding:20px;display:flex;flex-direction:column;gap:20px;min-height:225px}
+.drinkHead{display:flex;flex-direction:column;gap:7px}
+.drinkName{font-weight:800;font-size:17px}
+.drinkDescription{color:#8daea0;font-size:12px}
+.priceLine{display:flex;align-items:start;flex-direction:column;gap:5px}
+.priceLine strong{font-size:clamp(27px,3vw,37px);letter-spacing:-.04em}
+.change{font-size:13px;font-weight:700}
+.rise{color:#8de2aa}
+.fall{color:#f3c07c}
+.flat{color:#a7bdb3}
+.tradeButton{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:5px;padding:13px;background:#f2f2d9;color:#174031;border:0;border-radius:8px;font-size:12px;font-weight:750;cursor:pointer}
+.tradeButton:hover{background:#d6b264}
+.demoFooter{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:23px;font-size:11px;color:#aecabd}
+.demoFooter p{margin:0}
+.demoFooter span{white-space:nowrap;color:#d7b671;font-weight:750;letter-spacing:.06em}
+.demoDisclaimer{font-size:12px;color:#708979;line-height:1.7;margin:15px 0 0}
+@media(max-width:900px){.drinkGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.demoFooter{flex-direction:column;align-items:start}.demoIntro{flex-direction:column;align-items:start}}
+@media(max-width:480px){.drinkGrid{grid-template-columns:1fr}.demoTopline{flex-direction:column}.drinkCard{min-height:unset}.demoState{white-space:normal}}

@@ -1,0 +1,24 @@
+/** Pure route policy. The subdomain cannot browse marketplace backoffice routes. */
+export const HOSPITALITY_HOST = "hospitality.kontamou.site";
+
+export function isHospitalityHost(hostname: string): boolean {
+  return hostname.toLowerCase().replace(/\.$/, "") === HOSPITALITY_HOST;
+}
+
+export function isHospitalityHostPathAllowed(pathname: string): boolean {
+  return pathname === "/" ||
+    pathname === "/drinkStock" ||
+    pathname.startsWith("/drinkStock/") ||
+    pathname === "/api/hospitality/login" ||
+    pathname === "/api/hospitality/logout" ||
+    pathname === "/favicon.ico" ||
+    pathname === "/favicon.svg" ||
+    pathname === "/robots.txt" ||
+    pathname.startsWith("/_next/") ||
+    pathname.startsWith("/brand/");
+}
+
+export function hospitalityPrivatePath(pathname: string): boolean {
+  return pathname === "/drinkStock/dashboard" ||
+    pathname.startsWith("/drinkStock/dashboard/");
+}

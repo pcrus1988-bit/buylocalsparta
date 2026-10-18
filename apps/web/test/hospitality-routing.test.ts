@@ -1,0 +1,22 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { hospitalityPrivatePath, isHospitalityHost, isHospitalityHostPathAllowed } from "../src/lib/hospitality-routing.ts";
+test("only exact hospitality hostname activates the gateway", () => {
+  assert.equal(isHospitalityHost("hospitality.kontamou.site"), true);
+  assert.equal(isHospitalityHost("evilhospitality.kontamou.site"), false);
+  assert.equal(isHospitalityHost("kontamou.site"), false);
+});
+test("host barrier denies unrelated marketplace and admin routes", () => {
+  for (const path of ["/account", "/admin", "/vendor", "/api/account/login", "/checkout", "/hospitality"]) {
+    assert.equal(isHospitalityHostPathAllowed(path), false, path);
+  }
+  for (const path of ["/", "/drinkStock", "/drinkStock/login", "/drinkStock/dashboard", "/api/hospitality/login", "/_next/static/a.js", "/brand/kontamou-sparta-logo.webp"]) {
+    assert.equal(isHospitalityHostPathAllowed(path), true, path);
+  }
+});
+test("dashboard paths are private", () => {
+  assert.equal(hospitalityPrivatePath("/drinkStock/dashboard"), true);
+  assert.equal(hospitalityPrivatePath("/drinkStock/dashboard/a"), true);
+  assert.equal(hospitalityPrivatePath("/drinkStock"), false);
+  assert.equal(hospitalityPrivatePath("/drinkStock/login"), false);
+});
