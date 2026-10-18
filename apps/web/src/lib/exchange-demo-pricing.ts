@@ -63,6 +63,8 @@ export function simulateExchangeCrash(drinks: readonly ExchangeDemoDrink[]): Exc
  * represents simulated orders, not customer demand or actual POS sales.
  */
 export const DEMO_ORDER_INTERVAL_MS = 4500;
+/** Increased simulated order frequency while the 60-second crash offer is active. */
+export const DEMO_CRASH_ORDER_INTERVAL_MS = 1700;
 export const DEMO_CRASH_DURATION_MS = 60_000;
 export const DEMO_FEED_LIMIT = 9;
 
@@ -89,7 +91,8 @@ export const DEMO_ORDER_SEQUENCE: readonly ScriptedDemoOrder[] = [
 
 export type DemoMarketFeedEvent = {
   id: number;
-  kind: "order" | "crash" | "reopen";
+  kind: "order" | "crash" | "recovery";
+  duringCrash?: boolean;
   label: string;
   detail: string;
   time: string;
@@ -100,6 +103,7 @@ export type ExchangeShowState = {
   drinks: ExchangeDemoDrink[];
   nextOrderIndex: number;
   orderCount: number;
+  crashOrderCount: number;
   totalDemoEvents: number;
   crashes: number;
   crashEndsAt: number | null;
@@ -114,6 +118,7 @@ export function createExchangeShowState(): ExchangeShowState {
     drinks: freshExchangeDemoDrinks(),
     nextOrderIndex: 0,
     orderCount: 0,
+    crashOrderCount: 0,
     totalDemoEvents: 0,
     crashes: 0,
     crashEndsAt: null,
@@ -137,42 +142,48 @@ function appendDemoFeed(
   return [event, ...previous].slice(0, DEMO_FEED_LIMIT);
 }
 
-/** Advance exactly one scripted order while trading is open. */
+/** Advance one scripted order during both normal trading and the active crash. */
 export function processExchangeDemoOrder(
   state: ExchangeShowState,
   nowMs: number,
 ): ExchangeShowState {
-  if (state.crashEndsAt !== null) return state;
-  const order = DEMO_ORDER_SEQUENCE[state.nextOrderIndex % DEMO_ORDER_SEQUENCE.length];
-  const selected = state.drinks.find((drink) => drink.id === order.drinkId);
-  if (!selected) return state;
+  // Expiry never discards an order if a background tab resumes late.
+  const current = state.crashEndsAt !== null && nowMs >= state.crashEndsAt
+    ? syncExchangeDemoClock(state, nowMs)
+    : state;
+  const duringCrash = current.crashEndsAt !== null;
+  const order = DEMO_ORDER_SEQUENCE[current.nextOrderIndex % DEMO_ORDER_SEQUENCE.length];
+  const selected = current.drinks.find((drink) => drink.id === order.drinkId);
+  if (!selected) return current;
 
   // Multiple drinks in a scripted order count as multiple demand impulses.
   // Existing 5-cent rounding and 70-145% clamps are maintained for each unit.
-  let nextDrinks: ExchangeDemoDrink[] = state.drinks;
+  let nextDrinks: ExchangeDemoDrink[] = current.drinks;
   for (let i = 0; i < order.quantity; i++) {
     nextDrinks = simulateExchangeDemand(nextDrinks, order.drinkId);
   }
   const newPrice = nextDrinks.find((drink) => drink.id === order.drinkId)!.priceCents;
   const deltaCents = newPrice - selected.priceCents;
-  const eventId = state.totalDemoEvents + 1;
+  const eventId = current.totalDemoEvents + 1;
   return {
-    ...state,
+    ...current,
     drinks: nextDrinks,
-    nextOrderIndex: (state.nextOrderIndex + 1) % DEMO_ORDER_SEQUENCE.length,
-    orderCount: state.orderCount + 1,
+    nextOrderIndex: (current.nextOrderIndex + 1) % DEMO_ORDER_SEQUENCE.length,
+    orderCount: current.orderCount + 1,
+    crashOrderCount: current.crashOrderCount + (duringCrash ? 1 : 0),
     totalDemoEvents: eventId,
     clockMs: nowMs,
     lastOrderDrinkId: order.drinkId,
-    feed: appendDemoFeed(state.feed, {
+    feed: appendDemoFeed(current.feed, {
       id: eventId,
       kind: "order",
+      duringCrash,
       label: order.quantity + "× " + selected.name,
-      detail: order.table + " · SCRIPTED ORDER",
+      detail: order.table + (duringCrash ? " · CRASH BUY" : " · SCRIPTED ORDER"),
       time: demoTime(nowMs),
       deltaCents,
     }),
-    status: order.table + " ordered " + order.quantity + "× " + selected.name + ". Demo prices adjusted.",
+    status: (duringCrash ? "CRASH RUSH! " : "") + order.table + " ordered " + order.quantity + "× " + selected.name + ". Demo prices adjusted.",
   };
 }
 
@@ -187,6 +198,7 @@ export function triggerExchangeDemoCrash(
     ...state,
     drinks: simulateExchangeCrash(state.drinks),
     crashes: state.crashes + 1,
+    crashOrderCount: 0,
     totalDemoEvents: eventId,
     crashEndsAt: nowMs + DEMO_CRASH_DURATION_MS,
     clockMs: nowMs,
@@ -199,7 +211,7 @@ export function triggerExchangeDemoCrash(
       time: demoTime(nowMs),
       deltaCents: 0,
     }),
-    status: "MARKET CRASH! Prices fell, scripted orders paused for one minute.",
+    status: "MARKET CRASH! Prices dropped and scripted orders are accelerating for 60 seconds.",
   };
 }
 
@@ -215,13 +227,13 @@ export function syncExchangeDemoClock(state: ExchangeShowState, nowMs: number): 
     totalDemoEvents: eventId,
     feed: appendDemoFeed(state.feed, {
       id: eventId,
-      kind: "reopen",
-      label: "MARKET REOPENED",
-      detail: "SCRIPTED ORDERS RESUMED",
+      kind: "recovery",
+      label: "CRASH EVENT FINISHED",
+      detail: "NORMAL TRADING CONTINUES",
       time: demoTime(nowMs),
       deltaCents: 0,
     }),
-    status: "Market reopened. Automatic demo orders have resumed.",
+    status: "Crash event ended. Simulated orders continue at their normal pace.",
   };
 }
 
