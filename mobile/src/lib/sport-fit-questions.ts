@@ -93,6 +93,7 @@ export function applySportAnswer(input:SportAnswers,key:SportQuestionKey,value:s
  }
  if(key==="size"){
   if(clean&&!/^(?:EU\s*)?\d{2}(?:[.,]5)?$/.test(clean))throw Error("INVALID_SIZE");
+  if(clean){const eu=Number(clean.replace(/^EU\s*/,"").replace(",","."));if(eu<20||eu>55)throw Error("INVALID_SIZE");}
   return {...input,size:clean?clean.replace(",","."):undefined};
  }
  if(key==="footLength"){
