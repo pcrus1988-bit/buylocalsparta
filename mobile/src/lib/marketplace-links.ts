@@ -24,6 +24,13 @@ export function marketplaceUrl(destination:MarketplaceDestination):string{
      ||typeof value!=="string"||value.length>120
      ||Array.from(value).some(c=>c.charCodeAt(0)<32||c.charCodeAt(0)===127))
      throw new Error("INVALID_MARKETPLACE_QUERY");
+   if(destination.path==="/color-finder"){
+    if(key==="color"&&!/^#[0-9a-fA-F]{6}$/.test(value))throw new Error("INVALID_STUDIO_COLOR");
+    if(key==="category"&&![
+      "studio-nails","studio-lips","studio-eye-makeup","studio-makeup",
+      "studio-hair-color","studio-shoes","studio-bags","studio-fashion","studio-home"
+    ].includes(value))throw new Error("INVALID_STUDIO_CATEGORY");
+   }
    if(value.trim())url.searchParams.set(key,value.trim());
   }
  }
