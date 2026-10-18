@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HospitalityLogoutButton } from "../../../../../components/HospitalityLogoutButton";
 import { notFound, redirect } from "next/navigation";
 import { accessibleDrinkStockPartners, hospitalityIdentity } from "../../../../../lib/hospitality-partner-access";
 import styles from "../../../hospitality.module.css";
@@ -22,6 +23,7 @@ export default async function PartnerWorkspaceLayout({children,params}:{children
   return <>
     <nav className={styles.partnerNav} aria-label="DrinkStock partner sections">
       {sections.map(section=><Link key={section.href} href={root+section.href}>{section.label}</Link>)}
+      <HospitalityLogoutButton />
     </nav>
     {children}
   </>;
