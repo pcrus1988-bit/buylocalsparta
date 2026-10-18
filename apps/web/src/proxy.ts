@@ -1,4 +1,4 @@
-import { isHospitalityHost, isHospitalityHostPathAllowed } from "./lib/hospitality-routing";
+import { hospitalityRewritePath, isHospitalityHost, isHospitalityHostPathAllowed, hospitalityPrivatePath } from "./lib/hospitality-routing";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getActivePublicCmsRedirect } from "./lib/public-cms-redirects";
@@ -191,14 +191,29 @@ function productPrefetchResponse(request: NextRequest): NextResponse | undefined
 }
 
 export async function proxy(request: NextRequest) {
-  // Same deployment, separate hostname: deny marketplace operational routes.
-  if (isHospitalityHost(request.nextUrl.hostname) &&
-      !isHospitalityHostPathAllowed(request.nextUrl.pathname)) {
-    return new NextResponse(null, { status: 404, headers: {
-      "cache-control": "private, no-store",
-      "x-robots-tag": "noindex, nofollow",
-      "x-km-route-barrier": "HOSPITALITY_HOST_DENY"
-    }});
+  // Hospitality is a distinct public hostname within the same deployment.
+  // Rewrite its root BEFORE Next's filesystem routes (the marketplace has a / page).
+  // Never expose marketplace, account, vendor, admin or checkout routes here.
+  if (isHospitalityHost(request.nextUrl.hostname)) {
+    const pathname = request.nextUrl.pathname;
+    if (!isHospitalityHostPathAllowed(pathname)) {
+      return new NextResponse(null, { status: 404, headers: {
+        "cache-control": "private, no-store",
+        "x-robots-tag": "noindex, nofollow",
+        "x-km-route-barrier": "HOSPITALITY_HOST_DENY"
+      }});
+    }
+    const internalPath = hospitalityRewritePath(pathname);
+    if (internalPath) {
+      const destination = request.nextUrl.clone();
+      destination.pathname = internalPath;
+      const response = NextResponse.rewrite(destination);
+      if (hospitalityPrivatePath(pathname) || pathname.endsWith("/login")) {
+        response.headers.set("x-robots-tag", "noindex, nofollow");
+        response.headers.set("cache-control", "private, no-store");
+      }
+      return response;
+    }
   }
 
   // FISCAL's dedicated Vercel project is NOT allowed to serve marketplace routes
