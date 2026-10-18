@@ -84,7 +84,7 @@ const specs=new Map([
   ["πατατες",["kg",/κατεψυγμεν.*πατατ|πατατ.*κατεψυγμεν/u]],
   ["μαργαρινη",["kg",/μαργαριν.*classic|classic.*μαργαριν|μαργαριν.*κλασικ|κλασικ.*μαργαριν/u]],
   ["πουλερικα",["kg",/κοτοπουλ.*μπουτ.*φιλετ|φιλετ.*μπουτ.*κοτοπουλ/u]],
-  ["παιδικα δημητριακα",["kg",/choco\s*balls/u]],
+  ["παιδικα δημητριακα",["kg",/choco\s*balls|honey\s*rings/u]],
 
   // Additional source-described types from the same reviewed 10,323-SKU audit.
   // Broad source categories below are bounded to explicit product-title kinds.
@@ -200,9 +200,10 @@ const dangerous=/\b(?:bio|organic|vegan|gluten|lactose|free|zero|light|diet|prot
 // source-described strings may be compared within their OWN variant, never
 // assumed equivalent to a conventional product or certified allergen-safe.
 const safeWholeGrainCategories=new Set([
-  "ταχινι","λιγκουινι","κριτσινια","κριστινια","βρωμη","παξιμαδι"
+  "ταχινι","λιγκουινι","κριτσινια","κριστινια","βρωμη","παξιμαδι","φρυγανιες","κριθαρακι","σπαγγετι","σπαγγετινι"
 ]);
 const safeLabelledGlutenFreeCategories=new Set(["κετσαπ","μουσταρδα"]);
+const safeLabelledNonCarbonatedCategories=new Set(["πορτοκαλαδες"]);
 function hasForbiddenClaim(category,title){
   if(!dangerous.test(title))return false;
   let withoutApprovedVariant=title;
@@ -212,6 +213,9 @@ function hasForbiddenClaim(category,title){
   if(safeLabelledGlutenFreeCategories.has(category) &&
      /χωρις\s+γλουτενη/u.test(title))
     withoutApprovedVariant=withoutApprovedVariant.replace(/χωρις\s+γλουτενη/gu," ");
+  if(safeLabelledNonCarbonatedCategories.has(category) &&
+     /χωρις\s+ανθρακικο/u.test(title))
+    withoutApprovedVariant=withoutApprovedVariant.replace(/χωρις\s+ανθρακικο/gu," ");
   // Unexpected extra claims (organic, other allergies, children's lines,
   // protein fortification, sugar reduction, etc.) retain the veto.
   return dangerous.test(withoutApprovedVariant);
