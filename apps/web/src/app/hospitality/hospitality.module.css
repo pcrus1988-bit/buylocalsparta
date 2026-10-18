@@ -181,3 +181,7 @@
   .navLinks a:first-child{display:inline-flex}
   .navLogin{padding:10px 14px}
 }
+
+/* DrinkStock has its own independent consumer-facing identity and page chrome. */
+.shell:has([data-drinkstock-landing]){background:#0d0a1e}
+.shell:has([data-drinkstock-landing])>.header,.shell:has([data-drinkstock-landing])>.footer{display:none}

@@ -16,6 +16,8 @@ export const EXCHANGE_DEMO_DRINKS: readonly ExchangeDemoDrink[] = [
   { id: "mojito", name: "Mojito", description: "Classic cocktail", baseCents: 900, priceCents: 900, lastDeltaCents: 0 },
   { id: "spritz", name: "Spritz", description: "Aperitivo", baseCents: 800, priceCents: 800, lastDeltaCents: 0 },
   { id: "cola", name: "Cola", description: "330 ml", baseCents: 350, priceCents: 350, lastDeltaCents: 0 },
+  { id: "gin", name: "Gin & Tonic", description: "Highball", baseCents: 850, priceCents: 850, lastDeltaCents: 0 },
+  { id: "espresso", name: "Espresso Martini", description: "Signature cocktail", baseCents: 950, priceCents: 950, lastDeltaCents: 0 },
 ];
 
 export function freshExchangeDemoDrinks(): ExchangeDemoDrink[] {
@@ -39,6 +41,18 @@ export function simulateExchangeDemand(
     const floor = Math.ceil((drink.baseCents * 0.7) / 5) * 5;
     const ceiling = Math.floor((drink.baseCents * 1.45) / 5) * 5;
     const priceCents = Math.min(ceiling, Math.max(floor, candidate));
+    return { ...drink, priceCents, lastDeltaCents: priceCents - drink.priceCents };
+  });
+}
+/**
+ * A clearly labeled, local-only demonstration of a coordinated price drop.
+ * Follows the same venue-configurable-looking 70%-145% illustration bounds
+ * as the individual demand event; never use for transactional pricing.
+ */
+export function simulateExchangeCrash(drinks: readonly ExchangeDemoDrink[]): ExchangeDemoDrink[] {
+  return drinks.map((drink) => {
+    const floor = Math.ceil((drink.baseCents * 0.7) / 5) * 5;
+    const priceCents = Math.max(floor, Math.round((drink.priceCents * 0.82) / 5) * 5);
     return { ...drink, priceCents, lastDeltaCents: priceCents - drink.priceCents };
   });
 }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   freshExchangeDemoDrinks,
+  simulateExchangeCrash,
   simulateExchangeDemand,
 } from "../src/lib/exchange-demo-pricing.ts";
 
@@ -27,4 +28,12 @@ test("simulated demand is bounded between 70% and 145% of base price", () => {
 test("unknown demand event does not alter state", () => {
   const original = freshExchangeDemoDrinks();
   assert.deepEqual(simulateExchangeDemand(original, "unknown"), original);
+});
+test("market crash lowers all simulated prices but never below the floor", () => {
+  const initial = freshExchangeDemoDrinks();
+  let state = simulateExchangeCrash(initial);
+  assert.ok(state.every((drink, index) => drink.priceCents < initial[index].priceCents));
+  for (let i = 0; i < 100; i++) state = simulateExchangeCrash(state);
+  assert.ok(state.every((drink) => drink.priceCents >= Math.ceil(drink.baseCents * 0.7 / 5) * 5));
+  assert.deepEqual(freshExchangeDemoDrinks(), initial, "simulation must not mutate initial data");
 });

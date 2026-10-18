@@ -1,33 +1,116 @@
-.demoSection{max-width:1230px;margin:auto}
-.demoIntro{display:flex;justify-content:space-between;align-items:end;gap:25px;margin-bottom:25px}
-.eyebrow{font-size:11px;letter-spacing:.18em;color:#57856d;font-weight:800}
-.demoIntro h2{font-size:clamp(25px,4vw,44px);letter-spacing:-.04em;margin:13px 0}
-.demoIntro p{margin:0;line-height:1.7;color:#536d5d}
-.demoState{display:flex;align-items:center;gap:9px;border:1px solid #d1dcd1;border-radius:50px;padding:11px 15px;font-size:12px;background:#fff;white-space:nowrap}
-.demoLamp{display:block;width:9px;height:9px;background:#63a279;border-radius:50%}
-.demoPanel{background:#0b2523;color:#f1faf0;border:1px solid #23504a;border-radius:26px;padding:clamp(18px,3.4vw,35px);box-shadow:0 30px 90px #082b1e1f}
-.demoTopline{display:flex;justify-content:space-between;align-items:start;gap:22px;margin-bottom:27px}
-.demoTopline>div{display:grid;gap:8px}
-.demoOverline{font-size:10px;letter-spacing:.2em;color:#78b38e}
-.demoTopline strong{font-size:23px;letter-spacing:.035em}
-.demoTag{font-size:10px;letter-spacing:.07em;color:#091e1a;background:#d4af67;padding:5px 9px;border-radius:4px;vertical-align:middle}
-.resetButton{cursor:pointer;color:#cae0d2;background:transparent;border:1px solid #45625b;border-radius:35px;padding:10px 15px}
-.drinkGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
-.drinkCard{border:1px solid #30574d;background:#153630;border-radius:15px;padding:20px;display:flex;flex-direction:column;gap:20px;min-height:225px}
-.drinkHead{display:flex;flex-direction:column;gap:7px}
-.drinkName{font-weight:800;font-size:17px}
-.drinkDescription{color:#8daea0;font-size:12px}
-.priceLine{display:flex;align-items:start;flex-direction:column;gap:5px}
-.priceLine strong{font-size:clamp(27px,3vw,37px);letter-spacing:-.04em}
-.change{font-size:13px;font-weight:700}
-.rise{color:#8de2aa}
-.fall{color:#f3c07c}
-.flat{color:#a7bdb3}
-.tradeButton{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:5px;padding:13px;background:#f2f2d9;color:#174031;border:0;border-radius:8px;font-size:12px;font-weight:750;cursor:pointer}
-.tradeButton:hover{background:#d6b264}
-.demoFooter{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:23px;font-size:11px;color:#aecabd}
-.demoFooter p{margin:0}
-.demoFooter span{white-space:nowrap;color:#d7b671;font-weight:750;letter-spacing:.06em}
-.demoDisclaimer{font-size:12px;color:#708979;line-height:1.7;margin:15px 0 0}
-@media(max-width:900px){.drinkGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.demoFooter{flex-direction:column;align-items:start}.demoIntro{flex-direction:column;align-items:start}}
-@media(max-width:480px){.drinkGrid{grid-template-columns:1fr}.demoTopline{flex-direction:column}.drinkCard{min-height:unset}.demoState{white-space:normal}}
+
+.exchange{position:relative;max-width:1300px;margin:auto;padding:104px 26px 96px;scroll-margin-top:24px;color:#fff;font-family:Arial,"Helvetica Neue",sans-serif}
+.intro{display:flex;justify-content:space-between;align-items:end;gap:34px;margin-bottom:35px}
+.intro>div:first-child{max-width:900px}
+.kicker{color:#bffe50;font-size:11px;font-weight:900;letter-spacing:.18em;display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.glowDot,.liveDot,.statusLight{flex:none;display:inline-block;width:8px;height:8px;border-radius:50%;background:#c8ff4d;box-shadow:0 0 0 5px #c8ff4d24,0 0 15px #b9fa3d80}
+.intro h2{font-size:clamp(38px,5.6vw,77px);line-height:.99;letter-spacing:-.075em;font-weight:950;max-width:850px;margin:0 0 22px}
+.intro h2 span{color:#caff4e}
+.intro p{max-width:700px;color:#b6b3d1;font-size:clamp(14px,1.35vw,17px);line-height:1.7;margin:0}
+.demoWarning{display:flex;flex-direction:column;gap:7px;flex:0 0 212px;padding:18px 22px;background:#15112e;border:1px solid #343153;border-radius:16px;box-shadow:inset 0 0 45px #24184d44}
+.demoWarning>span{color:#ccff52;font-size:25px;font-weight:900}
+.demoWarning strong{color:#f2e9ff;font-size:12px;letter-spacing:.12em}
+.demoWarning small{color:#9895b8;line-height:1.5;font-size:11px}
+.terminal{position:relative;overflow:hidden;background:#111029;border:1px solid #3a3164;border-radius:25px;box-shadow:0 36px 130px #03010baf,0 0 75px #692dcb17}
+.terminal::before{content:"";position:absolute;top:-160px;right:-150px;width:470px;height:350px;border-radius:50%;background:#973aff12;filter:blur(70px);pointer-events:none}
+.terminalHead{position:relative;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:21px 27px;border-bottom:1px solid #343050}
+.marketIdentity{display:flex;align-items:center;gap:13px}
+.marketGlyph{width:45px;height:45px;display:grid;place-items:center;border-radius:12px;font-size:26px;font-weight:900;background:#caff4e;color:#171027;transform:rotate(-5deg)}
+.marketIdentity>div:last-child{display:grid;gap:5px}
+.overline{font-size:10px;font-weight:850;letter-spacing:.17em;color:#928eae}
+.marketIdentity strong{font-size:18px;font-weight:950;letter-spacing:-.035em}
+.marketState{display:flex;align-items:center;gap:11px;font-size:10px;letter-spacing:.14em;font-weight:850;color:#d6f9a7;white-space:nowrap}
+.priceTape{overflow:hidden;background:#090a1d;border-bottom:1px solid #3c315e}
+.priceTapeInner{display:flex;align-items:center;gap:0;width:max-content;min-width:100%;animation:tapeScroll 34s linear infinite}
+.tapeItem{display:inline-flex;align-items:center;gap:10px;white-space:nowrap;padding:15px 23px;border-right:1px solid #282243;font-size:12px;font-variant-numeric:tabular-nums}
+.tapeItem b{font-size:10px;letter-spacing:.12em;color:#8984ab}
+.tapeItem strong{color:#f5f4ff}
+.tapeItem em{font-size:18px;font-style:normal;font-weight:900}
+.positive{color:#d0ff57}.negative{color:#ff5b99}.neutral{color:#988eaf}
+@keyframes tapeScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.board{padding:28px}
+.boardHead{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:22px}
+.boardHead h3{font-size:clamp(20px,3vw,30px);font-weight:900;letter-spacing:-.05em;margin:7px 0 0}
+.boardHead h3 span{color:#f878dd}
+.sessionNumber{font-size:10px;letter-spacing:.1em;color:#d1c9ed;font-weight:800}
+.sessionNumber span{color:#8d80b2}
+.drinkGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.drinkCard{position:relative;display:flex;flex-direction:column;min-width:0;min-height:309px;border:1px solid #3f365d;border-radius:17px;background:linear-gradient(145deg,#242044,#17152e 74%);padding:20px 20px 18px;transition:transform .17s ease,border-color .17s ease,box-shadow .17s ease}
+.drinkCard:hover,.drinkCard:focus-within{transform:translateY(-3px);border-color:#9a6cdd;box-shadow:0 14px 30px #06041155}
+.drinkTop{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.drinkEmoji{display:grid;place-items:center;width:57px;height:57px;border-radius:15px;background:radial-gradient(circle at 30% 20%,#4e3c73,#2c2850);font-size:32px}
+.movement{font-size:12px;font-variant-numeric:tabular-nums;font-weight:900;padding:8px 10px;border-radius:8px;white-space:nowrap}
+.rising{background:#d2ff4d26;color:#dbff7a}
+.falling{background:#ff4fa926;color:#ff85bb}
+.unchanged{background:#a7a1c022;color:#c5bedc}
+.personality{color:#a18dce;font-size:9px;letter-spacing:.15em;font-weight:850;margin-top:18px}
+.drinkCard h4{font-size:clamp(21px,2vw,27px);line-height:1.08;margin:7px 0 5px;font-weight:950;letter-spacing:-.055em}
+.drinkDescription{color:#a6a0c1;font-size:12px}
+.priceRow{margin-top:auto;display:flex;flex-direction:column;gap:3px;padding:21px 0 13px}
+.priceRow strong{font-size:clamp(28px,3.1vw,41px);letter-spacing:-.06em;line-height:1;font-weight:950;font-variant-numeric:tabular-nums}
+.priceRow small{font-size:9px;color:#9a93bc;letter-spacing:.17em;font-weight:850}
+.boostButton,.crashButton,.resetButton{border:0;cursor:pointer;font-family:inherit;font-weight:950;letter-spacing:.055em;transition:background .15s ease,transform .15s ease}
+.boostButton{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:#caff4e;color:#17142c;border-radius:11px;padding:13px 15px;font-size:11px;min-height:46px}
+.boostButton span{font-size:17px}
+.boostButton:hover{background:#ecffab}
+.boostButton:active,.crashButton:active,.resetButton:active{transform:scale(.985)}
+.controlDeck{display:flex;justify-content:space-between;gap:25px;align-items:end;margin:0 28px;padding:25px 0;border-top:1px solid #3a3259}
+.marketReadout{min-width:0}
+.readoutStats{display:flex;gap:clamp(15px,2.8vw,52px);margin-top:11px}
+.readoutStats>div{display:flex;flex-direction:column;gap:5px}
+.readoutStats strong{font-size:25px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.045em}
+.readoutStats small{color:#958ab7;font-size:9px;font-weight:850;letter-spacing:.08em}
+.controlButtons{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.crashButton{background:#ff4ea1;color:#170c22;border-radius:11px;min-height:53px;padding:13px 21px;font-size:12px;box-shadow:0 0 25px #ff4ea132}
+.crashButton:hover{background:#ff87c2}
+.crashButton span{font-size:16px}
+.resetButton{border:1px solid #4e426c;background:transparent;color:#e2d8ff;border-radius:11px;min-height:53px;padding:13px 20px;font-size:12px}
+.resetButton:hover{background:#30294c}
+.statusBar{display:flex;align-items:center;gap:12px;border-top:1px solid #32304d;background:#0a0b1d;padding:17px 27px;font-size:12px}
+.statusLight{width:6px;height:6px}
+.statusBar p{color:#cbc4e5;margin:0;line-height:1.5;flex:1}
+.statusBar strong{font-size:9px;color:#a6d871;white-space:nowrap;letter-spacing:.08em}
+.disclaimer{font-size:12px;line-height:1.7;max-width:1000px;color:#8d87af;margin:19px auto 0;text-align:center}
+.terminal button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+@media(max-width:1000px){
+  .exchange{padding:75px 22px}
+  .intro{align-items:start}.demoWarning{flex-basis:190px}
+  .drinkGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .controlDeck{align-items:start;flex-direction:column}
+}
+@media(max-width:620px){
+  .exchange{padding:64px 14px}
+  .intro{flex-direction:column;gap:22px}
+  .intro h2{font-size:clamp(35px,10vw,55px)}
+  .demoWarning{flex-basis:auto;width:100%;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;padding:13px}
+  .demoWarning>span{font-size:19px}
+  .demoWarning small{flex-basis:100%}
+  .terminal{border-radius:19px}
+  .terminalHead{padding:17px 15px}
+  .marketIdentity strong{font-size:14px}
+  .marketState{font-size:8px;letter-spacing:0}
+  .marketGlyph{width:38px;height:38px;font-size:22px}
+  .board{padding:14px}
+  .boardHead{align-items:start}
+  .sessionNumber{display:none}
+  .drinkGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .drinkCard{padding:14px 12px;min-height:270px}
+  .drinkEmoji{width:42px;height:42px;font-size:24px}
+  .movement{font-size:10px;padding:7px}
+  .personality{font-size:8px;margin-top:14px}
+  .drinkCard h4{font-size:20px}
+  .priceRow strong{font-size:28px}
+  .boostButton{font-size:9px;min-height:44px;padding:10px}
+  .controlDeck{margin:0 14px;padding:19px 0}
+  .readoutStats{gap:25px}
+  .readoutStats strong{font-size:23px}
+  .controlButtons{width:100%;display:grid;grid-template-columns:1fr auto}
+  .crashButton,.resetButton{font-size:10px;padding:12px}
+  .statusBar{padding:14px;flex-wrap:wrap}
+  .statusBar strong{width:100%;margin-left:18px}
+}
+@media(max-width:360px){.drinkGrid{grid-template-columns:1fr}.drinkCard{min-height:230px}.drinkTop{align-items:center}}
+@media(prefers-reduced-motion:reduce){
+  .priceTapeInner{animation:none}
+  .drinkCard,.boostButton,.crashButton,.resetButton{transition:none}
+}

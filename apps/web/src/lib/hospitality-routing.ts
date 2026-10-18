@@ -7,6 +7,8 @@ export function isHospitalityHost(hostname: string): boolean {
 
 export function isHospitalityHostPathAllowed(pathname: string): boolean {
   return pathname === "/" ||
+    pathname === "/drinkstock" ||
+    pathname.startsWith("/drinkstock/") ||
     pathname === "/drinkStock" ||
     pathname.startsWith("/drinkStock/") ||
     pathname === "/api/hospitality/login" ||
@@ -20,7 +22,9 @@ export function isHospitalityHostPathAllowed(pathname: string): boolean {
 }
 
 export function hospitalityPrivatePath(pathname: string): boolean {
-  return pathname === "/drinkStock/dashboard" ||
+  return pathname === "/drinkstock/dashboard" ||
+    pathname.startsWith("/drinkstock/dashboard/") ||
+    pathname === "/drinkStock/dashboard" ||
     pathname.startsWith("/drinkStock/dashboard/");
 }
 /**
@@ -30,6 +34,9 @@ export function hospitalityPrivatePath(pathname: string): boolean {
  */
 export function hospitalityRewritePath(pathname: string): string | undefined {
   if (pathname === "/") return "/hospitality";
+  if (pathname === "/drinkstock" || pathname.startsWith("/drinkstock/")) {
+    return `/hospitality/drinkStock${pathname.slice("/drinkstock".length)}`;
+  }
   if (pathname === "/drinkStock" || pathname.startsWith("/drinkStock/")) {
     return `/hospitality${pathname}`;
   }
