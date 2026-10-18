@@ -95,6 +95,8 @@ jobs:
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-sandbox-journal.test.ts
       - name: Verify bounded non-fiscal trial balance arithmetic
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-sandbox-trial-balance.test.ts
+      - name: Verify strict non-fiscal credit/refund allocation limits
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-sandbox-credit-allocation.test.ts
       - name: Verify non-fiscal draft data integrity reviews
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-draft-preflight.test.ts
       - name: Verify safe PostgreSQL endpoint diagnostics
