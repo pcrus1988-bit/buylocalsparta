@@ -83,6 +83,7 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
    void act({action:"set_bounds",bounds:{floorPercent,ceilingPercent}});
  }
  const active=market.venue.rehearsalEnabled;
+ const boundsLocked=active||market.venue.activeSession;
  const total=market.products.length;
  const moved=market.products.filter(d=>d.priceCents!==d.baseCents).length;
  return <main className={styles.stage}>
@@ -130,14 +131,14 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
    <p>Καθόρισε τα ποσοστά πριν την έναρξη. Κατά τη διάρκεια της συνεδρίας είναι κλειδωμένα. Η αποθήκευση επαναφέρει τις δοκιμαστικές τιμές στις αρχικές τους.</p>
    <form onSubmit={submitBounds} className={styles.boundsForm}>
     <label>Minimum (% of base price)
-     <input type="number" min="50" max="100" step="1" required value={floor} disabled={active||Boolean(busy)} onChange={e=>setFloor(e.target.value)}/>
+     <input type="number" min="50" max="100" step="1" required value={floor} disabled={boundsLocked||Boolean(busy)} onChange={e=>setFloor(e.target.value)}/>
     </label>
     <label>Maximum (% of base price)
-     <input type="number" min="100" max="200" step="1" required value={ceiling} disabled={active||Boolean(busy)} onChange={e=>setCeiling(e.target.value)}/>
+     <input type="number" min="100" max="200" step="1" required value={ceiling} disabled={boundsLocked||Boolean(busy)} onChange={e=>setCeiling(e.target.value)}/>
     </label>
-    <button type="submit" disabled={active||Boolean(busy)}>SAVE LIMITS ↗</button>
+    <button type="submit" disabled={boundsLocked||Boolean(busy)}>SAVE LIMITS ↗</button>
    </form>
-   <small>{active?"🔒 Limits locked while rehearsal is running. Pause before making changes.":"Editable now: floor 50–100%, ceiling 100–200%. Default 70–145%."}</small>
+   <small>{boundsLocked?"🔒 Bounds are locked during a trading session or rehearsal. End the trading session and pause rehearsal before editing.":"Editable now: floor 50–100%, ceiling 100–200%. Default 70–145%."}</small>
   </section>}
   {!display&&<div className={styles.lower}>
     <section className={styles.editor}>
@@ -146,8 +147,8 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
        <label>Drink name<input maxLength={80} minLength={2} required value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Moscow Mule"/></label>
        <label>Category<select value={category} onChange={e=>setCategory(e.target.value as DrinkStockCategory)}>{Object.entries(categoryNames).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
        <label>Base price (€)<input type="number" min="1" max="2000" step=".01" required value={price} onChange={e=>setPrice(e.target.value)}/></label>
-       <button type="submit" disabled={Boolean(busy)||total>=60||active}>LIST DRINK ↗</button>
-       <small>Current venue band: {market.venue.bounds.floorPercent}–{market.venue.bounds.ceilingPercent}% of base. Up to 60 entries per venue. Add drinks while session is paused.</small>
+       <button type="submit" disabled={Boolean(busy)||total>=60||boundsLocked}>LIST DRINK ↗</button>
+       <small>Current venue band: {market.venue.bounds.floorPercent}–{market.venue.bounds.ceilingPercent}% of base. Up to 60 entries per venue. Add drinks only before a trading session begins or after it ends, with rehearsal paused.</small>
       </form>:<p>Μόνο ιδιοκτήτες και διαχειριστές μπορούν να επεξεργαστούν τον κατάλογο.</p>}
     </section>
     <section className={styles.history}>

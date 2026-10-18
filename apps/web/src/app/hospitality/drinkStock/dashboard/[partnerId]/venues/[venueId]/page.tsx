@@ -3,6 +3,9 @@ import Link from "next/link";
 import {notFound,redirect} from "next/navigation";
 import {hospitalityIdentity} from "../../../../../../../lib/hospitality-partner-access";
 import {drinkStockMarketSnapshot,DrinkStockMarketError} from "../../../../../../../lib/drinkstock-market-service";
+import {managerSessionView} from "../../../../../../../lib/drinkstock-session-service";
+import {DrinkStockSessionControl} from "../../../../../../../components/DrinkStockSessionControl";
+import {DrinkStockStaffQueue} from "../../../../../../../components/DrinkStockStaffQueue";
 import {DrinkStockVenueMarket} from "../../../../../../../components/DrinkStockVenueMarket";
 import styles from "../../../../../hospitality.module.css";
 export const dynamic="force-dynamic";
@@ -11,8 +14,8 @@ export default async function VenueMarketPage({params}:{params:Promise<{partnerI
   const session=await hospitalityIdentity();
   if(!session)redirect("/drinkStock/login");
   const {partnerId,venueId}=await params;
-  let data;
-  try{data=await drinkStockMarketSnapshot(session.userId,partnerId,venueId);}
+  let data; let operations;
+  try{[data,operations]=await Promise.all([drinkStockMarketSnapshot(session.userId,partnerId,venueId),managerSessionView(session.userId,partnerId,venueId)]);}
   catch(error){
     if(error instanceof DrinkStockMarketError&&error.status===404)notFound();
     return <main className={styles.main}><section className={styles.authPane}>
@@ -22,6 +25,8 @@ export default async function VenueMarketPage({params}:{params:Promise<{partnerI
   }
   return <div className={styles.main}>
     <p style={{paddingTop:25,fontSize:13}}><Link href={`/drinkStock/dashboard/${partnerId}`}>← Οι χώροι μου</Link></p>
+    <DrinkStockSessionControl initial={operations} partnerId={partnerId} venueId={venueId} csrfToken={session.csrfToken}/>
+    {["owner","manager","staff"].includes(operations.venue.role??"")&&<DrinkStockStaffQueue partnerId={partnerId} venueId={venueId} csrfToken={session.csrfToken}/>}
     <DrinkStockVenueMarket initial={data} partnerId={partnerId} venueId={venueId} csrfToken={session.csrfToken}/>
   </div>;
 }
