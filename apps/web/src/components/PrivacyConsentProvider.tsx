@@ -131,7 +131,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
       <div className="privacy-consent-copy">
         <strong>Τα προαιρετικά cookies είναι κλειστά μέχρι να επιλέξεις.</strong>
         <p>Χρησιμοποιούμε απαραίτητα cookies για ασφάλεια, σύνδεση και checkout. Analytics ενεργοποιούνται μόνο μετά από δική σου επιλογή και server-verified consent. Δεν υπάρχει ενεργός marketing ή remarketing tracker.</p>
-        <div className="privacy-consent-links"><Link href="/cookies">Πολιτική Cookies</Link><Link href="/privacy">Πολιτική Απορρήτου</Link><Link href="/privacy-controls">Privacy controls</Link></div>
+        <div className="privacy-consent-links"><Link href="https://kontamou.site/cookies">Πολιτική Cookies</Link><Link href="https://kontamou.site/privacy">Πολιτική Απορρήτου</Link><Link href="https://kontamou.site/privacy-controls">Privacy controls</Link></div>
         {error && <p className="privacy-consent-error" role="alert">{error}</p>}
       </div>
       <div className="privacy-consent-actions" aria-label="Επιλογές cookies">

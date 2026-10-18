@@ -7,10 +7,10 @@ test("only exact hospitality hostname activates the gateway", () => {
   assert.equal(isHospitalityHost("kontamou.site"), false);
 });
 test("host barrier denies unrelated marketplace and admin routes", () => {
-  for (const path of ["/account", "/admin", "/vendor", "/api/account/login", "/checkout", "/hospitality"]) {
+  for (const path of ["/account", "/admin", "/vendor", "/api/account/login", "/api/privacy/consent/receipt", "/api/privacy/report", "/cookies", "/privacy", "/privacy-controls", "/checkout", "/hospitality"]) {
     assert.equal(isHospitalityHostPathAllowed(path), false, path);
   }
-  for (const path of ["/", "/drinkstock", "/drinkstock/login", "/drinkstock/dashboard", "/drinkStock", "/drinkStock/login", "/drinkStock/dashboard", "/api/hospitality/login", "/api/hospitality/partners/111/venues/222/market", "/_next/static/a.js", "/brand/kontamou-sparta-logo.webp"]) {
+  for (const path of ["/", "/drinkstock", "/drinkstock/login", "/drinkstock/dashboard", "/drinkStock", "/drinkStock/login", "/drinkStock/dashboard", "/api/privacy/consent", "/api/hospitality/login", "/api/hospitality/partners/111/venues/222/market", "/_next/static/a.js", "/brand/kontamou-sparta-logo.webp"]) {
     assert.equal(isHospitalityHostPathAllowed(path), true, path);
   }
 });

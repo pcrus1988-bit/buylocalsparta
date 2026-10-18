@@ -127,6 +127,13 @@
   cursor: pointer;
 }
 
+/* Narrow/mobile and zoomed viewports keep the decision controls easy to tap. */
+@media (max-width: 1100px) {
+  .privacy-consent-banner { grid-template-columns: minmax(0, 1fr); max-height: calc(100dvh - 2rem); overflow-y: auto; overscroll-behavior: contain; }
+  .privacy-consent-actions { justify-content: flex-start; }
+  .privacy-consent-actions button { flex: 1 1 180px; }
+}
+
 @media (max-width: 760px) {
   .privacy-consent-banner { grid-template-columns: 1fr; bottom: .6rem; width: calc(100vw - 1.2rem); }
   body:has(.customer-mobile-commerce-nav) .privacy-consent-banner {
