@@ -5,6 +5,7 @@ import {hospitalityIdentity} from "../../../../../../../lib/hospitality-partner-
 import {drinkStockMarketSnapshot,DrinkStockMarketError} from "../../../../../../../lib/drinkstock-market-service";
 import {managerSessionView} from "../../../../../../../lib/drinkstock-session-service";
 import {DrinkStockSessionControl} from "../../../../../../../components/DrinkStockSessionControl";
+import {DrinkStockStaffQueue} from "../../../../../../../components/DrinkStockStaffQueue";
 import {DrinkStockVenueMarket} from "../../../../../../../components/DrinkStockVenueMarket";
 import styles from "../../../../../hospitality.module.css";
 export const dynamic="force-dynamic";
@@ -25,6 +26,7 @@ export default async function VenueMarketPage({params}:{params:Promise<{partnerI
   return <div className={styles.main}>
     <p style={{paddingTop:25,fontSize:13}}><Link href={`/drinkStock/dashboard/${partnerId}`}>← Οι χώροι μου</Link></p>
     <DrinkStockSessionControl initial={operations} partnerId={partnerId} venueId={venueId} csrfToken={session.csrfToken}/>
+    {["owner","manager","staff"].includes(operations.venue.role??"")&&<DrinkStockStaffQueue partnerId={partnerId} venueId={venueId} csrfToken={session.csrfToken}/>}
     <DrinkStockVenueMarket initial={data} partnerId={partnerId} venueId={venueId} csrfToken={session.csrfToken}/>
   </div>;
 }
