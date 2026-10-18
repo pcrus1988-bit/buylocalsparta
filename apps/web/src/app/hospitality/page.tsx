@@ -2,7 +2,7 @@ import Link from "next/link";
 import styles from "./hospitality.module.css";
 
 const HOSPITALITY_ORIGIN = "https://hospitality.kontamou.site";
-const DRINKSTOCK_PATH = "/drinkStock";
+const DRINKSTOCK_PATH = "/drinkstock";
 
 const DRINKSTOCK_FEATURES = [
   { number: "01", title: "Dynamic pricing", copy: "Οι τιμές κινούνται με βάση τη δραστηριότητα, με κανόνες και όρια που ορίζει ο χώρος." },
@@ -64,7 +64,7 @@ export default function HospitalityGateway() {
             <div className={styles.gatewayFeatureChips}><span>Dynamic pricing</span><span>Market display</span><span>Venue management</span><span>POS-independent vision</span></div>
             <div className={styles.gatewayFeaturedActions}>
               <Link href={DRINKSTOCK_PATH} className={styles.gatewayPrimaryButton}>Ανακάλυψε το DrinkStock <span aria-hidden="true">↗</span></Link>
-              <Link href={`${HOSPITALITY_ORIGIN}/drinkStock/login`} className={styles.gatewayTextLink}>Είσοδος συνεργάτη <span aria-hidden="true">→</span></Link>
+              <Link href={`${HOSPITALITY_ORIGIN}/drinkstock/login`} className={styles.gatewayTextLink}>Είσοδος συνεργάτη <span aria-hidden="true">→</span></Link>
             </div>
           </article>
           <article className={styles.gatewayUpcomingApp}>
