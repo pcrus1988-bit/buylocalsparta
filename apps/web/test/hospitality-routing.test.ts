@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hospitalityPrivatePath, isHospitalityHost, isHospitalityHostPathAllowed } from "../src/lib/hospitality-routing.ts";
+import { hospitalityPrivatePath, hospitalityRewritePath, isHospitalityHost, isHospitalityHostPathAllowed } from "../src/lib/hospitality-routing.ts";
 test("only exact hospitality hostname activates the gateway", () => {
   assert.equal(isHospitalityHost("hospitality.kontamou.site"), true);
   assert.equal(isHospitalityHost("evilhospitality.kontamou.site"), false);
@@ -19,4 +19,13 @@ test("dashboard paths are private", () => {
   assert.equal(hospitalityPrivatePath("/drinkStock/dashboard/a"), true);
   assert.equal(hospitalityPrivatePath("/drinkStock"), false);
   assert.equal(hospitalityPrivatePath("/drinkStock/login"), false);
+});
+test("hospitality root and DrinkStock route to isolated internal pages", () => {
+  assert.equal(hospitalityRewritePath("/"), "/hospitality");
+  assert.equal(hospitalityRewritePath("/drinkStock"), "/hospitality/drinkStock");
+  assert.equal(hospitalityRewritePath("/drinkStock/login"), "/hospitality/drinkStock/login");
+  assert.equal(hospitalityRewritePath("/drinkStock/dashboard/123"), "/hospitality/drinkStock/dashboard/123");
+  for (const path of ["/shop", "/account", "/admin", "/vendor", "/hospitality", "/api/hospitality/login", "/_next/static/chunk.js"]) {
+    assert.equal(hospitalityRewritePath(path), undefined, path);
+  }
 });
