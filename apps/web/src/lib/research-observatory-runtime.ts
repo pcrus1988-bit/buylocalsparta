@@ -1,3 +1,5 @@
+import postcodePoints from "../../public/research/greece-postcode-points.json";
+import { participationTowns, type ParticipationTown } from "./research-participation-towns";
 import { summarizeGreekPrefectures } from "./research-geographic-core";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { unstable_cache } from "next/cache";
@@ -53,7 +55,7 @@ export type PublicResearchStudySummary = Readonly<{
   delivered: number;
   opened: number;
   started: number;
-  participationGeography?: Readonly<{ regions: readonly Readonly<{ key: string; label: string; started: number }>[]; unresolved: number }>;
+  participationGeography?: Readonly<{ regions: readonly Readonly<{ key: string; label: string; started: number }>[]; unresolved: number; towns?: readonly ParticipationTown[]; postcodeUnmatched?: number; townWithheld?: number }>;
   completed: number;
   /** Completed following an explicit participant Submit action. */
   participantConfirmed?: number;
@@ -321,27 +323,30 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
       const geography = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
         SELECT rr.study_id,rr.wave_id,
                COALESCE(fu.sampling_attributes->>'prefecture','') AS prefecture,
+               COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,
                count(*)::int AS started
         FROM research_responses rr
         JOIN research_invites ri ON ri.id=rr.invite_id
         LEFT JOIN research_sample_units su ON su.id=ri.sample_unit_id
         LEFT JOIN research_frame_units fu ON fu.id=su.frame_unit_id
         WHERE ri.fieldwork_phase='main'
-        GROUP BY rr.study_id,rr.wave_id,fu.sampling_attributes->>'prefecture'
+        GROUP BY rr.study_id,rr.wave_id,fu.sampling_attributes->>'prefecture',fu.sampling_attributes->>'postcode'
       `);
-      const grouped = new Map<string, { prefecture: string; respondents: number; answered: number; selected: number }[]>();
+      const grouped = new Map<string, { prefecture: string; postcode: string; started: number; respondents: number; answered: number; selected: number }[]>();
       for (const row of geography.rows) {
         const key = text(row.study_id) + ":" + text(row.wave_id);
         const group = grouped.get(key) ?? [];
-        group.push({ prefecture: text(row.prefecture), respondents: numberValue(row.started), answered: 0, selected: 0 });
+        group.push({ prefecture: text(row.prefecture), postcode: text(row.postcode), started: numberValue(row.started), respondents: numberValue(row.started), answered: 0, selected: 0 });
         grouped.set(key, group);
       }
       for (const row of rows.rows) {
         const key = text(row.id) + ":" + text(row.wave_id);
         const mapped = summarizeGreekPrefectures(grouped.get(key) ?? []);
+        const local = participationTowns(grouped.get(key) ?? [], postcodePoints);
         geographyByWave.set(key, {
           regions: mapped.regions.map(region => ({ key: region.key, label: region.label, started: region.respondents })),
-          unresolved: mapped.unresolved
+          unresolved: mapped.unresolved,
+          towns: local.towns, postcodeUnmatched: local.unmatched, townWithheld: local.withheld
         });
       }
     } catch {
@@ -411,7 +416,7 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
 // with the 30-second client refresh to avoid repeated 100k+ invite/event scans.
 const cachedPublicResearchObservatory = unstable_cache(
   queryPublicResearchObservatory,
-  ["research-public-main-fieldwork-progress-v2"],
+  ["research-public-main-fieldwork-progress-v3-postcode"],
   { revalidate: 30 }
 );
 

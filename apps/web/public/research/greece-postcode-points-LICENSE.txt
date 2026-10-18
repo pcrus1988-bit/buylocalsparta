@@ -1,0 +1,11 @@
+Greek postcode area points, extracted from Eurostat GISCO 2025.
+Source: https://gisco-services.ec.europa.eu/distribution/v2/pcode/geojson/PCODE_PT_2025_4326.geojson
+Dataset information: https://ec.europa.eu/eurostat/web/gisco/geodata/administrative-units/postal-codes
+© European Union - GISCO, 2024, postal code point dataset.
+Licence: Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0).
+https://creativecommons.org/licenses/by-sa/4.0/
+Changes: selected CNTR_ID=EL; retained postcode, LAU_NAME and WGS84 point;
+removed community prefixes from labels; rounded coordinates to four decimals.
+These are approximate postcode area locations, not business address geocodes.
+This derived geographic reference file remains available under CC BY-SA 4.0.
+Retrieved 18 October 2026. No endorsement by Eurostat or the European Commission.
