@@ -18,6 +18,8 @@ on:
       - "mobile/test/companion-cart.test.ts"
       - "mobile/test/address-rules.test.ts"
       - "mobile/test/boot-animation.test.mjs"
+      - "mobile/test/color-studios.test.ts"
+      - "mobile/test/color-studios.test.ts"
       - "apps/web/src/lib/companion-address-policy.test.ts"
       - "apps/web/src/lib/companion-cart-policy.test.ts"
       - ".github/workflows/companion-android-logic.yml"
