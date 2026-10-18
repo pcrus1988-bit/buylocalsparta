@@ -11,6 +11,7 @@ export function isHospitalityHostPathAllowed(pathname: string): boolean {
     pathname.startsWith("/drinkStock/") ||
     pathname === "/api/hospitality/login" ||
     pathname === "/api/hospitality/logout" ||
+    pathname.startsWith("/api/hospitality/partners/") ||
     pathname === "/favicon.ico" ||
     pathname === "/favicon.svg" ||
     pathname === "/robots.txt" ||
