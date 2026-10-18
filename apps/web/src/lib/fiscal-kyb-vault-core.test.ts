@@ -135,7 +135,9 @@ test("M32 lifecycle is an unexecutable plan, not document workflow",()=>{
  for(const [a,b] of [
   ["quarantined","deleted"],["scan_rejected","clean_hold"],
   ["clean_hold","quarantined"],["deleted","clean_hold"],
-  ["fake","quarantined"],["quarantined","quarantined"]
+  ["fake","quarantined"],["toString","deleted"],
+  ["__proto__","quarantined"],["constructor","deleted"],
+  ["quarantined","quarantined"]
  ])assert.throws(()=>planFiscalKybVaultTransition(a,b),/VAULT_STATE_TRANSITION_INVALID/);
 });
 
