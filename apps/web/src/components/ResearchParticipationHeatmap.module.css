@@ -11,8 +11,8 @@
 .map { background: #f2f7f4; border: 1px solid #e0e9e3; border-radius: 18px; overflow: hidden; }
 .map > p { padding: 30px; }
 .map svg { width: 100%; max-height: 580px; display: block; }
-.map path { cursor: pointer; transition: fill .2s; }
-.map path:hover, .map path:focus, .map .active { stroke: #d29e34; stroke-width: 2.5px; outline: none; }
+.map path { cursor: inherit; }
+.map .active { stroke: #d29e34; stroke-width: 2.5px; outline: none; }
 .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; align-items: center; margin-top: 16px; font-size: 12px; }
 .legend i { width: 100px; height: 10px; border-radius: 6px; background: linear-gradient(90deg, #dcefdd, #145e41); }
 .detail { min-height: 44px; text-align: center; font-size: 14px; line-height: 1.5; }
@@ -33,7 +33,5 @@
 .mapTools > div { display: flex; gap: 6px; }
 .mapTools button { border: 1px solid #cbded0; border-radius: 8px; padding: 8px 12px; min-height: 40px; background: #fff; color: #184d38; cursor: pointer; }
 .mapTools button:disabled { opacity: .4; cursor: default; }
-.mapTools button:focus-visible, .map circle:focus-visible { outline: 2px solid #d29e34; outline-offset: 3px; }
-.map circle[role="button"] { cursor: pointer; }
-.townLabel { fill: #174330; font-weight: 750; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+.mapTools button:focus-visible { outline: 2px solid #d29e34; outline-offset: 3px; }
 .legend .densityLegend { background: linear-gradient(90deg, #e5eee7, #71aa6c, #e6a833, #d35b26); }
