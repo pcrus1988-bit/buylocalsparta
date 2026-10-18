@@ -6,7 +6,7 @@ const ROUTES=new Set([
  "/account","/account/orders","/account/security",
  "/delivery-pickup","/payments-security","/choose-location",
  "/research","/research/greek-retail-2026","/timologio",
- "/vendor","/vendor/login","/color-finder"
+ "/vendor","/vendor/login","/color-finder","/sport-fit-studio"
 ]);
 export type MarketplaceDestination={
   path:string;
