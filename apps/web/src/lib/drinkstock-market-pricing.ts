@@ -4,6 +4,10 @@ export type RehearsalMovement = Readonly<{id:string;name:string;beforeCents:numb
 export const VENUE_MAX_PRODUCTS = 60;
 export const DEFAULT_PRICE_BOUNDS = Object.freeze({floorPercent:70,ceilingPercent:145});
 export type MarketBounds=Readonly<{floorPercent:number;ceilingPercent:number}>;
+/** Both an operational session and a rehearsal lock the saved venue price band. */
+export function mayEditPreSessionConfig({rehearsalEnabled,activeSession}:Readonly<{rehearsalEnabled:boolean;activeSession:boolean}>){
+ return !rehearsalEnabled&&!activeSession;
+}
 export function validateMarketBounds(value:unknown):MarketBounds{
  if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("INVALID_PRICE_BOUNDS");
  const b=value as Record<string,unknown>;
