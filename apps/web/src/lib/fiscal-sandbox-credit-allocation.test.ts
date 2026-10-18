@@ -146,3 +146,41 @@ test("fails closed on invalid original identity, currency and input shape", () =
     original: {...request.original, lane: "official"}
   }), /CREDIT_INVALID_ORIGINAL/);
 });
+
+test("result preview is frozen at every nesting level without modifying caller data", () => {
+  const request = example();
+  const prior = structuredClone(request);
+  const result = previewFiscalSandboxCredit(request);
+
+  assert.equal(Object.isFrozen(result), true);
+  assert.equal(Object.isFrozen(result.rows), true);
+  assert.equal(Object.isFrozen(result.totals), true);
+  assert.ok(result.rows.every((row) => Object.isFrozen(row)));
+  assert.deepEqual(request, prior);
+  assert.equal(Object.isFrozen(request), false);
+
+  assert.throws(() => {
+    (result.rows[0] as {remainingGrossMinor: string}).remainingGrossMinor = "999999";
+  }, TypeError);
+  assert.throws(() => {
+    (result.totals as {proposedCreditMinor: string}).proposedCreditMinor = "0";
+  }, TypeError);
+});
+
+test("the maximum supported gross-cent value can be fully allocated without float rounding", () => {
+  const req = {
+    original: {
+      draftId, lane: "b2b", currency: "EUR", grossMinor: 1_000_000_000_000,
+      lines: [{lineNo: 1, grossMinor: 1_000_000_000_000}]
+    },
+    previous: [credit("PREVIOUS-001", [{lineNo: 1, amountMinor: 999_999_999_999}])],
+    candidate: credit("CURRENT-0001", [{lineNo: 1, amountMinor: 1}])
+  };
+  const result = previewFiscalSandboxCredit(req);
+  assert.deepEqual(result.totals, {
+    originalGrossMinor: "1000000000000",
+    previouslyAllocatedMinor: "999999999999",
+    proposedCreditMinor: "1",
+    remainingGrossMinor: "0"
+  });
+});
