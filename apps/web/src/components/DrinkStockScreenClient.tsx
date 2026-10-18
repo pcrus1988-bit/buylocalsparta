@@ -4,15 +4,24 @@ import type {SessionView} from "../lib/drinkstock-session-service";
 const euros=(n:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(n/100);
 export function DrinkStockScreenClient({token,initial}:{token:string;initial:SessionView}){
  const [data,setData]=useState(initial),[now,setNow]=useState(Date.now()),[armed,setArmed]=useState(false);
+ const [connected,setConnected]=useState(true),[revoked,setRevoked]=useState(false);
  const audio=useRef<AudioContext|null>(null),lastCrash=useRef<string|null>(null);
  const crash=data.session?.state==="crashing"&&data.session.crashUntil?data.session.crashUntil:null;
  const seconds=crash?Math.max(0,Math.ceil((new Date(crash).getTime()-now)/1000)):0;
  useEffect(()=>{const tick=window.setInterval(()=>setNow(Date.now()),250);return ()=>window.clearInterval(tick)},[]);
  useEffect(()=>{
- const tick=window.setInterval(()=>fetch(`/api/hospitality/public/screen/${token}`,{cache:"no-store"})
- .then(async r=>{if(!r.ok)throw new Error("disconnected");return r.json() as Promise<SessionView>})
- .then(setData).catch(()=>{}),3000);
- return ()=>window.clearInterval(tick);
+ let mounted=true;
+ const poll=async()=>{
+  try{
+   const response=await fetch(`/api/hospitality/public/screen/${token}`,{cache:"no-store"});
+   if(response.status===404&&mounted)setRevoked(true);
+   if(!response.ok)throw new Error("disconnected");
+   const current=await response.json() as SessionView;
+   if(mounted){setData(current);setConnected(true);setRevoked(false);}
+  }catch{if(mounted)setConnected(false);}
+ };
+ const tick=window.setInterval(()=>{void poll();},3000);
+ return ()=>{mounted=false;window.clearInterval(tick);};
  },[token]);
  useEffect(()=>{
  if(!armed||!audio.current||!crash||lastCrash.current===crash)return;
@@ -33,8 +42,13 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  void audio.current.resume();setArmed(true);
  }
  const online=data.session?.state==="running"||data.session?.state==="crashing";
+ if(!connected)return <main role="alert" style={{minHeight:"100vh",padding:"clamp(30px,8vw,110px)",background:"#100b22",color:"#fff",fontFamily:"Arial,sans-serif",textAlign:"center"}}>
+  <h1 style={{fontSize:"clamp(30px,6vw,70px)"}}>DRINKSTOCK ↗</h1>
+  <h2>{revoked?"Screen access revoked":"Reconnecting to the market…"}</h2>
+  <p style={{color:"#c6bfda"}}>{revoked?"Ask your venue manager for a new screen link.":"Live prices are hidden until a fresh verified venue snapshot is available."}</p>
+ </main>;
  return <main style={{position:"relative",overflow:"hidden",minHeight:"100vh",padding:"clamp(20px,4vw,64px)",background:crash&&seconds?"radial-gradient(circle,#40031d,#130511 67%,#080711)":"radial-gradient(circle at 45% -10%,#30276a,#0a0821 62%)",color:"#fff",fontFamily:"Arial,sans-serif"}}>
- {crash&&seconds>0&&<><style>{`@keyframes dsAlarm{0%,100%{opacity:1}50%{opacity:.08}}.ds-alert{animation:dsAlarm .55s infinite}`}</style>
+ {crash&&seconds>0&&<><style>{`@keyframes dsAlarm{0%,100%{opacity:1}50%{opacity:.08}}.ds-alert{animation:dsAlarm .55s infinite}@media(prefers-reduced-motion:reduce){.ds-alert{animation:none}}`}</style>
  <div className="ds-alert" aria-hidden="true" style={{position:"fixed",top:0,left:0,width:90,height:90,background:"radial-gradient(circle at top left,#ff122b,transparent 75%)"}}/>
  <div className="ds-alert" aria-hidden="true" style={{position:"fixed",top:0,right:0,width:90,height:90,background:"radial-gradient(circle at top right,#ff122b,transparent 75%)"}}/>
  <div className="ds-alert" aria-hidden="true" style={{position:"fixed",bottom:0,left:0,width:90,height:90,background:"radial-gradient(circle at bottom left,#ff122b,transparent 75%)"}}/>
@@ -51,11 +65,24 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  </header>
  <h1 style={{fontSize:"clamp(34px,6vw,78px)",fontWeight:950,letterSpacing:-4,margin:"34px 0 22px"}}>THE DRINK EXCHANGE<span style={{color:"#caff50"}}>.</span></h1>
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,270px),1fr))",gap:13}}>
- {data.products.map(product=><article key={product.id} style={{background:"#ffffff11",border:"1px solid #ffffff27",borderRadius:16,padding:22}}>
+ {data.products.map(product=><article key={product.id} style={{background:data.signals?.[0]?.productId===product.id?"#d9ff571c":"#ffffff11",border:data.signals?.[0]?.productId===product.id?"2px solid #d9ff57":"1px solid #ffffff27",borderRadius:16,padding:22}}>
  <div style={{color:"#ad9ed9",fontSize:11,letterSpacing:2}}>{product.category.toUpperCase()}</div>
  <h2 style={{fontSize:"clamp(19px,2.5vw,31px)",margin:"12px 0"}}>{product.name}</h2>
  <strong style={{fontSize:"clamp(30px,4vw,52px)",color:crash?"#ff6281":"#ccff50"}}>{euros(product.priceCents)}</strong></article>)}
  </div>
- <footer style={{paddingTop:35,color:"#b3aac9",fontSize:12}}>Prices are venue-managed. This screen is view-only. Public demonstration mode does not accept or charge customer orders. Separate links are needed for each venue.</footer>
+ <section aria-label="Rehearsal market tape" style={{marginTop:28,padding:22,borderRadius:18,background:"#ffffff0c",border:"1px solid #ffffff2b"}}>
+  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+   <h2 style={{margin:0,fontSize:"clamp(20px,3vw,34px)"}}>⚡ MARKET TAPE</h2>
+   <span style={{fontSize:12,letterSpacing:2,color:"#e5b2ff"}}>MANUAL REHEARSAL SIGNALS · NOT GUEST ORDERS</span>
+  </div>
+  {!data.signals?.length?<p style={{color:"#bcb2d5"}}>No rehearsal demand signals recorded yet.</p>:
+   <ol style={{paddingLeft:22,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,240px),1fr))",gap:13}}>
+    {data.signals.map(signal=><li key={signal.id} style={{padding:"14px 12px",borderRadius:13,background:"#281b43",fontWeight:700}}>
+     <span style={{color:"#d9ff57"}}>↗ SIGNAL</span> · {signal.productName}
+     <small style={{display:"block",marginTop:6,color:"#ada5c6"}}>{new Date(signal.createdAt).toLocaleTimeString("el-GR",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</small>
+    </li>)}
+   </ol>}
+ </section>
+ <footer style={{paddingTop:35,color:"#b3aac9",fontSize:12}}>Prices are venue-managed. This screen is view-only. Rehearsal signals are simulations, never confirmed guest orders. Customer checkout, charging and official receipts are not active. Separate links are needed for each venue.</footer>
  </main>;
 }
