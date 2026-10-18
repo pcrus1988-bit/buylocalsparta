@@ -324,5 +324,39 @@ API**. A real credit note must also determine lawful tax reversal, reference the
 issued original document, meet applicable numbering/retention rules, and use
 the approved AADE/provider delivery path before activation.
 
-Production status: code in a separate review PR, no database migration,
+Production status (18 October 2026): merged via PR #1478 at `b36ff468`
+and verified READY on the standalone FISCAL deployment; no database migration,
 environment change, marketplace order hook or fiscal issuance activation.
+
+## Milestone 24 — merchant credit simulation laboratory (18 October 2026)
+
+Authenticated merchants have a new separate `/timologio/credit-lab` workspace
+linked from their dashboard. It demonstrates the Milestone 23 bounded gross-cent
+allocation engine with entirely **synthetic**, editable EUR line amounts.
+
+- All computations happen in the browser using pure in-memory functions;
+  there is **no server API, stored document, database write, printing, emailing,
+  accounting posting, official credit note or AADE communication**.
+- Four explicit non-fiscal lanes: B2C, POS, B2B, B2G. The demo accepts 1–12
+  rows, original gross amounts, aggregate hypothetical previous credits,
+  and a new hypothetical credit in Greek decimal comma or decimal point format.
+  All numeric parsing uses BigInt minor-unit arithmetic, not currency floats.
+- The user sees original, previously credited, proposed and residual totals
+  and residual amount per sample line. Every output explicitly remains
+  `fiscalIssuanceEnabled:false`, `legalCreditNoteIssued:false` and
+  `refundExecuted:false`. When a row exceeds available value, the preview
+  refuses to calculate.
+- The *aggregate hypothetical previous credit* is **not** a complete real-world
+  credit history, and the synthetic UUID is **not** a real invoice reference.
+  Never connect the calculator directly to real balances or represent its
+  output as a lawful tax credit, VAT reversal or payable refund.
+- Test coverage includes Greek/English decimal separators, forbidden grouping,
+  non-integers, under/overflows, positive credit requirement, row and total
+  ceilings, original-value immutability, all four lanes and no issuance state.
+- Private page authentication and the independently compiled standalone route
+  are enforced by the existing Fiscal Foundation CI and route-isolation test.
+
+**Future production credit notes remain blocked** on certified tax calculations,
+issued-original document linkage, full immutable tenant-scoped credit history,
+concurrency-safe idempotency, AADE/provider transmission rules, accounting
+review and separate business/operator release approvals.
