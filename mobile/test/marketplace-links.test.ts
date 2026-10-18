@@ -30,3 +30,15 @@ test("reject external hosts, arbitrary paths, route traversal and malformed quer
  assert.throws(()=>marketplaceUrl({path:"/shops",query:{q:"broken\u0000query"}}));
  assert.throws(()=>marketplaceUrl({path:"/shop",query:{q:"x".repeat(121)}}));
 });
+
+test("nine Color Studios can hand off selected HEX into private first-party photo picker",()=>{
+ const url=marketplaceUrl({path:"/color-finder",query:{
+  category:"studio-nails",color:"#C79C88"
+ }});
+ assert.equal(url,"https://kontamou.site/color-finder?category=studio-nails&color=%23C79C88");
+ for(const query of [
+  {category:"unknown",color:"#C79C88"},
+  {category:"studio-nails",color:"#FFF"},
+  {category:"studio-nails",color:"#000000&returnTo=//evil.example"}
+ ])assert.throws(()=>marketplaceUrl({path:"/color-finder",query}));
+});
