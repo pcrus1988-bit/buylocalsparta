@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {drinkPriceBand,centsFromEuros,priceRehearsalDemand,validateMarketAction,validateNewDrink,validateMarketBounds,venueCanManageMarket} from "../src/lib/drinkstock-market-pricing.ts";
+import {drinkPriceBand,centsFromEuros,priceRehearsalDemand,validateMarketAction,validateNewDrink,validateMarketBounds,venueCanManageMarket,mayEditPreSessionConfig} from "../src/lib/drinkstock-market-pricing.ts";
 const a={id:"a",name:"Draft Beer",baseCents:500,priceCents:500};
 const b={id:"b",name:"Mojito",baseCents:900,priceCents:900};
 const key="f71b6509-469f-4dea-85df-b4d05371b9fa";
@@ -38,6 +38,12 @@ test("owner/manager may set venue-specific lower and upper bounds before startin
   assert.equal(signal[0].afterCents,375);
   const set=validateMarketAction({action:"set_bounds",requestKey:key,bounds:{floorPercent:55,ceilingPercent:190}});
   assert.deepEqual(set.bounds,{floorPercent:55,ceilingPercent:190});
+});
+test("operational sessions freeze bounds and catalogue even with rehearsal paused",()=>{
+ assert.equal(mayEditPreSessionConfig({rehearsalEnabled:false,activeSession:false}),true);
+ assert.equal(mayEditPreSessionConfig({rehearsalEnabled:true,activeSession:false}),false);
+ assert.equal(mayEditPreSessionConfig({rehearsalEnabled:false,activeSession:true}),false);
+ assert.equal(mayEditPreSessionConfig({rehearsalEnabled:true,activeSession:true}),false);
 });
 test("invalid bounds, non-integer percentages, and fabricated actions are rejected",()=>{
   for(const bounds of [
