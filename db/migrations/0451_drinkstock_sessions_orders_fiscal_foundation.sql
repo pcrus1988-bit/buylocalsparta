@@ -103,8 +103,23 @@ CREATE TABLE IF NOT EXISTS public.drinkstock_order_events (
  created_at timestamptz NOT NULL DEFAULT now(),
  UNIQUE(order_id,request_key)
 );
+CREATE TABLE IF NOT EXISTS public.drinkstock_session_actions (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ partner_id uuid NOT NULL,
+ venue_id uuid NOT NULL,
+ session_id uuid REFERENCES public.drinkstock_sessions(id),
+ request_key uuid NOT NULL,
+ action text NOT NULL CHECK(action IN ('start','pause','resume','crash','end','create_screen','create_table','revoke_pass')),
+ actor_user_id text NOT NULL,
+ details jsonb NOT NULL DEFAULT '{}'::jsonb,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ UNIQUE(venue_id,request_key),
+ FOREIGN KEY (venue_id,partner_id) REFERENCES public.hospitality_venues(id,partner_id)
+);
+CREATE INDEX IF NOT EXISTS drinkstock_session_actions_tenant ON public.drinkstock_session_actions(partner_id,venue_id,created_at DESC);
 -- No grants/policies for web clients: only the server DB connection can access these.
 ALTER TABLE public.drinkstock_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.drinkstock_session_actions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.drinkstock_access_passes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.drinkstock_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.drinkstock_order_lines ENABLE ROW LEVEL SECURITY;
@@ -113,5 +128,5 @@ ALTER TABLE public.drinkstock_fiscal_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.drinkstock_order_events ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.drinkstock_sessions,public.drinkstock_access_passes,public.drinkstock_orders,
  public.drinkstock_order_lines,public.drinkstock_payment_events,public.drinkstock_fiscal_documents,
- public.drinkstock_order_events FROM anon,authenticated;
+ public.drinkstock_order_events,public.drinkstock_session_actions FROM anon,authenticated;
 COMMIT;
