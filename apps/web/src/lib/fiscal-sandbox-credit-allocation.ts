@@ -23,7 +23,7 @@ export type FiscalSandboxCreditPreview = Readonly<{
   currency: "EUR";
   lane: FiscalTestCreditLane;
   originalDraftId: string;
-  rows: FiscalSandboxCreditRow[];
+  rows: readonly FiscalSandboxCreditRow[];
   totals: Readonly<{
     originalGrossMinor: string;
     previouslyAllocatedMinor: string;
@@ -154,22 +154,27 @@ export function previewFiscalSandboxCredit(input: unknown): FiscalSandboxCreditP
     });
   }
 
-  return {
+  // Freeze the entire returned preview: a readonly TS type alone does not
+  // stop runtime callers from silently changing calculated money values.
+  // Never freeze the caller's request objects; previews have no side effects.
+  const frozenRows = Object.freeze(rows.map((row) => Object.freeze(row)));
+
+  return Object.freeze({
     kind: "non_fiscal_test_credit_allocation",
     currency: "EUR",
     lane: original.lane as FiscalTestCreditLane,
     originalDraftId: original.draftId as string,
-    rows,
-    totals: {
+    rows: frozenRows,
+    totals: Object.freeze({
       originalGrossMinor: String(totalOriginal),
       previouslyAllocatedMinor: String(previousTotal),
       proposedCreditMinor: String(proposedTotal),
       remainingGrossMinor: String(totalOriginal - previousTotal - proposedTotal)
-    },
+    }),
     legalCreditNoteIssued: false,
     taxReversalDetermined: false,
     refundExecuted: false,
     officialAccounting: false,
     fiscalIssuanceEnabled: false
-  };
+  });
 }
