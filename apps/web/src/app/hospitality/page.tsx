@@ -15,7 +15,7 @@ export default function HospitalityGateway() {
           <div className={styles.appSymbol} aria-hidden="true">↗</div>
           <h2>DrinkStock</h2>
           <p>Μια δυναμική αγορά τιμών για bars και χώρους διασκέδασης. Προσομοίωση ζήτησης, οθόνες τιμών και αποκλειστικοί χώροι συνεργατών.</p>
-          <Link href="/drinkStock" className={styles.action}>Εξερεύνησε το DrinkStock <span aria-hidden="true">→</span></Link>
+          <Link href="https://hospitality.kontamou.site/drinkStock" className={styles.action}>Εξερεύνησε το DrinkStock <span aria-hidden="true">→</span></Link>
         </article>
         <article className={styles.appCardMuted}>
           <span className={styles.appNumber}>THE PLATFORM / EXPANDING</span>
