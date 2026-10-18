@@ -4730,7 +4730,10 @@ async function processIdentityDestructionJob(job: ResearchJobRow): Promise<Recor
       INSERT INTO research_response_design_context (
         response_id,study_id,wave_id,sample_draw_id,stratum_id,
         region_code,sector_code,size_band,
-        inclusion_probability,base_weight,fieldwork_phase
+        inclusion_probability,base_weight,fieldwork_phase,
+        matched_kad_codes,source_activity_codes,
+        kad_classification_version,kad_source_kind,
+        source_prefecture,postcode_district3
       )
       SELECT
         rr.id,
@@ -4743,7 +4746,223 @@ async function processIdentityDestructionJob(job: ResearchJobRow): Promise<Recor
         COALESCE(fu.size_band,'unknown'),
         su.inclusion_probability,
         su.base_weight,
-        ri.fieldwork_phase
+        ri.fieldwork_phase,
+        CASE WHEN jsonb_typeof(fu.sampling_attributes->'matchedActivityCodes')='array'
+          THEN fu.sampling_attributes->'matchedActivityCodes' ELSE '[]'::jsonb END,
+        CASE WHEN jsonb_typeof(fu.sampling_attributes->'activityCodes')='array'
+          THEN fu.sampling_attributes->'activityCodes' ELSE '[]'::jsonb END,
+        COALESCE(NULLIF(fu.sampling_attributes->>'classificationVersion',''),'unknown'),
+        COALESCE(NULLIF(fu.sampling_attributes->>'source',''),'unknown'),
+        COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),'unknown'),
+        CASE WHEN regexp_replace(COALESCE(fu.sampling_attributes->>'postcode',''),'\\s','','g')
+          ~ '^[0-9]{5}
+      JOIN research_invites ri ON ri.id=rr.invite_id
+      JOIN research_sample_units su ON su.id=ri.sample_unit_id
+      JOIN research_frame_units fu ON fu.id=su.frame_unit_id
+      WHERE rr.wave_id=$1
+      ON CONFLICT (response_id) DO NOTHING
+    `, [wave.id]);
+
+    const contextCoverage = await client.query<SqlRow>(`
+      SELECT
+        (SELECT count(*)::int FROM research_responses WHERE wave_id=$1) AS response_count,
+        (SELECT count(*)::int FROM research_response_design_context WHERE wave_id=$1) AS context_count
+    `, [wave.id]);
+    const responseCount = numberValue(contextCoverage.rows[0]?.response_count);
+    const contextCount = numberValue(contextCoverage.rows[0]?.context_count);
+    if (responseCount !== contextCount) {
+      throw new Error("RESEARCH_IDENTITY_DESTRUCTION_DESIGN_CONTEXT_INCOMPLETE");
+    }
+    // A preserved sector is not a substitute for the original versioned KAD.
+    // Irreversible unlink is blocked whenever a source code set was present
+    // but the detached append-only response context lacks that evidence.
+    const kadCoverage = await client.query<SqlRow>(`
+      SELECT
+        count(*) FILTER (WHERE jsonb_typeof(fu.sampling_attributes->'matchedActivityCodes')='array'
+          AND jsonb_array_length(fu.sampling_attributes->'matchedActivityCodes')>0
+          AND (jsonb_typeof(ctx.matched_kad_codes)<>'array'
+            OR jsonb_array_length(ctx.matched_kad_codes)=0))::integer AS missing_kad,
+        count(*) FILTER (WHERE COALESCE(NULLIF(fu.sampling_attributes->>'classificationVersion',''),'unknown')
+          <> ctx.kad_classification_version)::integer AS version_mismatch
+      FROM research_responses rr
+      JOIN research_invites ri ON ri.id=rr.invite_id
+      JOIN research_sample_units su ON su.id=ri.sample_unit_id
+      JOIN research_frame_units fu ON fu.id=su.frame_unit_id
+      LEFT JOIN research_response_design_context ctx ON ctx.response_id=rr.id
+      WHERE rr.wave_id=$1
+    `, [wave.id]);
+    if (numberValue(kadCoverage.rows[0]?.missing_kad) > 0 ||
+        numberValue(kadCoverage.rows[0]?.version_mismatch) > 0) {
+      throw new Error("RESEARCH_IDENTITY_DESTRUCTION_KAD_CONTEXT_INCOMPLETE");
+    }
+
+    const inviteMessagesDetached = await client.query(`
+      UPDATE research_invite_messages rim
+      SET contact_point_id=NULL,
+          updated_at=now()
+      FROM research_invites ri
+      WHERE rim.invite_id=ri.id
+        AND ri.wave_id=$1
+        AND rim.contact_point_id IS NOT NULL
+    `, [wave.id]);
+
+    const deliveriesDetached = await client.query(`
+      UPDATE research_participant_deliveries
+      SET contact_point_id=NULL,
+          updated_at=now()
+      WHERE wave_id=$1
+        AND contact_point_id IS NOT NULL
+    `, [wave.id]);
+
+    const invitesDetached = await client.query(`
+      UPDATE research_invites
+      SET contact_point_id=NULL,
+          sample_unit_id=NULL
+      WHERE wave_id=$1
+        AND (contact_point_id IS NOT NULL OR sample_unit_id IS NOT NULL)
+    `, [wave.id]);
+
+    const destroyedContacts = await client.query(`
+      DELETE FROM public.research_contact_points cp
+      USING public.research_frame_units fu,
+            public.research_frame_snapshots fs
+      WHERE cp.frame_unit_id=fu.id
+        AND fu.frame_snapshot_id=fs.id
+        AND fs.wave_id=$1
+    `, [wave.id]);
+
+    const occurredAt = new Date().toISOString();
+    const evidence = {
+      version: "kontamou.research.identity-destruction.v1",
+      studyId: job.study_id,
+      waveId: text(wave.id),
+      jobId: job.id,
+      retentionUntil: retentionUntil.toISOString(),
+      responseContextsFrozen: contextCount,
+      invitesDetached: invitesDetached.rowCount,
+      inviteMessagesDetached: inviteMessagesDetached.rowCount,
+      participantDeliveriesDetached: deliveriesDetached.rowCount,
+      contactPointsDestroyed: destroyedContacts.rowCount,
+      occurredAt
+    };
+    const evidenceJson = canonicalResearchJson(evidence);
+    const evidenceSha256 = sha256(evidenceJson);
+    const executedBy = text(objectValue(job.input).executedBy) || "research_worker";
+
+    const destructionEvent = await client.query<SqlRow>(`
+      INSERT INTO research_identity_destruction_events (
+        study_id,wave_id,response_contexts_frozen,invites_detached,
+        invite_messages_detached,participant_deliveries_detached,
+        contact_points_destroyed,evidence_json,content_sha256,executed_by,occurred_at
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11::timestamptz
+      )
+      RETURNING id
+    `, [
+      job.study_id,
+      wave.id,
+      contextCount,
+      invitesDetached.rowCount,
+      inviteMessagesDetached.rowCount,
+      deliveriesDetached.rowCount,
+      destroyedContacts.rowCount,
+      evidenceJson,
+      evidenceSha256,
+      executedBy,
+      occurredAt
+    ]);
+
+    await client.query(`
+      UPDATE research_waves
+      SET identity_destroyed_at=$2::timestamptz,
+          updated_at=now()
+      WHERE id=$1
+    `, [wave.id, occurredAt]);
+
+    await client.query("COMMIT");
+    return {
+      waveId: text(wave.id),
+      destructionEventId: text(destructionEvent.rows[0]!.id),
+      destructionSha256: evidenceSha256,
+      responseContextsFrozen: contextCount,
+      newlyFrozenContexts: frozen.rowCount,
+      invitesDetached: invitesDetached.rowCount,
+      inviteMessagesDetached: inviteMessagesDetached.rowCount,
+      participantDeliveriesDetached: deliveriesDetached.rowCount,
+      contactPointsDestroyed: destroyedContacts.rowCount
+    };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function processResearchStudyJobs(
+  limit = 1,
+  allowedJobTypes: readonly string[] = RESEARCH_JOB_TYPES
+): Promise<ResearchJobTick> {
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  const safeLimit = Math.max(1, Math.min(5, Math.floor(limit)));
+  const normalizedJobTypes = [...new Set(allowedJobTypes)]
+    .filter((jobType): jobType is ResearchJobType => RESEARCH_JOB_TYPE_SET.has(jobType));
+  if (!normalizedJobTypes.length) return { claimed: 0, processed: 0, requeued: 0, failed: 0 };
+  let claimed = 0;
+  let processed = 0;
+  let requeued = 0;
+  let failed = 0;
+
+  for (let index = 0; index < safeLimit; index += 1) {
+    const job = await claimResearchJob(normalizedJobTypes);
+    if (!job) break;
+    claimed += 1;
+    try {
+      assertQueuedResearchEmailApproval(job);
+      const output = job.job_type === "frame_snapshot"
+        ? await processFrameSnapshotJob(job)
+        : job.job_type === "sample_draw"
+          ? await processSampleDrawJob(job)
+          : job.job_type === "invite_batch"
+            ? await processInviteBatchJob(job)
+            : job.job_type === "invite_reminder"
+              ? await processInviteReminderJob(job)
+              : job.job_type === "reward_delivery"
+                ? await processRewardDeliveryJob(job)
+              : job.job_type === "analysis"
+                  ? await runGreekRetailAnalysis(job.study_id, job.wave_id, job.id)
+                : job.job_type === "release"
+                    ? await buildGreekRetailRelease(job.study_id, job.wave_id, job.id, objectValue(job.input))
+                  : job.job_type === "results_notification"
+                      ? await processResultsNotificationJob(job)
+                    : job.job_type === "identity_destruction"
+                        ? await processIdentityDestructionJob(job)
+                      : (() => { throw new Error("RESEARCH_JOB_TYPE_UNSUPPORTED"); })();
+      const outputRecord = objectValue(output);
+      if (outputRecord.__requeue === true) {
+        const mergedOutput = { ...objectValue(job.output), ...outputRecord };
+        const delaySeconds = Math.max(0, Math.floor(numberValue(mergedOutput.__delaySeconds) || 0));
+        delete mergedOutput.__requeue;
+        delete mergedOutput.__delaySeconds;
+        await markJobRequeued(job.id, mergedOutput, delaySeconds);
+        requeued += 1;
+      } else {
+        await markJobSucceeded(job.id, { ...objectValue(job.output), ...outputRecord });
+        processed += 1;
+      }
+    } catch (error) {
+      const outcome = await markJobError(job, error);
+      if (outcome === "requeued") requeued += 1;
+      else failed += 1;
+    }
+  }
+
+  return { claimed, processed, requeued, failed };
+}
+
+          THEN left(regexp_replace(fu.sampling_attributes->>'postcode','\\s','','g'),3)
+          ELSE NULL END
       FROM research_responses rr
       JOIN research_invites ri ON ri.id=rr.invite_id
       JOIN research_sample_units su ON su.id=ri.sample_unit_id
