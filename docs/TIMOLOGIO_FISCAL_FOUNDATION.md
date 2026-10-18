@@ -360,3 +360,38 @@ allocation engine with entirely **synthetic**, editable EUR line amounts.
 issued-original document linkage, full immutable tenant-scoped credit history,
 concurrency-safe idempotency, AADE/provider transmission rules, accounting
 review and separate business/operator release approvals.
+
+## Milestone 25 — merchant onboarding and readiness dashboard (18 October 2026)
+
+The existing authenticated `/timologio/dashboard` now displays explicit,
+privacy-scoped readiness summaries for each organization already returned by
+`fiscalMerchantAccounts(actor)`, combined only with the actor's own
+`fiscalEmailStatus(actor)` and the feature-flag state.
+
+- Email control: verified / pending / service-not-enabled. Email possession is
+  never equated with legal identity, company ownership or KYB approval.
+- Organization review: maps the existing `pending_review`, `under_review`,
+  `approved`, `rejected` and `suspended` states to plain Greek explanations.
+  Unknown statuses fail closed.
+- **Non-fiscal** test draft and saved journal eligibility is shown only for
+  an `approved` organization with `owner` or `accountant` membership,
+  matching existing server-side authorization checks. No UI state grants API
+  permissions. A `viewer` or unapproved account never gets a write-ready label.
+- The browser-only credit lab remains available to any authenticated merchant,
+  including those without a registered company, because it does not access
+  tenant documents or persist simulations.
+- Legal issuance is always unavailable regardless of user role, email proof,
+  KYB state, organization approval or account activity.
+- No extra database query, endpoint, migration, account approval, invitation,
+  email sending, provider credential, tax calculation or marketplace sync.
+  Existing authentication, GDPR boundaries and audit records are unchanged.
+- A pure fail-closed state helper and Node regression suite cover every role
+  and status, unknown statuses, unavailable email verification, immutability,
+  test permission parity and non-activation of real fiscal issuance. The test
+  runs under Fiscal Foundation CI.
+
+Release gate: merge only after Fiscal Foundation CI, Production CI and browser
+acceptance pass on the final head SHA, and verify the isolated FISCAL Vercel
+production build, standalone routing and `issuanceEnabled=false`. This is
+merchant UX and readiness transparency, **not** certification, real merchant
+onboarding completion, statutory invoice issuance or live AADE connection.
