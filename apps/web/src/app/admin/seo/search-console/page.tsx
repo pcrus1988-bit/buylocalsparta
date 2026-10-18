@@ -9,6 +9,7 @@ import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../../compo
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { getSearchConsoleHistoryWorkspace, type SeoGscMetricRow } from "../../../../lib/seo-gsc-history";
+import { rankSeoKeywordOpportunities, researchCensusSearchExposure } from "../../../../lib/seo-opportunity-signals";
 import { getGovernedSearchConsoleSitemapWorkspace } from "../../../../lib/seo-gsc-sitemap";
 import { searchConsoleReadiness } from "../../../../lib/seo-search-console";
 import { getSeoGlobalSettingsSnapshot } from "../../../../lib/seo-settings";
@@ -53,6 +54,8 @@ export default async function AdminSeoSearchConsolePage() {
   const sitemap = sitemapWorkspace.status;
   const clickDelta = latest && previous ? latest.clicks - previous.clicks : undefined;
   const impressionDelta = latest && previous ? latest.impressions - previous.impressions : undefined;
+  const keywordOpportunities = rankSeoKeywordOpportunities(history.queries, 12);
+  const censusExposure = researchCensusSearchExposure(history.pages);
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
@@ -74,6 +77,7 @@ export default async function AdminSeoSearchConsolePage() {
       <nav className="admin-local-tabs" aria-label="Search Console sections">
         <a href="#gsc-performance">Performance</a>
         <a href="#gsc-queries">Queries</a>
+        <a href="#gsc-keyword-opportunities">Keyword opportunities</a>
         <a href="#gsc-pages">Pages</a>
         <a href="#gsc-history">History</a>
         <a href="#gsc-sitemap">Sitemap</a>
@@ -109,6 +113,30 @@ export default async function AdminSeoSearchConsolePage() {
       <WorkspaceSectionHeading eyebrow="Search demand" title="Privacy-minimized Google queries" note="Only aggregate query rows with at least five impressions are persisted. Common personal identifiers are redacted using the marketplace analytics sanitizer before storage; collisions are re-aggregated after sanitization." />
       {performanceRows(history.queries, "No privacy-safe query rows retained.")}
     </div></section>
+
+    <section id="gsc-keyword-opportunities" className="shell vendor-section admin-anchor-section">
+      <WorkspaceSectionHeading
+        eyebrow="SEO experiment · evidence-first"
+        title="Keyword opportunities (read-only pilot)"
+        note="Candidates from the latest retained privacy-sanitized Search Console query snapshot, not a competitor keyword database. Priority is a heuristic, not forecast traffic. Check search intent, the matching landing page and verified stock before changing content."
+      />
+      {!history.latest ? <div className="workspace-empty-state"><strong>No saved Google query baseline.</strong><span>Run the existing Google Search Console sync before evaluating opportunities.</span></div>
+        : keywordOpportunities.length === 0 ? <div className="workspace-empty-state"><strong>No non-branded candidates meet conservative thresholds yet.</strong><span>We need enough real impressions (at least 20) and plausible positions; don't invent keyword demand. Collect another finalized snapshot or review the current query list.</span></div>
+        : <div className="workspace-queue-list">{keywordOpportunities.map((row) => <article key={row.key} className="workspace-queue-card">
+          <div className="workspace-queue-head">
+            <div><strong>{row.key}</strong><small>{row.kind === "snippet_review" ? "Review search snippet and user intent" : "Striking distance — review useful page content and internal links"}</small></div>
+            <span className="status-pill">Position {row.position.toFixed(1)}</span>
+          </div>
+          <div className="workspace-queue-primary"><span>{metric(row.impressions)} impressions · {metric(row.clicks)} clicks · CTR {(row.ctr * 100).toFixed(1)}% · Priority {row.priorityScore}</span></div>
+          <div className="workspace-action-bar"><span>{row.recommendedAction} No page edits are triggered here.</span><div className="workspace-action-buttons"><Link className="text-link" href="/admin/seo/pages">Review SEO pages →</Link></div></div>
+        </article>)}</div>}
+      {history.latest ? <div className="workspace-queue-card" style={{ marginTop: 20 }}>
+        <div className="workspace-queue-head"><div><strong>Research-census vendor pages · visibility review</strong><small>From the same retained page snapshot; these are not automatically invalid pages.</small></div><span className="status-pill">Manual quality gate</span></div>
+        <div className="workspace-queue-primary"><span>{censusExposure.pages} pages · {metric(censusExposure.impressions)} impressions · {metric(censusExposure.clicks)} clicks</span></div>
+        <p>Confirm unique business evidence, accurate current status, useful public content and canonical/indexing decisions before considering a snippet change or noindex. CTR alone is not a rejection criterion.</p>
+      </div> : null}
+      <p style={{ marginTop: 12 }}>Pilot: select three relevant, indexable landing pages and comparable controls. Measure non-branded performance after 4–8 weeks. Google rankings and exact future click counts are not guaranteed.</p>
+    </section>
 
     <section id="gsc-pages" className="shell vendor-section admin-anchor-section">
       <WorkspaceSectionHeading eyebrow="Landing pages" title="Google page performance" note="Google page URLs are collapsed to canonical-origin routes before persistence, allowing the same route to be joined with the SEO registry, sitemap, crawl and issue evidence." />
