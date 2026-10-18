@@ -624,3 +624,52 @@ independently verify all controls, provision a dedicated private EU-resident
 store and scanning/quarantine pipeline, implement short-lived server-signed
 single-use grants, audit access and deletion, and pass an explicit separate
 release gate. None of those are claimed complete by M31.
+
+## Milestone 32 — offline encrypted KYB quarantine core (19 October 2026)
+
+M32 adds **in-memory cryptographic and state-planning primitives**, NOT a
+production evidence vault. The independent FISCAL operator readiness page now
+shows these as internal technical progress while all nine external gates
+remain explicitly unverified.
+
+- AES-256-GCM with fresh unpredictable 96-bit nonce, authenticated AAD
+  coupling the exact FISCAL organization UUID, evidence UUID, one of seven KYB
+  categories, MIME type, length and SHA-256. Replaying a cipher envelope in
+  another organization, for another document or under another check type
+  fails verification.
+- Strict M29 input metadata, filename/extension/MIME agreement, <=5 MiB,
+  byte-length and SHA-256 matching, and minimal PDF/PNG/JPEG file signatures.
+  This does not detect malicious scripts, malformed file internals or harmful
+  polyglots. Independent deep decoding and malware scanning remain mandatory.
+- The encryption key is an **explicit external 32-byte parameter**. No
+  production KMS integration, provider account, bucket, storage credentials,
+  browser-side key exposure or secret material is provisioned by M32.
+- The envelope contains **no original filename** or plaintext content.
+  Ciphertext, IV and authentication tag remain internal-only values.
+  Integrity verification decrypts temporarily in server memory, checks both
+  GCM authenticity and checksum, zeroes the temporary plaintext buffer, and
+  returns only a redacted boolean security result — never document bytes.
+- Every sealed object is permanently `scanStatus=unscanned` and
+  `releaseAuthorized=false` at this stage. No scan trust or operator approval
+  is inferred from encryption success or superficial file signatures.
+- A guarded state-transition planner recognizes quarantine, independent
+  scan rejection, clean hold and verified deletion stages. It reports
+  prerequisites only; `mayExecute=false`, `mayRelease=false`,
+  `mayIssue=false` for **every** transition.
+- CI includes synthetic PDF/PNG/JPEG test vectors and negative tests for
+  wrong keys, modified ciphertext/tags/nonces/digests, tenant/evidence replay,
+  spoofed file types, oversize files, release-flag manipulation, extra fields,
+  unsafe lifecycle transitions and missing public upload/storage adapters.
+
+**Production limitation:** No actual KYB document can be submitted,
+uploaded, encrypted, stored, retrieved, scanned, signed, deleted or legally
+approved through these primitives. No public API, object store, KMS keys,
+backend persistence, migrations, read grants, signed URLs or fiscal
+issuance paths are added. The module has no live invocation from a request
+handler. All encrypted test inputs are disposable synthetic bytes.
+
+Future M33 requires independently approved legal basis and retention
+schedule, real private EU-resident object store and KMS with correct
+least-privilege IAM, isolated scanner/quarantine, verified delete semantics,
+central immutability-controlled audit, safe tenant-scoped grants and separate
+manual rollout authorization. These must be tested before any real upload.
