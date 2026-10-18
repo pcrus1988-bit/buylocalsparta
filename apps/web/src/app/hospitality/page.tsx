@@ -19,7 +19,7 @@ const PRINCIPLES = [
 
 export default function HospitalityGateway() {
   return (
-    <main id="main-content" className={styles.gatewayMain}>
+    <main id="hospitality-gateway-main" className={styles.gatewayMain}>
       <section className={styles.gatewayHero} aria-labelledby="hospitality-heading">
         <div className={styles.gatewayHeroGlow} aria-hidden="true" />
         <div className={styles.gatewayHeroContent}>
