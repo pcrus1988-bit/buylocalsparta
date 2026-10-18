@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -41,4 +42,26 @@ test("existing categories remain stable and uncovered division-47 classes have a
   assert.equal(greekRetailSector(["47.76.00.00"]), "flowers_pets");
   assert.equal(greekRetailSector(["47.79.00.00"]), "second_hand");
   assert.equal(greekRetailSector(["47.78.00.00"]), "other_retail");
+});
+
+test("frozen analytical KAD context is complete and guarded before irreversible unlink", () => {
+  const migration=readFileSync("db/migrations/0450_research_kad_analysis_context.sql","utf8");
+  const identityJob=readFileSync("apps/web/src/lib/research-survey-jobs.ts","utf8");
+  const weighted=readFileSync("apps/web/src/lib/research-survey-analysis.ts","utf8");
+  const distribution=readFileSync("apps/web/src/lib/research-geographic-distribution-runtime.ts","utf8");
+  const relations=readFileSync("apps/web/src/lib/research-geographic-relations-runtime.ts","utf8");
+  for(const column of [
+    "matched_kad_codes","source_activity_codes","kad_classification_version",
+    "kad_source_kind","source_prefecture","postcode_district3"
+  ]){
+    assert.ok(migration.includes(column),column+" must be included in migration");
+    assert.ok(identityJob.includes(column),column+" must be frozen by destruction job");
+  }
+  assert.match(identityJob,/RESEARCH_IDENTITY_DESTRUCTION_KAD_CONTEXT_INCOMPLETE/);
+  assert.match(identityJob,/ON CONFLICT \(response_id\) DO NOTHING/);
+  assert.match(weighted,/research_response_design_context ctx/);
+  assert.match(distribution,/ctx\.matched_kad_codes/);
+  assert.match(relations,/ctx\.matched_kad_codes/);
+  assert.match(migration,/research_response_design_context/);
+  assert.match(migration,/research_response_design_context_kad_matched_idx/);
 });
