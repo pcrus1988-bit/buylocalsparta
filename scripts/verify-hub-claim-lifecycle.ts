@@ -57,13 +57,15 @@ includes(adminPage, "ownershipVerified", "Admin verification UI");
 includes(invite, "acceptApprovedHubClaim", "Claimant acceptance");
 includes(invite, "assertCustomerCsrf", "Claim acceptance CSRF");
 includes(dashboard, "updateOwnedHubClaim", "Restricted dashboard");
-includes(dashboard, "assertCustomerCsrf", "Dashboard CSRF");
+includes(dashboard, "assertVendorCsrf", "Dashboard CSRF");
+includes(dashboard, "requireVendorClaimSession", "Vendor-only CLAIM account");
 includes(publicPage, "getPublicHubClaim", "Published page lookup");
 includes(publicPage, "generateMetadata", "Canonical public profile metadata");
 includes(mail, "https://kontamou.site/hubs/claim/", "Approval email URL");
 includes(mail, 'input.planCode === "claim" ? [', "Correct no-trial CLAIM receipt");
 includes(proxy, '"/vendor", "/hubs"', "No arbitrary CMS redirect");
-excludes(dashboard, "getVendorSession", "No full vendor authorization");
+excludes(dashboard, "getAccountSession", "CLAIM must not accept consumer sessions");
+excludes(dashboard, "assertCustomerCsrf", "CLAIM must not share customer CSRF");
 excludes(publicPage, "getHubClaimInvitation", "Pending claims must not be public");
 if (!app.includes(".trim().toLowerCase()")) failures.push("Case-normalized ownership email comparison missing");
 if (failures.length) {
