@@ -7,8 +7,13 @@ import { getAccountSession } from "../../lib/account-session";
 
 export const metadata: Metadata = { title: "Νέος κωδικός", robots: { index: false, follow: false } };
 
-export default async function ResetPasswordPage() {
-  if (await getAccountSession()) redirect("/account");
+export default async function ResetPasswordPage({
+  searchParams
+}: { searchParams: Promise<{ token?: string }> }) {
+  // A valid one-time reset URL must work even when the person is signed in;
+  // token verification happens at consume, and prior sessions are revoked.
+  const { token } = await searchParams;
+  if (!token && await getAccountSession()) redirect("/account");
   return <main>
     <div className="announcement">Νέος κωδικός · ο σύνδεσμος είναι μίας χρήσης και λήγει αυτόματα.</div>
     <SiteHeader compact />
