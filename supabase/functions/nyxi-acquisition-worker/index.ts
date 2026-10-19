@@ -38,7 +38,24 @@ if(r.status>=400&&data.error!=="crawl_delay"){
     manual_access_review_reason:requiresReview?(upstreamCode===403?"upstream_403_do_not_bypass":failureClass):null,
     next_attempt_after:new Date(Date.now()+nextDelayMs).toISOString()};
   await fetch(url+"/rest/v1/nyxi_asset_acquisition_approvals?id=eq."+item.id,{method:"PATCH",headers:{authorization:"Bearer "+key,apikey:key,"Content-Type":"application/json"},body:JSON.stringify({metadata})});
-}}catch(e){results.push({approval_id:item.id,error:String(e).slice(0,160)});}}const extraction=[];let extractedThisRun=0;const m=await fetch(url+"/rest/v1/nyxi_corpus_manifest?select=snapshot_id&extraction_status=eq.ready&order=created_at.desc&limit=300",{headers:{authorization:"Bearer "+key,apikey:key}});if(m.ok){const pending=await m.json();for(const row of pending){try{const done=await fetch(url+"/rest/v1/nyxi_extraction_runs?snapshot_id=eq."+row.snapshot_id+"&status=eq.complete&select=id&limit=1",{headers:{authorization:"Bearer "+key,apikey:key}});if(!done.ok){extraction.push({snapshot_id:row.snapshot_id,error:"completion_lookup_failed",http_status:done.status});continue;}if((await done.json()).length){continue;}if(extractedThisRun>=4)break;extractedThisRun++;const e=await fetch(url+"/functions/v1/nyxi-private-extractor",{method:"POST",headers:{authorization:"Bearer "+key,apikey:key,"x-nyxi-scheduler-token":bearer,"content-type":"application/json"},body:JSON.stringify({snapshot_id:row.snapshot_id,dry_run:false}),signal:AbortSignal.timeout(25000)});const result=await e.json().catch(()=>({error:"invalid_response"}));extraction.push({snapshot_id:row.snapshot_id,http_status:e.status,status:result.status||null,error:result.error||null,run_id:result.run_id||null,fragments:result.fragments||0});}catch(e){extraction.push({snapshot_id:row.snapshot_id,error:String(e).slice(0,150)});}}}else extraction.push({error:"manifest_queue_lookup_failed",http_status:m.status});const pdfExtraction=[];
+}}catch(e){
+  const attempts=Number.isFinite(Number(item.metadata?.collector_failure_count))
+    ?Math.max(0,Math.min(30,Number(item.metadata?.collector_failure_count)))+1:1;
+  const metadata={...(item.metadata||{}),last_worker_attempt_at:new Date().toISOString(),
+    last_worker_error:"collector_call_error",
+    last_worker_error_detail:sanitizedDetail(String(e)),
+    last_worker_failure_class:"collector_call_error",
+    last_worker_http_status:null,last_worker_upstream_http_status:null,
+    collector_failure_count:attempts,
+    needs_manual_access_review:attempts>=3,
+    manual_access_review_reason:attempts>=3?"collector_repeated_error_review":null,
+    next_attempt_after:new Date(Date.now()+24*60*60*1000).toISOString()};
+  try{await fetch(url+"/rest/v1/nyxi_asset_acquisition_approvals?id=eq."+item.id,{
+    method:"PATCH",headers:{authorization:"Bearer "+key,apikey:key,"Content-Type":"application/json"},
+    body:JSON.stringify({metadata})
+  });}catch{ /* Log-only failure: never leak secrets or bypass source controls */ }
+  results.push({approval_id:item.id,error:"collector_call_error",manual_review:attempts>=3});
+}}const extraction=[];let extractedThisRun=0;const m=await fetch(url+"/rest/v1/nyxi_corpus_manifest?select=snapshot_id&extraction_status=eq.ready&order=created_at.desc&limit=300",{headers:{authorization:"Bearer "+key,apikey:key}});if(m.ok){const pending=await m.json();for(const row of pending){try{const done=await fetch(url+"/rest/v1/nyxi_extraction_runs?snapshot_id=eq."+row.snapshot_id+"&status=eq.complete&select=id&limit=1",{headers:{authorization:"Bearer "+key,apikey:key}});if(!done.ok){extraction.push({snapshot_id:row.snapshot_id,error:"completion_lookup_failed",http_status:done.status});continue;}if((await done.json()).length){continue;}if(extractedThisRun>=4)break;extractedThisRun++;const e=await fetch(url+"/functions/v1/nyxi-private-extractor",{method:"POST",headers:{authorization:"Bearer "+key,apikey:key,"x-nyxi-scheduler-token":bearer,"content-type":"application/json"},body:JSON.stringify({snapshot_id:row.snapshot_id,dry_run:false}),signal:AbortSignal.timeout(25000)});const result=await e.json().catch(()=>({error:"invalid_response"}));extraction.push({snapshot_id:row.snapshot_id,http_status:e.status,status:result.status||null,error:result.error||null,run_id:result.run_id||null,fragments:result.fragments||0});}catch(e){extraction.push({snapshot_id:row.snapshot_id,error:String(e).slice(0,150)});}}}else extraction.push({error:"manifest_queue_lookup_failed",http_status:m.status});const pdfExtraction=[];
 const pe=await fetch(url+"/rest/v1/nyxi_corpus_manifest?select=snapshot_id,extraction_status,metadata&extraction_status=in.(awaiting_pdf_parser,processing)&order=created_at.desc&limit=80",{headers:{authorization:"Bearer "+key,apikey:key}});
 if(pe.ok){
  const queue=await pe.json();
