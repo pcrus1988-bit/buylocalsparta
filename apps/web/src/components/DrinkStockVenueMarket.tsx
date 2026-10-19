@@ -19,7 +19,8 @@ const errorText:Record<string,string>={
  INVALID_CSRF:"Η συνεδρία χρειάζεται ανανέωση. Κάνε νέα σύνδεση.",
  BOUNDS_LOCKED_DURING_SESSION:"Για αλλαγή ορίων, σταμάτησε πρώτα τη συνεδρία.",
  INVALID_PRICE_BOUNDS:"Επιτρεπτό εύρος: κατώτατο 50–100%, ανώτατο 100–200%.",
- SESSION_ACTIVE:"Ο κατάλογος αλλάζει μόνο όταν η συνεδρία είναι σταματημένη."
+ SESSION_ACTIVE:"Ο κατάλογος αλλάζει μόνο όταν η συνεδρία είναι σταματημένη.",
+ REHEARSAL_DISABLED_DURING_SESSION:"Η χειροκίνητη ζήτηση είναι απενεργοποιημένη κατά τη διάρκεια της ενεργής συνεδρίας. Οι οθόνες αναπαράγουν ξεχωριστό επίδειγμα αγορών."
 };
 type Action="add_product"|"demand"|"pause"|"resume"|"reset"|"set_bounds";
 type ActionBody={action:Action;requestKey:string;productId?:string;product?:{name:string;category:DrinkStockCategory;basePriceEuros:number};bounds?:{floorPercent:number;ceilingPercent:number}};
@@ -84,6 +85,7 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
  }
  const active=market.venue.rehearsalEnabled;
  const boundsLocked=active||market.venue.activeSession;
+ const operationsActive=market.venue.activeSession;
  const total=market.products.length;
  const moved=market.products.filter(d=>d.priceCents!==d.baseCents).length;
  return <main className={styles.stage}>
@@ -101,12 +103,15 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
    <div><span>MARKET SIGNALS</span><strong>{market.events.filter(e=>e.type==="demand").length}{market.events.length===20?"+":""}</strong></div>
    <div><span>ENGINE</span><strong>{market.venue.bounds.floorPercent}%–{market.venue.bounds.ceilingPercent}%</strong></div>
   </div>
+  {operationsActive&&<p role="status" style={{padding:16,margin:"15px 0",border:"1px solid #d9ff57",background:"#302c39",borderRadius:12,color:"#d9ff57",fontWeight:700}}>
+   🔒 Live operational session: manual rehearsal demand and resets are disabled. Remote venue screens show a separate, clearly labeled simulated trading feed.
+  </p>}
   <div className={styles.toolbar}>
    <div className={styles.toolbarInfo}><strong>🎛 MARKET CONTROLS</strong><span>Άσκηση διαχείρισης χωρίς POS, πραγματικό stock ή εισπράξεις.</span></div>
    <div className={styles.toolbarButtons}>
      <button type="button" onClick={()=>setDisplay(!display)}>{display?"← EDITOR":"◉ DISPLAY PREVIEW"}</button>
-     {market.canManage&&<button type="button" className={styles.primary} disabled={Boolean(busy)} onClick={()=>act({action:active?"pause":"resume"})}>{active?"Ⅱ PAUSE":"▶ START REHEARSAL"}</button>}
-     {market.canManage&&<button type="button" disabled={Boolean(busy)||total===0} onClick={()=>{if(window.confirm("Επαναφορά όλων των τιμών καταλόγου αυτού του χώρου;"))void act({action:"reset"});}}>↺ RESET PRICES</button>}
+     {market.canManage&&<button type="button" className={styles.primary} disabled={Boolean(busy)||operationsActive} onClick={()=>act({action:active?"pause":"resume"})}>{active?"Ⅱ PAUSE":"▶ START REHEARSAL"}</button>}
+     {market.canManage&&<button type="button" disabled={Boolean(busy)||total===0||operationsActive} onClick={()=>{if(window.confirm("Επαναφορά όλων των τιμών καταλόγου αυτού του χώρου;"))void act({action:"reset"});}}>↺ RESET PRICES</button>}
    </div>
   </div>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
@@ -121,7 +126,7 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
          <h2>{drink.name}</h2><div className={styles.quote}>{money(drink.priceCents)}</div>
          <div className={styles.movements}><span className={delta>0?styles.up:delta<0?styles.down:styles.flat}>{delta>0?"▲":delta<0?"▼":"↔"} {pct>0?"+":""}{pct}%</span><span>BASE {money(drink.baseCents)}</span></div>
          <div className={styles.bar} aria-hidden="true"><i style={{width:`${Math.round((drink.priceCents-drink.minCents)/Math.max(1,drink.maxCents-drink.minCents)*100)}%`}}/></div>
-         {!display&&market.canManage&&<button type="button" disabled={!active||Boolean(busy)} className={styles.buySignal}
+         {!display&&market.canManage&&<button type="button" disabled={!active||operationsActive||Boolean(busy)} className={styles.buySignal}
           onClick={()=>act({action:"demand",productId:drink.id})}>⚡ DEMAND SIGNAL <span>↗</span></button>}
        </article>;
      })}

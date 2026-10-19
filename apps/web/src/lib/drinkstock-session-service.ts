@@ -1,12 +1,13 @@
 import {createHash,randomBytes} from "node:crypto";
 import {getProductionPostgresRuntime,productionDatabaseConfigured} from "./postgres-runtime";
+import {operationalSessionCanStart} from "./drinkstock-screen-showcase";
 export class SessionError extends Error{constructor(public readonly code:string,public readonly status:number){super(code);}}
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TOKEN=/^[A-Za-z0-9_-]{43}$/;
 type State="running"|"paused"|"crashing"|"ended"|"scheduled";
 type R={id:string;state:State;revision:number;floor_percent:number;ceiling_percent:number;created_at:Date;started_at:Date|null;ended_at:Date|null;crash_until:Date|null};
 type Db={query<T extends Record<string,unknown>>(sql:string,values?:readonly unknown[]):Promise<{rows:readonly T[];rowCount:number}>};
-export type SessionView={venue:{id:string;partnerId:string;name:string;role?:string};
+export type SessionView={serverNow:string;venue:{id:string;partnerId:string;name:string;role?:string};
  session:{id:string;state:State;revision:number;floorPercent:number;ceilingPercent:number;crashUntil:string|null;startedAt:string|null}|null;
  passes:{id:string;kind:string;tableLabel:string|null}[];
  products:{id:string;name:string;category:string;priceCents:number}[];
@@ -52,7 +53,7 @@ export async function managerSessionView(userId:string,p:string,v:string):Promis
   db.query<{id:string;kind:string;table_label:string|null}>(`SELECT id::text,kind,table_label
  FROM public.drinkstock_access_passes WHERE partner_id=$1::uuid AND venue_id=$2::uuid AND revoked_at IS NULL
  ORDER BY created_at DESC LIMIT 100`,[p,v])]);
- return {venue:{id:v,partnerId:p,name:access.name,role:access.role},
+ return {serverNow:new Date().toISOString(),venue:{id:v,partnerId:p,name:access.name,role:access.role},
   session:session(s),products:d,passes:passes.rows.map(x=>({id:x.id,kind:x.kind,tableLabel:x.table_label}))};
 }
 export type SessionAction={action:"start"|"pause"|"resume"|"crash"|"end"|"create_screen"|"create_table"|"revoke_pass";
@@ -88,9 +89,16 @@ export async function sessionCommand(userId:string,p:string,v:string,a:SessionAc
   const count=await db.query<{n:number}>(`SELECT COUNT(*)::int AS n FROM public.drinkstock_products
   WHERE partner_id=$1::uuid AND venue_id=$2::uuid AND active`,[p,v]);
   if(!Number(count.rows[0]?.n))throw new SessionError("EMPTY_MENU",409);
-  const config=await db.query<{floor_percent:number;ceiling_percent:number}>(`SELECT floor_percent,ceiling_percent
+  const config=await db.query<{floor_percent:number;ceiling_percent:number;rehearsal_enabled:boolean}>(`SELECT floor_percent,ceiling_percent,rehearsal_enabled
   FROM public.drinkstock_venue_settings WHERE partner_id=$1::uuid AND venue_id=$2::uuid`,[p,v]);
+  if(!operationalSessionCanStart(Boolean(config.rows[0]?.rehearsal_enabled)))
+   throw new SessionError("STOP_REHEARSAL_BEFORE_SESSION",409);
   const floor=config.rows[0]?.floor_percent??70,ceil=config.rows[0]?.ceiling_percent??145;
+  // Each new session starts at the product's base price. Never inherit rehearsal
+  // prices or a preceding venue session's closing market prices.
+  await db.query(`UPDATE public.drinkstock_products
+   SET price_cents=base_cents,updated_at=now()
+   WHERE partner_id=$1::uuid AND venue_id=$2::uuid AND active`,[p,v]);
   await db.query(`INSERT INTO public.drinkstock_sessions
    (partner_id,venue_id,state,floor_percent,ceiling_percent,created_by,started_at)
    VALUES($1::uuid,$2::uuid,'running',$3,$4,$5,now())`,[p,v,floor,ceil,userId]);
@@ -146,8 +154,9 @@ export async function publicSessionView(token:string,kind:"table"|"screen"):Prom
  JOIN public.drinkstock_products d ON d.id=e.selected_product_id
   AND d.partner_id=e.partner_id AND d.venue_id=e.venue_id
  WHERE e.partner_id=$1::uuid AND e.venue_id=$2::uuid AND e.event_type='demand'
+  AND ($3::timestamptz IS NULL OR e.created_at >= $3::timestamptz)
  ORDER BY e.created_at DESC,e.id DESC LIMIT 12
- `,[x.partner_id,x.venue_id]):{rows:[]};
- return {venue:{id:x.venue_id,partnerId:x.partner_id,name:x.name},session:session(s),products:d,passes:[],tableLabel:x.table_label,
+ `,[x.partner_id,x.venue_id,s?.started_at??null]):{rows:[]};
+ return {serverNow:new Date().toISOString(),venue:{id:x.venue_id,partnerId:x.partner_id,name:x.name},session:session(s),products:d,passes:[],tableLabel:x.table_label,
  signals:signals.rows.map(q=>({id:q.id,productId:q.product_id,productName:q.product_name,createdAt:new Date(q.created_at).toISOString()}))};
 }

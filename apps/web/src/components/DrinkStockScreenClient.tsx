@@ -1,23 +1,35 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import type {SessionView} from "../lib/drinkstock-session-service";
+import {synchronizedShowcaseTrades} from "../lib/drinkstock-screen-showcase";
 const euros=(n:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(n/100);
 export function DrinkStockScreenClient({token,initial}:{token:string;initial:SessionView}){
  const [data,setData]=useState(initial),[now,setNow]=useState(Date.now()),[armed,setArmed]=useState(false);
+ const [clockOffset,setClockOffset]=useState(()=>{
+  const serverMs=Date.parse(initial.serverNow);
+  return Number.isFinite(serverMs)?serverMs-Date.now():0;
+ });
  const [connected,setConnected]=useState(true),[revoked,setRevoked]=useState(false);
  const audio=useRef<AudioContext|null>(null),lastCrash=useRef<string|null>(null);
  const crash=data.session?.state==="crashing"&&data.session.crashUntil?data.session.crashUntil:null;
- const seconds=crash?Math.max(0,Math.ceil((new Date(crash).getTime()-now)/1000)):0;
+ const serverNowMs=now+clockOffset;
+ const seconds=crash?Math.max(0,Math.ceil((new Date(crash).getTime()-serverNowMs)/1000)):0;
+ const showcase=synchronizedShowcaseTrades(data.session,data.products,serverNowMs);
  useEffect(()=>{const tick=window.setInterval(()=>setNow(Date.now()),250);return ()=>window.clearInterval(tick)},[]);
  useEffect(()=>{
  let mounted=true;
  const poll=async()=>{
   try{
+   const requestedAt=Date.now();
    const response=await fetch(`/api/hospitality/public/screen/${token}`,{cache:"no-store"});
    if(response.status===404&&mounted)setRevoked(true);
    if(!response.ok)throw new Error("disconnected");
    const current=await response.json() as SessionView;
-   if(mounted){setData(current);setConnected(true);setRevoked(false);}
+   if(mounted){
+    const timestamp=Date.parse(current.serverNow);
+    if(Number.isFinite(timestamp))setClockOffset(timestamp-Math.round((requestedAt+Date.now())/2));
+    setData(current);setConnected(true);setRevoked(false);
+   }
   }catch{if(mounted)setConnected(false);}
  };
  const tick=window.setInterval(()=>{void poll();},3000);
@@ -44,6 +56,12 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
   void audio.current.resume();setArmed(true);
  }
  const online=data.session?.state==="running"||data.session?.state==="crashing";
+ const leadingProduct=online?showcase[0]?.productId:data.signals?.[0]?.productId;
+ function fullScreen(){
+  const node=document.documentElement;
+  if(!document.fullscreenElement&&node.requestFullscreen)void node.requestFullscreen().catch(()=>{});
+  else if(document.fullscreenElement)void document.exitFullscreen().catch(()=>{});
+ }
  if(!connected)return <main role="alert" style={{minHeight:"100vh",padding:"clamp(30px,8vw,110px)",background:"#100b22",color:"#fff",fontFamily:"Arial,sans-serif",textAlign:"center"}}>
   <h1 style={{fontSize:"clamp(30px,6vw,70px)"}}>DRINKSTOCK ↗</h1>
   <h2>{revoked?"Screen access revoked":"Reconnecting to the market…"}</h2>
@@ -63,16 +81,34 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  <div><div style={{fontWeight:950,fontSize:"clamp(24px,3vw,50px)",letterSpacing:-2}}>DRINK<span style={{color:"#caff50"}}>STOCK</span> ↗</div>
  <div style={{fontSize:12,letterSpacing:3,color:"#beb5e7"}}>{data.venue.name.toUpperCase()} / THE PARTY MARKET</div></div>
  <div style={{display:"flex",gap:12,alignItems:"center"}}><strong style={{color:online?"#caff50":"#ffacac"}}>{online?"● LIVE SESSION":"Ⅱ MARKET CLOSED"}</strong>
- <button onClick={toggleSound} style={{background:armed?"#d3ff53":"#23203f",color:armed?"#111":"#fff",border:"1px solid #caff50",borderRadius:12,padding:"12px 16px",cursor:"pointer"}}>{armed?"🔊 ALARM ON · MUTE":"🔈 ENABLE ALARM"}</button></div>
+ <button onClick={toggleSound} style={{background:armed?"#d3ff53":"#23203f",color:armed?"#111":"#fff",border:"1px solid #caff50",borderRadius:12,padding:"12px 16px",cursor:"pointer"}}>{armed?"🔊 ALARM ON · MUTE":"🔈 ENABLE ALARM"}</button>
+ <button onClick={fullScreen} style={{background:"#23203f",color:"#fff",border:"1px solid #746a98",borderRadius:12,padding:"12px 16px",cursor:"pointer"}}>⛶ FULLSCREEN</button></div>
  </header>
  <h1 style={{fontSize:"clamp(34px,6vw,78px)",fontWeight:950,letterSpacing:-4,margin:"34px 0 22px"}}>THE DRINK EXCHANGE<span style={{color:"#caff50"}}>.</span></h1>
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,270px),1fr))",gap:13}}>
- {data.products.map(product=><article key={product.id} style={{background:data.signals?.[0]?.productId===product.id?"#d9ff571c":"#ffffff11",border:data.signals?.[0]?.productId===product.id?"2px solid #d9ff57":"1px solid #ffffff27",borderRadius:16,padding:22}}>
+ {data.products.map(product=><article key={product.id} style={{background:leadingProduct===product.id?"#d9ff571c":"#ffffff11",border:leadingProduct===product.id?"2px solid #d9ff57":"1px solid #ffffff27",borderRadius:16,padding:22}}>
  <div style={{color:"#ad9ed9",fontSize:11,letterSpacing:2}}>{product.category.toUpperCase()}</div>
  <h2 style={{fontSize:"clamp(19px,2.5vw,31px)",margin:"12px 0"}}>{product.name}</h2>
  <strong style={{fontSize:"clamp(30px,4vw,52px)",color:crash?"#ff6281":"#ccff50"}}>{euros(product.priceCents)}</strong></article>)}
  </div>
- <section aria-label="Rehearsal market tape" style={{marginTop:28,padding:22,borderRadius:18,background:"#ffffff0c",border:"1px solid #ffffff2b"}}>
+ {online&&<section aria-label="Synchronized demonstration trades" style={{marginTop:28,padding:22,borderRadius:18,background:"#271235",border:"1px solid #ccff50a0"}}>
+  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+   <h2 style={{margin:0,fontSize:"clamp(20px,3vw,34px)"}}>↗ PARTY TICKER · DEMO</h2>
+   <strong style={{fontSize:12,letterSpacing:1.5,color:"#ffb4e1"}}>
+    SYNCHRONIZED SIMULATION · NEVER REAL ORDERS
+   </strong>
+  </div>
+  <p style={{color:"#c3b4dd",fontSize:13}}>Animated sample buys run across remote screens, including every 1.7 seconds during a market crash. These do not change charged prices or represent real customer purchases.</p>
+  {!showcase.length?<p style={{color:"#caff50"}}>Starting the synchronized demonstration feed…</p>:
+   <ol style={{paddingLeft:22,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,210px),1fr))",gap:12}}>
+    {showcase.map((trade,index)=><li key={trade.key} style={{padding:"15px 13px",borderRadius:13,background:index===0?"#d9ff5726":"#ffffff10",border:index===0?"1px solid #d9ff57":"1px solid #ffffff22"}}>
+     <strong style={{color:trade.crash?"#ff6688":"#caff50"}}>{trade.crash?"⚡ CRASH DEMO BUY":"↗ DEMO BUY"}</strong>
+     <div style={{fontSize:19,fontWeight:900,marginTop:8}}>{trade.quantity}× {trade.productName}</div>
+     <small style={{display:"block",marginTop:6,color:"#b6a8d3"}}>{trade.demoTable} · {new Date(trade.occurredAtMs).toLocaleTimeString("el-GR",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</small>
+    </li>)}
+   </ol>}
+ </section>}
+ {!online&&<section aria-label="Rehearsal market tape" style={{marginTop:28,padding:22,borderRadius:18,background:"#ffffff0c",border:"1px solid #ffffff2b"}}>
   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
    <h2 style={{margin:0,fontSize:"clamp(20px,3vw,34px)"}}>⚡ MARKET TAPE</h2>
    <span style={{fontSize:12,letterSpacing:2,color:"#e5b2ff"}}>MANUAL REHEARSAL SIGNALS · NOT GUEST ORDERS</span>
@@ -84,7 +120,7 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
      <small style={{display:"block",marginTop:6,color:"#ada5c6"}}>{new Date(signal.createdAt).toLocaleTimeString("el-GR",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</small>
     </li>)}
    </ol>}
- </section>
+ </section>}
  <footer style={{paddingTop:35,color:"#b3aac9",fontSize:12}}>Prices are venue-managed. This screen is view-only. Rehearsal signals are simulations, never confirmed guest orders. Customer checkout, charging and official receipts are not active. Separate links are needed for each venue.</footer>
  </main>;
 }
