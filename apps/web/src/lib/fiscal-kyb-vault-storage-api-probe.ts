@@ -157,7 +157,11 @@ export async function runFiscalSyntheticStorageApiProbe(
     "cache-control":"no-store","x-upsert":"false"
    }:{})
   };
-  if(body)init.body=body;
+  if(body){
+   const wire=new Uint8Array(body.byteLength);
+   wire.set(body);
+   init.body=wire.buffer;
+  }
   return request(method==="GET"?
    PROJECT_URL+"/storage/v1/object/authenticated/"+BUCKET+"/"+path:
    method==="DELETE"?PROJECT_URL+"/storage/v1/object/"+BUCKET:
