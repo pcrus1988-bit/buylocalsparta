@@ -8,7 +8,7 @@ import { getVendorTrialSnapshot } from "../../../lib/vendor-trial-runtime";
 
 export const metadata: Metadata = { title: "Σύνδεση συνεργάτη", robots: { index: false, follow: false } };
 
-export default async function VendorLoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+export default async function VendorLoginPage({ searchParams }: { searchParams: Promise<{ next?: string; claimSetup?: string }> }) {
   const trial = await getVendorTrialSnapshot();
   if (trial?.active) redirect("/vendor/trial");
   if (trial?.expired) redirect("/vendor/trial-expired");
@@ -45,6 +45,8 @@ export default async function VendorLoginPage({ searchParams }: { searchParams: 
         <div className="vendor-login-panel">
           <div className="eyebrow">Ασφαλής πρόσβαση</div>
           <h2>Σύνδεση καταστήματος</h2>
+          {params.claimSetup === "sent" && <p role="status" className="workspace-inline-note">Σου στείλαμε ασφαλή σύνδεσμο δημιουργίας ανεξάρτητου κωδικού CLAIM. Έλεγξε το email σου πριν συνδεθείς.</p>}
+          {params.claimSetup === "delivery_failed" && <p role="alert" className="workspace-inline-note">Η αποδοχή CLAIM ολοκληρώθηκε, αλλά δεν κατέστη δυνατή η αποστολή πρόσβασης. Επικοινώνησε με την ομάδα ΚΟΝΤΑ ΜΟΥ για νέο σύνδεσμο.</p>}
           <p>Χρησιμοποίησε το email και τον κωδικό του λογαριασμού συνεργάτη.</p>
           {runtimeEnabled ? <VendorLoginForm demoEnabled={demoEnabled} redirectTo={redirectTo} /> : <div className="account-gate"><strong>Η πρόσβαση συνεργάτη δεν είναι προσωρινά διαθέσιμη.</strong><p>Η υπηρεσία δεν είναι έτοιμη αυτή τη στιγμή. Επικοινώνησε με την ομάδα ΚΟΝΤΑ ΜΟΥ αν χρειάζεσαι άμεση βοήθεια.</p></div>}
           <p className="vendor-login-help"><strong>Δεν θυμάσαι τον κωδικό;</strong> Για την ώρα η επαναφορά γίνεται μέσω της ομάδας ΚΟΝΤΑ ΜΟΥ ώστε να επιβεβαιωθεί με ασφάλεια ο λογαριασμός του καταστήματος.</p>

@@ -1,6 +1,7 @@
 export type Role =
   | "customer"
   | "vendor_owner"
+  | "vendor_claim"
   | "vendor_catalog"
   | "vendor_fulfilment"
   | "vendor_adviser"
@@ -71,6 +72,7 @@ export type Permission =
 
 const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
   customer: new Set(),
+  vendor_claim: new Set(), // Listing-only: never grants orders, checkout or catalog access.
   vendor_owner: new Set(["catalog.read", "catalog.write", "inventory.read", "inventory.write", "fulfilment.read", "fulfilment.write", "advice.read", "advice.write", "finance.read", "finance.write", "fairness.read", "fairness.appeal", "content.vendor_approve", "analytics.vendor.read", "notifications.read", "reviews.read", "reviews.respond", "reviews.report", "returns.read", "vendor.manage"]),
   vendor_catalog: new Set(["catalog.read", "catalog.write", "inventory.read", "inventory.write", "fairness.read"]),
   vendor_fulfilment: new Set(["inventory.read", "inventory.write", "fulfilment.read", "fulfilment.write", "returns.read"]),

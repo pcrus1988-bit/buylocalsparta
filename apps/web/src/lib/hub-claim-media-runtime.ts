@@ -43,7 +43,7 @@ function asMedia(row: SqlRow): HubClaimMedia {
 }
 
 export async function listOwnedHubClaimMedia(principal: SessionPrincipal): Promise<HubClaimMedia[]> {
-  if (!principal.roles.includes("customer")) return [];
+  if (!principal.roles.includes("vendor_claim")) return [];
   const r = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
     SELECT m.public_id,h.public_id AS claim_id,m.role,m.alt_text,m.status,m.rejection_reason
     FROM hub_claim_media m JOIN hub_expansion_prospects h ON h.id=m.prospect_id
@@ -72,7 +72,7 @@ export async function uploadOwnedHubClaimMedia(principal: SessionPrincipal, inpu
   claimId: string; role: string; contentType: string;
   bytes: Uint8Array; altText: string; rightsOwner: string;
 }): Promise<void> {
-  if (!principal.roles.includes("customer")) throw new Error("CLAIM sign-in required");
+  if (!principal.roles.includes("vendor_claim")) throw new Error("CLAIM vendor sign-in required");
   const id = profileId(input.claimId);
   if (!ROLES.includes(input.role as Role)) throw new Error("Invalid CLAIM image role");
   const role = input.role as Role;

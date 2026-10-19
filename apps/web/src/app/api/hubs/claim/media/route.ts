@@ -1,5 +1,5 @@
-import { getAccountSession } from "../../../../../lib/account-session";
-import { assertCustomerCsrf } from "../../../../../lib/customer-state-runtime";
+import { getVendorClaimSession } from "../../../../../lib/vendor-session";
+import { assertVendorCsrf } from "../../../../../lib/vendor-runtime";
 import { uploadOwnedHubClaimMedia } from "../../../../../lib/hub-claim-media-runtime";
 
 export const runtime = "nodejs";
@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const principal = await getAccountSession();
-    if (!principal || !principal.roles.includes("customer")) return Response.json({ error: "Please sign in" }, { status: 401 });
-    assertCustomerCsrf(principal, request.headers.get("x-csrf-token") ?? "");
+    const principal = await getVendorClaimSession();
+    if (!principal || !principal.roles.includes("vendor_claim")) return Response.json({ error: "Please sign in" }, { status: 401 });
+    assertVendorCsrf(principal, request.headers.get("x-csrf-token") ?? "");
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File) || file.size === 0 || file.size > 4 * 1024 * 1024) {

@@ -1,13 +1,16 @@
 import { cookies } from "next/headers";
 import { recordAdminAudit } from "../../../../lib/admin-runtime";
 import { ADMIN_VENDOR_IMPERSONATION_COOKIE } from "../../../../lib/vendor-impersonation";
-import { getVendorImpersonationSession, requireVendorSession } from "../../../../lib/vendor-session";
+import { getVendorImpersonationSession, getVendorSession, getVendorClaimSession } from "../../../../lib/vendor-session";
+import { assertVendorCsrf } from "../../../../lib/vendor-runtime";
 import { logoutVendor, VENDOR_SESSION_COOKIE } from "../../../../lib/vendor-runtime";
 import { VENDOR_TRIAL_COOKIE } from "../../../../lib/vendor-trial-runtime";
 
 export async function POST(request: Request) {
   try {
-    await requireVendorSession(request, true);
+    const principal = await getVendorSession() ?? await getVendorClaimSession();
+    if (!principal) throw new Error("VENDOR_AUTH_REQUIRED");
+    assertVendorCsrf(principal, request.headers.get("x-csrf-token") ?? undefined);
     const impersonation = await getVendorImpersonationSession();
     const store = await cookies();
     const secure = process.env.NODE_ENV === "production" || request.url.startsWith("https://");

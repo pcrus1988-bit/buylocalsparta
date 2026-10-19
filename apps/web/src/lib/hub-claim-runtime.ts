@@ -160,7 +160,7 @@ export async function acceptApprovedHubClaim(id: string, principal: SessionPrinc
 }
 
 export async function listOwnedHubClaims(principal: SessionPrincipal): Promise<HubClaimPublicProfile[]> {
-  if (!principal.roles.includes("customer")) return [];
+  if (!principal.roles.includes("vendor_claim")) return [];
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
     ${SQL_PROFILE}
     AND h.owner_user_id = (SELECT u.id FROM users u WHERE u.public_id=$1
@@ -198,7 +198,7 @@ function optionalClaimSocialUrl(value: FormDataEntryValue | null, provider: "ins
 }
 
 export async function updateOwnedHubClaim(id: string, principal: SessionPrincipal, form: FormData): Promise<void> {
-  if (!validId(id) || !principal.roles.includes("customer")) throw new Error("CLAIM_NOT_ALLOWED");
+  if (!validId(id) || !principal.roles.includes("vendor_claim")) throw new Error("CLAIM_NOT_ALLOWED");
   const category = checkedText(form.get("category"), "CATEGORY", 100);
   const phone = checkedText(form.get("phone"), "PHONE", 32);
   if (!/^[+0-9 ()-]{8,32}$/.test(phone)) throw new Error("INVALID_CLAIM_PHONE");

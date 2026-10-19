@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
+import { AdminActionButton } from "../../../../components/AdminActionButton";
 import { VendorAgreementForm } from "../../../../components/VendorAgreementForm";
 import { VendorAgreementRenewalForm } from "../../../../components/VendorAgreementRenewalForm";
 import { VendorToggleControl } from "../../../../components/VendorToggleControl";
@@ -63,7 +64,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <Link className="text-link" href="/admin/vendors">← Partner directory</Link>
           <Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(shop.id)}/catalogue`}>Catalogue / DEMO</Link>
           <Link className="button button-secondary" href="/admin/hubs/plan-preview">Preview HUB plan dashboard ↗</Link>
-          {canImpersonate && <VendorImpersonationControl vendorId={shop.id} vendorName={shop.tradingName} csrfToken={managed.csrfToken} />}
+          <AdminActionButton label="Send vendor password reset" endpoint={`/api/admin/vendors/${encodeURIComponent(shop.id)}/password-reset`} csrfToken={managed.csrfToken} reasonPrompt="Reason for resetting this vendor owner's password" />
+           {canImpersonate && <VendorImpersonationControl vendorId={shop.id} vendorName={shop.tradingName} csrfToken={managed.csrfToken} />}
           {shop.applicationId && <Link className="text-link" href="/admin/prospects">Onboarding →</Link>}
           {agreementExpired && <Link className="button button-secondary" href="#partner-renewal">Renew agreement</Link>}
         </div>
