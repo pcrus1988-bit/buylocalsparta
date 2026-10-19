@@ -38,7 +38,7 @@ export default async function ClaimVendorAdmin({ params }: { params: Promise<{ i
           <Link className="button button-secondary" href={`/hubs/${encodeURIComponent(claim.hubSlug)}/business/${encodeURIComponent(claim.id)}`} target="_blank">Public CLAIM profile ↗</Link>
         </div>
       </div>
-      <div className="workspace-inline-note">CLAIM currently relies on the verified owner's existing account login. Dedicated vendor-only credentials must be separated before restricting consumer sign-in; this action resets the existing account password, not an independent vendor password.</div>
+      <div className="workspace-inline-note">CLAIM now uses separate vendor-only credentials. Sending a password reset does not change the owner's consumer password or invalidate their customer purchase history.</div>
     </section>
   </main>;
 }
