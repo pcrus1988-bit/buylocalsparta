@@ -18,8 +18,8 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 const specs=new Map([
   // Explicitly described 2026-10-17/18 ordinary grocery and personal-care
   // variants: NEVER approve a generic parent category by itself.
-  ["αφροι και τζελ",["l",/(?=.*αφρ)(?=.*ξυρισματ)(?=.*men)(?=.*sensitive)/u]],
-  ["αφρολουτρα",["l",/(?=.*αφρολουτρ)(?=.*white)(?=.*musk)/u]],
+  ["αφροι και τζελ",["l",/(?=.*αφρ)(?=.*ξυρισματ)(?=.*(?:^|[^\p{L}])men(?=$|[^\p{L}]))(?=.*sensitive)/u]],
+  ["αφρολουτρα",["l",/(?=.*αφρολουτρ)(?=.*white\s+musk)/u]],
   // Narrow, source-described ordinary family types from the dated Oct 17
   // unreviewed queue. Variants, veterinary diets and claim-bearing goods do
   // not inherit eligibility from their broader source categories.
@@ -274,6 +274,14 @@ function accepted(p){
   // Exact cross-brand family matching is necessary, but not sufficient.
   if(["πουλερικα","πατατες"].includes(category)&&
      /πανε|παναρισ|marinat|μαριναρ|seasoned|καρυκευ|μπαχαρ|spiced|προτηγαν|prefried|pre-fried|προψημεν|breaded|battered|wedge|σφην|sticks|τηγανιτ|προετοιμασμεν/u.test(title))return false;
+  // Pet-food descriptions can be precise while naming a veterinary diet or
+  // additional meat/formulation. Such titles must never acquire automatic
+  // approval merely because their names match between two brands.
+  if(["υγρη τροφη για γατες","υγρη τροφη για σκυλους"].includes(category) &&
+     /κτηνιατρ|θεραπευτ|κλινικ|διαιτ|υποαλλεργ|στειρωμ|sterili|veterinar|renal|urinary|gastro|prescription|weight management|φαρμακευτ/u.test(title))return false;
+  if(category==="υγρη τροφη για γατες" &&
+     /μοσχαρ|βοδιν|βοειδ|αρνι|χοιριν|γαλοπουλ|παπι|σολομ|ψαρ|τονο|κουνελ|συκωτ|ζελε|ζελατ|σαλτσ|gravy|jelly|beef|veal|turkey|duck|salmon|tuna|rabbit/u.test(title) &&
+     /πατε/u.test(title))return false;
   const size=referenceQuantity(p),label=titleQuantity(p.name);
   if(!size||!label||size.unit!==config[0]||label.unit!==size.unit||
      size.amount<.02||size.amount>40||Math.abs(size.amount-label.quantity)>1e-6)return false;
