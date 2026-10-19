@@ -1,0 +1,46 @@
+name: NYXI Standalone Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "nyxi-app/**"
+      - "scripts/nyxi/**"
+      - "supabase/migrations/*nyxi*"
+      - ".github/workflows/nyxi-standalone-acceptance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "nyxi-app/**"
+      - "scripts/nyxi/**"
+      - "supabase/migrations/*nyxi*"
+      - ".github/workflows/nyxi-standalone-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nyxi-standalone-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    name: Color tests, typecheck and standalone build
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: nyxi-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install pinned standalone dependencies
+        run: npm install --no-package-lock --no-audit --no-fund --ignore-scripts
+      - name: Unit and contract tests
+        run: npm test
+      - name: Typecheck standalone
+        run: npx tsc --noEmit
+      - name: Build standalone production bundle
+        run: npm run build
