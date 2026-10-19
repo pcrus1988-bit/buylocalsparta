@@ -178,7 +178,7 @@ export async function mutateDrinkStockMarket(userId:string,partnerId:string,venu
         try{
           movements=priceRehearsalDemand(products.map((p):RehearsalDrink=>({
             id:p.id,name:p.name,baseCents:p.baseCents,priceCents:p.priceCents
-          })),selectedProductId,venue.bounds);
+          })),selectedProductId,venue.bounds,action.units??1);
         }catch{throw new DrinkStockMarketError("DRINK_NOT_IN_VENUE",404);}
         eventType="demand";
       }else{
