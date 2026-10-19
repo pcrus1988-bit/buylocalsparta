@@ -1135,3 +1135,42 @@ Storage JWT validation and role mapping, obtain independent security
 review, demonstrate time-bound signing and revocation, then explicitly
 approve a narrowly constrained temporary Storage permission with
 independent cleanup/audit proof. Only synthetic bytes may be used.
+
+
+## Milestone 41 — disconnected KMS signing rehearsal (19 October 2026)
+
+The code in `apps/web/src/lib/fiscal-kyb-vault-kms-signer-rehearsal.ts`
+prepares a tightly scoped synthetic-only JWT and invokes an **injected**
+AWS KMS Sign-compatible callback. No AWS SDK, AWS credentials, real KMS
+key, issuer, OIDC/JWKS server or Storage API dependency is configured or
+used. The CI test supplies a throwaway 3072-bit RSA private key entirely
+in memory. No source code or persisted fixture contains a real key.
+
+Preflight checks demand an explicit EU Frankfurt KMS key ARN (not an
+alias, wildcard or arbitrary-region key), a separately pinned HTTPS
+issuer and 3072-bit RSA **public** PEM, a UUIDv4 run ID and fixed role,
+purpose, audience and subject. The Sign request uses
+`MessageType=RAW`, `SigningAlgorithm=RSASSA_PKCS1_V1_5_SHA_256` and
+the full JWT signing input. Responses are rejected on error, unexpected
+ARN/algorithm, nonbinary or malformed signature, or signature mismatch
+against the M40 trust anchor. JWT expiry is capped at 180 seconds and
+every token receives a new UUIDv4 `jti`.
+
+**Important limits**: A fresh `jti` is **not** proof of one-time use,
+and an offline-valid JWT is **not** a token accepted by Supabase. A
+server-side transactional replay/lease control and provider-level OIDC
+trust/role mapping remain unimplemented. Do not expose the signer through
+FISCAL APIs or browser code and do not add an active KMS credential
+until these controls, a security review and key lifecycle are approved.
+
+Read-only live FISCAL Supabase inspection on 19 October confirmed:
+private quarantine bucket present, zero quarantine objects, zero
+Storage RLS object policies, one dormant probe role and no
+authenticator membership. These boundaries are preserved by M41.
+The staged M39 blueprint is still **REVIEW ONLY**. Real merchant
+uploads, KYB approval, issuance, AADE/myDATA and B2G delivery OFF.
+
+Provider compatibility sources:
+- https://supabase.com/docs/guides/auth/third-party/custom-oidc
+- https://supabase.com/docs/guides/auth/third-party/overview
+- https://docs.aws.amazon.com/kms/latest/APIReference/API_Sign.html
