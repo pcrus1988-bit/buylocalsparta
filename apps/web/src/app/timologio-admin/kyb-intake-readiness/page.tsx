@@ -5,6 +5,7 @@ import {fiscalMfaEnforced,isFiscalMfaSatisfied} from "../../../lib/fiscal-operat
 import {getFiscalKybIntakeReadiness} from "../../../lib/fiscal-kyb-intake-security";
 import {getFiscalVaultLiveReadiness} from "../../../lib/fiscal-kyb-vault-live-readiness";
 import {runFiscalKybSyntheticRehearsal} from "../../../lib/fiscal-kyb-vault-synthetic-rehearsal";
+import {getFiscalVaultRoleBoundary} from "../../../lib/fiscal-kyb-vault-access-boundary";
 
 export const dynamic="force-dynamic";
 
@@ -20,6 +21,7 @@ export default async function FiscalKybIntakeReadiness(){
   redirect("/timologio-admin/mfa");
  const vault=await getFiscalVaultLiveReadiness();
  const synthetic=runFiscalKybSyntheticRehearsal();
+ const boundary=await getFiscalVaultRoleBoundary();
  const rawUploadFlag=process.env.FISCAL_KYB_UPLOADS_ENABLED?.trim().toLowerCase();
  const status=getFiscalKybIntakeReadiness({
   operatorMfaEnforced:enforced,
@@ -33,7 +35,7 @@ export default async function FiscalKybIntakeReadiness(){
     <Link href="/timologio-admin/release-readiness">Έλεγχοι λειτουργίας</Link></nav>
   </header>
   <section className="fiscal-hero">
-   <div className="fiscal-kicker">M35 · Private storage provisioned · Synthetic-only verification</div>
+   <div className="fiscal-kicker">M36 · Storage authorization audit · No merchant intake</div>
    <h1>Ετοιμότητα ασφαλούς υποβολής δικαιολογητικών</h1>
    <p>Έλεγχος προϋποθέσεων για μελλοντική υποβολή ευαίσθητων στοιχείων
       επιχείρησης. Καμία ένδειξη παρακάτω δεν αποτελεί αυτόματη έγκριση.</p>
@@ -73,6 +75,46 @@ export default async function FiscalKybIntakeReadiness(){
      Η εφαρμογή συνεχίζει να απαγορεύει κάθε υποβολή και απαιτεί χειροκίνητο έλεγχο ρύθμισης.</p>:
     <p className="fiscal-muted">Δεν εντοπίστηκε προσπάθεια ενεργοποίησης από την ελεγχόμενη
      ρύθμιση. Αυτό δεν πιστοποιεί την πραγματική κατάσταση αποθήκευσης.</p>}
+  </section>
+  <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
+   <h2>M36 · Πραγματική επιθεώρηση απομόνωσης ρόλων Storage</h2>
+   <p className="fiscal-muted">
+    Το FISCAL ελέγχει τώρα απευθείας τους πραγματικούς ρόλους PostgreSQL,
+    την ενεργοποίηση RLS και τις πολιτικές πρόσβασης του Storage.
+    Ο έλεγχος είναι αποκλειστικά μόνο ανάγνωσης. Δεν δοκιμάζει πραγματική
+    αποστολή ή λήψη αντικειμένων ούτε χρησιμοποιεί privileged κλειδιά.
+   </p>
+   <div className="fiscal-grid">
+    <article className="fiscal-card">
+     <small>Συνήθεις πελάτες (anon / authenticated)</small>
+     <h3>{boundary.ordinaryClientOperationsDeniedByPolicy?
+       "Αποκλεισμένοι μέσω RLS":"Δεν επιβεβαιώνεται"}</h3>
+     <p>Απαιτούνται RLS χωρίς πολιτικές και ρόλοι χωρίς BYPASSRLS.
+        Τυχόν αλλαγές επισημαίνονται ως μη ασφαλής διαμόρφωση.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Προνομιούχος ρόλος Storage</small>
+     <h3>{boundary.serviceRoleCanBypassRls?"BYPASSRLS · Προσοχή":
+       "Δεν επαληθεύεται"}</h3>
+     <p>Ο service_role παρακάμπτει το RLS. Δεν έχει χορηγηθεί
+        στο FISCAL credential για την αποθήκη KYB. Η ασφαλής
+        απομόνωση κλειδιού απαιτεί ξεχωριστή επαλήθευση.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Επιθεώρηση παραγωγικής πρόσβασης</small>
+     <h3>{boundary.status==="effective_public_denial"?
+       "Επιβεβαιωμένη άρνηση από πολιτική":
+       boundary.status==="unsafe_configuration"?
+       "Μη ασφαλής διαμόρφωση":"Δεν είναι διαθέσιμη"}</h3>
+     <p>Ο έλεγχος δεν εκτελεί εναλλαγή ρόλων στην παραγωγή.
+        Η πραγματική δοκιμή άρνησης εκτελείται σε προσωρινή βάση CI.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Άδειες αρχείων παραγωγής</small><h3>OFF</h3>
+     <p>Πραγματικά αντικείμενα, upload, download, KMS,
+        scanner και έγκριση KYB συνεχίζουν ανενεργά.</p>
+    </article>
+   </div>
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
    <h2>M35 · Ιδιωτικό αποθετήριο και συνθετική πρόβα ασφαλείας</h2>

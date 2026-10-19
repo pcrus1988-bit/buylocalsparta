@@ -855,3 +855,59 @@ The next work is to implement a strictly isolated, credential-separated
 provider-side synthetic object lifecycle with explicit private network,
 KMS/scanner/storage roles and destructive-test controls after security/privacy
 review. Production merchant uploads cannot be enabled by a bucket or CI test.
+
+
+## Milestone 36 — live Supabase Storage role/RLS separation audit (19 October 2026)
+
+M36 adds a real **read-only production role and Storage access audit** to
+the protected FISCAL KYB readiness page, plus an adversarial disposable
+PostgreSQL authorization drill. It is a concrete security-hardening
+milestone, **not a new merchant file upload or KMS/scanner integration**.
+
+Live Supabase inventory on 19 October independently confirmed:
+
+- `fiscal-kyb-quarantine` exists, is private, empty, capped at 12 MiB
+  and restricted to `application/octet-stream`;
+- RLS on `storage.objects` is enabled; zero Storage object policies;
+- `anon` and `authenticated` roles have ordinary SQL table grants
+  but `rolbypassrls=false`. **GRANT is not RLS authorization**: without
+  any Storage object policies, default RLS blocks their object operations;
+- the built-in `service_role` has `rolbypassrls=true`; a broad
+  service-role key can bypass Storage RLS, and should **never** be introduced
+  as a convenience credential into an unapproved merchant-facing app;
+- inspected standalone FISCAL Vercel production environment variable
+  *names* (without retrieving values) and found no dedicated KYB Storage
+  credential or managed KMS configuration.
+
+The live M36 check reads only `pg_roles`, RLS metadata, aggregate
+`pg_policies` count, one exact bucket privacy flag and aggregate
+bucket object count, through the already isolated FISCAL database.
+It never impersonates roles against live data and never enumerates
+object names, merchant identifiers or key material.
+
+The fail-closed evaluator detects missing/duplicated roles, RLS bypass,
+added Storage object policies, public quarantine bucket, unexpected
+objects, and unavailable database/catalog. An intact default-RLS
+configuration yields `effective_public_denial`, **not** certification
+or approval. Every result keeps `productionIntakeEnabled=false`,
+`mayWrite=false`, `mayRead=false` and `mayIssue=false`.
+
+The CI-only integration drill, guarded to `CI=true` and a
+**localhost** `/fiscal_ci` database, creates disposable roles,
+a synthetic object row and an RLS-enabled synthetic table with
+deliberately permissive SQL table grants. It performs real
+`SET LOCAL ROLE` checks, verifies that both unprivileged roles see
+**zero rows** and cannot insert, then rolls back the entire fixture.
+It never changes hosted Supabase data or the real Storage schema.
+
+**Remaining blockers for controlled real Storage writes:** independent
+least-privilege service identity with no broad `service_role` exposure,
+separate managed KMS + key rotation, validated private Storage API
+permissions, malware scanner/isolated signing identity, immutable
+audit, retention/deletion drills, GDPR assessment, and explicit
+manually authorized synthetic-only execution. Supabase Storage is
+real and private; encrypted write/delete tests against that live
+bucket have **not** been run. Tax-document issuance remains disabled.
+
+Refer to current <https://supabase.com/docs/guides/storage/security/access-control>
+and <https://supabase.com/docs/guides/storage/schema/custom-roles>.
