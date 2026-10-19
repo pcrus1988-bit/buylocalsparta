@@ -1,8 +1,7 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent, type PointerEvent } from "react";
-
-type RGB = { r: number; g: number; b: number };
+import { closestIllustrativeShades, type RGB } from "../lib/nyxi-color";
 type Shade = { name: string; hex: string };
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const SHADES: Shade[] = [
@@ -29,28 +28,9 @@ const SHADES: Shade[] = [
 const hexFromRgb = ({ r, g, b }: RGB) =>
   "#" + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("").toUpperCase();
 
-function rgbFromHex(hex: string): RGB {
-  return { r: parseInt(hex.slice(1, 3), 16), g: parseInt(hex.slice(3, 5), 16), b: parseInt(hex.slice(5, 7), 16) };
-}
-
-// Lab-space comparison is closer to perceived color than raw RGB distance.
-function lab({ r, g, b }: RGB): [number, number, number] {
-  const linear = (v: number) => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
-  const R = linear(r), G = linear(g), B = linear(b);
-  const x = (0.4124564 * R + 0.3575761 * G + 0.1804375 * B) / 0.95047;
-  const y = 0.2126729 * R + 0.7151522 * G + 0.072175 * B;
-  const z = (0.0193339 * R + 0.119192 * G + 0.9503041 * B) / 1.08883;
-  const f = (t: number) => t > 0.008856 ? Math.cbrt(t) : 7.787037 * t + 16 / 116;
-  const fx = f(x), fy = f(y), fz = f(z);
-  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
-}
-
+// Keep the 18 demo shades as illustrative directions, never products.
 function nearbyShades(color: RGB) {
-  const [l, a, b] = lab(color);
-  return SHADES.map((shade) => {
-    const [sl, sa, sb] = lab(rgbFromHex(shade.hex));
-    return { ...shade, distance: Math.hypot(l - sl, a - sa, b - sb) };
-  }).sort((left, right) => left.distance - right.distance).slice(0, 3);
+  return closestIllustrativeShades(color, SHADES, 3);
 }
 
 export default function PhotoColorStudio({ onColorPick }: { onColorPick?: (hex: string) => void }) {
@@ -171,7 +151,7 @@ export default function PhotoColorStudio({ onColorPick }: { onColorPick?: (hex: 
         <div className="sample-preview" style={{ backgroundColor: hex || "#eed9df" }}><span>{hex ? "YOUR SHADE" : "NYXI COLOR"}</span></div>
         <div className="sample-code"><div><span className="microcopy">Χρωματικός κωδικός</span><strong aria-live="polite">{hex || "— — —"}</strong></div><button type="button" className="outline-button" disabled={!hex} onClick={copyColor}>Αντιγραφή</button></div>
         {copyState && <p role="status" className="microcopy">{copyState}</p>}
-        <div className="suggestions"><h3>Κοντινές αποχρώσεις</h3>
+        <div className="suggestions"><h3>Κοντινές ενδεικτικές αποχρώσεις</h3>
           {suggestions.length ? <div className="shade-list">{suggestions.map((shade) => <div className="shade-item" key={shade.hex}><span className="shade-chip" style={{ backgroundColor: shade.hex }} aria-hidden="true" /><span><strong>{shade.name}</strong><small>{shade.hex}</small></span></div>)}</div> : <p className="muted">Επίλεξε ένα σημείο της φωτογραφίας για να δεις προτάσεις από την ενδεικτική χρωματική παλέτα.</p>}
         </div>
         <p className="color-disclaimer">Οι αποχρώσεις είναι οπτικές προσεγγίσεις, όχι αντιστοιχίες εμπορικών προϊόντων. Ο φωτισμός και η οθόνη μπορούν να επηρεάζουν το αποτέλεσμα.</p>
