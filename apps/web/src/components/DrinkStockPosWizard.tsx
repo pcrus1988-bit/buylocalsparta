@@ -41,6 +41,7 @@ export function DrinkStockPosWizard({venueName,partnerId,venueId,csrfToken,provi
  const [menu,setMenu]=useState<PosCsvItem[]>([]),[mappings,setMappings]=useState<PosItemMapping[]>([]);
  const [importError,setImportError]=useState(""),[showAll,setShowAll]=useState(false);
  const [copied,setCopied]=useState(false);
+ const [newPosCode,setNewPosCode]=useState(""),[newPosName,setNewPosName]=useState("");
  const upload=useRef<HTMLInputElement>(null);
  const restore=useRef<HTMLInputElement>(null);
  const [loaded,setLoaded]=useState(false),[loadingError,setLoadingError]=useState("");
@@ -131,6 +132,24 @@ export function DrinkStockPosWizard({venueName,partnerId,venueId,csrfToken,provi
    setImportError(e instanceof PosOnboardingError?(help[e.code]??"Ο κατάλογος δεν μπορεί να διαβαστεί."):"Η ανάγνωση του CSV απέτυχε.");
   }finally{if(upload.current)upload.current.value="";}
  }
+ function addManualPosItem(){
+  const code=newPosCode.trim(),name=newPosName.trim();
+  if(!code||code.length>160||!name||name.length>200||
+   /[\\u0000-\\u001f\\u007f]/.test(code+name)){
+   setImportError("Συμπληρώστε έγκυρο κωδικό και περιγραφή POS.");return;
+  }
+  if(menu.some(x=>x.externalItemId===code)){
+   setImportError("Αυτός ο κωδικός POS υπάρχει ήδη.");return;
+  }
+  if(menu.length>=500){setImportError("Επιτρέπονται έως 500 είδη.");return;}
+  const item={externalItemId:code,name};
+  setMenu(prev=>[...prev,item]);setMappings(prev=>[...prev,...proposeExactMatches([item],drinks)]);
+  setNewPosCode("");setNewPosName("");setImportError("");
+ }
+ function removePosItem(code:string){
+  setMenu(prev=>prev.filter(x=>x.externalItemId!==code));
+  setMappings(prev=>prev.filter(x=>x.externalItemId!==code));
+ }
  async function copyRequest(){
   try{await navigator.clipboard.writeText(request);setCopied(true);}
   catch{setCopied(false);}
@@ -218,13 +237,24 @@ export function DrinkStockPosWizard({venueName,partnerId,venueId,csrfToken,provi
     <label className={styles.primaryButton} htmlFor="drinkstock-pos-file">↑ Επιλογή αρχείου CSV</label>
     <input ref={upload} className={styles.hiddenFile} type="file" id="drinkstock-pos-file" accept=".csv,.txt,text/csv,text/plain" onChange={e=>void importMenu(e.target.files?.[0])}/>
    </div>
+   <div style={{margin:"18px 0",padding:16,border:"1px solid #637893",borderRadius:14,background:"#fff1"}}>
+    <h4 style={{margin:"0 0 8px"}}>Ή προσθέστε ένα είδος χειροκίνητα</h4>
+    <p className={styles.hint}>Χωρίς CSV και χωρίς τεχνικό, καταχωρίστε τον κωδικό που εμφανίζεται στο POS.</p>
+    <div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"end"}}>
+     <div style={{flex:"1 1 145px"}}><label className={styles.fieldLabel} htmlFor="pos-manual-code">Κωδικός POS</label>
+      <input id="pos-manual-code" className={styles.input} maxLength={160} value={newPosCode} onChange={e=>setNewPosCode(e.target.value)} placeholder="π.χ. 1012"/></div>
+     <div style={{flex:"2 1 200px"}}><label className={styles.fieldLabel} htmlFor="pos-manual-name">Περιγραφή</label>
+      <input id="pos-manual-name" className={styles.input} maxLength={200} value={newPosName} onChange={e=>setNewPosName(e.target.value)} placeholder="π.χ. Mythos 500ml"/></div>
+     <button type="button" className={styles.primaryButton} onClick={addManualPosItem}>+ Προσθήκη</button>
+    </div>
+   </div>
    <p className={styles.hint}>Στήλες: <code>code;name</code> ή <code>Κωδικός;Περιγραφή</code> · έως 500 είδη / 500 KB. Δεν απαιτούνται τιμές ή δεδομένα πελατών.</p>
    {importError&&<p className={styles.error} role="alert">{importError}</p>}
-   {menu.length>0&&<><div className={styles.tableWrap}><table className={styles.mappingTable}><thead><tr><th scope="col">Κωδικός POS</th><th scope="col">Περιγραφή POS</th><th scope="col">Είδος DrinkStock</th></tr></thead><tbody>
+   {menu.length>0&&<><div className={styles.tableWrap}><table className={styles.mappingTable}><thead><tr><th scope="col">Κωδικός POS</th><th scope="col">Περιγραφή POS</th><th scope="col">Είδος DrinkStock</th><th scope="col">Ενέργεια</th></tr></thead><tbody>
     {(showAll?menu:menu.slice(0,30)).map((item,i)=><tr key={item.externalItemId}><td>{item.externalItemId}</td><td>{item.name}</td><td><label className={styles.visuallyHidden} htmlFor={"map-"+i}>DrinkStock για {item.name}</label>
      <select id={"map-"+i} className={styles.select} value={mappings.find(m=>m.externalItemId===item.externalItemId)?.productId??""} onChange={e=>setMappings(prev=>prev.map(m=>m.externalItemId===item.externalItemId?{...m,productId:e.target.value}:m))}>
       <option value="">Χωρίς αντιστοίχιση</option>{drinks.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
-     </select></td></tr>)}
+     </select></td><td><button type="button" className={styles.linkButton} aria-label={"Αφαίρεση "+item.name} onClick={()=>removePosItem(item.externalItemId)}>Αφαίρεση</button></td></tr>)}
    </tbody></table></div>
    {menu.length>30&&<button className={styles.linkButton} type="button" onClick={()=>setShowAll(v=>!v)}>{showAll?"Λιγότερα είδη":"Εμφάνιση και των "+menu.length+" ειδών"}</button>}
    <button className={styles.secondaryButton} type="button" onClick={()=>downloadText("drinkstock-pos-mapping-review.csv",buildMappingCsv(menu,mappings,drinks))}>↓ Λήψη αντιστοίχισης για έλεγχο</button>
