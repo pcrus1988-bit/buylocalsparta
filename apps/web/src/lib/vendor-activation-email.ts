@@ -64,7 +64,7 @@ export async function sendVendorPasswordResetEmail(access: VendorActivationAcces
       "Αν δεν ζητήσατε επαναφορά, αγνοήστε το μήνυμα και επικοινωνήστε με την υποστήριξη.",
       "",
       "KONTA MOY"
-    ].join("\\n"),
+    ].join("\n"),
     eventType: options.claim ? "hub_claim.owner_password_reset" : "vendor.owner_password_reset",
     idempotencyKey: access.deliveryKey,
     payload: { accountId: access.userId, claim: options.claim === true }
