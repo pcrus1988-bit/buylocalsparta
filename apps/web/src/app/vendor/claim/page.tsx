@@ -6,8 +6,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { SiteFooter } from "../../../components/SiteFooter";
-import { getAccountSession, requireAccountSession } from "../../../lib/account-session";
-import { assertCustomerCsrf } from "../../../lib/customer-state-runtime";
+import { getVendorClaimSession, requireVendorClaimSession } from "../../../lib/vendor-session";
+import { assertVendorCsrf } from "../../../lib/vendor-runtime";
 import { listOwnedHubClaims, updateOwnedHubClaim } from "../../../lib/hub-claim-runtime";
 import styles from "../../hubs/claim/claim.module.css";
 
@@ -15,16 +15,16 @@ export const metadata: Metadata = { title: "CLAIM Dashboard · KONTA MOY", robot
 
 async function saveClaim(formData: FormData) {
   "use server";
-  const principal = await requireAccountSession();
-  assertCustomerCsrf(principal, String(formData.get("csrfToken") ?? ""));
+  const principal = await requireVendorClaimSession();
+  assertVendorCsrf(principal, String(formData.get("csrfToken") ?? ""));
   const id = String(formData.get("claimId") ?? "");
   await updateOwnedHubClaim(id, principal, formData);
   revalidatePath("/vendor/claim");
 }
 
 export default async function ClaimVendorDashboard() {
-  const principal = await getAccountSession();
-  if (!principal || !principal.roles.includes("customer")) redirect("/login?next=%2Fvendor%2Fclaim");
+  const principal = await getVendorClaimSession();
+  if (!principal) redirect("/vendor/login?next=%2Fvendor%2Fclaim");
   const claims = await listOwnedHubClaims(principal);
   const media = claims.length ? await listOwnedHubClaimMedia(principal) : [];
   return <main>
