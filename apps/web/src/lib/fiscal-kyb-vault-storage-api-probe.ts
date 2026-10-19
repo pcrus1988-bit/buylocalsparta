@@ -132,7 +132,7 @@ export async function runFiscalSyntheticStorageApiProbe(
  args:FiscalSyntheticStorageProbeArgs
 ):Promise<FiscalSyntheticStorageProbeResult>{
  validate(args);
- const path="__synthetic_m37__/"+randomUUID()+"/"+randomBytes(16).toString("hex")+".bin";
+ const path="__synthetic_m37__/"+(parseClaims(args.scopedJwt).probe_run_id as string)+"/"+randomBytes(16).toString("hex")+".bin";
  const url=PROJECT_URL+"/storage/v1/object/"+BUCKET+"/"+path;
  const auth={
   Authorization:"Bearer "+args.scopedJwt,
