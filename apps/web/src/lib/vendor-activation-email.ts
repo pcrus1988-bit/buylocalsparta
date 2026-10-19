@@ -10,7 +10,7 @@ export async function sendVendorActivationEmail(access: VendorActivationAccess) 
     "",
     "Ο ασφαλής σύνδεσμος είναι μίας χρήσης και λήγει σε 30 λεπτά. Με την ολοκλήρωση επιβεβαιώνεται και το email του vendor λογαριασμού σας."
   ] : [
-    "Ο vendor λογαριασμός σας είναι ήδη συνδεδεμένος με επαληθευμένο λογαριασμό. Μπορείτε να χρησιμοποιήσετε τα υπάρχοντα στοιχεία πρόσβασης.",
+    "Η πρόσβαση συνεργάτη χρησιμοποιεί ανεξάρτητο κωδικό από τον λογαριασμό αγορών.",
     `Vendor Workspace: ${loginUrl}`
   ];
 
@@ -20,7 +20,7 @@ export async function sendVendorActivationEmail(access: VendorActivationAccess) 
     text: [
       `Καλησπέρα από το KONTA MOY,`,
       "",
-      `Η συνεργασία για το κατάστημα «${access.tradingName}» ενεργοποιήθηκε επιτυχώς.`,
+      `Ολοκληρώστε την ανεξάρτητη πρόσβαση συνεργάτη για «${access.tradingName}».`,
       "",
       ...setupLines,
       "",
