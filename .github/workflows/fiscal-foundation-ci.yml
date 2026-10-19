@@ -99,6 +99,12 @@ jobs:
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-vault-live-readiness.test.ts
       - name: Verify M35 synthetic encrypted vault rehearsal never touches real storage
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-vault-synthetic-rehearsal.test.ts
+      - name: Verify M36 Storage role boundary and service-role bypass warning
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-vault-access-boundary.test.ts
+      - name: Verify M36 real PostgreSQL RLS denials with synthetic rows only
+        env:
+          CI: "true"
+        run: node scripts/fiscal-vault-access-boundary-db-smoke.mjs
       - name: Verify M34 exact storage catalog SQL on disposable PostgreSQL
         env:
           CI: "true"
