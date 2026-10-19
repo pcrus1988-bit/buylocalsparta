@@ -7,9 +7,11 @@ const TOKEN=/^[A-Za-z0-9_-]{43}$/;
 type State="running"|"paused"|"crashing"|"ended"|"scheduled";
 type R={id:string;state:State;revision:number;floor_percent:number;ceiling_percent:number;created_at:Date;started_at:Date|null;ended_at:Date|null;crash_until:Date|null};
 type Db={query<T extends Record<string,unknown>>(sql:string,values?:readonly unknown[]):Promise<{rows:readonly T[];rowCount:number}>};
-export type SessionView={serverNow:string;venue:{id:string;partnerId:string;name:string;role?:string};
+export type ScreenFeedMode="simulation"|"actual";
+export type VerifiedScreenTrade={productId:string;description:string;quantity:number;paidAt:string};
+export type SessionView={serverNow:string;feedMode?:ScreenFeedMode;actualTrades?:VerifiedScreenTrade[];venue:{id:string;partnerId:string;name:string;role?:string};
  session:{id:string;state:State;revision:number;floorPercent:number;ceilingPercent:number;crashUntil:string|null;startedAt:string|null}|null;
- passes:{id:string;kind:string;tableLabel:string|null}[];
+ passes:{id:string;kind:string;tableLabel:string|null;feedMode:ScreenFeedMode}[];
  products:{id:string;name:string;category:string;priceCents:number}[];
  tableLabel?:string|null;
  /** Rehearsal demand signals only; never imply confirmed customer orders. */
@@ -50,25 +52,27 @@ export async function managerSessionView(userId:string,p:string,v:string):Promis
  checkScope(p,v);const db=getProductionPostgresRuntime().sqlPool;
  const access=await venue(db,userId,p,v);
  const [s,d,passes]=await Promise.all([current(db,p,v),products(db,p,v),
-  db.query<{id:string;kind:string;table_label:string|null}>(`SELECT id::text,kind,table_label
+  db.query<{id:string;kind:string;table_label:string|null;feed_mode:ScreenFeedMode}>(`SELECT id::text,kind,table_label,feed_mode
  FROM public.drinkstock_access_passes WHERE partner_id=$1::uuid AND venue_id=$2::uuid AND revoked_at IS NULL
  ORDER BY created_at DESC LIMIT 100`,[p,v])]);
  return {serverNow:new Date().toISOString(),venue:{id:v,partnerId:p,name:access.name,role:access.role},
-  session:session(s),products:d,passes:passes.rows.map(x=>({id:x.id,kind:x.kind,tableLabel:x.table_label}))};
+  session:session(s),products:d,passes:passes.rows.map(x=>({id:x.id,kind:x.kind,tableLabel:x.table_label,feedMode:x.feed_mode}))};
 }
-export type SessionAction={action:"start"|"pause"|"resume"|"crash"|"end"|"create_screen"|"create_table"|"revoke_pass";
- requestKey:string;tableLabel?:string;passId?:string;expectedRevision?:number};
+export type SessionAction={action:"start"|"pause"|"resume"|"crash"|"end"|"create_screen"|"create_table"|"revoke_pass"|"set_screen_feed";
+ requestKey:string;tableLabel?:string;passId?:string;feedMode?:ScreenFeedMode;expectedRevision?:number};
 export function validateSessionAction(value:unknown):SessionAction{
  if(!value||typeof value!=="object"||Array.isArray(value))throw new SessionError("BAD_ACTION",400);
  const b=value as Record<string,unknown>;
- if(!["start","pause","resume","crash","end","create_screen","create_table","revoke_pass"].includes(String(b.action))
+ if(!["start","pause","resume","crash","end","create_screen","create_table","revoke_pass","set_screen_feed"].includes(String(b.action))
  ||typeof b.requestKey!=="string"||!UUID.test(b.requestKey))throw new SessionError("BAD_ACTION",400);
  if(b.expectedRevision!==undefined&&(!Number.isInteger(b.expectedRevision)||Number(b.expectedRevision)<1))
  throw new SessionError("BAD_REVISION",400);
  if(b.action==="create_table"&&(typeof b.tableLabel!=="string"||!/^[A-Za-z0-9 Α-Ωα-ω_-]{1,30}$/.test(b.tableLabel)))
  throw new SessionError("BAD_TABLE_LABEL",400);
- if(b.action==="revoke_pass"&&(typeof b.passId!=="string"||!UUID.test(b.passId)))
+ if((b.action==="revoke_pass"||b.action==="set_screen_feed")&&(typeof b.passId!=="string"||!UUID.test(b.passId)))
  throw new SessionError("BAD_PASS",400);
+ if(b.action==="set_screen_feed"&&(b.feedMode!=="simulation"&&b.feedMode!=="actual"))
+ throw new SessionError("BAD_FEED_MODE",400);
  return b as SessionAction;
 }
 export async function sessionCommand(userId:string,p:string,v:string,a:SessionAction){
@@ -124,10 +128,16 @@ export async function sessionCommand(userId:string,p:string,v:string,a:SessionAc
   const removed=await db.query(`UPDATE public.drinkstock_access_passes SET revoked_at=now()
   WHERE partner_id=$1::uuid AND venue_id=$2::uuid AND id=$3::uuid AND revoked_at IS NULL`,[p,v,a.passId]);
   if(!removed.rowCount)throw new SessionError("PASS_NOT_FOUND",404);
+ }else if(a.action==="set_screen_feed"){
+  const updated=await db.query(`UPDATE public.drinkstock_access_passes SET feed_mode=$4
+   WHERE partner_id=$1::uuid AND venue_id=$2::uuid AND id=$3::uuid
+    AND kind='screen' AND revoked_at IS NULL RETURNING id`,[p,v,a.passId,a.feedMode]);
+  if(!updated.rowCount)throw new SessionError("SCREEN_PASS_NOT_FOUND",404);
  }
  await db.query(`INSERT INTO public.drinkstock_session_actions
- (partner_id,venue_id,session_id,request_key,action,actor_user_id)
- VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6)`,[p,v,s?.id??null,a.requestKey,a.action,userId]);
+ (partner_id,venue_id,session_id,request_key,action,actor_user_id,details)
+ VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7::jsonb)`,[p,v,s?.id??null,a.requestKey,a.action,userId,
+ a.action==="set_screen_feed"?JSON.stringify({screenPassId:a.passId,feedMode:a.feedMode}):"{}"]);
  await db.query("COMMIT");
  }catch(err){try{await db.query("ROLLBACK");}catch{}throw err;}finally{db.release();}
  return {view:await managerSessionView(userId,p,v),token:plainToken};
@@ -137,8 +147,8 @@ export async function publicSessionView(token:string,kind:"table"|"screen"):Prom
  if(!productionDatabaseConfigured())throw new SessionError("DATABASE_UNAVAILABLE",503);
  const db=getProductionPostgresRuntime().sqlPool;
  const hash=createHash("sha256").update(token).digest("hex");
- const r=await db.query<{partner_id:string;venue_id:string;name:string;table_label:string|null}>(`
- SELECT v.partner_id::text,v.id::text AS venue_id,v.name,a.table_label
+ const r=await db.query<{partner_id:string;venue_id:string;name:string;table_label:string|null;feed_mode:ScreenFeedMode}>(`
+ SELECT v.partner_id::text,v.id::text AS venue_id,v.name,a.table_label,a.feed_mode
  FROM public.drinkstock_access_passes a
  JOIN public.hospitality_venues v ON v.id=a.venue_id AND v.partner_id=a.partner_id AND v.status='active'
  JOIN public.hospitality_partners p ON p.id=v.partner_id AND p.status='active'
@@ -148,7 +158,7 @@ export async function publicSessionView(token:string,kind:"table"|"screen"):Prom
  const x=r.rows[0];
  const [s,d]=await Promise.all([current(db,x.partner_id,x.venue_id),products(db,x.partner_id,x.venue_id)]);
  // Only show venue-scoped, non-commercial rehearsal demand. Never expose actors.
- const signals=kind==="screen"?await db.query<{id:string;product_id:string;product_name:string;created_at:Date}>(`
+ const signals=kind==="screen"&&x.feed_mode==="simulation"?await db.query<{id:string;product_id:string;product_name:string;created_at:Date}>(`
  SELECT e.id::text,e.selected_product_id::text AS product_id,d.name AS product_name,e.created_at
  FROM public.drinkstock_market_events e
  JOIN public.drinkstock_products d ON d.id=e.selected_product_id
@@ -157,6 +167,31 @@ export async function publicSessionView(token:string,kind:"table"|"screen"):Prom
   AND ($3::timestamptz IS NULL OR e.created_at >= $3::timestamptz)
  ORDER BY e.created_at DESC,e.id DESC LIMIT 12
  `,[x.partner_id,x.venue_id,s?.started_at??null]):{rows:[]};
+ // Paid sales are shown only when there is a matching server-persisted provider
+ // verification event. Avoid order IDs, table labels, customer details, amounts
+ // and other personal/financial data on a publicly accessible TV.
+ const confirmed=kind==="screen"&&x.feed_mode==="actual"&&s?.id?
+ await db.query<{product_id:string;description:string;quantity:number;paid_at:Date}>(`
+ SELECT l.product_id::text AS product_id,l.description,l.quantity,verified.received_at AS paid_at
+ FROM public.drinkstock_orders o
+ JOIN LATERAL (
+   SELECT e.received_at FROM public.drinkstock_payment_events e
+   WHERE e.order_id=o.id AND e.event_type='payment_verified'
+     AND length(btrim(e.provider_event_id))>0
+   ORDER BY e.received_at DESC LIMIT 1
+ ) verified ON TRUE
+ JOIN public.drinkstock_order_lines l ON l.order_id=o.id
+ JOIN public.drinkstock_products d ON d.id=l.product_id
+   AND d.partner_id=o.partner_id AND d.venue_id=o.venue_id
+ WHERE o.partner_id=$1::uuid AND o.venue_id=$2::uuid
+  AND o.session_id=$3::uuid AND o.payment_state='paid'
+  AND o.order_state IN ('paid','accepted','preparing','ready','served')
+ ORDER BY verified.received_at DESC,o.id DESC,l.id DESC LIMIT 16
+ `,[x.partner_id,x.venue_id,s.id]):{rows:[]};
  return {serverNow:new Date().toISOString(),venue:{id:x.venue_id,partnerId:x.partner_id,name:x.name},session:session(s),products:d,passes:[],tableLabel:x.table_label,
+ ...(kind==="screen"?{feedMode:x.feed_mode}:{}),
+ ...(kind==="screen"&&x.feed_mode==="actual"?{actualTrades:confirmed.rows.map(q=>({
+ productId:q.product_id,description:q.description,quantity:Number(q.quantity),
+ paidAt:new Date(q.paid_at).toISOString()}))}:{}),
  signals:signals.rows.map(q=>({id:q.id,productId:q.product_id,productName:q.product_name,createdAt:new Date(q.created_at).toISOString()}))};
 }
