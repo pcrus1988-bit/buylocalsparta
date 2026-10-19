@@ -7,6 +7,8 @@ import { SiteFooter } from "../../../../components/SiteFooter";
 import { assertCustomerCsrf } from "../../../../lib/customer-state-runtime";
 import { getAccountSession, requireAccountSession } from "../../../../lib/account-session";
 import { acceptApprovedHubClaim, getHubClaimInvitation } from "../../../../lib/hub-claim-runtime";
+import { prepareHubClaimPasswordReset } from "../../../../lib/vendor-activation-access";
+import { sendVendorPasswordResetEmail } from "../../../../lib/vendor-activation-email";
 import styles from "../claim.module.css";
 
 export const metadata: Metadata = { title: "Επιβεβαίωση δωρεάν CLAIM · KONTA MOY", robots: { index: false, follow: false } };
@@ -18,8 +20,18 @@ async function acceptClaim(formData: FormData) {
   const id = String(formData.get("claimId") ?? "");
   if (formData.get("publishConsent") !== "on") throw new Error("Explicit public-directory consent is required");
   await acceptApprovedHubClaim(id, principal);
+  let setupSent = false;
+  try {
+    const access = await prepareHubClaimPasswordReset({ claimId: id, actorUserId: principal.userId, now: Date.now() });
+    await sendVendorPasswordResetEmail(access, { claim: true });
+    setupSent = true;
+  } catch (error) {
+    console.error(JSON.stringify({ event: "hub_claim.vendor_access_email_failed", claimId: id, error: error instanceof Error ? error.message : String(error) }));
+  }
   revalidatePath("/vendor/claim");
-  redirect("/vendor/claim");
+  redirect(setupSent
+    ? "/vendor/login?next=%2Fvendor%2Fclaim&claimSetup=sent"
+    : "/vendor/login?next=%2Fvendor%2Fclaim&claimSetup=delivery_failed");
 }
 
 export default async function ApprovedHubClaimPage({ params }: { params: Promise<{ id: string }> }) {
@@ -41,7 +53,7 @@ export default async function ApprovedHubClaimPage({ params }: { params: Promise
         <section className={styles.panel}>
           <h2>Επιβεβαίωση εκπροσώπου</h2>
           {invitation.claimedByUser
-            ? <><p className={styles.hint}>Η καταχώριση είναι ήδη ενεργή στον λογαριασμό σου.</p><Link className={styles.button} href="/vendor/claim">Άνοιξε το CLAIM Dashboard →</Link></>
+            ? <><p className={styles.hint}>Η καταχώριση είναι ήδη ενεργή στον λογαριασμό σου.</p><Link className={styles.button} href="/vendor/login?next=%2Fvendor%2Fclaim">Άνοιξε το CLAIM Dashboard →</Link></>
             : invitation.status === "converted"
               ? <p className={styles.hint}>Η καταχώριση έχει ήδη παραληφθεί από τον εγκεκριμένο λογαριασμό. Επικοινώνησε με το KONTA MOY αν χρειάζεσαι πρόσβαση.</p>
               : !principal
