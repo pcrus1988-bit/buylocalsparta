@@ -51,7 +51,8 @@ function validate(args:FiscalKmsProbeRehearsalArgs){
   typeof args.trust.issuer!=="string"||
   typeof args.trust.keyId!=="string"||
   !/^[A-Za-z0-9_-]{8,80}$/.test(args.trust.keyId)||
-  typeof args.trust.publicKeyPem!=="string")return deny();
+  typeof args.trust.publicKeyPem!=="string"||
+  !args.trust.publicKeyPem.startsWith("-----BEGIN PUBLIC KEY-----"))return deny();
  let issuer:URL;
  try{issuer=new URL(args.trust.issuer);}catch{return deny();}
  if(issuer.protocol!=="https:"||issuer.origin!==args.trust.issuer||
