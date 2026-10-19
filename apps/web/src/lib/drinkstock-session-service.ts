@@ -13,7 +13,7 @@ export type VerifiedScreenTrade={productId:string;description:string;quantity:nu
 export type SessionView={serverNow:string;feedMode?:ScreenFeedMode;actualTrades?:VerifiedScreenTrade[];venue:{id:string;partnerId:string;name:string;role?:string};
  session:{id:string;state:State;revision:number;floorPercent:number;ceilingPercent:number;crashUntil:string|null;startedAt:string|null}|null;
  passes:{id:string;kind:string;tableLabel:string|null;feedMode:ScreenFeedMode}[];
- products:{id:string;name:string;category:string;priceCents:number}[];
+ products:{id:string;name:string;category:string;baseCents:number;priceCents:number}[];
  tableLabel?:string|null;
  /** Rehearsal demand signals only; never imply confirmed customer orders. */
  signals?:{id:string;productId:string;productName:string;createdAt:string}[];}
@@ -44,10 +44,10 @@ async function venue(db:Db,userId:string,p:string,v:string,locked=false){
  return r.rows[0];
 }
 async function products(db:Db,p:string,v:string){
- const r=await db.query<{id:string;name:string;category:string;price_cents:number}>(`SELECT id::text,name,category,price_cents
+ const r=await db.query<{id:string;name:string;category:string;base_cents:number;price_cents:number}>(`SELECT id::text,name,category,base_cents,price_cents
  FROM public.drinkstock_products WHERE partner_id=$1::uuid AND venue_id=$2::uuid AND active
  ORDER BY name LIMIT 60`,[p,v]);
- return r.rows.map(row=>({id:row.id,name:row.name,category:row.category,priceCents:Number(row.price_cents)}));
+ return r.rows.map(row=>({id:row.id,name:row.name,category:row.category,baseCents:Number(row.base_cents),priceCents:Number(row.price_cents)}));
 }
 export async function managerSessionView(userId:string,p:string,v:string):Promise<SessionView>{
  checkScope(p,v);const db=getProductionPostgresRuntime().sqlPool;
