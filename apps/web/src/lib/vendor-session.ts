@@ -88,3 +88,17 @@ export async function requireVendorCapability(
   assertVendorCapability(context, capability);
   return { principal, context };
 }
+
+/** CLAIM-only credentials do not grant a marketplace vendor tenant/capability. */
+export async function getVendorClaimSession(): Promise<SessionPrincipal | undefined> {
+  const token = (await cookies()).get(VENDOR_SESSION_COOKIE)?.value;
+  if (!token) return undefined;
+  const principal = await vendorSessionFromToken(token, Date.now());
+  return principal?.roles.includes("vendor_claim") ? principal : undefined;
+}
+export async function requireVendorClaimSession(request?: Request, requireCsrf = false): Promise<SessionPrincipal> {
+  const principal = await getVendorClaimSession();
+  if (!principal) throw new Error("CLAIM_VENDOR_AUTH_REQUIRED");
+  if (requireCsrf) assertVendorCsrf(principal, request?.headers.get("x-csrf-token") ?? undefined);
+  return principal;
+}
