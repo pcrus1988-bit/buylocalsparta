@@ -8,6 +8,7 @@ const due=[];
 for(const a of allApproved){
   if(recentCaptured.has(a.source_id))continue;
   if(a.metadata?.next_attempt_after&&Date.parse(a.metadata.next_attempt_after)>Date.now())continue;
+  if(a.metadata?.needs_manual_access_review===true)continue; // Stop after access restrictions; do not bypass site controls.
   let host;try{const u=new URL(a.asset_url);if(u.protocol!=="https:")continue;host=u.hostname;}catch{continue;}
   if(hostUsed.has(host))continue;
   hostUsed.add(host);
@@ -15,11 +16,27 @@ for(const a of allApproved){
   if(due.length>=8)break;
 }
 const sanitizedDetail=(v)=>typeof v==="string" ? v.replace(/Bearer\s+\S+/gi,"Bearer [redacted]").replace(/[a-f0-9]{64}/gi,"[redacted-hex]").slice(0,200) : null;
-const approved=due;const results=[];for(const item of approved){try{const r=await fetch(url+"/functions/v1/nyxi-evidence-collector",{method:"POST",headers:{authorization:"Bearer "+key,apikey:key,"x-nyxi-collector-token":token,"content-type":"application/json"},body:JSON.stringify({approval_id:item.id}),signal:AbortSignal.timeout(25000)});const data=await r.json().catch(()=>({error:"invalid_response"}));const diagnostic=r.status>=400 ? sanitizedDetail(data.detail||data.location||null) : null;
+const approved=due;const results=[];for(const item of approved){try{const r=await fetch(url+"/functions/v1/nyxi-evidence-collector",{method:"POST",headers:{authorization:"Bearer "+key,apikey:key,"x-nyxi-collector-token":token,"content-type":"application/json"},body:JSON.stringify({approval_id:item.id}),signal:AbortSignal.timeout(25000)});const data=await r.json().catch(()=>({error:"invalid_response"}));const diagnostic=r.status>=400 ? sanitizedDetail(data.detail||data.location||null) : null;const upstreamCode=Number.isInteger(data.status)?data.status:null;
 results.push({approval_id:item.id,source_id:item.source_id,http_status:r.status,status:data.status||null,error:data.error||null,error_detail:diagnostic,snapshot_id:data.snapshot_id||null});
 if(r.status>=400&&data.error!=="crawl_delay"){
+  const attempts=Number.isFinite(Number(item.metadata?.collector_failure_count))?Math.max(0,Math.min(30,Number(item.metadata?.collector_failure_count)))+1:1;
+  const failureClass=upstreamCode===401||upstreamCode===403?"upstream_access_denied":
+    upstreamCode===404||upstreamCode===410?"upstream_missing_or_moved":
+    data.error==="redirect_rejected"||data.error==="final_url_mismatch"?"unapproved_redirect_or_origin":
+    data.error==="collector_error"?"upstream_network_or_tls":
+    data.error==="upstream_status"&&upstreamCode!==null?"upstream_http_error":"collector_internal_error";
+  const requiresReview=["upstream_access_denied","upstream_missing_or_moved","unapproved_redirect_or_origin"].includes(failureClass)||attempts>=3;
   const nextDelayMs=r.status===429?60*60*1000:24*60*60*1000;
-  const metadata={...(item.metadata||{}),last_worker_attempt_at:new Date().toISOString(),last_worker_error:String(data.error||"http_"+r.status).slice(0,100),last_worker_error_detail:diagnostic,next_attempt_after:new Date(Date.now()+nextDelayMs).toISOString()};
+  const metadata={...(item.metadata||{}),last_worker_attempt_at:new Date().toISOString(),
+    last_worker_error:String(data.error||"http_"+r.status).slice(0,100),
+    last_worker_error_detail:diagnostic,
+    last_worker_http_status:r.status,
+    last_worker_upstream_http_status:upstreamCode,
+    last_worker_failure_class:failureClass,
+    collector_failure_count:attempts,
+    needs_manual_access_review:requiresReview,
+    manual_access_review_reason:requiresReview?(upstreamCode===403?"upstream_403_do_not_bypass":failureClass):null,
+    next_attempt_after:new Date(Date.now()+nextDelayMs).toISOString()};
   await fetch(url+"/rest/v1/nyxi_asset_acquisition_approvals?id=eq."+item.id,{method:"PATCH",headers:{authorization:"Bearer "+key,apikey:key,"Content-Type":"application/json"},body:JSON.stringify({metadata})});
 }}catch(e){results.push({approval_id:item.id,error:String(e).slice(0,160)});}}const extraction=[];let extractedThisRun=0;const m=await fetch(url+"/rest/v1/nyxi_corpus_manifest?select=snapshot_id&extraction_status=eq.ready&order=created_at.desc&limit=300",{headers:{authorization:"Bearer "+key,apikey:key}});if(m.ok){const pending=await m.json();for(const row of pending){try{const done=await fetch(url+"/rest/v1/nyxi_extraction_runs?snapshot_id=eq."+row.snapshot_id+"&status=eq.complete&select=id&limit=1",{headers:{authorization:"Bearer "+key,apikey:key}});if(!done.ok){extraction.push({snapshot_id:row.snapshot_id,error:"completion_lookup_failed",http_status:done.status});continue;}if((await done.json()).length){continue;}if(extractedThisRun>=4)break;extractedThisRun++;const e=await fetch(url+"/functions/v1/nyxi-private-extractor",{method:"POST",headers:{authorization:"Bearer "+key,apikey:key,"x-nyxi-scheduler-token":bearer,"content-type":"application/json"},body:JSON.stringify({snapshot_id:row.snapshot_id,dry_run:false}),signal:AbortSignal.timeout(25000)});const result=await e.json().catch(()=>({error:"invalid_response"}));extraction.push({snapshot_id:row.snapshot_id,http_status:e.status,status:result.status||null,error:result.error||null,run_id:result.run_id||null,fragments:result.fragments||0});}catch(e){extraction.push({snapshot_id:row.snapshot_id,error:String(e).slice(0,150)});}}}else extraction.push({error:"manifest_queue_lookup_failed",http_status:m.status});const pdfExtraction=[];
 const pe=await fetch(url+"/rest/v1/nyxi_corpus_manifest?select=snapshot_id,extraction_status,metadata&extraction_status=in.(awaiting_pdf_parser,processing)&order=created_at.desc&limit=80",{headers:{authorization:"Bearer "+key,apikey:key}});
