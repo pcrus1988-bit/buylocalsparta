@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="theme-color" content="#101d32"/>
+  <meta name="robots" content="noindex,nofollow"/>
+  <meta name="description" content="MERIDIO interactive product sandbox. All asset examples, votes and schedules are fictional; no offers or transactions."/>
+  <title>Asset Workspace — MERIDIO</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+  <link rel="stylesheet" href="/styles.css"/>
+  <link rel="stylesheet" href="/workspace/workspace.css"/>
+</head>
+<body>
+  <a class="skip" href="#workspace-main">Skip to asset workspace</a>
+  <div class="announcement"><span class="signal" aria-hidden="true"></span> INTERACTIVE SANDBOX <span class="announcement-detail">— Fictional examples, no actual rights or financial offers</span></div>
+  <header class="site-header">
+    <div class="container nav-layout">
+      <a href="/" class="brand" aria-label="MERIDIO home"><span class="brand-symbol" aria-hidden="true"><span></span><span></span><span></span></span><span>MERIDIO<small>A KONTA MOY UNIVERSE PROJECT</small></span></a>
+      <nav class="nav" aria-label="Primary navigation"><a href="/">Overview</a><a href="/#worlds">Asset worlds</a><a href="/#governance">Governance</a><a href="https://kontamou.site/" rel="noopener noreferrer">KONTA MOY ↗</a></nav>
+      <span class="workspace-tag">PRODUCT PREVIEW / 0.2</span>
+    </div>
+  </header>
+  <main class="workspace container" id="workspace-main">
+    <section class="workspace-heading">
+      <div><div class="eyebrow dark"><span class="eyebrow-line"></span> MERIDIO / ASSET INTELLIGENCE</div><h1>EXPLORE THE<br/><em>WORKSPACE.</em></h1><p>This interactive sandbox demonstrates asset records, utilization requirements, governance mathematics and evidence workflows. <strong>All examples are fictional.</strong></p></div>
+      <aside class="workspace-notice" aria-label="Development disclosure"><span class="notice-marker">●</span><strong>PRELAUNCH DEMONSTRATION</strong><p>Not a marketplace. No real assets, verified ownership, investments, bookings, votes or tokens. Controls below are simulations and do not write data.</p></aside>
+    </section>
+    <div class="workspace-metrics" aria-label="Prototype capabilities"><div><small>MODELLED WORLDS</small><strong>10</strong></div><div><small>FICTIONAL EXAMPLES</small><strong id="total-assets">8</strong></div><div><small>LIVE ASSET OFFERINGS</small><strong>0</strong></div><div><small>LIVE TRANSACTIONS</small><strong>0</strong></div></div>
+    <div class="app-layout">
+      <aside class="registry" aria-label="Asset example navigation">
+        <div class="registry-top"><div class="eyebrow dark">ASSET REGISTRY</div><h2>Discover concepts</h2><p>Pick an example to inspect its hypothetical lifecycle.</p></div>
+        <label class="registry-search" for="asset-search"><span aria-hidden="true">⌕</span><input type="search" id="asset-search" placeholder="Search examples…" autocomplete="off"/></label>
+        <label class="filter-label" for="asset-category">ASSET WORLD</label>
+        <select id="asset-category" aria-label="Filter assets by category"><option>All worlds</option></select>
+        <div id="asset-results" class="registry-results" role="list" aria-label="Illustrative asset examples"></div>
+        <div id="no-assets" class="registry-empty" hidden>No fictional examples match your filters.</div>
+        <div class="registry-note">Data is bundled with this demonstration. No real listing or investment opportunity is available.</div>
+      </aside>
+      <section class="asset-detail" aria-labelledby="detail-name">
+        <div class="asset-hero">
+          <div class="asset-topline"><span class="asset-label">SAMPLE ASSET PASSPORT</span><span class="preview-pill"><span aria-hidden="true">●</span> ILLUSTRATIVE ONLY</span></div>
+          <div class="asset-identity"><div class="asset-symbol" id="detail-icon" aria-hidden="true">⌂</div><div><div class="detail-category" id="detail-category"></div><h2 id="detail-name">Loading preview…</h2><p id="detail-summary"></p></div></div>
+          <div class="asset-attributes"><div><small>CONCEPT REGION</small><strong id="detail-location"></strong></div><div><small>UTILIZATION MODEL</small><strong id="detail-mode"></strong></div><div><small>DOCUMENT STATUS</small><strong>NOT VERIFIED</strong></div></div>
+        </div>
+        <div class="tab-list" role="tablist" aria-label="Asset work areas">
+          <button type="button" class="tab" id="tab-passport" role="tab" aria-selected="true" aria-controls="asset-panel" data-tab="passport">Asset passport</button>
+          <button type="button" class="tab" id="tab-utilization" role="tab" aria-selected="false" aria-controls="asset-panel" data-tab="utilization">Use & access</button>
+          <button type="button" class="tab" id="tab-governance" role="tab" aria-selected="false" aria-controls="asset-panel" data-tab="governance">Governance</button>
+          <button type="button" class="tab" id="tab-evidence" role="tab" aria-selected="false" aria-controls="asset-panel" data-tab="evidence">Evidence room</button>
+        </div>
+        <section class="asset-panel" id="asset-panel" role="tabpanel" aria-labelledby="tab-passport" tabindex="0"><p>Loading example…</p></section>
+      </section>
+    </div>
+    <section class="build-next" aria-label="Future development">
+      <div><div class="eyebrow dark">WHAT COMES NEXT</div><h2>FROM PREVIEW TO<br/><em>TRUSTED INFRASTRUCTURE.</em></h2></div>
+      <div class="next-grid"><p><b>01 / Secure identity</b><span>Independent sign-in, entity-specific roles, permission tests and consent.</span></p><p><b>02 / Verified asset onboarding</b><span>Operator approvals, evidence provenance and legal review.</span></p><p><b>03 / Operational workflows</b><span>Utilization requests, ownership ledgers and governance events with audited records.</span></p></div>
+    </section>
+  </main>
+  <footer class="footer"><div class="container footer-inner"><div><a href="/" class="footer-logo">MERIDIO<span>↗</span></a><p>An experimental product within the KONTA MOY universe.<br/>Built for asset transparency and responsible utilization.</p></div><div class="footer-right"><a href="/">Home ↗</a><a href="https://kontamou.site/" rel="noopener noreferrer">KONTA MOY ↗</a><span>© 2026 MERIDIO</span></div></div><div class="container footer-legal">Educational, illustrative sandbox only. No ownership interests, investments, tokens, operating assets, reservations or governance rights are available. Nothing here constitutes an investment offer or legal representation.</div></footer>
+  <script type="module" src="/workspace/workspace.mjs"></script>
+</body>
+</html>
