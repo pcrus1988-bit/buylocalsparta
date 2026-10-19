@@ -41,3 +41,32 @@ export async function sendVendorActivationEmail(access: VendorActivationAccess) 
     }
   });
 }
+
+
+export async function sendVendorPasswordResetEmail(access: VendorActivationAccess, options: { claim?: boolean } = {}) {
+  if (!access.passwordSetupUrl || !access.passwordSetupRequired) throw new Error("Password reset link was not created");
+  const destination = options.claim
+    ? `${KONTA_MOY_EMAIL_BASE_URL}/vendor/claim`
+    : `${KONTA_MOY_EMAIL_BASE_URL}/vendor/login`;
+  return sendTransactionalEmail({
+    to: access.email,
+    subject: "Επαναφορά πρόσβασης · KONTA MOY",
+    text: [
+      "Καλησπέρα από το KONTA MOY,",
+      "",
+      `Ζητήθηκε από τη διαχείριση επαναφορά πρόσβασης για «${access.tradingName}».`,
+      "Αν το αναγνωρίζετε, ορίστε νέο κωδικό μέσω του ασφαλούς συνδέσμου:",
+      access.passwordSetupUrl,
+      "",
+      "Ο σύνδεσμος χρησιμοποιείται μία φορά και λήγει σε 30 λεπτά.",
+      `Στη συνέχεια: ${destination}`,
+      "",
+      "Αν δεν ζητήσατε επαναφορά, αγνοήστε το μήνυμα και επικοινωνήστε με την υποστήριξη.",
+      "",
+      "KONTA MOY"
+    ].join("\\n"),
+    eventType: options.claim ? "hub_claim.owner_password_reset" : "vendor.owner_password_reset",
+    idempotencyKey: access.deliveryKey,
+    payload: { accountId: access.userId, claim: options.claim === true }
+  });
+}
