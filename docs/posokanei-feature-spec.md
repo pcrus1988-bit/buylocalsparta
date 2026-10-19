@@ -273,3 +273,8 @@ A narrow follow-up audit proposes only five textually explicit product kinds fro
 ### 2026-10-18 evidence-only follow-up: exact ordinary types
 
 Extend named variants only: precisely worded «Κοφτό» pasta in the corresponding source category; ordinary chicken pâté wet cat food (never veterinary diets or different meat/gel formulations); men's sensitive shaving *foam*; and White Musk *body wash*. The compatibility relation is product type, not an assertion of identical ingredients, nutritional or pet-health suitability, skin sensitivity or scent chemistry. Source category, genuine independent brands, preserved modifiers, independently corroborated physical package quantity, and the restricted-claim veto remain essential. A one-token pasta name is eligible only in the explicitly bounded exact-cut category; broad pasta and generic personal-care categories are not automatically approved.
+
+
+### Reviewer-driven safety refinements (18 October)
+
+The Men Sensitive predicate now requires men as a complete delimited token, never part of women; White Musk requires the exact adjacent scent phrase, not White Tea Musk. Cat chicken pâté additionally rejects explicitly described second meats, jelly/gravy and other preparations. Veterinary, prescription, renal, urinary, clinical and analogous dietary wording vetoes automatic approval for both wet cat and dog food, including otherwise plausible chicken/turkey-labelled products. Negative fixtures cover two-brand matching of the prohibited variants. No veterinary/nutritional equivalence is inferred.
