@@ -27,6 +27,11 @@ export default async function DrinkStockPartnerPage({ params }: { params: Promis
       <h1>{partner.partnerName}</h1>
       <p>Ο ρόλος σου: {partner.role}. Η προβολή περιορίζεται στους χώρους αυτού του συνεργάτη.</p>
     </section>
+    {["owner","manager"].includes(partner.role)&&<section style={{maxWidth:1240,margin:"24px auto 12px",padding:"18px 22px",borderRadius:18,border:"1px solid #73835b",background:"#d9ff5716",color:"#fff"}}>
+     <h2 style={{margin:"4px 0 8px"}}>📊 Trading Intelligence</h2>
+     <p style={{color:"#e7e8eb",fontSize:14}}>See per-venue sessions, TV screen modes, demo activity and provider-verified order values. No simulation is counted as a sale.</p>
+     <Link href={`/drinkstock/dashboard/${partnerId}/reports`} style={{display:"inline-block",background:"#d9ff57",color:"#182027",padding:"12px 17px",borderRadius:12,fontWeight:850,textDecoration:"none"}}>Open trading reports ↗</Link>
+    </section>}
     <section className={styles.partnerGrid} aria-label="Your venues">
       {venues.length ? venues.map(venue=><article className={styles.partnerCard} key={venue.venueId}>
         <span>VENUE / {venue.status.toUpperCase()}</span>
