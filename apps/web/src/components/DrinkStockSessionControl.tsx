@@ -7,7 +7,7 @@ const button:React.CSSProperties={background:"#d9ff57",color:"#151724",border:0,
 const minor:React.CSSProperties={...button,background:"#26343e",color:"#fff",border:"1px solid #50606b"};
 export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{initial:SessionView;partnerId:string;venueId:string;csrfToken:string}){
  const [view,setView]=useState(initial);
- const [busy,setBusy]=useState(false),[error,setError]=useState(""),[issued,setIssued]=useState<{kind:"screen"|"table";url:string}|null>(null);
+ const [busy,setBusy]=useState(false),[error,setError]=useState(""),[issued,setIssued]=useState<{kind:"screen"|"table";url:string;label:string}|null>(null);
  const [label,setLabel]=useState("A1");
  const endpoint=`/api/hospitality/partners/${partnerId}/venues/${venueId}/sessions`;
  useEffect(()=>{
@@ -18,7 +18,7 @@ export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{
  if(busy)return;
  if(action==="end"&&!window.confirm("End this venue's trading session permanently?"))return;
  if(action==="crash"&&!window.confirm("Trigger a 60-second market crash on all linked screens?"))return;
- setBusy(true);setError("");
+ setBusy(true);setError("");setIssued(null);
  try{
  const requestKey=crypto.randomUUID();
  const response=await fetch(endpoint,{method:"POST",credentials:"same-origin",cache:"no-store",
@@ -29,7 +29,7 @@ export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{
  setView(data.view);
  if(data.token){
  const kind=action==="create_screen"?"screen":"table";
- setIssued({kind,url:`https://hospitality.kontamou.site/drinkstock/${kind==="screen"?"live":"table"}/${data.token}`});
+ setIssued({kind,label:kind==="table"?label:"REMOTE DISPLAY",url:`https://hospitality.kontamou.site/drinkstock/${kind==="screen"?"live":"table"}/${data.token}`});
  }
  }catch(e){const code=e instanceof Error?e.message:"SESSION_UNAVAILABLE";setError(code==="STOP_REHEARSAL_BEFORE_SESSION"?"Pause the rehearsal market in the trading floor before starting an operational session.":code);}finally{setBusy(false);}
  }
@@ -61,13 +61,29 @@ export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{
  </div>}
  </div>
  </div>
- {issued&&<div style={{marginTop:20,padding:20,borderRadius:15,background:"#fff",color:"#151724",overflowWrap:"anywhere"}}>
- <strong>New {issued.kind} link · copy or print now</strong>
- <p>Only the hashed secret is stored. The full URL will not be shown again.</p>
- {issued.kind==="table"&&<div style={{background:"#fff",padding:12,width:178}}><QRCode size={150} value={issued.url}/></div>}
- <p><a href={issued.url} target="_blank" rel="noreferrer" style={{color:"#5238bf"}}>{issued.url}</a></p>
- <button style={{...button,background:"#131727",color:"#fff"}} onClick={()=>void navigator.clipboard.writeText(issued.url)}>Copy URL</button>
- </div>}
+ {issued&&<>
+ <style>{`@media print{
+   body *{visibility:hidden!important}
+   #drinkstock-pass-print-area,#drinkstock-pass-print-area *{visibility:visible!important}
+   #drinkstock-pass-print-area{position:absolute!important;top:0!important;left:0!important;width:100%!important;background:#fff!important;color:#111!important;box-shadow:none!important;border:0!important;padding:35px!important}
+   #drinkstock-pass-actions{display:none!important}
+ }`}</style>
+ <div id="drinkstock-pass-print-area" style={{marginTop:20,padding:25,borderRadius:15,background:"#fff",color:"#151724",overflowWrap:"anywhere",maxWidth:490}}>
+  <strong style={{fontSize:22}}>DRINKSTOCK ↗</strong>
+  <h3 style={{margin:"9px 0 4px"}}>{view.venue.name}</h3>
+  <p style={{margin:"0 0 14px",fontWeight:900,fontSize:20}}>{issued.kind==="table"?"TABLE "+issued.label:"VENUE DISPLAY"}</p>
+  <div style={{background:"#fff",padding:12,width:218,border:"2px solid #111",borderRadius:12}}><QRCode size={190} value={issued.url}/></div>
+  <p style={{fontSize:13,maxWidth:330}}>Scan to {issued.kind==="table"?"view your table's drinks and live prices":"open this venue's remote view-only market screen"}.</p>
+  <div id="drinkstock-pass-actions">
+   <p style={{fontSize:12}}>Copy or print this link now. Only its hash is stored, so the original code cannot be recovered after this page closes.</p>
+   <p style={{fontSize:12}}><a href={issued.url} target="_blank" rel="noreferrer" style={{color:"#5238bf"}}>{issued.url}</a></p>
+   <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+    <button style={{...button,background:"#131727",color:"#fff"}} onClick={()=>void navigator.clipboard.writeText(issued.url)}>Copy URL</button>
+    <button style={button} onClick={()=>window.print()}>🖨 Print QR</button>
+    <button style={minor} onClick={()=>setIssued(null)}>Hide temporary link</button>
+   </div>
+  </div>
+ </div></>}
  {view.passes.length>0&&<div style={{marginTop:20}}>
  <h3>Issued access passes</h3>
  <div style={{display:"grid",gap:8}}>{view.passes.map(p=><div key={p.id} style={{padding:12,background:"#ffffff0b",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
