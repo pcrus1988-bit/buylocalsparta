@@ -1,7 +1,7 @@
-import { requireAdminSession } from "../../../../../../../lib/admin-session";
-import { recordAdminAudit } from "../../../../../../../lib/admin-runtime";
-import { prepareHubClaimPasswordReset } from "../../../../../../../lib/vendor-activation-access";
-import { sendVendorPasswordResetEmail } from "../../../../../../../lib/vendor-activation-email";
+import { requireAdminSession } from "../../../../../../lib/admin-session";
+import { recordAdminAudit } from "../../../../../../lib/admin-runtime";
+import { prepareHubClaimPasswordReset } from "../../../../../../lib/vendor-activation-access";
+import { sendVendorPasswordResetEmail } from "../../../../../../lib/vendor-activation-email";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
