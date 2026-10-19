@@ -6,7 +6,7 @@
  * Seeing a private empty bucket is only configuration evidence, NEVER
  * authorization to collect, store, view or release identity documents.
  */
-import {fiscalDatabaseConfigured,fiscalPool} from "./fiscal-runtime";
+// Resolve the server-only PG client only inside the protected live probe; this\n// keeps pure policy and SQL contract tests independent of the Next.js runtime.
 
 export const FISCAL_VAULT_QUARANTINE_BUCKET="fiscal-kyb-quarantine";
 export const FISCAL_VAULT_CIPHERTEXT_LIMIT=12*1024*1024;
@@ -116,6 +116,7 @@ export function evaluateFiscalVaultCatalog(
 /** Runtime error details, bucket object names, secrets and client URLs
  * must never reach the admin page or logs. */
 export async function getFiscalVaultLiveReadiness():Promise<FiscalVaultReadiness>{
+ const {fiscalDatabaseConfigured,fiscalPool}=await import("./fiscal-runtime");
  if(!fiscalDatabaseConfigured())return frozen("unavailable",denied);
  try{
   const catalog=await fiscalPool().query<RawCatalog>(FISCAL_VAULT_CATALOG_SQL);
