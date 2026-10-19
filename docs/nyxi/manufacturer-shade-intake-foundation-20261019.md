@@ -2,14 +2,14 @@
 
 ## What is now real
 
-NYXI's production Supabase project `eemihhfreggbigxejjhj` holds **63 unresolved publisher-or-brand candidates** and **224 manufacturer source-atlas records** linked by source ID. No product line or shade was invented from those records.
+NYXI's production Supabase project `eemihhfreggbigxejjhj` holds **63 unresolved publisher-or-brand candidates** and **224 manufacturer source-atlas records** linked by source ID. A separate curated pass derived **17 provisional line candidates** solely from exact existing Atlas titles; no manufacturer content was downloaded and no shade was invented.
 
 Existing Atlas source roles include official manufacturer roots, collections, individual products and SDS documents. The `authority` field identifies a publisher or company; it is **not automatically an established brand, line, INCI formula, licensed acquisition right or swatch**. Names such as "Nail Alliance / Gelish" and "4mass S.A. / Claresa" are not collapsed into invented brand identities.
 
 Private relational tables:
 - `nyxi_nail_brand_publishers_v1` — identity candidate with stable `atlas-authority:md5(lower(name))` key, status `source_atlas_publisher_unresolved`.
 - `nyxi_nail_publisher_sources_v1` — exact registered source links, `source_atlas_publisher`, independently reviewable.
-- `nyxi_nail_product_lines_v1` — brand publisher, product type, line identity. Initially empty.
+- `nyxi_nail_product_lines_v1` — publisher, possible product type and provisional line identity: **17 title-derived candidates**, each explicitly unverified and linked to its registry source.
 - `nyxi_nail_shade_variants_v1` — named shade, SKU, finish, opacity, packaging and optional shade entity. Initially empty.
 - `nyxi_nail_shade_color_links_v1` — only joins a shade variant to a separately archived, hash-checked and reviewed-under-policy `nyxi_shade_measurements` observation. Initially empty.
 - `nyxi_private_manufacturer_shade_readiness_v1` — aggregate private readiness for each publisher.
@@ -21,7 +21,7 @@ All five new tables have RLS enabled, with no customer grants. The two views are
 
 The photo UI has 18 demonstrative named HEX samples for interactive color exploration. These **are not verified commercial products** and not data from manufacturers. This PR adds `nyxi-app/lib/nyxi-color.ts` using reference OKLab (display sRGB) for more perceptually meaningful relative matching, and tests, while explicitly preserving the disclaimer. The app still does not offer a buy link or imply stock availability. Camera lighting, monitor gamut, gloss, shimmer, chrome, magnetics, opacity, application layers and white/black backgrounds can all change apparent shade.
 
-For a real product: exact brand identity → line → SKU/shade → allowed manufacturer dataset/label/source → exact archived evidence → color observation with method, image/licence and calibration metadata → review → eventually a grounded match. Name-only shades, marketing swatches and user photos may offer *approximation*, never instrument-calibrated color. In the current production DB: **0 real product lines, 0 named shade variants, 0 verified color links, 0 shade measurements**.
+For a real product: exact brand identity → line → SKU/shade → allowed manufacturer dataset/label/source → exact archived evidence → color observation with method, image/licence and calibration metadata → review → eventually a grounded match. Name-only shades, marketing swatches and user photos may offer *approximation*, never instrument-calibrated color. In the current production DB: **17 unverified line candidates, 0 verified product lines, 0 named shade variants, 0 verified color links, 0 shade measurements**.
 
 ## Rights and compliance
 
@@ -35,8 +35,8 @@ The collector retains the existing 10-minute schedule for **already approved exa
 
 - Production migration `20261019051022_nyxi_private_brand_line_shade_provenance_v1` — relational foundation, private grants and shade provenance trigger.
 - Production migration `20261019051606_nyxi_private_manufacturer_acquisition_queue_v1` — service-only acquisition review surface.
-- SQL seed script is intentionally **two statements** and can be run again. Verified repeat execution did not create duplicates (63 candidates, 224 source links).
-- Private Workbench tabs **Publisher Identity Intake** and **Manufacturer Sources Queue** expose status, next action and original URL, not document copies. The source registry tab reflects 307 registered sources (including unapproved Open Beauty Facts).
+- Publisher metadata seed script is intentionally **two statements** and can be run again. Verified repeat execution did not create duplicates (63 publisher candidates, 224 source links). The separate curated line candidate script yielded 17 candidates and remained at 17 when re-run.
+- Private Workbench tabs **Publisher Identity Intake**, **Manufacturer Sources Queue** and **Line Candidates** expose status, next action, reviewed title provenance and original source URL, not document copies. The source registry tab reflects 307 registered sources (including unapproved Open Beauty Facts).
 - `nyxi-app/tests/oklab-shades.test.mjs` checks reference primary color values, color symmetry, nearest sample, invalid HEX rejection and empty palette. Runs through existing `npm test` in `nyxi-app`.
 
 ## What remains for meaningful product recommendations
