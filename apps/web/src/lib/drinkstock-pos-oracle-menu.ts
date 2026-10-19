@@ -9,7 +9,9 @@
  * https://docs.oracle.com/en/industries/food-beverage/simphony/omsstsg2api/
  */
 export class OraclePosAdapterError extends Error{
- constructor(public readonly code:string,public readonly status:number){super(code);}
+ readonly code:string;
+ readonly status:number;
+ constructor(code:string,status:number){super(code);this.code=code;this.status=status;}
 }
 export type OracleSimphonyMenuConfig={
  baseUrl:string;orgShortName:string;locationRef:string;
