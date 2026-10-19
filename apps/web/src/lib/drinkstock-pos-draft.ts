@@ -3,7 +3,7 @@
  * and manual mappings. Never store POS credentials, URLs, payment claims or
  * connection authority in a customer-controlled configuration.
  */
-import {GREEK_HOSPITALITY_POS_PROVIDERS} from "./drinkstock-pos-providers";
+import {GREEK_HOSPITALITY_POS_PROVIDERS} from "./drinkstock-pos-providers.ts";
 import type {PosSetupPath,PosCsvItem,PosItemMapping,DrinkStockMenuItem} from "./drinkstock-pos-onboarding";
 export type PosDraft={
  providerId:string;otherName:string;path:PosSetupPath;
