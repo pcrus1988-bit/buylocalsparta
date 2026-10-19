@@ -113,7 +113,7 @@ test("M40 rejects tampering, alg confusion, fake issuers, scope and time before 
   signed(claims,{alg:"RS256",typ:"JWT",kid:"unknown_key_01"}),
   signed(claims,{alg:"RS256",typ:"JWT",kid:keyId,jku:"https://attacker.example"}),
   signed(claims,undefined,other.privateKey),
-  signed().slice(0,-1)+"A",
+  (()=>{const value=signed();const [a,b,c]=value.split(".");return a+"."+b+"."+(c[0]==="A"?"B":"A")+c.slice(1);})(),
   "not-a-token"
  ];
  const wrongTrust=[
