@@ -5,7 +5,7 @@ export class FulfilmentError extends Error {constructor(public readonly code:str
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export type StaffOrder={
  id:string;tableLabel:string|null;state:DrinkOrderState;paymentState:PaymentState;
- fiscalState:string;amountGrossCents:number;createdAt:string;
+ fiscalState:string;receiptIssued:boolean;amountGrossCents:number;createdAt:string;
  lines:{id:string;description:string;quantity:number;grossCents:number}[];
 };
 type Db={query<T extends Record<string,unknown>>(sql:string,params?:readonly unknown[]):Promise<{rows:readonly T[];rowCount:number}>};
@@ -27,8 +27,9 @@ export async function staffOrderQueue(user:string,p:string,v:string):Promise<{ro
  scope(p,v);const db=getProductionPostgresRuntime().sqlPool;
  const role=await permission(db,user,p,v);
  if(role==="viewer")throw new FulfilmentError("STAFF_REQUIRED",403);
- const r=await db.query<{id:string;table_label:string|null;order_state:DrinkOrderState;payment_state:PaymentState;fiscal_state:string;amount_gross_cents:number;created_at:Date}>(`
- SELECT o.id::text,a.table_label,o.order_state,o.payment_state,o.fiscal_state,o.amount_gross_cents,o.created_at
+ const r=await db.query<{id:string;table_label:string|null;order_state:DrinkOrderState;payment_state:PaymentState;fiscal_state:string;receipt_issued:boolean;amount_gross_cents:number;created_at:Date}>(`
+ SELECT o.id::text,a.table_label,o.order_state,o.payment_state,o.fiscal_state,o.amount_gross_cents,o.created_at,
+ ${ISSUED_RECEIPT_EVIDENCE_SQL} AS receipt_issued
  FROM public.drinkstock_orders o
  JOIN public.drinkstock_access_passes a ON a.id=o.table_pass_id AND a.venue_id=o.venue_id AND a.partner_id=o.partner_id
  WHERE o.partner_id=$1::uuid AND o.venue_id=$2::uuid
@@ -44,7 +45,7 @@ export async function staffOrderQueue(user:string,p:string,v:string):Promise<{ro
  WHERE l.order_id=ANY($1::uuid[]) AND o.partner_id=$2::uuid AND o.venue_id=$3::uuid
  ORDER BY l.id`,[ids,p,v]);
  return {role,orders:r.rows.map(o=>({id:o.id,tableLabel:o.table_label,state:o.order_state,
- paymentState:o.payment_state,fiscalState:o.fiscal_state,
+ paymentState:o.payment_state,fiscalState:o.fiscal_state,receiptIssued:Boolean(o.receipt_issued),
  amountGrossCents:Number(o.amount_gross_cents),createdAt:new Date(o.created_at).toISOString(),
  lines:lines.rows.filter(l=>l.order_id===o.id).map(l=>({id:l.id,description:l.description,
  quantity:Number(l.quantity),grossCents:Number(l.total_gross_cents)}))}))};
