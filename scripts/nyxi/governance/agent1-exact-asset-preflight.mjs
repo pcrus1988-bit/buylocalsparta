@@ -9,7 +9,7 @@ const firstParty = (sourceUrl, assetUrl) => {
     const s = new URL(sourceUrl), a = new URL(assetUrl);
     return s.protocol === 'https:' && a.protocol === 'https:' &&
       !s.username && !s.password && !a.username && !a.password &&
-      s.hostname === a.hostname && !a.hash;
+      s.origin === a.origin && !a.hash;
   } catch { return false; }
 };
 const instant = v => {
@@ -51,6 +51,14 @@ export function preflightExactAsset({ source, snapshot, acquisition, archiveByte
   check(Number.isFinite(fetchTime) && Number.isFinite(approvalTime) && approvalTime <= fetchTime, 'NO_RETROACTIVE_ACQUISITION');
   check(Number.isFinite(retentionTime) && Number.isFinite(fetchTime) && retentionTime >= fetchTime, 'RETENTION_SCOPE_MISSING');
   check(a.acquisition_authorized === true && a.mirror_authorized === false, 'ACQUISITION_SCOPE_INVALID');
+  check(s.status === 'active', 'SOURCE_NOT_ACTIVE');
+  check(v.http_status === 200, 'ARCHIVE_HTTP_STATUS_INVALID');
+  check(nonempty(a.approved_by) && !/\b(ai[ _-]?assisted|agent|bot|worker|automation|model)\b/i.test(a.approved_by), 'INDEPENDENT_APPROVAL_NOT_ATTESTED');
+  check(nonempty(a.rights_policy_url) && firstParty(s.canonical_url, a.rights_policy_url), 'RIGHTS_POLICY_ORIGIN_INVALID');
+  const expiresTime = a.expires_at == null ? Infinity : instant(a.expires_at);
+  const reviewTime = a.review_due_at == null ? Infinity : instant(a.review_due_at);
+  check(!Number.isNaN(expiresTime) && fetchTime <= expiresTime, 'ACQUISITION_EXPIRED_AT_FETCH');
+  check(!Number.isNaN(reviewTime) && fetchTime <= reviewTime, 'ACQUISITION_REVIEW_OVERDUE_AT_FETCH');
   check(p.no_link_following === true && p.original_bytes_preserved === true, 'PROVENANCE_SCOPE_INVALID');
   check(SHA256.test(v.sha256 ?? '') && v.storage_bucket === 'nyxi-evidence' && typeof v.storage_path === 'string' &&
     v.storage_path.startsWith(`${s.id}/${v.sha256}/`) &&
