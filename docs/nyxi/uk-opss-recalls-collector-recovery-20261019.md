@@ -15,12 +15,12 @@ GOV.UK terms https://www.gov.uk/help/terms-conditions and UK National Archives O
 
 The exact original bytes are SHA-256 archived in the private `nyxi-evidence` bucket under normal source-specific authorizations and review expiry. Only official HTML was authorized; linked PDF reports, images, logos, third-party works, wider website crawling, and immediate public search publication were excluded. The official OPSS notice is a dated authority statement, NOT a fresh independent conclusion about every product with a similar name.
 
-## Collector changes (Edge function v13)
+## Collector changes (Edge function v14)
 
 - Preserve existing scheduler SHA verification and managed internal collection token.
 - Persist collector gateway HTTP and upstream HTTP **separately**, plus safe category and previous failure count.
 - Return `upstream_access_denied` for 401/403, `upstream_missing_or_moved` for 404/410, `unapproved_redirect_or_origin` for redirected or mismatched final URLs, and `upstream_network_or_tls` for uncategorized Edge `collector_error`.
-- Explicit manual review hold on upstream access denial, missing URL, unapproved redirect or **three acquisition failures**.
+- Explicit manual review hold on upstream access denial, missing URL, unapproved redirect or **three acquisition failures**, including transport-level failures calling the collector Edge function.
 - The scheduler skips `needs_manual_access_review===true`; a reviewer must recheck exact origin and authorization before deciding whether to permit any further fetch. No automatic bypass and no assumed alternate final URL.
 - Keep existing 24-hour failure cooldown (or one-hour throttle for 429) and 90-second same-origin crawl delay.
 - `nyxi_private_acquisition_incidents_v1` is a `security_invoker=true`, service-role-only read queue presenting the exact source, last errors, retry dates and recommended next step, never a public source mirror.
