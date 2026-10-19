@@ -1,4 +1,5 @@
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import {mayMutateRehearsal} from "./drinkstock-screen-showcase";
 import { drinkPriceBand, priceRehearsalDemand, VENUE_MAX_PRODUCTS, DEFAULT_PRICE_BOUNDS, venueCanManageMarket, mayEditPreSessionConfig, type MarketBounds, type RehearsalDrink, type RehearsalMovement, type DrinkStockCategory, type validateMarketAction } from "./drinkstock-market-pricing";
 
 type Action = ReturnType<typeof validateMarketAction>;
@@ -103,6 +104,11 @@ export async function mutateDrinkStockMarket(userId:string,partnerId:string,venu
     await client.query("SET LOCAL statement_timeout = '8s'");
     const venue=await authorizedVenue(client,userId,partnerId,venueId,true);
     if(!venueCanManageMarket(venue.role))throw new DrinkStockMarketError("MARKET_ROLE_FORBIDDEN",403);
+    // Rehearsal demand, pause/resume and reset can never alter or masquerade as
+    // authenticated operational-session activity, including its crash window.
+    if(["demand","pause","resume","reset"].includes(action.action) &&
+       !mayMutateRehearsal(venue.activeSession,action.action))
+      throw new DrinkStockMarketError("REHEARSAL_DISABLED_DURING_SESSION",409);
     const prior=await client.query<{id:string}>(`
       SELECT id::text AS id FROM public.drinkstock_market_events
       WHERE partner_id=$1::uuid AND venue_id=$2::uuid AND request_key=$3::uuid
