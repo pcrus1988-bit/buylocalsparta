@@ -50,7 +50,7 @@ try{
  await db.query(roleSql);
  await db.query(blueprint);
  const policies=(await db.query(`
- SELECT policyname,cmd,roles FROM pg_policies
+ SELECT policyname,cmd,roles::text[] AS roles FROM pg_policies
  WHERE schemaname='storage' AND tablename='objects'
  ORDER BY policyname
  `)).rows;
