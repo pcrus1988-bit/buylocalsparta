@@ -38,7 +38,6 @@ export async function prepareVendorActivationAccess(input: { vendorId: string; a
       JOIN vendor_users vu
         ON vu.vendor_id=v.id
        AND vu.active=true
-       AND vu.location_id IS NULL
       JOIN vendor_user_roles vur
         ON vur.vendor_user_id=vu.id
        AND vur.role='vendor_owner'
@@ -86,7 +85,7 @@ export async function prepareVendorActivationAccess(input: { vendorId: string; a
     await tx.query(
       `INSERT INTO password_reset_tokens (id, public_id, user_id, token_hash, expires_at, created_at)
        VALUES (gen_random_uuid(), $2, $1::uuid, $3, $4, $5)`,
-      [userUuid, `vendor-activation-${hashedToken.slice(0, 20)}`, hashedToken, new Date(expiresAt), new Date(input.now)]
+      [userUuid, `${input.forcePasswordSetup ? "password-reset" : "vendor-activation"}-${hashedToken.slice(0, 20)}`, hashedToken, new Date(expiresAt), new Date(input.now)]
     );
 
     const setupUrl = new URL("/reset-password", publicOrigin());
@@ -141,7 +140,7 @@ export async function prepareHubClaimPasswordReset(input: {
     await tx.query(`
       INSERT INTO password_reset_tokens (id,public_id,user_id,token_hash,expires_at,created_at)
       VALUES (gen_random_uuid(),$2,$1::uuid,$3,$4,$5)
-    `, [userUuid, `vendor-activation-${hashedToken.slice(0, 20)}`, hashedToken,
+    `, [userUuid, `password-reset-${hashedToken.slice(0, 20)}`, hashedToken,
         new Date(input.now + VENDOR_SETUP_TTL_MS), new Date(input.now)]);
     const url = new URL("/reset-password", publicOrigin());
     url.searchParams.set("token", token);
