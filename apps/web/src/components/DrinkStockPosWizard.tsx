@@ -135,7 +135,7 @@ export function DrinkStockPosWizard({venueName,partnerId,venueId,csrfToken,provi
  function addManualPosItem(){
   const code=newPosCode.trim(),name=newPosName.trim();
   if(!code||code.length>160||!name||name.length>200||
-   /[\\u0000-\\u001f\\u007f]/.test(code+name)){
+   /[\x00-\x1f\x7f]/.test(code+name)){
    setImportError("Συμπληρώστε έγκυρο κωδικό και περιγραφή POS.");return;
   }
   if(menu.some(x=>x.externalItemId===code)){
