@@ -29,7 +29,7 @@ export default async function FiscalKybIntakeReadiness(){
     <Link href="/timologio-admin/release-readiness">Έλεγχοι λειτουργίας</Link></nav>
   </header>
   <section className="fiscal-hero">
-   <div className="fiscal-kicker">M31 · Sensitive evidence · Internal design review</div>
+   <div className="fiscal-kicker">M33 · Sensitive evidence · Independent controls pending</div>
    <h1>Ετοιμότητα ασφαλούς υποβολής δικαιολογητικών</h1>
    <p>Έλεγχος προϋποθέσεων για μελλοντική υποβολή ευαίσθητων στοιχείων
       επιχείρησης. Καμία ένδειξη παρακάτω δεν αποτελεί αυτόματη έγκριση.</p>
@@ -107,6 +107,44 @@ export default async function FiscalKybIntakeReadiness(){
     <strong>Όχι παραγωγικό Vault:</strong> 0 ενεργές συνδέσεις με αντικειμενοθήκη,
     KMS ή scanner. Κανένα πραγματικό δικαιολογητικό δεν συλλέγεται
     ούτε ανοίγεται από τη νέα υποδομή.
+   </p>
+  </section>
+  <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
+   <h2>M33 · Υπογεγραμμένοι έλεγχοι και ίχνος ασφάλειας</h2>
+   <p className="fiscal-muted">
+    Έχει υλοποιηθεί ο εσωτερικός, ανεξάρτητος από πάροχο μηχανισμός
+    επαλήθευσης ψηφιακά υπογεγραμμένων αποτελεσμάτων σάρωσης και
+    αλυσίδας συμβάντων. Εκτελείται μόνο με συνθετικές δοκιμές.
+    Δεν έχει συνδεθεί πραγματικός σαρωτής, πάροχος αποθήκευσης, KMS
+    ή υπηρεσία αμετάβλητης αρχειοθέτησης.
+   </p>
+   <div className="fiscal-grid">
+    <article className="fiscal-card">
+     <small>Υπογραφές σαρωτή</small><h3>Ed25519</h3>
+     <p>Έλεγχος υπογραφής, χρόνου, επιχειρηματικού φακέλου,
+        κωδικού εγγράφου και αποτυπώματος κρυπτογραφημένου φακέλου.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Απομόνωση αντικειμένων</small><h3>Τυχαία κλειδιά χώρου</h3>
+     <p>Προβλεπόμενη δομή αποθήκευσης ανά επιχείρηση και τεκμήριο,
+        χωρίς δημόσια URL και χωρίς ονόματα αρχείων στα κλειδιά.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Ιχνηλασιμότητα</small><h3>SHA-256 αλυσίδα</h3>
+     <p>Επαλήθευση αλλοίωσης σε συνθετικό αρχείο συμβάντων.
+        Δεν αποτελεί ανεξάρτητα αγκυρωμένο, αμετάβλητο audit log.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Προϋποθέσεις ενεργοποίησης</small><h3>Κλειδωμένες</h3>
+     <p>Απαιτούνται πραγματικές, ελεγμένες υπογραφές σαρωτή,
+       ιδιωτική αποθήκευση ΕΕ, KMS, WORM audit, διαγραφή και νομική αξιολόγηση.</p>
+    </article>
+   </div>
+   <p className="fiscal-alert" style={{marginTop:18}}>
+    <strong>Καμία πραγματική λειτουργία Vault:</strong>
+    {" "}Δεν αποθηκεύονται ή σαρώνονται έγγραφα, δεν ενεργοποιούνται υποβολές
+    και ακόμη και έγκυρη υπογεγραμμένη σάρωση δεν επιτρέπει ανάγνωση,
+    έγκριση KYB ή νόμιμη έκδοση παραστατικών.
    </p>
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>

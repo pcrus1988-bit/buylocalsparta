@@ -673,3 +673,58 @@ schedule, real private EU-resident object store and KMS with correct
 least-privilege IAM, isolated scanner/quarantine, verified delete semantics,
 central immutability-controlled audit, safe tenant-scoped grants and separate
 manual rollout authorization. These must be tested before any real upload.
+
+
+## Milestone 33 — signed quarantine scan attestations and audit-chain verification (19 October 2026)
+
+M33 extends the **offline** encrypted evidence vault foundations with
+provider-neutral verification contracts. It does not configure or claim any
+real production object store, key vault, document upload endpoint, quarantine
+scanner, WORM audit service, deletion mechanism, production permissions, legal
+KYB approval or tax-document issuance.
+
+- Every future quarantine object receives a random 160-bit suffix and is
+  scoped to an immutable `kyb-quarantine/v1/<organization-uuid>/<evidence-uuid>/...`
+  internal object key, never a public or presigned URL and never an original
+  document filename. The planner always returns
+  `signedUrlIssued=false`, `canStoreProduction=false`.
+- The independent-scanner contract verifies **Ed25519 signatures** using an
+  explicitly supplied public key. The scan attestation is bound to exact
+  organization ID, evidence ID, KYB check type, canonical SHA-256 digest of
+  the **encrypted envelope**, scanner identity/version, verdict and timestamp.
+  Stale/future timestamps, malformed/unknown fields, wrong trust roots,
+  altered signatures, cross-tenant replay and modified verdicts fail closed.
+  A cryptographically authentic `clean` result **does not** release evidence
+  or authorize business approval.
+- The object digest uses a fixed-order canonical field list, preventing
+  object-property insertion order from changing the result across producers.
+  The digest is not the plaintext-document hash displayed to users.
+- An offline SHA-256 audit-event hash-chain verifier supports synthetic
+  quarantine planning, encrypted writes, signed scans and delete-intent /
+  deletion-observation planning. It checks sequence, previous hash, scope,
+  evidence digest and timestamps, and rejects alteration or reordering.
+  **It is not tamper-proof** without a trusted independent write-once external
+  audit anchor and operator identity proof. The result states
+  `independentlyAnchored=false` and `objectDeletedConfirmed=false`.
+- All production gates are immutable `false`: verified EU residency,
+  separate KMS, private object ACLs, provisioned scanner key, quarantine
+  enforcement, independently anchored audit, proven deletion, privacy/legal
+  basis, reviewed operator MFA, real bytes/uploads/writes, signed read links
+  and fiscal permission. No environment override changes this verdict.
+- The dedicated CI regression suite signs synthetic reports with a throwaway
+  Ed25519 key pair and exercises authenticity, three verdict states,
+  tenant/document binding, encrypted object digest isolation, replay,
+  scan freshness and forged fields, plus hash-chain tamper detection.
+- The existing authenticated `/timologio-admin/kyb-intake-readiness`
+  dashboard describes actual code readiness and explicitly disclaims real
+  scanner/storage/audit connections. The independent FISCAL service and all
+  existing M31/M32 fail-closed tests remain in place.
+
+The next genuine production milestone requires provisioned **private EU
+object storage**, auditable KMS keys, a sandbox-tested encryption context and
+object ACL, a production-grade malware scanning/quarantine service with
+independently managed signing keys, WORM audit/event retention, documented
+deletion and disaster recovery, GDPR/legal review, deployment roll-forward /
+rollback gates and staged threat-modelled end-to-end tests. Real identity
+documents must not be collected before these safeguards are independently
+verified and explicitly approved.
