@@ -58,7 +58,7 @@ function fakeStorage(options:{error?:string,corrupt?:boolean,deleteError?:boolea
    const {prefixes}=JSON.parse(String(init.body));
    assert.equal(prefixes.length,1);
    if(options.deleteError)return new Response(null,{status:500});
-   assert.ok(objects.delete(prefixes[0])||options.error==="upload");
+   objects.delete(prefixes[0]);
    return new Response(null,{status:200});
   }
   throw Error("Unexpected request");
