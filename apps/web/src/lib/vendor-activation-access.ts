@@ -18,7 +18,7 @@ export type VendorActivationAccess = Readonly<{
   deliveryKey: string;
 }>;
 
-export async function prepareVendorActivationAccess(input: { vendorId: string; actorUserId: string; now: number }): Promise<VendorActivationAccess> {
+export async function prepareVendorActivationAccess(input: { vendorId: string; actorUserId: string; now: number; forcePasswordSetup?: boolean }): Promise<VendorActivationAccess> {
   if (!productionDatabaseConfigured()) throw new Error("Vendor activation access requires the production database");
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
@@ -57,7 +57,7 @@ export async function prepareVendorActivationAccess(input: { vendorId: string; a
     const userId = requiredText(row.user_public_id, "user.public_id");
     const email = normalizeEmail(requiredText(row.email, "user.email"));
     const passwordHash = requiredText(row.password_hash, "user.password_hash");
-    const passwordSetupRequired = row.user_status !== "active"
+    const passwordSetupRequired = input.forcePasswordSetup === true || row.user_status !== "active"
       || !row.email_verified_at
       || isProvisionalVendorApplicantPasswordHash(passwordHash);
 
@@ -101,6 +101,57 @@ export async function prepareVendorActivationAccess(input: { vendorId: string; a
       passwordSetupRequired: true,
       passwordSetupUrl: setupUrl.toString(),
       deliveryKey: `vendor-activation-setup:${vendorId}:${hashedToken.slice(0, 32)}`
+    };
+  }, { isolation: "serializable" });
+}
+
+
+// Admin-managed CLAIM profiles are listing-only. Reset the *verified owner's existing*
+// login without asserting that a commerce vendor account has been provisioned.
+export async function prepareHubClaimPasswordReset(input: {
+  claimId: string; actorUserId: string; now: number;
+}): Promise<VendorActivationAccess> {
+  if (!/^hubprospect_[A-Za-z0-9_-]{6,90}$/.test(input.claimId)) throw new Error("Invalid CLAIM reference");
+  if (!productionDatabaseConfigured()) throw new Error("Production database is required");
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool);
+  return uow.withTransaction(platformScope(input.actorUserId), async tx => {
+    const result = await tx.query<SqlRow>(`
+      SELECT h.public_id,h.business_name,u.id::text AS user_uuid,
+             u.public_id AS user_public_id,u.email::text AS email
+      FROM hub_expansion_prospects h
+      JOIN users u ON u.id=h.owner_user_id
+      WHERE h.public_id=$1 AND h.plan_code='claim' AND h.status='converted'
+        AND h.owner_user_id IS NOT NULL
+        AND u.status='active' AND u.email_verified_at IS NOT NULL
+        AND lower(u.email::text)=lower(h.email)
+      LIMIT 1 FOR UPDATE OF u,h
+    `, [input.claimId]);
+    const row = result.rows[0];
+    if (!row) throw new Error("Verified CLAIM owner not found");
+    const userUuid = requiredText(row.user_uuid, "claim.user_uuid");
+    const userId = requiredText(row.user_public_id, "claim.user_public_id");
+    const email = normalizeEmail(requiredText(row.email, "claim.email"));
+    const token = createVendorSetupToken();
+    const hashedToken = tokenHash(token);
+    await tx.query(`
+      UPDATE password_reset_tokens SET consumed_at=$2
+      WHERE user_id=$1::uuid AND consumed_at IS NULL
+    `, [userUuid, new Date(input.now)]);
+    await tx.query(`
+      INSERT INTO password_reset_tokens (id,public_id,user_id,token_hash,expires_at,created_at)
+      VALUES (gen_random_uuid(),$2,$1::uuid,$3,$4,$5)
+    `, [userUuid, `vendor-activation-${hashedToken.slice(0, 20)}`, hashedToken,
+        new Date(input.now + VENDOR_SETUP_TTL_MS), new Date(input.now)]);
+    const url = new URL("/reset-password", publicOrigin());
+    url.searchParams.set("token", token);
+    url.searchParams.set("mode", "vendor");
+    return {
+      vendorId: requiredText(row.public_id, "claim.public_id"),
+      tradingName: requiredText(row.business_name, "claim.business_name"),
+      email, userId, passwordSetupRequired: true,
+      passwordSetupUrl: url.toString(),
+      deliveryKey: `claim-password-reset:${input.claimId}:${hashedToken.slice(0, 32)}`
     };
   }, { isolation: "serializable" });
 }
