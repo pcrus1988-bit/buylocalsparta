@@ -1,3 +1,5 @@
+import {drinkPriceBand,priceRehearsalDemand} from "./drinkstock-market-pricing";
+
 /**
  * Browser-only pricing demo for the KONTA MOY EXCHANGE concept.
  * Not an authoritative price engine and never suitable for actual transactions.
@@ -25,38 +27,35 @@ export function freshExchangeDemoDrinks(): ExchangeDemoDrink[] {
 }
 
 /**
- * Simulate a demand event: the chosen item rises 7%, others ease 1.5%.
- * Round to five cents and enforce a 70%-145% band around the starting price.
+ * Public auto-play shares the same cent-precision demand model as the
+ * server-persisted venue rehearsal; it NEVER writes to operational prices.
+ * A scripted order's quantity affects the price as a single volume-weighted
+ * execution, not N arbitrary +7% movements.
  */
 export function simulateExchangeDemand(
   drinks: readonly ExchangeDemoDrink[],
-  selectedId: string
+  selectedId: string,
+  units = 1
 ): ExchangeDemoDrink[] {
   if (!drinks.some((drink) => drink.id === selectedId)) {
     return drinks.map((drink) => ({ ...drink }));
   }
-  return drinks.map((drink) => {
-    const multiplier = drink.id === selectedId ? 1.07 : 0.985;
-    const candidate = Math.round((drink.priceCents * multiplier) / 5) * 5;
-    const floor = Math.ceil((drink.baseCents * 0.7) / 5) * 5;
-    const ceiling = Math.floor((drink.baseCents * 1.45) / 5) * 5;
-    const priceCents = Math.min(ceiling, Math.max(floor, candidate));
-    return { ...drink, priceCents, lastDeltaCents: priceCents - drink.priceCents };
-  });
-}
-/**
- * A clearly labeled, local-only demonstration of a coordinated price drop.
- * Follows the same venue-configurable-looking 70%-145% illustration bounds
- * as the individual demand event; never use for transactional pricing.
- */
-export function simulateExchangeCrash(drinks: readonly ExchangeDemoDrink[]): ExchangeDemoDrink[] {
-  return drinks.map((drink) => {
-    const floor = Math.ceil((drink.baseCents * 0.7) / 5) * 5;
-    const priceCents = Math.max(floor, Math.round((drink.priceCents * 0.82) / 5) * 5);
-    return { ...drink, priceCents, lastDeltaCents: priceCents - drink.priceCents };
-  });
+  const movements = priceRehearsalDemand(drinks, selectedId, undefined, units);
+  return drinks.map((drink, i) => ({
+    ...drink,
+    priceCents: movements[i]!.afterCents,
+    lastDeltaCents: movements[i]!.deltaCents,
+  }));
 }
 
+/** 60-second theatre-only crash shock. Trading never stops during a crash. */
+export function simulateExchangeCrash(drinks: readonly ExchangeDemoDrink[]): ExchangeDemoDrink[] {
+  return drinks.map((drink) => {
+    const floor = drinkPriceBand(drink.baseCents).minCents;
+    const priceCents = Math.max(floor, Math.round(drink.priceCents * 0.82));
+    return { ...drink, priceCents, lastDeltaCents: priceCents - drink.priceCents };
+  });
+}
 
 /**
  * Public, browser-only DrinkStock theatre. The sequence is repeatable and
@@ -156,12 +155,8 @@ export function processExchangeDemoOrder(
   const selected = current.drinks.find((drink) => drink.id === order.drinkId);
   if (!selected) return current;
 
-  // Multiple drinks in a scripted order count as multiple demand impulses.
-  // Existing 5-cent rounding and 70-145% clamps are maintained for each unit.
-  let nextDrinks: ExchangeDemoDrink[] = current.drinks;
-  for (let i = 0; i < order.quantity; i++) {
-    nextDrinks = simulateExchangeDemand(nextDrinks, order.drinkId);
-  }
+  // One volume-weighted demand event, with 1-cent quotes and fixed owner band.
+  const nextDrinks = simulateExchangeDemand(current.drinks, order.drinkId, order.quantity);
   const newPrice = nextDrinks.find((drink) => drink.id === order.drinkId)!.priceCents;
   const deltaCents = newPrice - selected.priceCents;
   const eventId = current.totalDemoEvents + 1;
