@@ -29,5 +29,7 @@ jobs:
           node --check products/meridio/public/platform/model.mjs
           node --check products/meridio/public/platform/examples.mjs
           node --check products/meridio/public/workspace/workspace.mjs
+          node --check products/meridio/public/platform/review.mjs
+          node --check products/meridio/public/review-lab/review-lab.mjs
       - name: Run MERIDIO preview contract tests
         run: node --test products/meridio/test/*.test.mjs
