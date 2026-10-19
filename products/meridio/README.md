@@ -34,6 +34,17 @@ The current release is a public **prelaunch informational + interactive sandbox 
 - Tests: `node --test products/meridio/test/*.test.mjs` (run at repository root); workflow `MERIDIO Preview Acceptance`.
 - Future isolated database design **only**: `docs/proposed-isolated-schema.sql`. It has not been applied; RLS policies are intentionally absent (deny by default).
 
+## Independent review lab (v0.3)
+
+- Route: `/review-lab/` — public **fictional** and explicitly non-persistent simulation.
+- Pure standalone domain model: `public/platform/review.mjs`; tests: `test/review.test.mjs`.
+- Operator, independent reviewer and auditor demo personas for two fictional tenants. Role selection is intentionally user-controlled, **not authentication or a security boundary**.
+- Enforces stage transitions, independent evidence checks, tenant membership, evidence requirements, optimistic revisions, immutable caller state and rejects regulated commands.
+- The activity timeline is not durable or tamper-proof. No legal approvals, verified documents, live users, rights, transactions or tokens exist.
+- No application backend, persistence, RLS or verified SSO is connected.
+- Do NOT use this browser module as production authorization logic; server contracts must be independently implemented and tested as documented in `docs/reviewer-production-contract.md`.
+- A dedicated MERIDIO Supabase project does **not** exist yet. The DB schema remains design-only and must **never** be applied to KONTA MOY's production DB.
+
 ## Architecture intent
 
 Maintain independent deployments and data boundaries while reusing *reviewed* patterns/contracts from KONTA MOY:
@@ -61,5 +72,5 @@ Never copy KONTA MOY production personal data, vendors, balances, orders or secr
 
 ## Operations
 
-Static runtime: `public/index.html`, `public/styles.css`, `public/app.js`, `public/workspace/`, `public/platform/`. Health metadata: `/health.json`.
+Static runtime: `public/index.html`, `public/styles.css`, `public/app.js`, `public/workspace/`, `public/review-lab/`, `public/platform/`. Health metadata: `/health.json`.
 Domain must be mapped to the separate Vercel project, not to the main marketplace project.
