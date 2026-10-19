@@ -7,9 +7,10 @@ import {
   type SessionPrincipal,
   type SqlRow
 } from "@buy-local-sparta/core";
-import { PostgresFixedWindowRateLimiter, PostgresVendorAuthService } from "@buy-local-sparta/postgres-runtime";
+import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
 import { offers, runtime as commerceRuntime, variants, vendors } from "./demo-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { authenticateDedicatedVendor, dedicatedVendorSession, assertVendorIdentityCsrf, revokeDedicatedVendorSession } from "./vendor-identity-runtime";
 import { assertDatabaseLessPreviewCsrf, createDatabaseLessPreviewSession, databaseLessPreviewSessionEnabled, databaseLessPreviewSessionFromToken, previewCredentialMatches } from "./preview-auth";
 import { assertVendorImpersonationCsrf, isVendorImpersonationPrincipal } from "./vendor-impersonation";
 import { marketplaceReferenceMap } from "./public-reference-service";
@@ -18,10 +19,9 @@ import { assertVendorTrialCsrf, isVendorTrialPrincipal } from "./vendor-trial-ru
 export const VENDOR_SESSION_COOKIE = "bls_vendor_session";
 
 const memoryGlobalKey = "__buyLocalSpartaVendorMemoryRuntime" as const;
-const postgresAuthKey = "__buyLocalSpartaVendorPostgresAuth" as const;
 const postgresLimiterKey = "__buyLocalSpartaVendorPostgresLimiter" as const;
 type MemoryRuntime = ReturnType<typeof createMemoryRuntime>;
-type Globals = typeof globalThis & { [memoryGlobalKey]?: MemoryRuntime; [postgresAuthKey]?: PostgresVendorAuthService; [postgresLimiterKey]?: PostgresFixedWindowRateLimiter };
+type Globals = typeof globalThis & { [memoryGlobalKey]?: MemoryRuntime; [postgresLimiterKey]?: PostgresFixedWindowRateLimiter };
 const globals = globalThis as Globals;
 
 function authSecret(): string {
@@ -50,10 +50,6 @@ function createMemoryRuntime() {
 }
 
 function memoryRuntime(): MemoryRuntime { return globals[memoryGlobalKey] ?? (globals[memoryGlobalKey] = createMemoryRuntime()); }
-function postgresAuth(): PostgresVendorAuthService {
-  const runtime = getProductionPostgresRuntime();
-  return globals[postgresAuthKey] ?? (globals[postgresAuthKey] = new PostgresVendorAuthService({ identity: runtime.persistence.identity, secret: authSecret(), sessionTtlMs: 8 * 60 * 60 * 1000 }));
-}
 function postgresLimiter(): PostgresFixedWindowRateLimiter {
   const runtime = getProductionPostgresRuntime();
   return globals[postgresLimiterKey] ?? (globals[postgresLimiterKey] = new PostgresFixedWindowRateLimiter(runtime.sqlPool));
@@ -65,7 +61,7 @@ export function consumeVendorLoginLimit(visitorKey: string, now: number) {
 }
 
 export async function authenticateVendor(input: { email: string; password: string; now: number }) {
-  if (postgresVendorRuntimeEnabled()) return postgresAuth().authenticate(input);
+  if (postgresVendorRuntimeEnabled()) return authenticateDedicatedVendor(input);
   if (databaseLessPreviewSessionEnabled("vendor")) {
     const email = input.email.trim().toLowerCase();
     const match = /^vendor([1-9][0-9]*)@demo\.local$/.exec(email);
@@ -78,7 +74,7 @@ export async function authenticateVendor(input: { email: string; password: strin
 }
 
 export async function vendorSessionFromToken(token: string | undefined, now: number): Promise<SessionPrincipal | undefined> {
-  if (postgresVendorRuntimeEnabled()) return postgresAuth().session(token, now);
+  if (postgresVendorRuntimeEnabled()) return dedicatedVendorSession(token, now);
   if (databaseLessPreviewSessionEnabled("vendor")) return databaseLessPreviewSessionFromToken(token, "vendor", now);
   return memoryRuntime().auth.session(token, now);
 }
@@ -92,13 +88,13 @@ export function assertVendorCsrf(principal: SessionPrincipal, suppliedToken: str
     assertVendorTrialCsrf(principal, suppliedToken);
     return;
   }
-  if (postgresVendorRuntimeEnabled()) postgresAuth().assertCsrf(principal, suppliedToken);
+  if (postgresVendorRuntimeEnabled()) assertVendorIdentityCsrf(principal, suppliedToken);
   else if (databaseLessPreviewSessionEnabled("vendor")) assertDatabaseLessPreviewCsrf(principal, suppliedToken);
   else memoryRuntime().auth.assertCsrf(principal, suppliedToken);
 }
 
 export async function logoutVendor(token: string | undefined, now = Date.now()): Promise<void> {
-  if (postgresVendorRuntimeEnabled()) await postgresAuth().logout(token, now);
+  if (postgresVendorRuntimeEnabled()) await revokeDedicatedVendorSession(token);
   else if (!databaseLessPreviewSessionEnabled("vendor")) memoryRuntime().auth.logout(token);
 }
 
