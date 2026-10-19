@@ -49,7 +49,7 @@ export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:14}}>
  <div style={{padding:18,borderRadius:15,background:"#ffffff0b",border:"1px solid #ffffff20"}}>
  <h3>📺 Screens anywhere</h3>
- <p style={{fontSize:13,color:"#bcb6d5"}}>Create a view-only link for each TV or projector. Each can access the same venue's board from any location.</p>
+ <p style={{fontSize:13,color:"#bcb6d5"}}>Create a view-only link for each TV or projector. Choose <strong>Simulation</strong> for animated demo orders or <strong>Actual orders</strong> to show only provider-verified paid orders from this venue. Each screen has its own independent setting.</p>
  {canManage&&<button style={button} disabled={busy} onClick={()=>void command("create_screen")}>+ Create screen link</button>}
  </div>
  <div style={{padding:18,borderRadius:15,background:"#ffffff0b",border:"1px solid #ffffff20"}}>
@@ -88,6 +88,11 @@ export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{
  <h3>Issued access passes</h3>
  <div style={{display:"grid",gap:8}}>{view.passes.map(p=><div key={p.id} style={{padding:12,background:"#ffffff0b",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
  <span>{p.kind==="screen"?"📺 Screen":`▦ Table ${p.tableLabel}`} · <small>{p.id.slice(0,8)}</small></span>
+ {p.kind==="screen"&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+  <span style={{fontSize:12,color:"#c4bedb"}}>TV feed</span>
+  <button type="button" style={{...minor,background:p.feedMode==="simulation"?"#d9ff57":"#26343e",color:p.feedMode==="simulation"?"#131727":"#fff"}} disabled={!canManage||busy||p.feedMode==="simulation"} aria-pressed={p.feedMode==="simulation"} onClick={()=>void command("set_screen_feed",{passId:p.id,feedMode:"simulation"})}>Simulation</button>
+  <button type="button" style={{...minor,background:p.feedMode==="actual"?"#d9ff57":"#26343e",color:p.feedMode==="actual"?"#131727":"#fff"}} disabled={!canManage||busy||p.feedMode==="actual"} aria-pressed={p.feedMode==="actual"} onClick={()=>void command("set_screen_feed",{passId:p.id,feedMode:"actual"})}>Actual orders</button>
+ </div>}
  {canManage&&<button style={minor} disabled={busy} onClick={()=>{if(window.confirm("Revoke this link immediately?"))void command("revoke_pass",{passId:p.id});}}>Revoke</button>}
  </div>)}</div>
  </div>}
