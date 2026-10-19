@@ -728,3 +728,58 @@ deletion and disaster recovery, GDPR/legal review, deployment roll-forward /
 rollback gates and staged threat-modelled end-to-end tests. Real identity
 documents must not be collected before these safeguards are independently
 verified and explicitly approved.
+
+
+## Milestone 34 — live, read-only FISCAL Storage readiness inspection (19 October 2026)
+
+For the first time the protected FISCAL KYB readiness dashboard performs
+**real-time, strictly read-only inventory** of Storage infrastructure through
+the existing *separate* FISCAL PostgreSQL connection. The probe runs only
+after administrator authentication and the already-configured MFA step-up.
+
+Discovery before implementation confirmed that the standalone FISCAL Supabase
+project (`kcpwxplxqtqdsfwlfsaa`) is healthy in `eu-central-1`; its live
+database has 17 recorded migrations through `0017_operator_mfa_stepup.sql`,
+and **zero FISCAL Storage buckets/objects** as of 19 October 2026.
+Do not confuse the actual EU region with proof of dedicated KMS or legal
+GDPR approvals. Earlier repository migrations 0018–0021 are **not** applied
+in live FISCAL and remain independently gated.
+
+- Expected future quarantine bucket ID: `fiscal-kyb-quarantine`. No bucket
+  is automatically created by this release. Do not create one by SQL
+  manipulations of `storage.buckets`; use the documented Storage API or
+  approved Dashboard workflow after architecture/privacy signoff.
+- Reads only Storage catalog existence, `storage.objects` RLS enablement,
+  *one exact* bucket's `public`, `file_size_limit` and MIME allowlist,
+  aggregate policy count and aggregate object count for that exact bucket.
+  It does **not** enumerate objects, select object names or metadata,
+  inspect merchant identities, read upload bytes, return URL/credentials,
+  expose SQL/DB errors, or query the marketplace database.
+- The proposed future bucket defaults to a strict `application/octet-stream`
+  ciphertext-only MIME allowlist and 12 MiB hard per-object cap; real
+  unencrypted PDFs/images must **never** be accepted there.
+- Any public bucket, wrong allowlist/limit, missing RLS, any object policy
+  (even an apparently unrelated one) or any existing object produces
+  `unsafe_configuration`. This intentionally sacrifices some availability
+  for a fail-closed readiness gate. An absent bucket is
+  `not_provisioned`, and DB or catalog errors are `unavailable`.
+- Even when every inventory flag is true, the only possible result is
+  `configured_unverified` with `storageExternallyVerified=false`,
+  `managedKmsVerified=false`, `independentScannerVerified=false`,
+  `immutableAuditVerified=false`, `lawfulRetentionVerified=false`,
+  `acceptingUploads=false`, `acceptingBytes=false`,
+  `canReadDocuments=false`, `legalIssuanceEnabled=false`.
+  Raw configuration cannot independently certify these controls.
+- A pure regression suite covers all unsafe/missing status paths, and a
+  separate **exact SQL acceptance** creates a synthetic Storage schema and
+  private quarantine bucket **only inside a rollback transaction in the
+  disposable `fiscal_ci` PostgreSQL database**. It tests absent bucket,
+  valid private configuration, public exposure, permissive object policy
+  and unexpected stored object. No test touches the real Storage service.
+
+Next genuine enablement stages: approved data-protection assessment and
+retention policy, independent EU residency/service contract verification,
+controlled empty private bucket provisioned via Storage API/Dashboard,
+separate managed KMS with policy isolation, malware quarantine, immutable
+operator audit and deletion/incident drills, and staged end-to-end testing
+against non-sensitive synthetic bytes. A bucket alone cannot unlock intake.
