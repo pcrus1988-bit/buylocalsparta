@@ -4,8 +4,10 @@ import {drinkPriceBand,centsFromEuros,priceRehearsalDemand,validateMarketAction,
 const a={id:"a",name:"Draft Beer",baseCents:500,priceCents:500};
 const b={id:"b",name:"Mojito",baseCents:900,priceCents:900};
 const key="f71b6509-469f-4dea-85df-b4d05371b9fa";
-test("deterministic market tick increases selected, decreases others with bound and 5-cent rounding",()=>{
-  const m=priceRehearsalDemand([a,b],"a");assert.deepEqual(m.map(x=>x.afterCents),[535,885]);
+test("deterministic market tick increases selected, decreases others with owner limits and single-cent precision",()=>{
+  const m=priceRehearsalDemand([a,b],"a");assert.deepEqual(m.map(x=>x.afterCents),[509,895]);
+  assert.equal(m[0].demandUnits,1);
+  assert.notEqual(m[0].afterCents%5,0,"price steps are not restricted to nickels");
   let prices=[a,b];
   for(let i=0;i<75;i++)prices=priceRehearsalDemand(prices,"a").map((p,j)=>({...prices[j],priceCents:p.afterCents}));
   assert.equal(prices[0].priceCents,725);assert.equal(prices[1].priceCents,630);
@@ -13,6 +15,7 @@ test("deterministic market tick increases selected, decreases others with bound 
 test("price caps follow the base price and never become negative",()=>{
   assert.deepEqual(drinkPriceBand(500),{minCents:350,maxCents:725});
   assert.throws(()=>drinkPriceBand(0));
+  assert.deepEqual(drinkPriceBand(101),{minCents:71,maxCents:146});
   assert.equal(centsFromEuros(4.55),455);
   for(const x of [NaN,0,4.555,"9.99",Infinity])assert.throws(()=>centsFromEuros(x));
 });
@@ -35,9 +38,27 @@ test("owner/manager may set venue-specific lower and upper bounds before startin
   assert.deepEqual(drinkPriceBand(500,{floorPercent:60,ceilingPercent:170}),{minCents:300,maxCents:850});
   assert.deepEqual(drinkPriceBand(900,{floorPercent:50,ceilingPercent:200}),{minCents:450,maxCents:1800});
   const signal=priceRehearsalDemand([{...a,priceCents:350},b],"a",{floorPercent:50,ceilingPercent:200});
-  assert.equal(signal[0].afterCents,375);
+  assert.equal(signal[0].afterCents,356);
   const set=validateMarketAction({action:"set_bounds",requestKey:key,bounds:{floorPercent:55,ceilingPercent:190}});
   assert.deepEqual(set.bounds,{floorPercent:55,ceilingPercent:190});
+  const blockBuy=priceRehearsalDemand([a,b],"a",undefined,3);
+  assert.deepEqual(blockBuy.map(m=>m.afterCents),[514,892]);
+  assert.equal(blockBuy[0].demandUnits,3);
+  assert.ok(blockBuy[0].afterCents>signal[0].afterCents);
+  assert.equal(validateMarketAction({action:"demand",requestKey:key,productId:"f71b6509-469f-4dea-85df-b4d05371b9fa",units:5}).units,5);
+});
+test("invalid demand volume is rejected and price quotes stay integer cents",()=>{
+ for(const units of [-1,0,1.2,11,100,"3",null,NaN]){
+  assert.throws(()=>priceRehearsalDemand([a,b],"a",undefined,units as number));
+  assert.throws(()=>validateMarketAction({
+   action:"demand",requestKey:key,productId:"f71b6509-469f-4dea-85df-b4d05371b9fa",units
+  }));
+ }
+ const c={...a,baseCents:101,priceCents:101};
+ const d={...b,baseCents:199,priceCents:199};
+ const moves=priceRehearsalDemand([c,d],"a");
+ assert.ok(moves.every(p=>Number.isSafeInteger(p.afterCents)&&p.afterCents>0));
+ assert.ok(moves[0].afterCents>101&&moves[1].afterCents<199);
 });
 test("operational sessions freeze bounds and catalogue even with rehearsal paused",()=>{
  assert.equal(mayEditPreSessionConfig({rehearsalEnabled:false,activeSession:false}),true);
