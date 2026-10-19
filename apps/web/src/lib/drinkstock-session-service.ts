@@ -179,7 +179,7 @@ export async function publicSessionView(token:string,kind:"table"|"screen"):Prom
    SELECT e.received_at,e.event_type FROM public.drinkstock_payment_events e
    WHERE e.order_id=o.id AND e.event_type='payment_verified'
      AND e.amount_cents=o.amount_gross_cents
-     AND length(btrim(e.provider))>1 AND lower(e.provider) NOT IN ('demo','simulation','test')
+     AND length(btrim(e.provider))>1 AND lower(btrim(e.provider)) NOT IN ('demo','simulation','test')
      AND length(btrim(e.provider_event_id))>0
      AND e.payload_sha256 ~ '^[0-9a-f]{64}
    ORDER BY e.received_at DESC LIMIT 1
