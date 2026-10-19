@@ -43,7 +43,7 @@ function principalFrom(row: IdentityRow, token: string, sessionId: string): Sess
   const roles: Role[] = (Array.isArray(row.vendor_roles) ? row.vendor_roles : [])
     .filter((value): value is Role => VENDOR_ROLES.has(value as Role));
   if (row.has_claim === true) roles.push("vendor_claim");
-  if (!roles.length || (roles.every(r=>r==="vendor_claim") && row.vendor_public_id)) return undefined;
+  if (!roles.length) return undefined;
   return {
     userId: String(row.user_public_id), email: String(row.email),
     roles: [...new Set(roles)],
@@ -176,7 +176,7 @@ export async function consumeDedicatedVendorReset(input:{token:string;password:s
       "AND h.plan_code='claim' AND h.status='converted' AND lower(h.email)=lower(u.email::text)))",
       "OR ($2='vendor' AND EXISTS(SELECT 1 FROM vendor_users vu JOIN vendor_user_roles vur",
       "ON vur.vendor_user_id=vu.id WHERE vu.user_id=u.id AND vu.active AND vur.role='vendor_owner'))",
-      "))) AS ok"
+      ")) AS ok"
     ].join(" "),[row.user_id,row.target_scope]);
     if (!allowed.rows[0]?.ok) throw new Error("Vendor account no longer eligible");
     await client.query([
