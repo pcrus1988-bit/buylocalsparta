@@ -14,7 +14,8 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  const crash=data.session?.state==="crashing"&&data.session.crashUntil?data.session.crashUntil:null;
  const serverNowMs=now+clockOffset;
  const seconds=crash?Math.max(0,Math.ceil((new Date(crash).getTime()-serverNowMs)/1000)):0;
- const showcase=synchronizedShowcaseTrades(data.session,data.products,serverNowMs);
+ const isActual=data.feedMode==="actual";
+ const showcase=isActual?[]:synchronizedShowcaseTrades(data.session,data.products,serverNowMs);
  useEffect(()=>{const tick=window.setInterval(()=>setNow(Date.now()),250);return ()=>window.clearInterval(tick)},[]);
  useEffect(()=>{
  let mounted=true;
@@ -56,7 +57,7 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
   void audio.current.resume();setArmed(true);
  }
  const online=data.session?.state==="running"||data.session?.state==="crashing";
- const leadingProduct=online?showcase[0]?.productId:data.signals?.[0]?.productId;
+ const leadingProduct=isActual?data.actualTrades?.[0]?.productId:(online?showcase[0]?.productId:data.signals?.[0]?.productId);
  function fullScreen(){
   const node=document.documentElement;
   if(!document.fullscreenElement&&node.requestFullscreen)void node.requestFullscreen().catch(()=>{});
@@ -91,7 +92,7 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  <h2 style={{fontSize:"clamp(19px,2.5vw,31px)",margin:"12px 0"}}>{product.name}</h2>
  <strong style={{fontSize:"clamp(30px,4vw,52px)",color:crash?"#ff6281":"#ccff50"}}>{euros(product.priceCents)}</strong></article>)}
  </div>
- {online&&<section aria-label="Synchronized demonstration trades" style={{marginTop:28,padding:22,borderRadius:18,background:"#271235",border:"1px solid #ccff50a0"}}>
+ {online&&!isActual&&<section aria-label="Synchronized demonstration trades" style={{marginTop:28,padding:22,borderRadius:18,background:"#271235",border:"1px solid #ccff50a0"}}>
   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
    <h2 style={{margin:0,fontSize:"clamp(20px,3vw,34px)"}}>↗ PARTY TICKER · DEMO</h2>
    <strong style={{fontSize:12,letterSpacing:1.5,color:"#ffb4e1"}}>
@@ -108,7 +109,26 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
     </li>)}
    </ol>}
  </section>}
- {!online&&<section aria-label="Rehearsal market tape" style={{marginTop:28,padding:22,borderRadius:18,background:"#ffffff0c",border:"1px solid #ffffff2b"}}>
+ {isActual&&<section aria-label="Verified actual DrinkStock orders" style={{marginTop:28,padding:22,borderRadius:18,background:"#09282a",border:"1px solid #49e7b3"}}>
+  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+   <h2 style={{margin:0,fontSize:"clamp(22px,3vw,35px)"}}>● ACTUAL DRINK ORDERS</h2>
+   <strong style={{fontSize:12,color:"#71ecc7",letterSpacing:2}}>PROVIDER-VERIFIED PAID ORDERS ONLY</strong>
+  </div>
+  <p style={{color:"#c6dfd6",lineHeight:1.5}}>Real DrinkStock transactions from this venue and session only. No customer names or table identifiers are shown. A crash changes the countdown and lights but does not invent sales.</p>
+  {!data.actualTrades?.length?
+   <div role="status" style={{padding:25,borderRadius:15,background:"#ffffff0b",textAlign:"center"}}>
+    <strong style={{fontSize:23}}>No verified paid orders yet</strong>
+    <p style={{color:"#c6d8d2"}}>The feed will populate when a confirmed payment-provider event is recorded. Guest checkout is not yet activated.</p>
+   </div>:
+   <ol style={{paddingLeft:22,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,220px),1fr))",gap:12}}>
+    {data.actualTrades.map((trade,index)=><li key={index} style={{padding:"16px 14px",background:index===0?"#15735955":"#ffffff12",borderRadius:13,border:index===0?"1px solid #6cf3bd":"1px solid #ffffff2c"}}>
+     <strong style={{color:"#8effc7"}}>✓ PAID</strong>
+     <div style={{fontSize:21,fontWeight:900,marginTop:8}}>{trade.quantity}× {trade.description}</div>
+     <small style={{display:"block",marginTop:6,color:"#badacf"}}>{new Date(trade.paidAt).toLocaleTimeString("el-GR",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</small>
+    </li>)}
+   </ol>}
+ </section>}
+ {!online&&!isActual&&<section aria-label="Rehearsal market tape" style={{marginTop:28,padding:22,borderRadius:18,background:"#ffffff0c",border:"1px solid #ffffff2b"}}>
   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
    <h2 style={{margin:0,fontSize:"clamp(20px,3vw,34px)"}}>⚡ MARKET TAPE</h2>
    <span style={{fontSize:12,letterSpacing:2,color:"#e5b2ff"}}>MANUAL REHEARSAL SIGNALS · NOT GUEST ORDERS</span>
@@ -121,6 +141,6 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
     </li>)}
    </ol>}
  </section>}
- <footer style={{paddingTop:35,color:"#b3aac9",fontSize:12}}>Prices are venue-managed. This screen is view-only. Rehearsal signals are simulations, never confirmed guest orders. Customer checkout, charging and official receipts are not active. Separate links are needed for each venue.</footer>
+ <footer style={{paddingTop:35,color:"#b3aac9",fontSize:12}}>Prices are venue-managed. This screen is view-only. Simulation and actual paid-order feeds are selected by the venue administrator. No customer or table identity is exposed. Customer checkout, charging and official receipts remain disabled pending provider integrations. Separate links are needed for each venue.</footer>
  </main>;
 }
