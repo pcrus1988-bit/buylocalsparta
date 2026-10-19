@@ -80,7 +80,7 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  </div></>}
  <header style={{display:"flex",justifyContent:"space-between",gap:16,flexWrap:"wrap",alignItems:"center",borderBottom:"1px solid #ffffff30",paddingBottom:22}}>
  <div><div style={{fontWeight:950,fontSize:"clamp(24px,3vw,50px)",letterSpacing:-2}}>DRINK<span style={{color:"#caff50"}}>STOCK</span> ↗</div>
- <div style={{fontSize:12,letterSpacing:3,color:"#beb5e7"}}>{data.venue.name.toUpperCase()} / THE PARTY MARKET</div></div>
+ <div style={{fontSize:12,letterSpacing:3,color:"#beb5e7"}}>{data.venue.name.toUpperCase()} / THE PARTY MARKET</div><div role="status" style={{marginTop:9,fontWeight:900,color:isActual?"#78f6c3":"#f6b9ff",letterSpacing:2,fontSize:13}}>{isActual?"● ACTUAL ORDERS · VERIFIED":"◉ SIMULATION · DEMO DATA"}</div></div>
  <div style={{display:"flex",gap:12,alignItems:"center"}}><strong style={{color:online?"#caff50":"#ffacac"}}>{online?"● LIVE SESSION":"Ⅱ MARKET CLOSED"}</strong>
  <button onClick={toggleSound} style={{background:armed?"#d3ff53":"#23203f",color:armed?"#111":"#fff",border:"1px solid #caff50",borderRadius:12,padding:"12px 16px",cursor:"pointer"}}>{armed?"🔊 ALARM ON · MUTE":"🔈 ENABLE ALARM"}</button>
  <button onClick={fullScreen} style={{background:"#23203f",color:"#fff",border:"1px solid #746a98",borderRadius:12,padding:"12px 16px",cursor:"pointer"}}>⛶ FULLSCREEN</button></div>
