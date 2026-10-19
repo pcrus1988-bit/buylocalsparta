@@ -1,0 +1,33 @@
+name: MERIDIO Preview Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "products/meridio/**"
+      - ".github/workflows/meridio-preview-acceptance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "products/meridio/**"
+      - ".github/workflows/meridio-preview-acceptance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Validate JavaScript syntax
+        run: |
+          node --check products/meridio/public/app.js
+          node --check products/meridio/public/platform/model.mjs
+          node --check products/meridio/public/platform/examples.mjs
+          node --check products/meridio/public/workspace/workspace.mjs
+      - name: Run MERIDIO preview contract tests
+        run: node --test products/meridio/test/*.test.mjs
