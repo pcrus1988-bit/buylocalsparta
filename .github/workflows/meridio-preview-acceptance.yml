@@ -1,4 +1,4 @@
-name: MERIDIO Preview Acceptance
+name: MERIDIO Real Intake Acceptance
 
 on:
   pull_request:
@@ -23,13 +23,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - name: Validate JavaScript syntax
+      - name: Validate genuine intake module syntax
         run: |
-          node --check products/meridio/public/app.js
-          node --check products/meridio/public/platform/model.mjs
-          node --check products/meridio/public/platform/examples.mjs
-          node --check products/meridio/public/workspace/workspace.mjs
-          node --check products/meridio/public/platform/review.mjs
-          node --check products/meridio/public/review-lab/review-lab.mjs
-      - name: Run MERIDIO preview contract tests
+          node --check products/meridio/public/intake/dossier.mjs
+          node --check products/meridio/public/intake/intake.mjs
+      - name: Test dossier validation, export contract and deleted simulations
         run: node --test products/meridio/test/*.test.mjs

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#101d32">
+<meta name="description" content="Prepare and export a genuine MERIDIO asset dossier using your own asset information. No demo data or simulated transactions.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/intake/intake.css">
+<title>Asset dossier builder — MERIDIO</title></head><body>
+<a class="skip" href="#dossier">Skip to asset dossier</a>
+<header class="site-header"><div class="container nav-layout">
+<a href="/" class="brand"><span class="brand-symbol" aria-hidden="true"><span></span><span></span><span></span></span><span>MERIDIO<small>A KONTA MOY UNIVERSE PROJECT</small></span></a>
+<nav class="nav"><a href="/">MERIDIO Home</a><a href="https://kontamou.site/" rel="noopener noreferrer">KONTA MOY ↗</a></nav>
+<span class="dossier-badge">REAL ASSET INTAKE</span>
+</div></header>
+<main id="dossier" class="container intake">
+<div class="intro"><div><p class="kicker">ASSET RECORDS / DOSSIER v1</p><h1>START WITH<br><em>THE FACTS.</em></h1><p>Create a structured draft about an asset you actually control or are authorized to document. The information you enter can be downloaded as a portable JSON dossier and reopened here later.</p></div><aside><strong><span class="marker">●</span> Local drafting only</strong><p>No fictitious assets or prefilled records. Nothing is uploaded, emailed, listed or stored on MERIDIO servers by this page. Save your document yourself using Export.</p></aside></div>
+<div class="intake-layout">
+<form id="asset-form" novalidate>
+<div class="form-heading"><div><span>01 / IDENTIFICATION</span><h2>Real asset information</h2></div><p>Required fields are marked with an asterisk.</p></div>
+<div class="form-grid">
+<label class="field full"><span>Asset name *</span><input name="assetName" autocomplete="off" maxlength="140" required placeholder="Enter the actual asset name"></label>
+<label class="field"><span>Asset category *</span><select name="world" required><option value="">Select a category</option><option value="real_estate">Real estate</option><option value="hospitality">Hospitality</option><option value="mobility">Mobility</option><option value="energy">Energy</option><option value="agriculture">Agriculture</option><option value="equipment">Equipment</option><option value="culture">Culture</option><option value="sport_leisure">Sport & leisure</option><option value="land">Land</option><option value="infrastructure">Infrastructure</option></select></label>
+<label class="field"><span>Country code (ISO 2) *</span><input name="country" maxlength="2" placeholder="GR" pattern="[A-Za-z]{2}" required autocomplete="country"></label>
+<label class="field full"><span>Location / region *</span><input name="location" maxlength="240" required placeholder="City, region or jurisdiction — no precise address required"></label>
+<label class="field full"><span>Legal controlling entity *</span><input name="legalEntity" maxlength="180" required placeholder="Registered entity or lawful operator"></label>
+<label class="field full"><span>Intended utilization *</span><textarea name="intendedUse" maxlength="2000" rows="4" required placeholder="Describe what the asset is intended to be used for."></textarea></label>
+<label class="field full"><span>Additional internal notes (optional)</span><textarea name="custodyNotes" maxlength="1200" rows="3" placeholder="Do not enter passwords, government IDs, banking details or confidential document contents."></textarea></label>
+</div>
+<div class="form-heading divided"><div><span>02 / EVIDENCE REGISTER</span><h2>What documentation exists?</h2></div></div>
+<p class="helper">Select only document categories you have in your possession. This does not upload or verify any documents.</p>
+<div class="checks" id="evidence-options">
+<label><input type="checkbox" value="control_document"><span>Title, lease or lawful asset control</span></label>
+<label><input type="checkbox" value="operating_permissions"><span>Operating permits and authorizations</span></label>
+<label><input type="checkbox" value="insurance"><span>Insurance documentation</span></label>
+<label><input type="checkbox" value="utilization_terms"><span>Proposed utilization terms</span></label>
+<label><input type="checkbox" value="risk_disclosure"><span>Risk disclosures</span></label>
+<label><input type="checkbox" value="governance_terms"><span>Governance documentation</span></label>
+</div>
+<div class="form-footer">
+<div class="private-note">Your input stays in this page until you export or close it. Do not use this page for highly sensitive personal information.</div>
+<div class="form-actions"><button type="button" id="clear" class="secondary">Clear form</button><button type="submit" class="primary">Validate & prepare dossier ↗</button></div>
+</div>
+</form>
+<aside class="intake-sidebar">
+<section class="side-panel"><span class="panel-label">YOUR DOCUMENT</span><h3 id="dossier-name">No dossier prepared</h3><p id="dossier-status">Complete the real asset fields and validate them to prepare a downloadable record.</p>
+<div id="validation-message" role="status" aria-live="polite"></div>
+<button type="button" id="export" disabled>Export JSON dossier ↓</button>
+<div class="divider"></div><label class="import-label" for="import">Reopen a saved dossier</label><input type="file" id="import" accept=".json,application/json"><p class="small">The file is read locally in your browser. Nothing is sent to MERIDIO.</p></section>
+<section class="side-panel secondary-panel"><span class="panel-label">CURRENT SERVICE STATUS</span><p><strong>Local drafting:</strong> Available</p><p><strong>Account sign-in:</strong> Not activated</p><p><strong>Server storage:</strong> Not connected</p><p><strong>Evidence verification:</strong> Not active</p><p><strong>Asset publication:</strong> Disabled</p><p class="small">We will enable server-side operations only after a separate authenticated MERIDIO backend is provisioned and secured.</p></section>
+</aside>
+</div>
+</main>
+<footer class="footer"><div class="container footer-inner"><div><a href="/" class="footer-logo">MERIDIO<span>↗</span></a><p>A KONTA MOY universe application.</p></div><div class="footer-right"><a href="/">Home ↗</a><a href="https://kontamou.site/">KONTA MOY ↗</a><span>© 2026 MERIDIO</span></div></div><div class="container footer-legal">An exported draft is not proof of ownership, legal verification, asset acceptance, publication, an investment offering, a reservation, a vote, or an entitlement. MERIDIO does not upload or retain dossier information from this page.</div></footer>
+<script type="module" src="/intake/intake.mjs"></script>
+</body></html>
