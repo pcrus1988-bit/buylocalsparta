@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { hashPassword, id, type Notification } from "@buy-local-sparta/core";
+import { hashPassword, verifyPassword, id, type Notification } from "@buy-local-sparta/core";
 import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
 import { ResendEmailProvider, resendConfigFromEnv } from "@buy-local-sparta/resend-notifications";
 import { accountAuthSecret } from "./account-runtime";
