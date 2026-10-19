@@ -1,6 +1,7 @@
 import {createHash,randomBytes} from "node:crypto";
 import {getProductionPostgresRuntime,productionDatabaseConfigured} from "./postgres-runtime";
 import {operationalSessionCanStart} from "./drinkstock-screen-showcase";
+import {isTvFeedMode,mayDisplayActualOrder} from "./drinkstock-screen-feed-policy";
 export class SessionError extends Error{constructor(public readonly code:string,public readonly status:number){super(code);}}
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TOKEN=/^[A-Za-z0-9_-]{43}$/;
@@ -71,7 +72,7 @@ export function validateSessionAction(value:unknown):SessionAction{
  throw new SessionError("BAD_TABLE_LABEL",400);
  if((b.action==="revoke_pass"||b.action==="set_screen_feed")&&(typeof b.passId!=="string"||!UUID.test(b.passId)))
  throw new SessionError("BAD_PASS",400);
- if(b.action==="set_screen_feed"&&(b.feedMode!=="simulation"&&b.feedMode!=="actual"))
+ if(b.action==="set_screen_feed"&&!isTvFeedMode(b.feedMode))
  throw new SessionError("BAD_FEED_MODE",400);
  return b as SessionAction;
 }
@@ -171,11 +172,11 @@ export async function publicSessionView(token:string,kind:"table"|"screen"):Prom
  // verification event. Avoid order IDs, table labels, customer details, amounts
  // and other personal/financial data on a publicly accessible TV.
  const confirmed=kind==="screen"&&x.feed_mode==="actual"&&s?.id?
- await db.query<{product_id:string;description:string;quantity:number;paid_at:Date}>(`
- SELECT l.product_id::text AS product_id,l.description,l.quantity,verified.received_at AS paid_at
+ await db.query<{product_id:string;description:string;quantity:number;paid_at:Date;order_state:string;payment_state:string;event_type:string}>(`
+ SELECT l.product_id::text AS product_id,l.description,l.quantity,verified.received_at AS paid_at,verified.event_type,o.order_state,o.payment_state
  FROM public.drinkstock_orders o
  JOIN LATERAL (
-   SELECT e.received_at FROM public.drinkstock_payment_events e
+   SELECT e.received_at,e.event_type FROM public.drinkstock_payment_events e
    WHERE e.order_id=o.id AND e.event_type='payment_verified'
      AND length(btrim(e.provider_event_id))>0
    ORDER BY e.received_at DESC LIMIT 1
@@ -190,7 +191,7 @@ export async function publicSessionView(token:string,kind:"table"|"screen"):Prom
  `,[x.partner_id,x.venue_id,s.id]):{rows:[]};
  return {serverNow:new Date().toISOString(),venue:{id:x.venue_id,partnerId:x.partner_id,name:x.name},session:session(s),products:d,passes:[],tableLabel:x.table_label,
  ...(kind==="screen"?{feedMode:x.feed_mode}:{}),
- ...(kind==="screen"&&x.feed_mode==="actual"?{actualTrades:confirmed.rows.map(q=>({
+ ...(kind==="screen"&&x.feed_mode==="actual"?{actualTrades:confirmed.rows.filter(q=>mayDisplayActualOrder(q.payment_state,q.order_state,q.event_type,true)).map(q=>({
  productId:q.product_id,description:q.description,quantity:Number(q.quantity),
  paidAt:new Date(q.paid_at).toISOString()}))}:{}),
  signals:signals.rows.map(q=>({id:q.id,productId:q.product_id,productName:q.product_name,createdAt:new Date(q.created_at).toISOString()}))};
