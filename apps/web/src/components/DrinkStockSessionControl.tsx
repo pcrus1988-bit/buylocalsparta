@@ -1,7 +1,8 @@
 "use client";
-import {useEffect,useState} from "react";
+import {useEffect,useRef,useState} from "react";
 import QRCode from "react-qr-code";
 import type {SessionView,SessionAction} from "../lib/drinkstock-session-service";
+import {decideSessionRevisionRecovery} from "../lib/drinkstock-session-recovery";
 const money=(v:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(v/100);
 const button:React.CSSProperties={background:"#d9ff57",color:"#151724",border:0,borderRadius:12,padding:"12px 17px",fontWeight:850,cursor:"pointer"};
 const minor:React.CSSProperties={...button,background:"#26343e",color:"#fff",border:"1px solid #50606b"};
@@ -9,29 +10,71 @@ export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{
  const [view,setView]=useState(initial);
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[issued,setIssued]=useState<{kind:"screen"|"table";url:string;label:string}|null>(null);
  const [label,setLabel]=useState("A1");
+ const busyRef=useRef(false);
  const endpoint=`/api/hospitality/partners/${partnerId}/venues/${venueId}/sessions`;
+ function acceptView(incoming:SessionView){
+  // A slow GET started before a successful command must not overwrite its result.
+  setView(prior=>Date.parse(incoming.serverNow)<Date.parse(prior.serverNow)?prior:incoming);
+ }
  useEffect(()=>{
- const t=window.setInterval(()=>{fetch(endpoint,{credentials:"same-origin",cache:"no-store"}).then(r=>r.ok?r.json():null).then(v=>{if(v)setView(v);}).catch(()=>{});},10000);
- return ()=>clearInterval(t);
+  let mounted=true;
+  const refresh=async()=>{
+   if(busyRef.current||document.visibilityState!=="visible")return;
+   try{
+    const response=await fetch(endpoint,{credentials:"same-origin",cache:"no-store"});
+    if(!response.ok)return;
+    const incoming=await response.json() as SessionView;
+    if(mounted&&!busyRef.current)
+     setView(prior=>Date.parse(incoming.serverNow)<Date.parse(prior.serverNow)?prior:incoming);
+   }catch{ /* periodic polling is best effort */ }
+  };
+  const timer=window.setInterval(()=>void refresh(),10000);
+  return ()=>{mounted=false;window.clearInterval(timer);};
  },[endpoint]);
  async function command(action:SessionAction["action"],extra:Partial<SessionAction>={}){
- if(busy)return;
- if(action==="end"&&!window.confirm("End this venue's trading session permanently?"))return;
- if(action==="crash"&&!window.confirm("Trigger a 60-second market crash on all linked screens?"))return;
- setBusy(true);setError("");setIssued(null);
- try{
- const requestKey=crypto.randomUUID();
- const response=await fetch(endpoint,{method:"POST",credentials:"same-origin",cache:"no-store",
- headers:{"content-type":"application/json","x-csrf-token":csrfToken},
- body:JSON.stringify({action,requestKey,expectedRevision:view.session?.revision,...extra})});
- const data=await response.json();
- if(!response.ok)throw new Error(data.error??"SESSION_UNAVAILABLE");
- setView(data.view);
- if(data.token){
- const kind=action==="create_screen"?"screen":"table";
- setIssued({kind,label:kind==="table"?label:"REMOTE DISPLAY",url:`https://hospitality.kontamou.site/drinkstock/${kind==="screen"?"live":"table"}/${data.token}`});
- }
- }catch(e){const code=e instanceof Error?e.message:"SESSION_UNAVAILABLE";setError(code==="STOP_REHEARSAL_BEFORE_SESSION"?"Pause the rehearsal market in the trading floor before starting an operational session.":code);}finally{setBusy(false);}
+  if(busyRef.current)return;
+  if(action==="end"&&!window.confirm("End this venue's trading session permanently?"))return;
+  if(action==="crash"&&!window.confirm("Trigger a 60-second market crash on all linked screens?"))return;
+  busyRef.current=true;setBusy(true);setError("");setIssued(null);
+  try{
+   // One idempotency key for the entire operation, including a single stale retry.
+   const requestKey=crypto.randomUUID();
+   const originalSessionId=view.session?.id??null;
+   const send=async(expectedRevision:number|undefined)=>{
+    const response=await fetch(endpoint,{method:"POST",credentials:"same-origin",cache:"no-store",
+     headers:{"content-type":"application/json","x-csrf-token":csrfToken},
+     body:JSON.stringify({action,requestKey,expectedRevision,...extra})});
+    const data=await response.json() as {error?:string;view?:SessionView;token?:string};
+    return {response,data};
+   };
+   let {response,data}=await send(view.session?.revision);
+   if(response.status===409&&data.error==="STALE_REVISION"){
+    // Never blindly replay against a different session. Fetch the authoritative
+    // venue state, then retry at most once if the user's command remains valid.
+    const refreshed=await fetch(endpoint,{credentials:"same-origin",cache:"no-store"});
+    if(!refreshed.ok)throw new Error("SESSION_REFRESH_FAILED");
+    const current=await refreshed.json() as SessionView;
+    acceptView(current);
+    const decision=decideSessionRevisionRecovery(action,originalSessionId,current.session);
+    if(decision==="review")
+     throw new Error("Session changed. Controls refreshed; review the latest state before trying again.");
+    if(decision==="already_applied")return;
+    ({response,data}=await send(current.session?.revision));
+   }
+   if(!response.ok)throw new Error(data.error??"SESSION_UNAVAILABLE");
+   if(!data.view)throw new Error("SESSION_REFRESH_FAILED");
+   acceptView(data.view);
+   if(data.token){
+    const kind=action==="create_screen"?"screen":"table";
+    setIssued({kind,label:kind==="table"?label:"REMOTE DISPLAY",url:`https://hospitality.kontamou.site/drinkstock/${kind==="screen"?"live":"table"}/${data.token}`});
+   }
+  }catch(e){
+   const code=e instanceof Error?e.message:"SESSION_UNAVAILABLE";
+   setError(code==="STOP_REHEARSAL_BEFORE_SESSION"
+    ?"Pause the rehearsal market in the trading floor before starting an operational session."
+    :code==="STALE_REVISION"
+    ?"Session changed again. Refresh the controls before trying again.":code);
+  }finally{busyRef.current=false;setBusy(false);}
  }
  const state=view.session?.state??"none",canManage=view.venue.role==="owner"||view.venue.role==="manager";
  return <section style={{margin:"26px auto",maxWidth:1280,padding:"26px",color:"#fff",background:"linear-gradient(125deg,#111b30,#1e153c)",border:"1px solid #52436c",borderRadius:24}}>

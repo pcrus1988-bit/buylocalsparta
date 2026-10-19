@@ -2,6 +2,7 @@ import {createHash,randomBytes} from "node:crypto";
 import {getProductionPostgresRuntime,productionDatabaseConfigured} from "./postgres-runtime";
 import {operationalSessionCanStart} from "./drinkstock-screen-showcase";
 import {isTvFeedMode,mayDisplayActualOrder} from "./drinkstock-screen-feed-policy";
+import {EXPIRE_DRINKSTOCK_CRASH_SQL} from "./drinkstock-session-recovery";
 export class SessionError extends Error{constructor(public readonly code:string,public readonly status:number){super(code);}}
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TOKEN=/^[A-Za-z0-9_-]{43}$/;
@@ -85,8 +86,9 @@ export async function sessionCommand(userId:string,p:string,v:string,a:SessionAc
  const previous=await db.query<{id:string}>(`SELECT id::text FROM public.drinkstock_session_actions
  WHERE venue_id=$1::uuid AND partner_id=$2::uuid AND request_key=$3::uuid`,[v,p,a.requestKey]);
  if(previous.rows.length){await db.query("COMMIT");return {view:await managerSessionView(userId,p,v),replayed:true};}
- await db.query(`UPDATE public.drinkstock_sessions SET state='running',crash_until=NULL,revision=revision+1
- WHERE venue_id=$1::uuid AND partner_id=$2::uuid AND state='crashing' AND crash_until<=now()`,[v,p]);
+ // Crash expiration is automatic, not a user command: it must not invalidate
+ // the revision shown by GET or permanently block pause/end after 60 seconds.
+ await db.query(EXPIRE_DRINKSTOCK_CRASH_SQL,[v,p]);
  let s=await current(db,p,v,true);
  if(a.expectedRevision!==undefined&&s&&s.revision!==a.expectedRevision)throw new SessionError("STALE_REVISION",409);
  if(a.action==="start"){
