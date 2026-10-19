@@ -91,7 +91,7 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  <h1 style={{fontSize:"clamp(34px,6vw,78px)",fontWeight:950,letterSpacing:-4,margin:"34px 0 22px"}}>THE DRINK EXCHANGE<span style={{color:"#caff50"}}>.</span></h1>
  {!isActual&&<div role="status" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:19,padding:"12px 18px",borderRadius:12,background:"#e3b5ff14",border:"1px solid #e3b5ff38"}}>
   <strong style={{color:"#e9adff",letterSpacing:1}}>↗ SIMULATED MARKET PRICES · NOT CUSTOMER QUOTES</strong>
-  <span style={{fontSize:13,color:"#d0c5e3"}}>VENUE LIMITS {data.session?.floorPercent??70}%–{data.session?.ceilingPercent??145}% · 5-cent steps · synced TVs</span>
+  <span style={{fontSize:13,color:"#d0c5e3"}}>VENUE LIMITS {data.session?.floorPercent??70}%–{data.session?.ceilingPercent??145}% · €0.01 precision · demand-weighted · synced TVs</span>
  </div>}
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,270px),1fr))",gap:13}}>
  {data.products.map(product=>{
