@@ -30,7 +30,8 @@ export type PosNormalizedEvent={
  totalGrossCents:number; items:PosItem[];
 };
 export class PosContractError extends Error {
- constructor(public readonly code:string){super(code);}
+ readonly code:string;
+ constructor(code:string){super(code);this.code=code;}
 }
 const record=(v:unknown):v is Record<string,unknown> =>
  !!v&&typeof v==="object"&&!Array.isArray(v);
