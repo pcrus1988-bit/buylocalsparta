@@ -1,10 +1,11 @@
 import {getProductionPostgresRuntime,productionDatabaseConfigured} from "./postgres-runtime";
 import {mayAdvanceOrder,type DrinkOrderState,type PaymentState} from "./drinkstock-commerce-policy";
+import {VERIFIED_PAYMENT_EVIDENCE_SQL,ISSUED_RECEIPT_EVIDENCE_SQL} from "./drinkstock-payment-evidence";
 export class FulfilmentError extends Error {constructor(public readonly code:string,public readonly status:number){super(code);}}
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export type StaffOrder={
  id:string;tableLabel:string|null;state:DrinkOrderState;paymentState:PaymentState;
- fiscalState:string;amountGrossCents:number;createdAt:string;
+ fiscalState:string;receiptIssued:boolean;amountGrossCents:number;createdAt:string;
  lines:{id:string;description:string;quantity:number;grossCents:number}[];
 };
 type Db={query<T extends Record<string,unknown>>(sql:string,params?:readonly unknown[]):Promise<{rows:readonly T[];rowCount:number}>};
@@ -26,12 +27,14 @@ export async function staffOrderQueue(user:string,p:string,v:string):Promise<{ro
  scope(p,v);const db=getProductionPostgresRuntime().sqlPool;
  const role=await permission(db,user,p,v);
  if(role==="viewer")throw new FulfilmentError("STAFF_REQUIRED",403);
- const r=await db.query<{id:string;table_label:string|null;order_state:DrinkOrderState;payment_state:PaymentState;fiscal_state:string;amount_gross_cents:number;created_at:Date}>(`
- SELECT o.id::text,a.table_label,o.order_state,o.payment_state,o.fiscal_state,o.amount_gross_cents,o.created_at
+ const r=await db.query<{id:string;table_label:string|null;order_state:DrinkOrderState;payment_state:PaymentState;fiscal_state:string;receipt_issued:boolean;amount_gross_cents:number;created_at:Date}>(`
+ SELECT o.id::text,a.table_label,o.order_state,o.payment_state,o.fiscal_state,o.amount_gross_cents,o.created_at,
+ ${ISSUED_RECEIPT_EVIDENCE_SQL} AS receipt_issued
  FROM public.drinkstock_orders o
  JOIN public.drinkstock_access_passes a ON a.id=o.table_pass_id AND a.venue_id=o.venue_id AND a.partner_id=o.partner_id
  WHERE o.partner_id=$1::uuid AND o.venue_id=$2::uuid
  AND o.payment_state IN ('paid','refunded','partially_refunded')
+ AND ${VERIFIED_PAYMENT_EVIDENCE_SQL}
  ORDER BY (o.order_state NOT IN ('paid','accepted','preparing','ready')),o.created_at DESC LIMIT 80`,[p,v]);
  if(!r.rows.length)return {role,orders:[]};
  const ids=r.rows.map(x=>x.id);
@@ -42,7 +45,7 @@ export async function staffOrderQueue(user:string,p:string,v:string):Promise<{ro
  WHERE l.order_id=ANY($1::uuid[]) AND o.partner_id=$2::uuid AND o.venue_id=$3::uuid
  ORDER BY l.id`,[ids,p,v]);
  return {role,orders:r.rows.map(o=>({id:o.id,tableLabel:o.table_label,state:o.order_state,
- paymentState:o.payment_state,fiscalState:o.fiscal_state,
+ paymentState:o.payment_state,fiscalState:o.fiscal_state,receiptIssued:Boolean(o.receipt_issued),
  amountGrossCents:Number(o.amount_gross_cents),createdAt:new Date(o.created_at).toISOString(),
  lines:lines.rows.filter(l=>l.order_id===o.id).map(l=>({id:l.id,description:l.description,
  quantity:Number(l.quantity),grossCents:Number(l.total_gross_cents)}))}))};
@@ -63,18 +66,21 @@ export async function advanceStaffOrder(user:string,p:string,v:string,command:Re
  await db.query("BEGIN");await db.query("SET LOCAL statement_timeout='8s'");
  const role=await permission(db,user,p,v);
  if(!["owner","manager","staff"].includes(role))throw new FulfilmentError("STAFF_REQUIRED",403);
- const found=await db.query<{id:string;order_state:DrinkOrderState;payment_state:PaymentState;fiscal_state:string}>(`
- SELECT id::text,order_state,payment_state,fiscal_state
- FROM public.drinkstock_orders
- WHERE id=$1::uuid AND partner_id=$2::uuid AND venue_id=$3::uuid FOR UPDATE`,
+ const found=await db.query<{id:string;order_state:DrinkOrderState;payment_state:PaymentState;fiscal_state:string;confirmed_payment:boolean;issued_receipt:boolean}>(`
+ SELECT o.id::text,o.order_state,o.payment_state,o.fiscal_state,
+  ${VERIFIED_PAYMENT_EVIDENCE_SQL} AS confirmed_payment,
+  ${ISSUED_RECEIPT_EVIDENCE_SQL} AS issued_receipt
+ FROM public.drinkstock_orders o
+ WHERE o.id=$1::uuid AND o.partner_id=$2::uuid AND o.venue_id=$3::uuid FOR UPDATE OF o`,
  [command.orderId,p,v]);
  const order=found.rows[0];if(!order)throw new FulfilmentError("ORDER_NOT_FOUND",404);
  const was=await db.query<{id:string}>(`SELECT id::text FROM public.drinkstock_order_events
  WHERE order_id=$1::uuid AND request_key=$2::uuid`,[command.orderId,command.requestKey]);
  if(was.rows.length){await db.query("COMMIT");return {replayed:true,orderState:order.order_state};}
+ if(order.payment_state!=="paid"||!order.confirmed_payment)throw new FulfilmentError("PAYMENT_NOT_VERIFIED",409);
  if(!mayAdvanceOrder(order.order_state,command.next,order.payment_state))
   throw new FulfilmentError("INVALID_ORDER_TRANSITION",409);
- if(command.next==="served"&&order.fiscal_state!=="issued")
+ if(command.next==="served"&&(order.fiscal_state!=="issued"||!order.issued_receipt))
   throw new FulfilmentError("RECEIPT_REQUIRED_BEFORE_SERVICE",409);
  await db.query(`UPDATE public.drinkstock_orders SET order_state=$4,updated_at=now()
  WHERE id=$1::uuid AND partner_id=$2::uuid AND venue_id=$3::uuid`,
