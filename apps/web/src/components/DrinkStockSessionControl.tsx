@@ -31,7 +31,7 @@ export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{
  const kind=action==="create_screen"?"screen":"table";
  setIssued({kind,url:`https://hospitality.kontamou.site/drinkstock/${kind==="screen"?"live":"table"}/${data.token}`});
  }
- }catch(e){setError(e instanceof Error?e.message:"SESSION_UNAVAILABLE");}finally{setBusy(false);}
+ }catch(e){const code=e instanceof Error?e.message:"SESSION_UNAVAILABLE";setError(code==="STOP_REHEARSAL_BEFORE_SESSION"?"Pause the rehearsal market in the trading floor before starting an operational session.":code);}finally{setBusy(false);}
  }
  const state=view.session?.state??"none",canManage=view.venue.role==="owner"||view.venue.role==="manager";
  return <section style={{margin:"26px auto",maxWidth:1280,padding:"26px",color:"#fff",background:"linear-gradient(125deg,#111b30,#1e153c)",border:"1px solid #52436c",borderRadius:24}}>
