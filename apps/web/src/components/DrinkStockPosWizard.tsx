@@ -211,7 +211,7 @@ export function DrinkStockPosWizard({venueName,partnerId,venueId,csrfToken,provi
   </div>}
   {stage===2&&<div className={styles.panel}>
    <h3>Προετοιμασία καταλόγου ποτών</h3>
-   <p>Εξαγάγετε προαιρετικά έναν κατάλογο CSV από το POS και αντιστοιχίστε τον στα είδη DrinkStock. Δεν μεταφορτώνεται τίποτα στον διακομιστή.</p>
+   <p>Εξαγάγετε προαιρετικά έναν κατάλογο CSV από το POS και αντιστοιχίστε τον στα είδη DrinkStock. Το αρχείο διαβάζεται στον browser· μόνο οι κωδικοί, τα ονόματα και οι αντιστοιχίσεις αποθηκεύονται στον χώρο σας.</p>
    <div className={styles.mappingSummary}><span>Είδη DrinkStock: <strong>{drinks.length}</strong></span><span>Είδη POS: <strong>{menu.length}</strong></span><span>Προτάσεις αντιστοίχισης: <strong>{mappedCount}</strong></span></div>
    <div className={styles.importActions}>
     <button className={styles.secondaryButton} type="button" onClick={()=>downloadText("drinkstock-pos-template.csv",posCsvTemplate())}>↓ Υπόδειγμα CSV</button>
