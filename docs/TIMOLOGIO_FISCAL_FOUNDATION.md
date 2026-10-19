@@ -979,3 +979,64 @@ scanner, immutable audit retention, Storage API deletion and role/tenant
 acceptance against the real service, legal basis and privacy approvals,
 certifications and production merchant document intake. Legal tax issuance
 and AADE/myDATA transmissions remain locked.
+
+
+## Milestone 38 — production-provisioned DORMANT synthetic Storage identity (19 October 2026)
+
+For the first time the real, independently hosted FISCAL Supabase project
+`kcpwxplxqtqdsfwlfsaa` in `eu-central-1` now has a dedicated
+`fiscal_kyb_probe` PostgreSQL role, applied through the Supabase
+Migration API as `m38_fiscal_kyb_probe_dormant_role`. The exact,
+guarded and reentrant SQL is versioned under
+`fiscal/security/m38_dormant_storage_probe_role.sql`, deliberately
+**outside** the standalone `fiscal/migrations` auto-run directory:
+the production project's prior standalone fiscal schema sequence is
+separately governed and must not be silently fast-forwarded.
+
+**Verified live after commit:** role exists with `NOLOGIN`,
+`NOINHERIT`, `NOBYPASSRLS`, `NOSUPERUSER`, `NOCREATEDB`,
+`NOCREATEROLE`, `NOREPLICATION`; it is not assigned to
+`authenticator`, `anon` or `authenticated` and has zero inherited
+memberships. The required `fiscal-kyb-quarantine` bucket is private,
+12 MiB, `application/octet-stream` only, with zero objects,
+zero Storage RLS policies, and active object-level RLS. The migration
+**does not grant or modify Storage permissions, does not mint a JWT,
+does not create RLS policies, and does not issue a service_role key**.
+
+A real dedicated role can exist without being a usable service identity:
+this one is deliberately **dormant**, incapable of being assumed by
+the API authenticator today. Claiming that a scoped production Storage
+connection is now operational would be inaccurate. No real synthetic
+Storage API write/read/delete test has been performed.
+
+The operator-only FISCAL KYB security readiness screen now performs an
+additional **read-only SQL inspection** of the live role's privilege and
+membership metadata, distinguishing `dormant_verified`,
+`missing`, `unsafe`, and `unavailable`. It reports role presence,
+login/bypass risk, inherited administrative roles and API delegation,
+while keeping all Storage and tax issuance authorization flags false.
+A wrongly delegated/privileged role changes the displayed status to
+`unsafe`.
+
+The CI suite runs unit cases for every privilege escalation and the
+**exact same applied SQL** in a localhost-only, rollback-only synthetic
+PostgreSQL environment. It verifies idempotent role creation, no
+authenticator grants or Storage object policy, real role-switch denial
+of object SELECT, and a rejection when an unexpected authenticator
+grant occurs. A passing rehearsal is not an audit certification.
+
+**No live merchant KYB**, actual identity-document intake, public
+uploads, independent KMS, malware scanning, verified immutable audit,
+legal approvals, myDATA submission or tax issuance. M39 prerequisites:
+independently managed JWT issuer/pinned verifier; an explicit reviewed
+authenticator membership and narrowly scoped `storage.objects` RLS
+rule limited to `__synthetic_m37__/`; real Storage acceptance plus
+synthetic-object cleanup verification; independent managed KMS and
+scanner, retention/deletion and privacy legal review. Any future
+policies require updating M34/M36 strict zero-policy protections
+*before* deployment and must not create broad merchant access.
+
+Reference: Supabase Custom Storage Roles
+https://supabase.com/docs/guides/storage/schema/custom-roles
+and Storage Access Control
+https://supabase.com/docs/guides/storage/security/access-control.
