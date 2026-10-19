@@ -3,6 +3,7 @@ import {redirect} from "next/navigation";
 import {fiscalAdminActor} from "../../../lib/fiscal-auth";
 import {fiscalMfaEnforced,isFiscalMfaSatisfied} from "../../../lib/fiscal-operator-mfa";
 import {getFiscalKybIntakeReadiness} from "../../../lib/fiscal-kyb-intake-security";
+import {getFiscalVaultLiveReadiness} from "../../../lib/fiscal-kyb-vault-live-readiness";
 
 export const dynamic="force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function FiscalKybIntakeReadiness(){
  const enforced=fiscalMfaEnforced();
  if(enforced&&!(await isFiscalMfaSatisfied(actor)))
   redirect("/timologio-admin/mfa");
+ const vault=await getFiscalVaultLiveReadiness();
  const rawUploadFlag=process.env.FISCAL_KYB_UPLOADS_ENABLED?.trim().toLowerCase();
  const status=getFiscalKybIntakeReadiness({
   operatorMfaEnforced:enforced,
@@ -29,7 +31,7 @@ export default async function FiscalKybIntakeReadiness(){
     <Link href="/timologio-admin/release-readiness">Έλεγχοι λειτουργίας</Link></nav>
   </header>
   <section className="fiscal-hero">
-   <div className="fiscal-kicker">M33 · Sensitive evidence · Independent controls pending</div>
+   <div className="fiscal-kicker">M34 · Live storage inspection · No document intake</div>
    <h1>Ετοιμότητα ασφαλούς υποβολής δικαιολογητικών</h1>
    <p>Έλεγχος προϋποθέσεων για μελλοντική υποβολή ευαίσθητων στοιχείων
       επιχείρησης. Καμία ένδειξη παρακάτω δεν αποτελεί αυτόματη έγκριση.</p>
@@ -69,6 +71,49 @@ export default async function FiscalKybIntakeReadiness(){
      Η εφαρμογή συνεχίζει να απαγορεύει κάθε υποβολή και απαιτεί χειροκίνητο έλεγχο ρύθμισης.</p>:
     <p className="fiscal-muted">Δεν εντοπίστηκε προσπάθεια ενεργοποίησης από την ελεγχόμενη
      ρύθμιση. Αυτό δεν πιστοποιεί την πραγματική κατάσταση αποθήκευσης.</p>}
+  </section>
+  <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
+   <h2>M34 · Πραγματικός έλεγχος υποδομής αποθήκευσης</h2>
+   <p className="fiscal-muted">
+    Τα αποτελέσματα προέρχονται από ερωτήματα μόνο ανάγνωσης στη χωριστή
+    βάση FISCAL. Δεν εκτελείται δημιουργία bucket, αποθήκευση ή ανάγνωση
+    πραγματικών δικαιολογητικών. Ακόμη και σωστές ρυθμίσεις δεν αποτελούν
+    ανεξάρτητο έλεγχο ασφάλειας ή νομική έγκριση.
+   </p>
+   <div className="fiscal-grid">
+    <article className="fiscal-card">
+     <small>Κατάσταση αποθετηρίου</small>
+     <h3>{vault.status==="not_provisioned"?"Δεν δημιουργήθηκε":
+       vault.status==="unavailable"?"Δεν επαληθεύεται":
+       vault.status==="unsafe_configuration"?"Μη ασφαλής ρύθμιση":
+       "Ρυθμίσεις εντοπίστηκαν"}</h3>
+     <p>Η παρουσία αποθετηρίου δεν σημαίνει δικαίωμα παραλαβής εγγράφων.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Ιδιωτικό bucket και προστασία RLS</small>
+     <h3>{vault.bucketExists&&vault.privateBucket&&vault.objectRlsEnabled?
+       "Εντοπίστηκαν":"Εκκρεμεί"}</h3>
+     <p>Η πραγματική απομόνωση ρόλων και χειριστών απαιτεί ανεξάρτητες δοκιμές.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Πολιτικές πρόσβασης και κενό αποθετήριο</small>
+     <h3>{vault.zeroAccessiblePolicies&&vault.quarantineEmpty?
+       "Σύμφωνα με τον έλεγχο":"Δεν επαληθεύεται"}</h3>
+     <p>Ο έλεγχος απαιτεί μηδενικές πολιτικές αντικειμένων και μηδενικά αντικείμενα.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Προτεινόμενο όριο κρυπτογραφημένων δεδομένων</small>
+     <h3>{vault.exactMimeAllowlist&&vault.boundedCiphertextSize?
+       "Ρύθμιση εντοπίστηκε":"Εκκρεμεί"}</h3>
+     <p>Μόνο application/octet-stream έως 12 MiB στον μελλοντικό χώρο καραντίνας.</p>
+    </article>
+   </div>
+   <p className="fiscal-alert" style={{marginTop:18}}>
+    <strong>Παραλαβή: OFF · Αποδέσμευση: OFF.</strong>
+    {" "}Καμία πολιτική, δοκιμή ή παρουσία bucket δεν ενεργοποιεί αυτόματα
+    δικαιολογητικά, KMS, πραγματική σάρωση malware, WORM logs,
+    διαγραφή ή έκδοση παραστατικών.
+   </p>
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
    <h2>M32 · Πυρήνας ασφαλούς καραντίνας (μόνο εργαστηριακός)</h2>
