@@ -81,7 +81,8 @@ const capabilities:readonly PosCapability[]=[
 ];
 const capabilitySet=new Set<string>(capabilities);
 export class PosReadinessError extends Error{
- constructor(public readonly code:string){super(code);}
+ readonly code:string;
+ constructor(code:string){super(code);this.code=code;}
 }
 export function getGreekPosProvider(id:string):PosProviderProfile{
  const provider=GREEK_HOSPITALITY_POS_PROVIDERS.find(p=>p.id===id);
