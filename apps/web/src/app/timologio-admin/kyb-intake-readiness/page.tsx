@@ -39,7 +39,7 @@ export default async function FiscalKybIntakeReadiness(){
     <Link href="/timologio-admin/release-readiness">Έλεγχοι λειτουργίας</Link></nav>
   </header>
   <section className="fiscal-hero">
-   <div className="fiscal-kicker">M40 · Signed probe token verification · Simulation only</div>
+   <div className="fiscal-kicker">M41 · KMS signing contract rehearsal · No production issuer</div>
    <h1>Ετοιμότητα ασφαλούς υποβολής δικαιολογητικών</h1>
    <p>Έλεγχος προϋποθέσεων για μελλοντική υποβολή ευαίσθητων στοιχείων
       επιχείρησης. Καμία ένδειξη παρακάτω δεν αποτελεί αυτόματη έγκριση.</p>
@@ -79,6 +79,37 @@ export default async function FiscalKybIntakeReadiness(){
      Η εφαρμογή συνεχίζει να απαγορεύει κάθε υποβολή και απαιτεί χειροκίνητο έλεγχο ρύθμισης.</p>:
     <p className="fiscal-muted">Δεν εντοπίστηκε προσπάθεια ενεργοποίησης από την ελεγχόμενη
      ρύθμιση. Αυτό δεν πιστοποιεί την πραγματική κατάσταση αποθήκευσης.</p>}
+  </section>
+  <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
+   <h2>M41 · Σχεδιασμός εξωτερικής υπογραφής KMS · Μόνο δοκιμή CI</h2>
+   <p className="fiscal-muted">
+    Νέος, απομονωμένος προσαρμογέας προετοιμάζει συνθετικά JWT και
+    προσομοιώνει την εντολή AWS KMS Sign χωρίς παραγωγικό κλειδί.
+    Επαληθεύει εκ νέου την υπογραφή και τον σκοπό πριν επιστρέψει
+    δοκιμαστικό διαπιστευτήριο. Δεν καλείται από δημόσια διαδρομή ή εργασία.
+   </p>
+   <div className="fiscal-grid">
+    <article className="fiscal-card">
+     <small>KMS Sign</small><h3>Δοκιμή με τεχνητό κλειδί</h3>
+     <p>Επιτρέπεται μόνο συγκεκριμένο ARN κλειδιού EU Frankfurt και
+        υπογραφή RSA SHA-256. Η δοκιμή δεν συνδέεται με AWS.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Χρόνος ισχύος</small><h3>180 δευτερόλεπτα</h3>
+     <p>Σταθερός περιορισμός σκοπού, ρόλου, issuer και μοναδικής
+        ταυτότητας δοκιμής. Καμία πρόσβαση σε στοιχεία επιχειρήσεων.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Πραγματικός εκδότης / OIDC</small><h3>Δεν έχει ενεργοποιηθεί</h3>
+     <p>Δεν έχει γίνει provisioning κλειδιού KMS, δημοσίευση JWKS
+        ή αναγνώριση εξωτερικού εκδότη από το Supabase.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Αποτροπή επαναχρησιμοποίησης / Storage</small><h3>Εκκρεμούν</h3>
+     <p>Απαιτείται ασφαλές μοναδικό lease και έγκριση πριν από
+        οποιαδήποτε πραγματική δοκιμή. Οι πολιτικές παραμένουν ανενεργές.</p>
+    </article>
+   </div>
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
    <h2>M40 · Κρυπτογραφική επαλήθευση διαπιστευτηρίων · Μόνο δοκιμή CI</h2>
