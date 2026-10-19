@@ -23,7 +23,7 @@ const errorText:Record<string,string>={
  REHEARSAL_DISABLED_DURING_SESSION:"Η χειροκίνητη ζήτηση είναι απενεργοποιημένη κατά τη διάρκεια της ενεργής συνεδρίας. Οι οθόνες αναπαράγουν ξεχωριστό επίδειγμα αγορών."
 };
 type Action="add_product"|"demand"|"pause"|"resume"|"reset"|"set_bounds";
-type ActionBody={action:Action;requestKey:string;productId?:string;product?:{name:string;category:DrinkStockCategory;basePriceEuros:number};bounds?:{floorPercent:number;ceilingPercent:number}};
+type ActionBody={action:Action;requestKey:string;productId?:string;units?:number;product?:{name:string;category:DrinkStockCategory;basePriceEuros:number};bounds?:{floorPercent:number;ceilingPercent:number}};
 export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
   initial:MarketSnapshot;partnerId:string;venueId:string;csrfToken:string
 }){
@@ -34,6 +34,7 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
  const [name,setName]=useState("");
  const [category,setCategory]=useState<DrinkStockCategory>("beer");
  const [price,setPrice]=useState("5.00");
+ const [demandUnits,setDemandUnits]=useState(1);
  const [display,setDisplay]=useState(false);
  const [floor,setFloor]=useState(String(initial.venue.bounds.floorPercent));
  const [ceiling,setCeiling]=useState(String(initial.venue.bounds.ceilingPercent));
@@ -109,6 +110,12 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
   <div className={styles.toolbar}>
    <div className={styles.toolbarInfo}><strong>🎛 MARKET CONTROLS</strong><span>Άσκηση διαχείρισης χωρίς POS, πραγματικό stock ή εισπράξεις.</span></div>
    <div className={styles.toolbarButtons}>
+     {!operationsActive&&market.canManage&&<label style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:12}}>
+       TEST BUY VOLUME
+       <select aria-label="Rehearsal demand units" value={demandUnits} disabled={Boolean(busy)} onChange={e=>setDemandUnits(Number(e.target.value))}>
+        {[1,2,3,5,10].map(q=><option key={q} value={q}>{q}× DRINKS</option>)}
+       </select>
+     </label>}
      <button type="button" onClick={()=>setDisplay(!display)}>{display?"← EDITOR":"◉ DISPLAY PREVIEW"}</button>
      {market.canManage&&<button type="button" className={styles.primary} disabled={Boolean(busy)||operationsActive} onClick={()=>act({action:active?"pause":"resume"})}>{active?"Ⅱ PAUSE":"▶ START REHEARSAL"}</button>}
      {market.canManage&&<button type="button" disabled={Boolean(busy)||total===0||operationsActive} onClick={()=>{if(window.confirm("Επαναφορά όλων των τιμών καταλόγου αυτού του χώρου;"))void act({action:"reset"});}}>↺ RESET PRICES</button>}
@@ -127,7 +134,7 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
          <div className={styles.movements}><span className={delta>0?styles.up:delta<0?styles.down:styles.flat}>{delta>0?"▲":delta<0?"▼":"↔"} {pct>0?"+":""}{pct}%</span><span>BASE {money(drink.baseCents)}</span></div>
          <div className={styles.bar} aria-hidden="true"><i style={{width:`${Math.round((drink.priceCents-drink.minCents)/Math.max(1,drink.maxCents-drink.minCents)*100)}%`}}/></div>
          {!display&&market.canManage&&<button type="button" disabled={!active||operationsActive||Boolean(busy)} className={styles.buySignal}
-          onClick={()=>act({action:"demand",productId:drink.id})}>⚡ DEMAND SIGNAL <span>↗</span></button>}
+          onClick={()=>act({action:"demand",productId:drink.id,units:demandUnits})}>⚡ BUY {demandUnits}× <span>↗</span></button>}
        </article>;
      })}
    </section>}
@@ -160,7 +167,7 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
       <div className={styles.heading}><span>02 / MARKET TAPE</span><h2>Recent activity</h2></div>
       {!market.events.length?<p className={styles.noEvents}>Καμία καταγεγραμμένη κίνηση μέχρι στιγμής.</p>:
        <ol>{market.events.map(e=><li key={e.id}>
-        <span>{e.type==="demand"?"⚡":e.type==="product_added"?"✚":e.type==="reset"?"↺":e.type==="rehearsal_paused"?"Ⅱ":e.type==="bounds_updated"?"⚙":"▶"} {e.type.replaceAll("_"," ").toUpperCase()}</span>
+        <span>{e.type==="demand"?"⚡":e.type==="product_added"?"✚":e.type==="reset"?"↺":e.type==="rehearsal_paused"?"Ⅱ":e.type==="bounds_updated"?"⚙":"▶"} {e.type.replaceAll("_"," ").toUpperCase()}{e.type==="demand"?` · ${e.movements.find(m=>m.id===e.selectedProductId)?.demandUnits??1}×`:""}</span>
         <small>{new Date(e.createdAt).toLocaleString("el-GR",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"2-digit"})} · {e.movements.filter(m=>m.deltaCents!==0).length} price moves</small>
        </li>)}</ol>}
     </section>
