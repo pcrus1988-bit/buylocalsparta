@@ -21,6 +21,11 @@ test("simulated demand raises the selected item's price and lowers the other ite
   const after = simulateExchangeDemand(before, "draft");
   assert.ok(after.find((drink) => drink.id === "draft")!.priceCents > before[0].priceCents);
   assert.ok(after.find((drink) => drink.id === "cola")!.priceCents < before[3].priceCents);
+  assert.equal(after.find((drink) => drink.id === "draft")!.priceCents, 509);
+  assert.notEqual(after.find((drink) => drink.id === "draft")!.priceCents % 5, 0,
+    "public demo prices move by arbitrary one-cent increments");
+  const volume3 = simulateExchangeDemand(before, "draft", 3);
+  assert.ok(volume3[0].priceCents > after[0].priceCents, "higher demand volume has stronger impact");
   assert.equal(before[0].priceCents, 500, "original collection must not mutate");
 });
 
@@ -30,8 +35,8 @@ test("simulated demand is bounded between 70% and 145% of base price", () => {
     state = simulateExchangeDemand(state, "mojito");
   }
   for (const drink of state) {
-    assert.ok(drink.priceCents >= Math.ceil((drink.baseCents * 0.7) / 5) * 5);
-    assert.ok(drink.priceCents <= Math.floor((drink.baseCents * 1.45) / 5) * 5);
+    assert.ok(drink.priceCents >= Math.ceil(drink.baseCents * 0.7));
+    assert.ok(drink.priceCents <= Math.floor(drink.baseCents * 1.45));
   }
 });
 
@@ -44,7 +49,11 @@ test("market crash lowers all simulated prices but never below the floor", () =>
   let state = simulateExchangeCrash(initial);
   assert.ok(state.every((drink, index) => drink.priceCents < initial[index].priceCents));
   for (let i = 0; i < 100; i++) state = simulateExchangeCrash(state);
-  assert.ok(state.every((drink) => drink.priceCents >= Math.ceil(drink.baseCents * 0.7 / 5) * 5));
+  assert.ok(state.every((drink) => drink.priceCents >= Math.ceil(drink.baseCents * 0.7)));
+  const oddCentDrink = [{...initial[0],baseCents:503,priceCents:503}];
+  const oddCrash = simulateExchangeCrash(oddCentDrink);
+  assert.equal(oddCrash[0].priceCents, Math.round(503 * .82));
+  assert.ok(Number.isInteger(oddCrash[0].priceCents));
   assert.deepEqual(freshExchangeDemoDrinks(), initial, "simulation must not mutate initial data");
 });
 
@@ -66,7 +75,7 @@ test("public demo replays predefined orders in order and keeps bounded real-like
   assert.equal(state.nextOrderIndex, (1_001 % DEMO_ORDER_SEQUENCE.length));
   assert.ok(state.feed.length <= DEMO_FEED_LIMIT);
   for (const drink of state.drinks) {
-    assert.ok(drink.priceCents >= Math.ceil(drink.baseCents * 0.7 / 5) * 5);
+    assert.ok(drink.priceCents >= Math.ceil(drink.baseCents * 0.7));
     assert.ok(drink.priceCents <= Math.floor(drink.baseCents * 1.45 / 5) * 5);
   }
 });
@@ -103,7 +112,7 @@ test("crash is a 60-second faster trading window, never an order halt", () => {
   assert.equal(active.orderCount, before.orderCount + active.crashOrderCount);
   assert.ok(active.feed.length <= DEMO_FEED_LIMIT);
   for (const drink of active.drinks) {
-    assert.ok(drink.priceCents >= Math.ceil(drink.baseCents * 0.7 / 5) * 5);
+    assert.ok(drink.priceCents >= Math.ceil(drink.baseCents * 0.7));
     assert.ok(drink.priceCents <= Math.floor(drink.baseCents * 1.45 / 5) * 5);
   }
 
