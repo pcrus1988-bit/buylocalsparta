@@ -39,7 +39,7 @@ export default async function FiscalKybIntakeReadiness(){
     <Link href="/timologio-admin/release-readiness">Έλεγχοι λειτουργίας</Link></nav>
   </header>
   <section className="fiscal-hero">
-   <div className="fiscal-kicker">M39 · Run-bound Storage policy rehearsal · Not activated</div>
+   <div className="fiscal-kicker">M40 · Signed probe token verification · Simulation only</div>
    <h1>Ετοιμότητα ασφαλούς υποβολής δικαιολογητικών</h1>
    <p>Έλεγχος προϋποθέσεων για μελλοντική υποβολή ευαίσθητων στοιχείων
       επιχείρησης. Καμία ένδειξη παρακάτω δεν αποτελεί αυτόματη έγκριση.</p>
@@ -79,6 +79,38 @@ export default async function FiscalKybIntakeReadiness(){
      Η εφαρμογή συνεχίζει να απαγορεύει κάθε υποβολή και απαιτεί χειροκίνητο έλεγχο ρύθμισης.</p>:
     <p className="fiscal-muted">Δεν εντοπίστηκε προσπάθεια ενεργοποίησης από την ελεγχόμενη
      ρύθμιση. Αυτό δεν πιστοποιεί την πραγματική κατάσταση αποθήκευσης.</p>}
+  </section>
+  <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
+   <h2>M40 · Κρυπτογραφική επαλήθευση διαπιστευτηρίων · Μόνο δοκιμή CI</h2>
+   <p className="fiscal-muted">
+    Έλεγχος ψηφιακής υπογραφής RSA 3072-bit (RS256), σταθερά επιλεγμένου
+    δημόσιου κλειδιού, εκδότη, ακροατηρίου, μοναδικού αναγνωριστικού
+    δοκιμής και λήξης έως 5 λεπτά. Πλαστά, ληγμένα και άσχετα
+    διαπιστευτήρια απορρίπτονται πριν από κάθε αίτημα δικτύου.
+    Ο έλεγχος εκτελείται μόνο σε τεχνητά δεδομένα εντός CI.
+   </p>
+   <div className="fiscal-grid">
+    <article className="fiscal-card">
+     <small>Επαλήθευση υπογραφής</small><h3>Δοκιμές CI</h3>
+     <p>Ανεξάρτητος offline verifier με αρνητικούς ελέγχους για
+        αλλοιωμένη υπογραφή, λάθος κλειδί, ρόλο και χρόνο ισχύος.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Εκδότης πραγματικών JWT</small><h3>Δεν έχει συνδεθεί</h3>
+     <p>Δεν αποθηκεύεται ιδιωτικό κλειδί, δεν χορηγείται token και δεν
+        ενεργοποιείται οποιαδήποτε παραγωγική ταυτότητα.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Αποδοχή JWT από πραγματικό Storage</small><h3>Δεν επαληθεύτηκε</h3>
+     <p>Απαιτείται ξεχωριστή έγκριση, ταυτοποίηση του παρόχου
+        και ελεγχόμενη δοκιμή με αποκλειστικά συνθετικά αρχεία.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Πραγματικές υποβολές KYB / AADE</small><h3>OFF</h3>
+     <p>Η παραλαβή εγγράφων, η έγκριση KYB και η φορολογική έκδοση
+        παραμένουν απενεργοποιημένες.</p>
+    </article>
+   </div>
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
    <h2>M39 · Περιορισμένη πολιτική αποθήκευσης · Μόνο πρόβα CI</h2>
