@@ -37,7 +37,7 @@ export default async function VenuePosIntegrations({params}:{
    <h1>POS Integrations</h1>
    <p>{view.venue.name} · Εύκολη προετοιμασία σύνδεσης με ελληνικά συστήματα παραγγελιοληψίας.</p>
   </section>
-  {canManage?<DrinkStockPosWizard venueName={view.venue.name} providers={providers} drinks={view.products.map(p=>({id:p.id,name:p.name}))}/>:
+  {canManage?<DrinkStockPosWizard venueName={view.venue.name} partnerId={partnerId} venueId={venueId} csrfToken={principal.csrfToken} providers={providers} drinks={view.products.map(p=>({id:p.id,name:p.name}))}/>:
    <section className={styles.authPane}>
     <h2>Η προετοιμασία σύνδεσης είναι διαθέσιμη σε owner/manager.</h2>
     <p>Δεν απαιτείται τεχνική εμπειρία. Ζητήστε από τον υπεύθυνο του χώρου να ανοίξει τον οδηγό σύνδεσης.</p>
