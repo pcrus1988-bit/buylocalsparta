@@ -40,6 +40,8 @@ jobs:
         run: npm install --no-package-lock --no-audit --no-fund --ignore-scripts
       - name: Unit and contract tests
         run: npm test
+      - name: Generate Next.js route and global types
+        run: npx next typegen
       - name: Typecheck standalone
         run: npx tsc --noEmit
       - name: Build standalone production bundle
