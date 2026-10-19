@@ -121,7 +121,12 @@ export function digestFiscalVaultEncryptedEnvelope(envelope:FiscalVaultEnvelope)
   typeof value.tagHex!=="string"||!/^[0-9a-f]{32}$/.test(value.tagHex)||
   typeof value.nonceHex!=="string"||!/^[0-9a-f]{24}$/.test(value.nonceHex))
   throw new Error("VAULT_ENVELOPE_DIGEST_INVALID");
- return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+ const order=[
+  "version","algorithm","organizationId","evidenceId","checkType",
+  "mimeType","byteLength","sha256","nonceHex","ciphertextHex","tagHex",
+  "scanStatus","quarantineOnly","releaseAuthorized","fiscalIssuanceEnabled"
+ ];
+ return createHash("sha256").update(JSON.stringify(order.map(k=>value[k]))).digest("hex");
 }
 
 /**
@@ -201,7 +206,7 @@ export function appendFiscalVaultAuditPlan(args:Readonly<{
   prev.encryptedDigest!==args.encryptedDigest||
   !Number.isSafeInteger(prev.sequence)||prev.sequence<=0||
   prev.sequence>=1000000||
-  prev.hash!==hashAudit({...prev,hash:undefined} as never)||
+  prev.hash!==hashAudit(prev)||
   prev.recordedAt>args.recordedAt))
   throw new Error("VAULT_AUDIT_CHAIN_INVALID");
  const fields={
