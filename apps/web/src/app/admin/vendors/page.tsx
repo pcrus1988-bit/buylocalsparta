@@ -6,6 +6,7 @@ import { AdminStatusStack, type AdminRecordStateTone, type AdminAttentionSeverit
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { getAdminSession } from "../../../lib/admin-session";
 import { adminVendorShopsWorkspace } from "../../../lib/vendor-admin-controls";
+import { adminClaimProfiles } from "../../../lib/admin-claim-profiles";
 
 export const metadata: Metadata = { title: "Admin · Partners Directory", robots: { index: false, follow: false } };
 const stateLabel = (state: string) => ({ active: "Active", restricted: "Restricted", suspended: "Suspended", closed: "Closed", invited: "Invited" }[state] ?? state.replaceAll("_", " "));
@@ -31,16 +32,23 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
   if (!principal) redirect("/admin/login");
   let managed;
   try { managed = await adminVendorShopsWorkspace(principal); } catch { redirect("/admin"); }
-  const params = await searchParams;
+  const [params, claims] = await Promise.all([searchParams, adminClaimProfiles(principal)]);
   const query = params.q?.trim().toLocaleLowerCase("el-GR");
   const status = params.status?.trim();
   const view = partnerView(params.view);
-  const statuses = [...new Set(managed.shops.map((shop) => shop.status))].sort();
+  const statuses = [...new Set([...managed.shops.map((shop) => shop.status), ...(claims.length ? ["converted"] : [])])].sort();
   const matchesView = (shop: (typeof managed.shops)[number]) => view === "all"
     || (view === "active" && shop.operationalActive)
     || (view === "attention" && (!shop.cooperationDocumented || ["restricted", "suspended"].includes(shop.status)))
     || (view === "public" && shop.operationalActive && shop.publicDirectoryVisible)
     || (view === "hidden" && !shop.publicDirectoryVisible);
+  const matchingClaims = claims.filter((claim) =>
+    (view === "all" || view === "public") &&
+    (!status || status === "converted") &&
+    (!query || [claim.id, claim.tradingName, claim.legalName, claim.hubCity, claim.hubSlug].some((value) =>
+      value.toLocaleLowerCase("el-GR").includes(query)
+    ))
+  );
   const shops = managed.shops.filter((shop) => matchesView(shop) && (!status || shop.status === status) && (!query || [shop.id, shop.tradingName, shop.legalName, shop.applicationId, shop.agreement?.code].some((value) => String(value ?? "").toLocaleLowerCase("el-GR").includes(query))));
   const active = managed.shops.filter((shop) => shop.operationalActive).length;
   const visible = managed.shops.filter((shop) => shop.operationalActive && shop.publicDirectoryVisible).length;
@@ -53,10 +61,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
     <AdminWorkspaceHeader csrfToken={managed.csrfToken} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Partners · directory</div><h1>Κατάλογος συνεργατών</h1><p className="lead">Scan-first directory με saved operational views. Από κάθε partner record μπορείς να διαχειριστείς catalogue assignments πριν την ενεργοποίηση και ασφαλές DEMO storefront χωρίς live commerce.</p></div></section>
     <WorkspaceMetricStrip items={[
-      { label: filtered ? "Matching partners" : "Partners", value: filtered ? shops.length : managed.shops.length },
+      { label: filtered ? "Matching partners" : "Partners", value: filtered ? shops.length + matchingClaims.length : managed.shops.length + claims.length },
       { label: "Operationally active", value: active, tone: active ? "positive" : "default" },
       { label: "Publicly visible", value: visible },
-      { label: "Agreement gaps", value: agreementGaps, tone: agreementGaps ? "attention" : "positive" }
+      { label: "CLAIM profiles", value: claims.length, hint: "Listing-only · verified owner acceptance" }
     ]} />
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Directory" title="Partner records" note="Partner state stays factual. Catalogue preparation is independent from activation; DEMO mode remains non-commerce." />
@@ -90,5 +98,23 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
         })}
       </div>}
     </section>
+
+    {(matchingClaims.length > 0 || (view === "all" && !filtered)) && <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="CLAIM · vendor profiles" title="Δωρεάν CLAIM συνεργάτες" note="Owner-accepted and published CLAIM listings belong in Vendors. They are not commerce-enabled shops." />
+      {matchingClaims.length === 0
+        ? <WorkspaceEmptyState title="No converted CLAIM vendor profiles." />
+        : <div className="admin-directory-table admin-partner-directory" role="table" aria-label="CLAIM vendor profiles">
+          <div className="admin-directory-head" role="row"><span>Partner</span><span>Account</span><span>Hub</span><span>Plan</span><span>Commerce</span><span>Public</span><span>Actions</span></div>
+          {matchingClaims.map((claim) => <div className="admin-directory-row" role="row" key={claim.id}>
+            <Link className="admin-directory-identity" href={`/admin/vendors/claim/${encodeURIComponent(claim.id)}`}><strong>{claim.tradingName}</strong><small>{claim.legalName} · {claim.id}</small></Link>
+            <span><strong>{claim.ownerVerified ? "Owner verified" : "Attention"}</strong><small>{claim.contactEmail}</small></span>
+            <span>{claim.hubCity}</span>
+            <span><strong>CLAIM</strong><small>Free</small></span>
+            <span><strong>Disabled</strong><small>Listing only</small></span>
+            <span><strong>{claim.publicSlug ? "Published" : "Not published"}</strong></span>
+            <span><Link className="admin-record-open" href={`/admin/vendors/claim/${encodeURIComponent(claim.id)}`} aria-label={`Manage ${claim.tradingName}`}>Manage →</Link></span>
+          </div>)}
+        </div>}
+    </section>}
   </main>;
 }
