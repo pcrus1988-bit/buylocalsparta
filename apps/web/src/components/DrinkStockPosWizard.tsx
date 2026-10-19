@@ -1,5 +1,6 @@
 "use client";
-import {useMemo,useRef,useState} from "react";
+import {useEffect,useMemo,useRef,useState} from "react";
+import {EMPTY_POS_DRAFT,selfCheckDraft,validatePosDraft,validateDraftProductMembership,type PosDraft,type SavedPosDraft} from "../lib/drinkstock-pos-draft";
 import {
  buildMappingCsv,buildVendorRequest,parsePosMenuCsv,posCsvTemplate,
  posSetupPath,proposeExactMatches,PosOnboardingError,
@@ -8,7 +9,7 @@ import {
 import styles from "./DrinkStockPosWizard.module.css";
 
 type PosProvider={id:string;name:string;vendor:string;product:string;approach:string;note:string;evidence:string[];status:string};
-type WizardProps={venueName:string;providers:PosProvider[];drinks:DrinkStockMenuItem[]};
+type WizardProps={venueName:string;partnerId:string;venueId:string;csrfToken:string;providers:PosProvider[];drinks:DrinkStockMenuItem[]};
 const steps=["Επιλογή POS","Τρόπος σύνδεσης","Αντιστοίχιση ειδών","Έλεγχος"];
 const routeLabels:Record<PosSetupPath,string>={
  cloud:"Σύνδεση Cloud / API",local_bridge:"Τοπικό πρόγραμμα POS",vendor_assisted:"Με τον προμηθευτή POS"
@@ -33,7 +34,7 @@ function downloadText(filename:string,text:string){
  a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
  window.setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-export function DrinkStockPosWizard({venueName,providers,drinks}:WizardProps){
+export function DrinkStockPosWizard({venueName,partnerId,venueId,csrfToken,providers,drinks}:WizardProps){
  const [stage,setStage]=useState(0),[search,setSearch]=useState("");
  const [selectedId,setSelectedId]=useState(""),[otherName,setOtherName]=useState("");
  const [path,setPath]=useState<PosSetupPath>("vendor_assisted");
@@ -41,6 +42,78 @@ export function DrinkStockPosWizard({venueName,providers,drinks}:WizardProps){
  const [importError,setImportError]=useState(""),[showAll,setShowAll]=useState(false);
  const [copied,setCopied]=useState(false);
  const upload=useRef<HTMLInputElement>(null);
+ const restore=useRef<HTMLInputElement>(null);
+ const [loaded,setLoaded]=useState(false),[loadingError,setLoadingError]=useState("");
+ const [revision,setRevision]=useState(0),[savedAt,setSavedAt]=useState<string|null>(null);
+ const [syncStatus,setSyncStatus]=useState<"saved"|"changed"|"saving"|"error">("changed");
+ const [syncError,setSyncError]=useState("");
+ const inFlight=useRef(false),lastPersisted=useRef("");
+ const endpoint=`/api/hospitality/partners/${partnerId}/venues/${venueId}/pos-setup`;
+ const serialized=JSON.stringify({providerId:selectedId,otherName,path,menu,mappings});
+ const current:PosDraft={providerId:selectedId,otherName,path,menu,mappings};
+ const readiness=selfCheckDraft(current,drinks);
+ useEffect(()=>{
+  let canceled=false;
+  async function load(){
+   try{
+    const res=await fetch(endpoint,{credentials:"same-origin",cache:"no-store"});
+    if(!res.ok)throw new Error("Δεν φορτώθηκε η αποθηκευμένη προετοιμασία ("+res.status+").");
+    const data=await res.json() as SavedPosDraft;
+    if(canceled)return;
+    setSelectedId(data.providerId);setOtherName(data.otherName);setPath(data.path);
+    setMenu(data.menu);setMappings(data.mappings);setRevision(data.revision);
+    setSavedAt(data.updatedAt);lastPersisted.current=JSON.stringify({
+     providerId:data.providerId,otherName:data.otherName,path:data.path,menu:data.menu,mappings:data.mappings
+    });
+    setSyncStatus("saved");setLoaded(true);setLoadingError("");
+   }catch(e){if(!canceled)setLoadingError(e instanceof Error?e.message:"Δεν φορτώθηκαν τα δεδομένα.")}
+  }
+  void load();return()=>{canceled=true;};
+ },[endpoint]);
+ async function persist(){
+  if(!loaded||inFlight.current||!isChosen)return;
+  const snapshot:PosDraft={providerId:selectedId,otherName,path,menu,mappings};
+  const exact=JSON.stringify(snapshot);
+  if(exact===lastPersisted.current){setSyncStatus("saved");return;}
+  inFlight.current=true;setSyncStatus("saving");setSyncError("");
+  try{
+   const response=await fetch(endpoint,{method:"PUT",credentials:"same-origin",cache:"no-store",
+    headers:{"content-type":"application/json","x-csrf-token":csrfToken},
+    body:JSON.stringify({draft:snapshot,expectedRevision:revision})});
+   const result=await response.json() as SavedPosDraft&{error?:string};
+   if(!response.ok)throw new Error(result.error==="STALE_DRAFT"?
+    "Το POS άλλαξε από άλλη συνεδρία. Ανανεώστε τη σελίδα πριν αποθηκεύσετε ξανά.":result.error??"SAVE_FAILED");
+   setRevision(result.revision);setSavedAt(result.updatedAt);
+   lastPersisted.current=exact;setSyncStatus("saved");
+  }catch(e){setSyncStatus("error");setSyncError(e instanceof Error?e.message:"SAVE_FAILED");}
+  finally{inFlight.current=false;}
+ }
+ useEffect(()=>{
+  if(!loaded||!isChosen||serialized===lastPersisted.current)return;
+  const timer=setTimeout(()=>{void persist();},1400);
+  return ()=>clearTimeout(timer);
+  // Revision refresh triggers another pass if the user changed data mid-save.
+ },[serialized,loaded,revision]);
+ function downloadBackup(){
+  if(!isChosen)return;
+  downloadText("drinkstock-pos-setup.json",JSON.stringify({
+   format:"drinkstock-pos-draft-v1",draft:validatePosDraft(current)
+  },null,2));
+ }
+ async function restoreBackup(file:File|undefined){
+  if(!file)return;
+  if(file.size>130000){setImportError("Το αρχείο προετοιμασίας είναι υπερβολικά μεγάλο.");return;}
+  try{
+   const raw=JSON.parse(await file.text()) as {format?:string;draft?:unknown};
+   if(raw.format!=="drinkstock-pos-draft-v1")throw new Error("BAD_BACKUP_FORMAT");
+   const result=validatePosDraft(raw.draft);
+   validateDraftProductMembership(result,drinks);
+   setSelectedId(result.providerId);setOtherName(result.otherName);setPath(result.path);
+   setMenu(result.menu);setMappings(result.mappings);setImportError("");
+  }catch{
+   setImportError("Το αρχείο προετοιμασίας δεν είναι έγκυρο ή αφορά προϊόντα άλλου χώρου.");
+  }finally{if(restore.current)restore.current.value="";}
+ }
  const provider=providers.find(p=>p.id===selectedId);
  const providerName=provider?.name??otherName.trim();
  const choices=useMemo(()=>providers.filter(p=>[p.name,p.vendor,p.product].some(t=>t.toLocaleLowerCase("el-GR").includes(search.trim().toLocaleLowerCase("el-GR")))),[providers,search]);
@@ -67,6 +140,11 @@ export function DrinkStockPosWizard({venueName,providers,drinks}:WizardProps){
   const p=providers.find(x=>x.id===id);
   setPath(p?posSetupPath(p.approach):"vendor_assisted");
  }
+ if(!loaded)return <section className={styles.root} aria-label="Οδηγός σύνδεσης POS">
+  <h2>POS Easy Connect</h2>
+  {loadingError?<><p role="alert">{loadingError}</p><button className={styles.primaryButton} type="button" onClick={()=>window.location.reload()}>Επανάληψη φόρτωσης</button></>:
+  <p role="status">Φόρτωση αποθηκευμένης προετοιμασίας…</p>}
+ </section>;
  return <section className={styles.root} aria-label="Οδηγός σύνδεσης POS">
   <div className={styles.header}>
    <div><span className={styles.eyebrow}>DRINKSTOCK / POS SETUP</span>
@@ -74,6 +152,27 @@ export function DrinkStockPosWizard({venueName,providers,drinks}:WizardProps){
     <p>4 απλά βήματα για να προετοιμάσετε τη διασύνδεση του {venueName}.</p>
    </div>
    <span className={styles.status}>Προετοιμασία · Όχι ενεργή σύνδεση</span>
+  </div>
+  <div role="status" aria-live="polite" style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:12,margin:"15px 0"}}>
+   <strong style={{fontSize:13,color:syncStatus==="error"?"#ffabab":"#d9ff57"}}>
+    {syncStatus==="saving"?"Αποθήκευση…":syncStatus==="saved"?"✓ Αποθηκεύτηκε":
+    syncStatus==="error"?"Η αποθήκευση απέτυχε":"Έχετε αλλαγές προς αποθήκευση"}
+   </strong>
+   {savedAt&&<small style={{color:"#c6d1e8"}}>Τελευταία αποθήκευση: {new Date(savedAt).toLocaleString("el-GR")}</small>}
+   <button type="button" className={styles.secondaryButton} disabled={syncStatus==="saving"||!isChosen} onClick={()=>void persist()}>Αποθήκευση τώρα</button>
+   <button type="button" className={styles.secondaryButton} disabled={!isChosen} onClick={downloadBackup}>↓ Αντίγραφο ρυθμίσεων</button>
+   <label htmlFor="drinkstock-restore-backup" className={styles.secondaryButton}>↑ Επαναφορά αρχείου</label>
+   <input className={styles.hiddenFile} id="drinkstock-restore-backup" type="file" ref={restore} accept=".json,application/json"
+    onChange={e=>void restoreBackup(e.target.files?.[0])}/>
+   {syncError&&<small role="alert" style={{color:"#ffabab"}}>{syncError}</small>}
+   {importError&&stage!==2&&<small role="alert" style={{color:"#ffabab"}}>{importError}</small>}
+  </div>
+  <div style={{display:"flex",flexWrap:"wrap",gap:12,margin:"12px 0 20px",fontSize:12,color:"#dbe7fa"}}>
+   <span>☑ POS: {readiness.providerSelected?"Επιλέχθηκε":"Εκκρεμεί"}</span>
+   <span>☑ Κατάλογος: {readiness.catalogueImported?readiness.total+" είδη":"Εκκρεμεί"}</span>
+   <span>☑ Αντιστοίχιση: {readiness.mapped}/{readiness.total}</span>
+   {readiness.duplicateTargets>0&&<span style={{color:"#ffb0b0"}}>⚠ {readiness.duplicateTargets} διπλές αντιστοιχίσεις</span>}
+   <strong style={{color:"#d9ff57"}}>{readiness.readyForVendorTest?"Προετοιμασία ολοκληρωμένη":"Απαιτείται προετοιμασία"}</strong>
   </div>
   <nav className={styles.steps} aria-label="Βήματα εγκατάστασης">
    {steps.map((label,i)=><button key={label} type="button"
@@ -133,8 +232,8 @@ export function DrinkStockPosWizard({venueName,providers,drinks}:WizardProps){
    {menu.length===0&&<div className={styles.empty}>Μπορείτε να συνεχίσετε χωρίς CSV. Ο επίσημος connector θα πρέπει να επιβεβαιώσει τον κατάλογο όταν εγκριθεί.</div>}
   </div>}
   {stage===3&&<div className={styles.panel}>
-   <h3>Έτοιμο το αίτημα σύνδεσης</h3>
-   <p>Τα στοιχεία προετοιμάστηκαν. Η ενεργοποίηση πραγματικών παραγγελιών απαιτεί έλεγχο από τον πάροχο του POS και την ομάδα DrinkStock.</p>
+   <h3>Οι ρυθμίσεις σας είναι έτοιμες για τεχνικό έλεγχο</h3>
+   <p>Ο κατάλογος και οι αντιστοιχίσεις αποθηκεύονται αυτόματα για αυτόν τον χώρο. Μπορείτε να τις ενημερώνετε ανεξάρτητα. Πραγματικές πωλήσεις ενεργοποιούνται μόνο μετά από εγκεκριμένη τεχνική διασύνδεση.</p>
    <div className={styles.summaryGrid}>
     <div><small>POS</small><strong>{providerName}</strong></div>
     <div><small>Μέθοδος</small><strong>{routeLabels[path]}</strong></div>
@@ -148,7 +247,8 @@ export function DrinkStockPosWizard({venueName,providers,drinks}:WizardProps){
     <li>Αντιστοίχιση όλων των ποτών και επιβεβαίωση ακυρώσεων / επιστροφών.</li>
     <li>Έλεγχος φορολογικών παραστατικών, ΑΑΔΕ και συγχρονισμού τιμών όπου υποστηρίζεται.</li>
    </ul>
-   <div className={styles.requestBlock}><h4>Έτοιμο μήνυμα προς τον προμηθευτή POS</h4>
+   <div className={styles.requestBlock}><h4>Προαιρετικά: αίτημα προς τον προμηθευτή POS</h4>
+    <p>Χρειάζεται μόνο αν δεν έχετε ήδη επίσημα διαθέσιμη πρόσβαση API ή εγκεκριμένο connector. Δεν αποστέλλεται αυτόματα.</p>
     <textarea className={styles.message} readOnly aria-label="Αίτημα προς κατασκευαστή" value={request} rows={12}/>
     <div className={styles.importActions}>
      <button className={styles.primaryButton} type="button" onClick={()=>void copyRequest()}>{copied?"✓ Αντιγράφηκε":"Αντιγραφή αιτήματος"}</button>
@@ -156,7 +256,7 @@ export function DrinkStockPosWizard({venueName,providers,drinks}:WizardProps){
      {menu.length>0&&<button className={styles.secondaryButton} type="button" onClick={()=>downloadText("drinkstock-pos-mapping-review.csv",buildMappingCsv(menu,mappings,drinks))}>↓ Αρχείο αντιστοίχισης</button>}
     </div>
    </div>
-   <p className={styles.notice}>Η προετοιμασία γίνεται στον browser. Δεν αποθηκεύει κωδικούς, δεν συνδέει POS, δεν λαμβάνει πληρωμές και δεν ενεργοποιεί το Actual Orders TV feed.</p>
+   <p className={styles.notice}>Οι ασφαλείς ρυθμίσεις προετοιμασίας αποθηκεύονται στον χώρο σας· οι κωδικοί και τα δεδομένα πληρωμών δεν αποθηκεύονται εδώ. Δεν ενεργοποιείται ακόμη το Actual Orders TV feed.</p>
   </div>}
   <div className={styles.footer}>
    {stage>0?<button className={styles.secondaryButton} type="button" onClick={()=>setStage(s=>s-1)}>← Πίσω</button>:<span/>}
