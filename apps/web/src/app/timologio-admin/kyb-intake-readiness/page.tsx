@@ -7,6 +7,7 @@ import {getFiscalVaultLiveReadiness} from "../../../lib/fiscal-kyb-vault-live-re
 import {runFiscalKybSyntheticRehearsal} from "../../../lib/fiscal-kyb-vault-synthetic-rehearsal";
 import {getFiscalVaultRoleBoundary} from "../../../lib/fiscal-kyb-vault-access-boundary";
 import {inspectFiscalM37IntegrationReadiness} from "../../../lib/fiscal-kyb-vault-storage-api-probe";
+import {getFiscalM38RoleReadiness} from "../../../lib/fiscal-kyb-vault-dormant-role-readiness";
 
 export const dynamic="force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function FiscalKybIntakeReadiness(){
  const synthetic=runFiscalKybSyntheticRehearsal();
  const boundary=await getFiscalVaultRoleBoundary();
  const storageIntegration=inspectFiscalM37IntegrationReadiness(process.env);
+ const dormantRole=await getFiscalM38RoleReadiness();
  const rawUploadFlag=process.env.FISCAL_KYB_UPLOADS_ENABLED?.trim().toLowerCase();
  const status=getFiscalKybIntakeReadiness({
   operatorMfaEnforced:enforced,
@@ -37,7 +39,7 @@ export default async function FiscalKybIntakeReadiness(){
     <Link href="/timologio-admin/release-readiness">Έλεγχοι λειτουργίας</Link></nav>
   </header>
   <section className="fiscal-hero">
-   <div className="fiscal-kicker">M37 · Synthetic Storage API connector · No live credentials</div>
+   <div className="fiscal-kicker">M38 · Dormant synthetic Storage identity · Uploads OFF</div>
    <h1>Ετοιμότητα ασφαλούς υποβολής δικαιολογητικών</h1>
    <p>Έλεγχος προϋποθέσεων για μελλοντική υποβολή ευαίσθητων στοιχείων
       επιχείρησης. Καμία ένδειξη παρακάτω δεν αποτελεί αυτόματη έγκριση.</p>
@@ -77,6 +79,43 @@ export default async function FiscalKybIntakeReadiness(){
      Η εφαρμογή συνεχίζει να απαγορεύει κάθε υποβολή και απαιτεί χειροκίνητο έλεγχο ρύθμισης.</p>:
     <p className="fiscal-muted">Δεν εντοπίστηκε προσπάθεια ενεργοποίησης από την ελεγχόμενη
      ρύθμιση. Αυτό δεν πιστοποιεί την πραγματική κατάσταση αποθήκευσης.</p>}
+  </section>
+  <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
+   <h2>M38 · Πραγματικός, ανενεργός ρόλος δοκιμαστικής αποθήκευσης</h2>
+   <p className="fiscal-muted">
+    Ο νέος ρόλος PostgreSQL fiscal_kyb_probe δημιουργήθηκε αποκλειστικά
+    για μελλοντικές συνθετικές δοκιμές. Η σελίδα επαληθεύει σε πραγματικό
+    χρόνο τα προνόμια του ρόλου στη χωριστή βάση FISCAL.
+    Η δημιουργία του ρόλου δεν ενεργοποιεί πρόσβαση στα αρχεία.
+   </p>
+   <div className="fiscal-grid">
+    <article className="fiscal-card">
+     <small>Κατάσταση ρόλου</small>
+     <h3>{dormantRole.status==="dormant_verified"?"Ανενεργός · Επαληθευμένος":
+       dormantRole.status==="missing"?"Δεν υπάρχει":
+       dormantRole.status==="unsafe"?"Προειδοποίηση ασφαλείας":
+       "Δεν επαληθεύεται"}</h3>
+     <p>Χωρίς δυνατότητα LOGIN, BYPASSRLS, superuser ή κληρονομούμενα
+        διαχειριστικά δικαιώματα.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Εκχώρηση σε API / χρήστες</small>
+     <h3>{dormantRole.notDelegatedToApi?"Καμία εκχώρηση":
+       "Δεν επαληθεύεται"}</h3>
+     <p>Ο authenticator, ο ανώνυμος χρήστης και οι συνδεδεμένοι
+        χρήστες δεν έχουν εξουσιοδότηση να αναλάβουν τον ρόλο.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Διαπιστευτήριο μίας χρήσης / KMS</small><h3>Εκκρεμούν</h3>
+     <p>Δεν υπάρχει εγκεκριμένος εκδότης JWT, ξεχωριστό KMS,
+        πραγματικό antivirus ή ασφαλής αποδέσμευση.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Παραλαβή και πραγματικές εγγραφές</small><h3>OFF</h3>
+     <p>Ο ρόλος δεν έχει Storage policies ή API grants.
+        Κανένα πραγματικό ή εμπορικό έγγραφο δεν μεταφέρεται.</p>
+    </article>
+   </div>
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
    <h2>M37 · Έτοιμος τεχνικός σύνδεσμος για ασφαλή συνθετική δοκιμή</h2>
