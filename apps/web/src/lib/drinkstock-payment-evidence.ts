@@ -8,7 +8,7 @@ export const VERIFIED_PAYMENT_EVIDENCE_SQL=`EXISTS(
  SELECT 1 FROM public.drinkstock_payment_events e
  WHERE e.order_id=o.id AND e.event_type='payment_verified'
    AND e.amount_cents=o.amount_gross_cents
-   AND length(btrim(e.provider))>1 AND lower(e.provider) NOT IN ('demo','simulation','test')
+   AND length(btrim(e.provider))>1 AND lower(btrim(e.provider)) NOT IN ('demo','simulation','test')
    AND length(btrim(e.provider_event_id))>0
    AND e.payload_sha256 ~ '^[0-9a-f]{64}$'
 )`;
@@ -30,7 +30,7 @@ export function hasVerifiedPaymentEvidence(e:VerifiedPaymentEvidence):boolean{
  e.eventType==='payment_verified' &&
  Number.isSafeInteger(e.grossCents)&&e.grossCents>0&&e.eventAmountCents===e.grossCents &&
  typeof e.provider==='string'&&e.provider.trim().length>1&&
- !['demo','simulation','test'].includes(e.provider.toLowerCase()) &&
+ !['demo','simulation','test'].includes(e.provider.trim().toLowerCase()) &&
  typeof e.providerEventId==='string'&&e.providerEventId.trim().length>0 &&
  typeof e.payloadSha256==='string'&&/^[0-9a-f]{64}$/.test(e.payloadSha256);
 }
