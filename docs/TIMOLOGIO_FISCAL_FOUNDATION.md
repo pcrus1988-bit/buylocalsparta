@@ -1098,3 +1098,40 @@ Current upstream references:
 - https://supabase.com/docs/guides/storage/security/access-control
 - https://supabase.com/docs/guides/storage/schema/helper-functions
 - https://supabase.com/docs/guides/storage/schema/custom-roles
+
+
+## Milestone 40 — cryptographically verified offline JWT gate (19 October 2026)
+
+M40 introduces the **server-only, synthetic-only** module
+`apps/web/src/lib/fiscal-kyb-vault-signed-probe.ts`. Its verification
+contract requires a trust anchor explicitly supplied by a separately
+governed issuer configuration: a pinned PEM public key, exact HTTPS
+issuer origin and exact key ID. It uses Node crypto to validate RS256
+signatures with a minimum **3072-bit RSA** key, and rejects unexpected
+JOSE header fields, unsupported algorithms, wrong signatures or keys.
+The token must carry the fixed FISCAL probe role, purpose, subject and
+audience, a UUIDv4 run ID plus unique token ID, and a strict five-minute
+maximum lifetime with bounded issued/not-before timestamps.
+
+A new `runFiscalVerifiedSyntheticStorageProbe` wrapper verifies the
+JWT **before any HTTP request** and only then invokes the M37 ciphertext
+synthetic Storage API adapter. M40 CI uses ephemeral **test-only** keys
+and an in-memory Storage transport for upload/download/delete/404;
+negative tests assert zero network calls for invalid tokens. No live
+route or worker imports the wrapper.
+
+**Security boundary:** Valid local signatures do **not** imply that
+Supabase Storage trusts this independent issuer/key. No JWT minting
+service, KMS, JWKS endpoint, Auth signing-key registration, authenticator
+membership, Storage grants, RLS activation, production synthetic probe,
+or merchant document API was added. Do not paste production private
+keys into repository files or environment variables without an
+approved key-management plan. The M39 SQL remains review-only, and all
+real uploads, KYB approval, fiscal issuance and AADE/myDATA are OFF.
+
+Before proceeding with real synthetic-only testing: authorize a
+separately operated issuer/key lifecycle, verify compatible Supabase
+Storage JWT validation and role mapping, obtain independent security
+review, demonstrate time-bound signing and revocation, then explicitly
+approve a narrowly constrained temporary Storage permission with
+independent cleanup/audit proof. Only synthetic bytes may be used.
