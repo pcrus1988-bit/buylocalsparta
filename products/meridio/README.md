@@ -1,76 +1,55 @@
-# MERIDIO · a KONTA MOY universe application
+# MERIDIO — real assets, responsible infrastructure
 
-**Production URL:** https://meridio.kontamou.site
+Website: https://meridio.kontamou.site
+Application folder: \`products/meridio\` (independent Vercel root, not a root npm workspace).
+Owner universe: KONTA MOY / SP BUSINESS LAB.
 
-This folder is deliberately outside the root npm workspaces (`apps/*` and `packages/*`). MERIDIO can be deployed as an independent Vercel project with root directory `products/meridio`, framework `Other` (null), output directory `public`, with no shared production environment credentials.
+## Product principles
 
-## Mission
+MERIDIO must operate with **real records, verified permissions and durable evidence**. Do not implement public mock tenants, example assets, sample votes, pretend bookings, placeholder ownership interests, simulated review consoles, fake approval timelines, or financial/token demonstrations.
 
-MERIDIO is a digital infrastructure platform for shared ownership, utilization, administration, and governance of real-world physical assets. It is not merely an investment portal, crowdfunding site, rental marketplace, or MDIO-token interface.
+All previously deployed demos and fixture modules were removed from the deployable tree as of real-intake v0.4, and legacy /workspace and /review-lab routes redirect to /intake. Git history preserves previous versions but production does not deploy them.
 
-Asset worlds: real estate, hospitality, mobility, energy, agriculture, equipment, culture, sport/leisure, land and infrastructure.
+## What is live today
 
-## Initial release boundary
+- Public factual service home: \`/\`.
+- \`/intake/\`: users can enter information about an actual asset they are authorized to document, validate it, download a structured JSON draft dossier, reopen a saved draft and edit it.
+- The dossier tool **does not upload, store, email, verify, publish, or share** records. Data is held in the tab only until the file is downloaded or the page closed. There is no third-party analytics dependency in the form.
+- \`/health.json\` reports the actual enabled and disabled capabilities.
+- No production MERIDIO database, users, private evidence storage, financial, token, booking or governance services have been provisioned.
+- The static frontend must never claim a private server action succeeded.
 
-The current release is a public **prelaunch informational + interactive sandbox experience** with accessible asset-world exploration, a fictional asset registry and explicit financial/legal non-offering language.
+## Local integration contract
 
-- No authentication, user records, real assets or investment opportunities are connected to the production marketplace. All eight showcased asset passports are fictional.
-- No real asset, ownership interest, return projection or token is advertised.
-- No forms record personal information; the contact link opens the sender's email client.
-- No payments, reservations, identity verification, governance actions or token minting are live.
-- `robots` prevents indexing until legal/product review and publication approval.
-- No dependency is added to KONTA MOY's production build, database, SSO or payment logic.
+\`public/intake/dossier.mjs\` defines \`meridio-asset-dossier/v1\`. All drafts are user-provided and status \`draft\` only. Evidence checkboxes are self-declared categories, *not* verified documents. Import/export JSON is strictly validated.
 
-## Interactive preview (v0.2)
+Test without connecting to any production systems:
 
-- Route: `/workspace/` (linked from the public homepage).
-- Pure public domain model: `public/platform/model.mjs`.
-- Bundled synthetic fixtures: `public/platform/examples.mjs`.
-- UI: `public/workspace/index.html`, `workspace.css`, `workspace.mjs`.
-- Supports ten-sector filtering, text search, deep-linking to a fictional asset, asset details, illustrative utilization rights checklist, non-reserving time-slot selection, one-unit weighted voting what-if simulation, and evidence checklist.
-- All eight records have `demo-` IDs, `illustrative_only` status, fictional locations and missing verification evidence.
-- Governance scenarios are in-memory mathematical previews. Abstentions count toward quorum, not yes/no decisive percentage.
-- No API, persistence, real KYC, financial operations, access grants, evidence file uploads or actual ballots.
-- Tests: `node --test products/meridio/test/*.test.mjs` (run at repository root); workflow `MERIDIO Preview Acceptance`.
-- Future isolated database design **only**: `docs/proposed-isolated-schema.sql`. It has not been applied; RLS policies are intentionally absent (deny by default).
+\`\`\`bash
+node --test products/meridio/test/*.test.mjs
+\`\`\`
 
-## Independent review lab (v0.3)
+The \`MERIDIO Real Intake Acceptance\` GitHub workflow runs Node 24 syntax checks and tests, including verification that old simulation modules are absent.
 
-- Route: `/review-lab/` — public **fictional** and explicitly non-persistent simulation.
-- Pure standalone domain model: `public/platform/review.mjs`; tests: `test/review.test.mjs`.
-- Operator, independent reviewer and auditor demo personas for two fictional tenants. Role selection is intentionally user-controlled, **not authentication or a security boundary**.
-- Enforces stage transitions, independent evidence checks, tenant membership, evidence requirements, optimistic revisions, immutable caller state and rejects regulated commands.
-- The activity timeline is not durable or tamper-proof. No legal approvals, verified documents, live users, rights, transactions or tokens exist.
-- No application backend, persistence, RLS or verified SSO is connected.
-- Do NOT use this browser module as production authorization logic; server contracts must be independently implemented and tested as documented in `docs/reviewer-production-contract.md`.
-- A dedicated MERIDIO Supabase project does **not** exist yet. The DB schema remains design-only and must **never** be applied to KONTA MOY's production DB.
+## Production infrastructure — NOT connected yet
 
-## Architecture intent
+1. Confirm owning Supabase organization with the user and create a new isolated MERIDIO Supabase project in an appropriate EU region, subject to cost approval if needed. **Do not use the marketplace or FISCAL production databases.**
+2. Add dedicated MERIDIO authentication, tenant membership, RLS and explicit denied-by-default storage and API authorization. Test cross-tenant/anonymous role access against real database privileges.
+3. Build a durable server-side asset registry and draft editing workflow from the v1 dossier fields, including auditable versions and idempotency. The server must independently validate inputs and enforce authentication, tenant and role boundaries.
+4. Create a private evidence vault with malware and file validation, provenance and signed access grants. This is not a public upload.
+5. Implement independent reviewer approvals and append-only audit events in transactions. Allow real publication only after regulatory, legal and document review.
+6. Introduce specific utilization, rights and governance capabilities only after the necessary laws and contracts have been reviewed. No investment offers, securities, tokens or payment flows by default.
 
-Maintain independent deployments and data boundaries while reusing *reviewed* patterns/contracts from KONTA MOY:
+A generated dossier is neither an application to invest nor proof that a party controls an asset. It is an editable user-owned document, nothing more.
 
-1. **Identity & eligibility:** explicit consent, separate MERIDIO roles; SSO must be designed and authorized before linking KONTA MOY identity.
-2. **Assets & evidence:** verified asset registry, document provenance, ownership structure, auditable state transitions.
-3. **Participation & ledger:** lawful rights model and append-only, reconciled ledger; prevent direct balance editing.
-4. **Utilization:** rights-aware scheduling, quotas, access and fulfillment processes.
-5. **Finance:** jurisdictional legal analysis, segregated financial rails, taxes and statements.
-6. **Governance:** proposals, voting eligibility, weighting, quorum, immutable decision history.
-7. **Restricted marketplace:** transfers only where permitted by applicable law and contract.
-8. **MDIO token:** separate exploratory workstream, inactive until explicit legal/security approval.
+## Deployment
 
-Never copy KONTA MOY production personal data, vendors, balances, orders or secrets. Never imply that fractional ownership or financial returns are universally lawful. Do not enable investments or tokens merely by implementing buttons.
+The Vercel project is \`meridio\`, with root \`products/meridio\`, framework Other, output \`public\`, domain \`meridio.kontamou.site\`. Keep Vercel project/env and any future database keys separate from KONTA MOY and FISCAL. Only production builds from \`main\` should point the public custom domain.
 
-## Next increments
+## Risk and operational boundaries
 
-- Replace static app with independently versioned application runtime and tests.
-- Produce jurisdiction-specific regulatory design (Greece / EU), legal entity models, KYC/AML requirements and privacy documentation.
-- Define asset, opportunity, participation, rights, utilization, accounting, governance and immutable audit schemas.
-- Build admin-side evidence verification and approval workflow before onboarding anything public.
-- Implement isolated authentication, RBAC/RLS, rate limiting, observability and security tests.
-- Build read-only real opportunity registry after governance approval; transactional functionality remains gated.
-- Upgrade SEO from noindex only once content accuracy, consumer disclosures and compliance have been approved.
-
-## Operations
-
-Static runtime: `public/index.html`, `public/styles.css`, `public/app.js`, `public/workspace/`, `public/review-lab/`, `public/platform/`. Health metadata: `/health.json`.
-Domain must be mapped to the separate Vercel project, not to the main marketplace project.
+- User-entered information may be sensitive: do not transmit it without explicit notice and consent. Do not store files without server-side authentication and access control.
+- Browser-generated JSON is not cryptographically authenticated.
+- Document-category ticks never amount to evidence verification.
+- Neither copyright, intellectual property, assets nor customer/vendor data may be automatically copied from KONTA MOY.
+- Never advertise nonexistent users, partners, projects, holdings, investments, voting rights or simulated operational performance.
