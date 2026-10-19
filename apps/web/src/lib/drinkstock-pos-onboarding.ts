@@ -7,7 +7,8 @@ export type PosCsvItem={externalItemId:string;name:string};
 export type DrinkStockMenuItem={id:string;name:string};
 export type PosItemMapping={externalItemId:string;productId:string};
 export class PosOnboardingError extends Error{
- constructor(public readonly code:string){super(code);}
+ readonly code:string;
+ constructor(code:string){super(code);this.code=code;}
 }
 export const MAX_POS_CSV_CHARS=512_000;
 export const MAX_POS_CSV_ITEMS=500;
