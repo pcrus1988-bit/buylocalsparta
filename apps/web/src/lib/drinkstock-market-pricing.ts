@@ -56,14 +56,15 @@ export function priceRehearsalDemand(
   throw new Error("DRINK_NOT_IN_VENUE");
  // Smaller buys move prices less than block-sized orders. Unbought listings
  // ease as liquidity flows toward the popular product.
- const buyImpact=0.012+Math.min(0.028,units*0.005);
- const absenceImpact=0.004+Math.min(0.016,units*0.0015);
+ // Use integral basis points to avoid floating half-cent rounding drift.
+ const buyImpactBps=120+Math.min(280,units*50);
+ const absenceImpactBps=40+Math.min(160,units*15);
  return drinks.map(d=>{
   const band=drinkPriceBand(d.baseCents,bounds);
   if(!Number.isSafeInteger(d.priceCents)||d.priceCents<band.minCents||d.priceCents>band.maxCents)
    throw new Error("INVALID_MARKET_STATE");
   const bought=d.id===selectedId;
-  const candidate=Math.round(d.priceCents*(bought?1+buyImpact:1-absenceImpact));
+  const candidate=Math.round(d.priceCents*(bought?10000+buyImpactBps:10000-absenceImpactBps)/10000);
   const afterCents=Math.max(band.minCents,Math.min(band.maxCents,candidate));
   return {id:d.id,name:d.name,beforeCents:d.priceCents,afterCents,
    deltaCents:afterCents-d.priceCents,...(bought?{demandUnits:units}:{})};
