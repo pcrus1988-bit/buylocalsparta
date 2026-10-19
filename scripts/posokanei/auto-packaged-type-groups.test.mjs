@@ -884,3 +884,55 @@ test("new October 17 product kinds still veto contradictory or ambiguous whole-p
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(items),[]);
 });
+
+test("Oct 18 source: exact short-cut pasta matches brands but never a different cut or gluten-free",()=>{
+ const items=[
+  p("k1","MISKO","MISKO Κοφτό 500g","Kοφτό Mακαρόνι","kg",.5),
+  p("k2","MELISSA","MELISSA Κοφτό 500gr","Kοφτό Mακαρόνι","kg",.5),
+  p("k3","ΜΑΡΑΤΑ","ΜΑΡΑΤΑ Κοφτό 500g","Kοφτό Mακαρόνι","kg",.5),
+  p("otherCut","OTHER","OTHER Κοφτό Μέτριο 500g","Kοφτό Mακαρόνι","kg",.5),
+  p("gf","OTHER2","OTHER2 Κοφτό Χωρίς Γλουτένη 500g","Kοφτό Mακαρόνι","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(g=>g.memberIds),[["k1","k2","k3"]]);
+});
+test("Oct 18 source: ordinary wet cat chicken pate does not merge with beef, jelly or veterinary diet",()=>{
+ const items=[
+  p("c1","WHISKAS","WHISKAS Υγρή Τροφή Γάτας με Κοτόπουλο σε Πατέ 400g","Υγρή Τροφή για Γάτες","kg",.4),
+  p("c2","BARRON","BARRON Υγρή Τροφή Γάτας Πατέ με Κοτόπουλο 100g","Υγρή Τροφή για Γάτες","kg",.1),
+  p("cBeef","OTHER","OTHER Υγρή Τροφή Γάτας Πατέ με Μοσχάρι 100g","Υγρή Τροφή για Γάτες","kg",.1),
+  p("cJelly","OTHER2","OTHER2 Υγρή Τροφή Γάτας Κοτόπουλο σε Ζελέ 100g","Υγρή Τροφή για Γάτες","kg",.1),
+  p("cDiet","OTHER3","OTHER3 Υγρή Τροφή Γάτας Πατέ με Κοτόπουλο Diet 100g","Υγρή Τροφή για Γάτες","kg",.1)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(g=>g.memberIds),[["c1","c2"]]);
+});
+test("Oct 18 source: Men Sensitive shaving foam has a narrow format and variant",()=>{
+ const items=[
+  p("s1","NOXZEMA","NOXZEMA Men Αφρός Ξυρίσματος Sensitive 300ml","Αφροί και Τζελ","l",.3),
+  p("s2","GLOW & BEAUTY","GLOW & BEAUTY Αφρός Ξυρίσματος Men Sensitive 200ml","Αφροί και Τζελ","l",.2),
+  p("s3","NIVEA","NIVEA Men Αφρός Ξυρίσματος Sensitive 200ml","Αφροί και Τζελ","l",.2),
+  p("gel","OTHER","OTHER Men Τζελ Ξυρίσματος Sensitive 200ml","Αφροί και Τζελ","l",.2),
+  p("regular","OTHER2","OTHER2 Men Αφρός Ξυρίσματος 200ml","Αφροί και Τζελ","l",.2)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(g=>g.memberIds),[["s1","s2","s3"]]);
+});
+test("Oct 18 source: White Musk body wash preserves scent and form",()=>{
+ const items=[
+  p("w1","GLOW & BEAUTY","GLOW & BEAUTY Αφρόλουτρο White Musk 500ml","Αφρόλουτρα","l",.5),
+  p("w2","CIEN","CIEN Αφρόλουτρο White Musk 650ml","Αφρόλουτρα","l",.65),
+  p("other","OTHER","OTHER Αφρόλουτρο Vanilla Musk 650ml","Αφρόλουτρα","l",.65),
+  p("shampoo","OTHER2","OTHER2 Σαμπουάν White Musk 650ml","Αφρόλουτρα","l",.65),
+  p("organic","OTHER3","OTHER3 Αφρόλουτρο White Musk Organic 650ml","Αφρόλουτρα","l",.65)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(g=>g.memberIds),[["w1","w2"]]);
+});
+test("Oct 18 source: new skincare or pet categories still veto falsely described whole packs",()=>{
+ const items=[
+  p("s1","A","A Men Αφρός Ξυρίσματος Sensitive 200ml","Αφροί και Τζελ","l",.2),
+  p("s2","B","B Men Αφρός Ξυρίσματος Sensitive 200ml","Αφροί και Τζελ","l",.25),
+  p("w1","A","A Αφρόλουτρο White Musk 500ml","Αφρόλουτρα","l",.5),
+  p("w2","B","B Αφρόλουτρο White Musk 500ml","Αφρόλουτρα","kg",.5),
+  p("c1","A","A Υγρή Τροφή Γάτας Πατέ με Κοτόπουλο 100g","Υγρή Τροφή για Γάτες","kg",.1),
+  p("c2","B","B Υγρή Τροφή Γάτας Πατέ με Κοτόπουλο 100g","Υγρή Τροφή για Γάτες","kg",.2)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items),[]);
+});
