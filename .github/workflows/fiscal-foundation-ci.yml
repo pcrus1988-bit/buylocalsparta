@@ -103,6 +103,8 @@ jobs:
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-vault-access-boundary.test.ts
       - name: Verify M37 synthetic HTTP Storage API contract and cleanup failures
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-vault-storage-api-probe.test.ts
+      - name: Verify M40 pinned RSA-signed synthetic-only probe gate and no-network denials
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-vault-signed-probe.test.ts
       - name: Verify M38 dormant Storage role metadata never grants access
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-vault-dormant-role-readiness.test.ts
       - name: Verify exact M38 dormant role SQL with real RLS denies in disposable PostgreSQL
