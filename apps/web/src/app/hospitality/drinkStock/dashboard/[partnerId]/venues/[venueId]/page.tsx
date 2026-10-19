@@ -25,6 +25,9 @@ export default async function VenueMarketPage({params}:{params:Promise<{partnerI
   }
   return <div className={styles.main}>
     <p style={{paddingTop:25,fontSize:13}}><Link href={`/drinkStock/dashboard/${partnerId}`}>← Οι χώροι μου</Link></p>
+    {["owner","manager"].includes(operations.venue.role??"")&&<div style={{maxWidth:1280,margin:"8px auto",textAlign:"right"}}>
+     <Link href={`/drinkstock/dashboard/${partnerId}/reports`} style={{display:"inline-block",padding:"11px 15px",borderRadius:12,background:"#d9ff57",color:"#172022",fontWeight:850,textDecoration:"none"}}>📊 Trading reports ↗</Link>
+    </div>}
     <DrinkStockSessionControl initial={operations} partnerId={partnerId} venueId={venueId} csrfToken={session.csrfToken}/>
     {["owner","manager","staff"].includes(operations.venue.role??"")&&<DrinkStockStaffQueue partnerId={partnerId} venueId={venueId} csrfToken={session.csrfToken}/>}
     <DrinkStockVenueMarket initial={data} partnerId={partnerId} venueId={venueId} csrfToken={session.csrfToken}/>
