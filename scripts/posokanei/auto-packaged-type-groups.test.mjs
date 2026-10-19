@@ -936,3 +936,46 @@ test("Oct 18 source: new skincare or pet categories still veto falsely described
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(items),[]);
 });
+
+test("Men Sensitive foam must contain whole-word Men, never Women or Menswear",()=>{
+ const options=[
+ p("men1","A","A Men Αφρός Ξυρίσματος Sensitive 200ml","Αφροί και Τζελ","l",.2),
+ p("men2","B","B Αφρός Ξυρίσματος Men Sensitive 200ml","Αφροί και Τζελ","l",.2),
+ p("women1","C","C Women Sensitive Αφρός Ξυρίσματος 200ml","Αφροί και Τζελ","l",.2),
+ p("women2","D","D Women Sensitive Αφρός Ξυρίσματος 200ml","Αφροί και Τζελ","l",.2)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(options).map(g=>g.memberIds),[["men1","men2"]]);
+});
+test("White Musk scent requires an adjacent full phrase, not White Tea Musk",()=>{
+ const options=[
+ p("white1","A","A Αφρόλουτρο White Musk 500ml","Αφρόλουτρα","l",.5),
+ p("white2","B","B Αφρόλουτρο White Musk 500ml","Αφρόλουτρα","l",.5),
+ p("tea1","C","C Αφρόλουτρο White Tea Musk 500ml","Αφρόλουτρα","l",.5),
+ p("tea2","D","D Αφρόλουτρο White Tea Musk 500ml","Αφρόλουτρα","l",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(options).map(g=>g.memberIds),[["white1","white2"]]);
+});
+test("vet diet, second meat, jelly and gravy cat-food labels are never auto-approved",()=>{
+ const wrongFamilies=[
+ ["Πατέ με Κοτόπουλο και Μοσχάρι","beef"],
+ ["Πατέ με Κοτόπουλο σε Ζελέ","jelly"],
+ ["Πατέ με Κοτόπουλο Κτηνιατρική Δίαιτα","vet"],
+ ["Πατέ με Κοτόπουλο Renal","renal"],
+ ["Πατέ με Κοτόπουλο σε Σάλτσα","gravy"],
+ ["Πατέ με Κοτόπουλο και Γαλοπούλα","turkey"]
+ ];
+ for(const [kind,tag] of wrongFamilies){
+ const family=[
+ p("wrong-a-"+tag,"A","A Υγρή Τροφή Γάτας "+kind+" 200g","Υγρή Τροφή για Γάτες","kg",.2),
+ p("wrong-b-"+tag,"B","B Υγρή Τροφή Γάτας "+kind+" 200g","Υγρή Τροφή για Γάτες","kg",.2)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(family),[],tag);
+ }
+});
+test("even previously eligible canned wet dog food cannot waive veterinary indicators",()=>{
+ const family=[
+ p("a","A","A Κονσέρβα Σκύλου με Κοτόπουλο και Γαλοπούλα Κτηνιατρική Δίαιτα 400g","Υγρή Τροφή για Σκύλους","kg",.4),
+ p("b","B","B Κονσέρβα Σκύλου με Κοτόπουλο και Γαλοπούλα Κτηνιατρική Δίαιτα 400g","Υγρή Τροφή για Σκύλους","kg",.4)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(family),[]);
+});
