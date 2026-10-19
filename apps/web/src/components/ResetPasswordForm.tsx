@@ -7,7 +7,9 @@ export function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
-  const vendorMode = searchParams.get("mode") === "vendor";
+  const mode = searchParams.get("mode");
+  const claimMode = mode === "claim";
+  const vendorMode = mode === "vendor" || claimMode;
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [error, setError] = useState("");
@@ -28,7 +30,7 @@ export function ResetPasswordForm() {
       });
       const data = await response.json() as { error?: string; next?: string };
       if (!response.ok) throw new Error(data.error ?? "Η επαναφορά κωδικού απέτυχε.");
-      router.replace(data.next ?? (vendorMode ? "/vendor/login?activated=1" : "/login?reset=1"));
+      router.replace(claimMode ? "/login?reset=1&next=%2Fvendor%2Fclaim" : vendorMode ? "/vendor/login?reset=1" : data.next ?? "/login?reset=1");
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Η επαναφορά κωδικού απέτυχε.");
@@ -39,7 +41,7 @@ export function ResetPasswordForm() {
 
   return <form className="login-form" onSubmit={submit}>
     {!token && <div className="account-gate"><strong>Ο σύνδεσμος δεν είναι πλήρης.</strong><p>Ζήτησε νέο email επαναφοράς για να συνεχίσεις.</p><a className="text-link" href="/forgot-password">Νέος σύνδεσμος →</a></div>}
-    {vendorMode && <div className="account-gate"><strong>Ενεργοποίηση Vendor Workspace</strong><p>Δημιούργησε τον κωδικό που θα χρησιμοποιείς για την πρόσβαση του καταστήματός σου.</p></div>}
+    {vendorMode && <div className="account-gate"><strong>{claimMode ? "Επαναφορά CLAIM" : "Επαναφορά Vendor Workspace"}</strong><p>{claimMode ? "Αυτός ο κωδικός αφορά προς το παρόν τον υπάρχοντα λογαριασμό KONTA MOY. Μετά την αλλαγή θα επιστρέψεις στο CLAIM dashboard." : "Δημιούργησε νέο κωδικό πρόσβασης στον συνδεδεμένο vendor λογαριασμό."}</p></div>}
     <label htmlFor="reset-password">{vendorMode ? "Δημιουργία κωδικού" : "Νέος κωδικός"}</label>
     <input id="reset-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={10} aria-describedby="reset-password-hint" />
     <small id="reset-password-hint">Τουλάχιστον 10 χαρακτήρες. Μην αφήνεις κενό στην αρχή ή στο τέλος.</small>
