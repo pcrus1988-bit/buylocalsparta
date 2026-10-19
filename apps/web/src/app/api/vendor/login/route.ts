@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     if (!email || !password) throw new Error("Email and password are required");
     const now = Date.now();
     const result = await authenticateVendor({ email, password, now });
-    if (!result.principal.vendorId || !result.principal.roles.some((role) => role.startsWith("vendor_"))) throw new Error("Vendor access is not enabled for this account");
+    if (!result.principal.roles.some((role) => role.startsWith("vendor_"))) throw new Error("Vendor access is not enabled for this account");
     const store = await cookies();
     store.set({ name: VENDOR_SESSION_COOKIE, value: result.token, httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" || request.url.startsWith("https://"), path: "/", expires: new Date(result.expiresAt) });
 
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return Response.json({ vendorId: result.principal.vendorId, email: result.principal.email, csrfToken: result.principal.csrfToken, trialAvailable });
+    return Response.json({ vendorId: result.principal.vendorId ?? null, claimOnly: !result.principal.vendorId && result.principal.roles.includes("vendor_claim"), email: result.principal.email, csrfToken: result.principal.csrfToken, trialAvailable });
   } catch (error) {
     if (isAuthInfrastructureError(error)) {
       console.error(JSON.stringify({ level: "error", event: "vendor.login_infrastructure_unavailable", message: error instanceof Error ? error.message : String(error) }));
