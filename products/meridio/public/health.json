@@ -1,1 +1,1 @@
-{"service":"meridio","product":"KONTA MOY universe","release":"foundation-0.1.0","status":"prelaunch","live_transactions_enabled":false,"token_issuance_enabled":false}
+{"service":"meridio","product":"KONTA MOY universe","release":"review-contract-0.3.0","status":"prelaunch","mode":"fictional-demo-only","tenant_backend_enabled":false,"review_backend_enabled":false,"authentication_enabled":false,"live_transactions_enabled":false,"token_issuance_enabled":false}
