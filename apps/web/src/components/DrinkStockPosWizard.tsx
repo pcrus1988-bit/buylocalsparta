@@ -29,7 +29,7 @@ const help:Record<string,string>={
  CSV_EMPTY:"Το αρχείο δεν έχει είδη."
 };
 function downloadText(filename:string,text:string){
- const blob=new Blob([text],{type:filename.endsWith(".txt")?"text/plain;charset=utf-8":"text/csv;charset=utf-8"});
+ const blob=new Blob([text],{type:filename.endsWith(".txt")?"text/plain;charset=utf-8":filename.endsWith(".json")?"application/json;charset=utf-8":"text/csv;charset=utf-8"});
  const url=URL.createObjectURL(blob),a=document.createElement("a");
  a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
  window.setTimeout(()=>URL.revokeObjectURL(url),1000);
