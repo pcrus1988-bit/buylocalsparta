@@ -179,6 +179,13 @@ export async function consumeDedicatedVendorReset(input:{token:string;password:s
       ")) AS ok"
     ].join(" "),[row.user_id,row.target_scope]);
     if (!allowed.rows[0]?.ok) throw new Error("Vendor account no longer eligible");
+    // The vendor secret must not authenticate at the consumer login endpoint.
+    const consumer = await client.query<{ password_hash: string }>(
+      "SELECT password_hash FROM users WHERE id=$1::uuid FOR UPDATE", [row.user_id]
+    );
+    if (!consumer.rows[0] || verifyPassword(input.password, String(consumer.rows[0].password_hash))) {
+      throw new Error("The vendor password must be different from your customer password");
+    }
     await client.query([
       "INSERT INTO vendor_identity_credentials(user_id,password_hash,created_at,updated_at)",
       "VALUES($1::uuid,$2,$3,$3) ON CONFLICT(user_id) DO UPDATE",
