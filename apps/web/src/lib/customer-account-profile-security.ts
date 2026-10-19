@@ -143,6 +143,12 @@ export async function changeCustomerPassword(principal: SessionPrincipal, input:
     const currentHash = String(found.rows[0].password_hash ?? "");
     if (!verifyPassword(input.currentPassword, currentHash)) throw new Error("Ο τρέχων κωδικός δεν είναι σωστός.");
     if (verifyPassword(input.newPassword, currentHash)) throw new Error("Ο νέος κωδικός πρέπει να είναι διαφορετικός από τον τρέχοντα.");
+    const vendorCredential = await client.query(
+      "SELECT password_hash FROM vendor_identity_credentials WHERE user_id=$1::uuid", [userUuid]
+    );
+    if (vendorCredential.rows[0]?.password_hash && verifyPassword(input.newPassword, String(vendorCredential.rows[0].password_hash))) {
+      throw new Error("Ο κωδικός αγορών πρέπει να είναι διαφορετικός από τον κωδικό συνεργάτη.");
+    }
     await client.query("UPDATE users SET password_hash=$2,updated_at=$3 WHERE id=$1::uuid", [userUuid, newPasswordHash, now]);
     await client.query("DELETE FROM user_sessions WHERE user_id=$1::uuid", [userUuid]);
     await client.query(`UPDATE password_reset_tokens SET consumed_at=COALESCE(consumed_at,$2) WHERE user_id=$1::uuid AND consumed_at IS NULL`, [userUuid, now]);
