@@ -1,4 +1,4 @@
-import {drinkPriceBand,priceRehearsalDemand} from "./drinkstock-market-pricing";
+import {drinkPriceBand,priceRehearsalDemand} from "./drinkstock-market-pricing.ts";
 
 /**
  * Browser-only pricing demo for the KONTA MOY EXCHANGE concept.
