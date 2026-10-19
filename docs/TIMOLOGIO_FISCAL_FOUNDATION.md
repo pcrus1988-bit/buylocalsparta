@@ -783,3 +783,75 @@ controlled empty private bucket provisioned via Storage API/Dashboard,
 separate managed KMS with policy isolation, malware quarantine, immutable
 operator audit and deletion/incident drills, and staged end-to-end testing
 against non-sensitive synthetic bytes. A bucket alone cannot unlock intake.
+
+
+## Milestone 35 — real empty EU-private quarantine bucket + synthetic end-to-end rehearsal (19 October 2026)
+
+M35 is the first verified **real provisioned storage resource**, but it is
+**not a working KYB document intake**. The separately hosted FISCAL Supabase
+project `kcpwxplxqtqdsfwlfsaa` (`eu-central-1`) was inspected immediately
+before provisioning. The project had zero Storage buckets, zero objects, zero
+`storage.objects` RLS policies and RLS was enabled for that table.
+
+Following the current official Supabase "Creating Buckets" documentation, an
+**atomic, locked SQL creation** added exactly one empty bucket through
+`storage.buckets` after checking those safety preconditions. The operation
+aborted on any existing bucket/policy/object or disabled object RLS. The
+transaction committed only if exact private and limit values matched.
+Its read-back verified:
+
+- bucket ID and name `fiscal-kyb-quarantine`;
+- `public=false`;
+- `file_size_limit=12582912` (12 MiB);
+- `allowed_mime_types=['application/octet-stream']` for **encrypted-only**
+  objects; no raw PDF/JPEG/PNG is allowlisted;
+- **zero stored objects**. No RLS policies were created and no application
+  service-role credentials were introduced.
+
+This is deliberate only-once provisioning of an **empty bucket**, not
+merchant-data processing. Existing documentation recommended a managed API
+or Dashboard; the platform's official current guidance also explicitly
+supports SQL for bucket creation. Creation was narrowly transaction-scoped,
+preflight guarded and verified; it must not be generalized into direct
+Storage object mutations or arbitrary SQL-based object lifecycle handling.
+For all future object operations prefer supported, approved Storage APIs.
+
+M35 also adds a **bounded, operator-only in-memory cryptographic rehearsal**.
+It accepts **zero arguments** and generates fresh synthetic PDF bytes, random
+organization/evidence UUIDs, throwaway AES-256-GCM key and throwaway Ed25519
+signing key. It exercises eight deterministic invariant categories:
+
+1. unpredictable tenant/evidence-scoped quarantine key planning;
+2. AES-256-GCM sealing and integrity verification;
+3. synthetic cross-organization access denial;
+4. ciphertext tamper rejection;
+5. correctly signed scanner statement verification, without document release;
+6. forged scanner-result rejection;
+7. tenant/evidence-bound SHA-256 audit-event hash-chain consistency;
+8. synthetic object deletion inside an ephemeral **in-memory Map**.
+
+All bytes, key material, object keys and signatures remain server-local;
+results contain only a bounded check count and immutable negative
+authorization flags. Key and plaintext buffers are cleared after the
+rehearsal. The signed scan report is a **synthetic** example, not evidence
+that any real scanner has run. An `audit.delete_observed` event in a
+synthetic in-memory run is **not** proof of live deletion; the result always
+reports `realDeletionVerified=false`.
+
+The administrator-only route
+`/timologio-admin/kyb-intake-readiness` reuses existing login and
+configured operator MFA step-up, showing both the separate real read-only
+Storage configuration and a synthetic rehearsal result. A passing test
+does **not** change readiness gates.
+
+**Still disabled:** merchant document intake, browser file uploads, object
+write/read/download permissions, user grants, storage SDK connections,
+background scanning, independent KMS and key rotation, WORM audit anchoring,
+retention and verified deletion on real storage, production approvals,
+provider accreditation, AADE/myDATA transmission, and legal fiscal issuance.
+No real identity document was submitted, read or stored in this milestone.
+
+The next work is to implement a strictly isolated, credential-separated
+provider-side synthetic object lifecycle with explicit private network,
+KMS/scanner/storage roles and destructive-test controls after security/privacy
+review. Production merchant uploads cannot be enabled by a bucket or CI test.
