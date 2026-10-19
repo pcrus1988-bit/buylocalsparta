@@ -4,6 +4,7 @@ import {fiscalAdminActor} from "../../../lib/fiscal-auth";
 import {fiscalMfaEnforced,isFiscalMfaSatisfied} from "../../../lib/fiscal-operator-mfa";
 import {getFiscalKybIntakeReadiness} from "../../../lib/fiscal-kyb-intake-security";
 import {getFiscalVaultLiveReadiness} from "../../../lib/fiscal-kyb-vault-live-readiness";
+import {runFiscalKybSyntheticRehearsal} from "../../../lib/fiscal-kyb-vault-synthetic-rehearsal";
 
 export const dynamic="force-dynamic";
 
@@ -18,6 +19,7 @@ export default async function FiscalKybIntakeReadiness(){
  if(enforced&&!(await isFiscalMfaSatisfied(actor)))
   redirect("/timologio-admin/mfa");
  const vault=await getFiscalVaultLiveReadiness();
+ const synthetic=runFiscalKybSyntheticRehearsal();
  const rawUploadFlag=process.env.FISCAL_KYB_UPLOADS_ENABLED?.trim().toLowerCase();
  const status=getFiscalKybIntakeReadiness({
   operatorMfaEnforced:enforced,
@@ -31,7 +33,7 @@ export default async function FiscalKybIntakeReadiness(){
     <Link href="/timologio-admin/release-readiness">Έλεγχοι λειτουργίας</Link></nav>
   </header>
   <section className="fiscal-hero">
-   <div className="fiscal-kicker">M34 · Live storage inspection · No document intake</div>
+   <div className="fiscal-kicker">M35 · Private storage provisioned · Synthetic-only verification</div>
    <h1>Ετοιμότητα ασφαλούς υποβολής δικαιολογητικών</h1>
    <p>Έλεγχος προϋποθέσεων για μελλοντική υποβολή ευαίσθητων στοιχείων
       επιχείρησης. Καμία ένδειξη παρακάτω δεν αποτελεί αυτόματη έγκριση.</p>
@@ -71,6 +73,43 @@ export default async function FiscalKybIntakeReadiness(){
      Η εφαρμογή συνεχίζει να απαγορεύει κάθε υποβολή και απαιτεί χειροκίνητο έλεγχο ρύθμισης.</p>:
     <p className="fiscal-muted">Δεν εντοπίστηκε προσπάθεια ενεργοποίησης από την ελεγχόμενη
      ρύθμιση. Αυτό δεν πιστοποιεί την πραγματική κατάσταση αποθήκευσης.</p>}
+  </section>
+  <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
+   <h2>M35 · Ιδιωτικό αποθετήριο και συνθετική πρόβα ασφαλείας</h2>
+   <p className="fiscal-muted">
+    Δημιουργήθηκε αποκλειστικά στη χωριστή βάση FISCAL ο κενός ιδιωτικός
+    χώρος καραντίνας fiscal-kyb-quarantine. Η πραγματική διαμόρφωση
+    ελέγχεται από τον ζωντανό, μόνο ανάγνωσης έλεγχο του M34.
+    Η ακόλουθη δοκιμή εκτελείται σε προσωρινή μνήμη διακομιστή με
+    τεχνητό αρχείο και κλειδιά μίας χρήσης, χωρίς επαφή με το αποθετήριο.
+   </p>
+   <div className="fiscal-grid">
+    <article className="fiscal-card">
+     <small>Ζωντανή διαμόρφωση αποθετηρίου</small>
+     <h3>{vault.configurationMatchesPlan?"Κενό, ιδιωτικό, περιορισμένο":
+       "Δεν επιβεβαιώνεται"}</h3>
+     <p>Έλεγχος πραγματικού bucket, RLS, πολιτικών, ορίου και τύπου δεδομένων.
+        Δεν ισοδυναμεί με εξωτερική πιστοποίηση.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Συνθετικός έλεγχος κρυπτογραφίας</small>
+     <h3>{synthetic.status==="passed"?
+       `${synthetic.checksPassed} / ${synthetic.checksTotal} PASS`:
+       "Αποτυχία ελέγχου"}</h3>
+     <p>Επαλήθευση κρυπτογράφησης, διαχωρισμού επιχειρήσεων,
+        ανίχνευσης αλλοίωσης, υπογραφής σάρωσης και τεχνητής διαγραφής.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Πραγματικές διασυνδέσεις</small><h3>ΑΝΕΝΕΡΓΕΣ</h3>
+     <p>Η πρόβα δεν χρησιμοποιεί πραγματικό scanner, εξωτερικό KMS,
+        αποθήκευση αντικειμένων, WORM audit ή αυθεντικά δικαιολογητικά.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Κατάσταση παραγωγικής παραλαβής</small><h3>OFF</h3>
+     <p>Δεν επιτρέπεται κανένα upload/download, έκδοση δικαιολογητικού,
+        αυτόματη έγκριση KYB ή διαβίβαση σε ΑΑΔΕ.</p>
+    </article>
+   </div>
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
    <h2>M34 · Πραγματικός έλεγχος υποδομής αποθήκευσης</h2>
@@ -119,8 +158,9 @@ export default async function FiscalKybIntakeReadiness(){
    <h2>M32 · Πυρήνας ασφαλούς καραντίνας (μόνο εργαστηριακός)</h2>
    <p className="fiscal-muted">
     Έχουν προστεθεί κρυπτογραφικές δομικές μονάδες στον κώδικα, που
-    δοκιμάζονται αποκλειστικά με συνθετικά δεδομένα. Δεν υφίσταται πραγματικό
-    αποθετήριο αρχείων, κανάλι αποστολής, διαχειριστής κλειδιών ή σαρωτής malware.
+    δοκιμάζονται αποκλειστικά με συνθετικά δεδομένα. Παρότι υπάρχει πλέον
+    κενό ιδιωτικό bucket, δεν υφίσταται κανάλι αποστολής/ανάγνωσης,
+    διαχειριστής κλειδιών ή σαρωτής malware.
    </p>
    <div className="fiscal-grid">
     <article className="fiscal-card">
@@ -149,7 +189,7 @@ export default async function FiscalKybIntakeReadiness(){
     </article>
    </div>
    <p className="fiscal-alert" role="note" style={{marginTop:18}}>
-    <strong>Όχι παραγωγικό Vault:</strong> 0 ενεργές συνδέσεις με αντικειμενοθήκη,
+    <strong>Όχι παραγωγικό Vault:</strong> 0 ενεργές συνδέσεις εγγραφής/ανάγνωσης αντικειμένων,
     KMS ή scanner. Κανένα πραγματικό δικαιολογητικό δεν συλλέγεται
     ούτε ανοίγεται από τη νέα υποδομή.
    </p>
@@ -160,7 +200,7 @@ export default async function FiscalKybIntakeReadiness(){
     Έχει υλοποιηθεί ο εσωτερικός, ανεξάρτητος από πάροχο μηχανισμός
     επαλήθευσης ψηφιακά υπογεγραμμένων αποτελεσμάτων σάρωσης και
     αλυσίδας συμβάντων. Εκτελείται μόνο με συνθετικές δοκιμές.
-    Δεν έχει συνδεθεί πραγματικός σαρωτής, πάροχος αποθήκευσης, KMS
+    Δεν έχει συνδεθεί πραγματικός σαρωτής, μεταφορά αντικειμένων, KMS
     ή υπηρεσία αμετάβλητης αρχειοθέτησης.
    </p>
    <div className="fiscal-grid">
