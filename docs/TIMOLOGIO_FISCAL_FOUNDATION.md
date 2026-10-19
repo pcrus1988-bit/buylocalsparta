@@ -1040,3 +1040,61 @@ Reference: Supabase Custom Storage Roles
 https://supabase.com/docs/guides/storage/schema/custom-roles
 and Storage Access Control
 https://supabase.com/docs/guides/storage/security/access-control.
+
+
+## Milestone 39 — run-bound Storage RLS rehearsal, not activated (19 October 2026)
+
+M39 prepares the precise **review-only** SQL for granting a future,
+dedicated, short-lived synthetic-probe role the minimum bucket permissions.
+The blueprint is versioned at
+`fiscal/security/m39_scoped_synthetic_storage_policies_REVIEW_ONLY.sql`
+and is **NOT** in a production migration path, applied to live Supabase,
+or used by a live service. The already provisioned FISCAL role
+`fiscal_kyb_probe` remains dormant, without authenticator
+membership. The actual Supabase bucket retains **zero RLS policies**.
+
+The staged policy proposes INSERT, SELECT and DELETE for the *probe role
+alone*; no UPDATE, UPSERT or access granted to `anon`,
+`authenticated`, `authenticator` or service-role alternatives.
+Rows must belong to the exact `fiscal-kyb-quarantine` bucket,
+have a strictly syntactic `__synthetic_m37__/<uuidv4>/<hex32>.bin`
+object path, and match the `probe_run_id` supplied in the
+**verified-by-Storage** JWT. JWT claims must also match
+`role=fiscal_kyb_probe`, `purpose=fiscal_kyb_synthetic_probe_v1`,
+and have expiry in the next 15 minutes. SELECT additionally uses
+Storage's operation-aware helper to allow only authenticated get,
+authenticated info or delete-related operations; object listing is denied.
+Raw JWT payload parsing by M37 is **not** signature verification;
+a future live deployment requires independently provisioned JWT issuer
+and server-side verification by Supabase.
+
+M37's HTTP adapter was strengthened to bind its generated object
+path directly to a mandatory UUID-v4 `probe_run_id` claim. Wrong or
+missing run IDs are rejected before issuing network requests.
+No user-controlled path or merchant data is accepted.
+
+CI runs the **exact staged SQL** in a disposable localhost `fiscal_ci`
+PostgreSQL transaction, including concrete RLS denials for wrong
+bucket, different run ID, non-synthetic object, incorrect purpose,
+expired JWT and object listing; synthetic INSERT/GET/DELETE for the
+correct run; no UPDATE privileges and no authenticator delegation.
+All fixture state and roles are rolled back. CI never contacts the
+hosted Storage service. The protected FISCAL operator readiness page
+explicitly labels the M39 blueprint as rehearsal-only and reports
+the existing live zero-policy state.
+
+The blueprint intentionally remains unapplied to live production
+because the custom role is not yet assumable and **neither a separately
+approved JWT issuer nor independent KMS, scanner, retention controls,
+legal basis or verified deletion process are in place**. A premature
+grant/policy change would trip M34/M36's fail-closed zero-policy checks.
+The policy design must be independently reviewed, tested against the
+real Supabase Storage API with synthetic bytes and assessed for
+operation compatibility before any live grants or RLS changes.
+Production merchant uploads, real KYB, tax issuance and AADE/myDATA
+transmission remain OFF.
+
+Current upstream references:
+- https://supabase.com/docs/guides/storage/security/access-control
+- https://supabase.com/docs/guides/storage/schema/helper-functions
+- https://supabase.com/docs/guides/storage/schema/custom-roles
