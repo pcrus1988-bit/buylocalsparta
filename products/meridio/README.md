@@ -1,6 +1,6 @@
 # MERIDIO · a KONTA MOY universe application
 
-**Intended URL:** https://meridio.kontamou.site
+**Production URL:** https://meridio.kontamou.site
 
 This folder is deliberately outside the root npm workspaces (`apps/*` and `packages/*`). MERIDIO can be deployed as an independent Vercel project with root directory `products/meridio`, framework `Other` (null), output directory `public`, with no shared production environment credentials.
 
@@ -12,14 +12,27 @@ Asset worlds: real estate, hospitality, mobility, energy, agriculture, equipment
 
 ## Initial release boundary
 
-The initial release is a deliberately public **prelaunch informational experience** with accessible interactive asset-world exploration and explicit financial/legal non-offering language.
+The current release is a public **prelaunch informational + interactive sandbox experience** with accessible asset-world exploration, a fictional asset registry and explicit financial/legal non-offering language.
 
-- No authentication, user records, assets or investment opportunities are connected to the production marketplace.
+- No authentication, user records, real assets or investment opportunities are connected to the production marketplace. All eight showcased asset passports are fictional.
 - No real asset, ownership interest, return projection or token is advertised.
 - No forms record personal information; the contact link opens the sender's email client.
 - No payments, reservations, identity verification, governance actions or token minting are live.
 - `robots` prevents indexing until legal/product review and publication approval.
 - No dependency is added to KONTA MOY's production build, database, SSO or payment logic.
+
+## Interactive preview (v0.2)
+
+- Route: `/workspace/` (linked from the public homepage).
+- Pure public domain model: `public/platform/model.mjs`.
+- Bundled synthetic fixtures: `public/platform/examples.mjs`.
+- UI: `public/workspace/index.html`, `workspace.css`, `workspace.mjs`.
+- Supports ten-sector filtering, text search, deep-linking to a fictional asset, asset details, illustrative utilization rights checklist, non-reserving time-slot selection, one-unit weighted voting what-if simulation, and evidence checklist.
+- All eight records have `demo-` IDs, `illustrative_only` status, fictional locations and missing verification evidence.
+- Governance scenarios are in-memory mathematical previews. Abstentions count toward quorum, not yes/no decisive percentage.
+- No API, persistence, real KYC, financial operations, access grants, evidence file uploads or actual ballots.
+- Tests: `node --test products/meridio/test/*.test.mjs` (run at repository root); workflow `MERIDIO Preview Acceptance`.
+- Future isolated database design **only**: `docs/proposed-isolated-schema.sql`. It has not been applied; RLS policies are intentionally absent (deny by default).
 
 ## Architecture intent
 
@@ -48,5 +61,5 @@ Never copy KONTA MOY production personal data, vendors, balances, orders or secr
 
 ## Operations
 
-Static runtime: `public/index.html`, `public/styles.css`, `public/app.js`. Health metadata: `/health.json`.
+Static runtime: `public/index.html`, `public/styles.css`, `public/app.js`, `public/workspace/`, `public/platform/`. Health metadata: `/health.json`.
 Domain must be mapped to the separate Vercel project, not to the main marketplace project.
