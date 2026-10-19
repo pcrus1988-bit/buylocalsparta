@@ -16,10 +16,14 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  // Explicitly described 2026-10-17/18 ordinary grocery and personal-care
+  // variants: NEVER approve a generic parent category by itself.
+  ["αφροι και τζελ",["l",/(?=.*αφρ)(?=.*ξυρισματ)(?=.*men)(?=.*sensitive)/u]],
+  ["αφρολουτρα",["l",/(?=.*αφρολουτρ)(?=.*white)(?=.*musk)/u]],
   // Narrow, source-described ordinary family types from the dated Oct 17
   // unreviewed queue. Variants, veterinary diets and claim-bearing goods do
   // not inherit eligibility from their broader source categories.
-  ["υγρη τροφη για γατες",["kg",/(?=.*κονσερβα)(?=.*γατ)(?=.*κοτοπουλ)(?=.*γαλοπουλ)/u]],
+  ["υγρη τροφη για γατες",["kg",/(?:(?=.*κονσερβα)(?=.*γατ)(?=.*κοτοπουλ)(?=.*γαλοπουλ)|(?=.*γατ)(?=.*κοτοπουλ)(?=.*πατε)(?=.*(?:υγρη.*τροφη|τροφη.*υγρη)))/u]],
   ["υγρη τροφη για σκυλους",["kg",/(?=.*κονσερβα)(?=.*σκυλ)(?=.*κοτοπουλ)(?=.*γαλοπουλ)/u]],
   ["πιτες και πιτακια",["kg",/λουκανικοπιτακ.*σφολιατ/u]],
 
@@ -133,8 +137,8 @@ const specs=new Map([
 
   ["ξυδι",["l",/ξιδ|ξυδ|vinegar/u]],
   ["κατεψυγμενες μπαμιες",["kg",/μπαμι|okra/u]],
-  ["κοφτο μακαρονι",["kg",/κοφτ.*μακαρον|μακαρον.*κοφτ|short pasta/u]],
-  ["kοφτο mακαρονι",["kg",/κοφτ.*μακαρον|μακαρον.*κοφτ|short pasta/u]],
+  ["κοφτο μακαρονι",["kg",/κοφτ.*μακαρον|μακαρον.*κοφτ|short pasta|(?:^|[^\p{L}])κοφτο(?=$|[^\p{L}])/u]],
+  ["kοφτο mακαρονι",["kg",/κοφτ.*μακαρον|μακαρον.*κοφτ|short pasta|(?:^|[^\p{L}])κοφτο(?=$|[^\p{L}])/u]],
   ["κρουασαν",["kg",/κρουασαν|croissant/u]],
   ["χαλβας",["kg",/χαλβα|halva/u]],
   ["γκουντα",["kg",/γκουντα|gouda/u]],
@@ -275,7 +279,7 @@ function accepted(p){
      size.amount<.02||size.amount>40||Math.abs(size.amount-label.quantity)>1e-6)return false;
   const fam=productFamily(p);
   const bits=fam?.split("|")[1]?.split(" ").filter(Boolean)||[];
-  if(bits.length<2 && !(category==="βουτηματα" && /μουστοκουλουρ/u.test(title)) && !(category==="γευματα" && bits.length===1 && bits[0]==="σπανακορυζο") && !["πλιγουρι","κατεψυγμενο μπροκολο","κεφιρ","γκαζοζα","αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη","κατεψυγμενος αρακας","αριανι","κοραλλια","αλλα ζυμαρικα","ταχινι","φαρινα","ανθοτυρο","κατεψυγμενες αγκιναρες","νισεστες","ρυζογαλο","ριγκατονι","λαζανια","στριφτο","σοδα","μακαρονια αστερακια","γλυκισματα ψυγειου"].includes(category))return false;
+  if(bits.length<2 && !(category==="βουτηματα" && /μουστοκουλουρ/u.test(title)) && !(category==="γευματα" && bits.length===1 && bits[0]==="σπανακορυζο") && !(["kοφτο mακαρονι","κοφτο μακαρονι"].includes(category) && bits.length===1 && bits[0]==="κοφτο") && !["πλιγουρι","κατεψυγμενο μπροκολο","κεφιρ","γκαζοζα","αραβοσιτελαιο","πυρηνελαιο","κετσαπ","μαγιονεζα","ριγανη","κατεψυγμενος αρακας","αριανι","κοραλλια","αλλα ζυμαρικα","ταχινι","φαρινα","ανθοτυρο","κατεψυγμενες αγκιναρες","νισεστες","ρυζογαλο","ριγκατονι","λαζανια","στριφτο","σοδα","μακαρονια αστερακια","γλυκισματα ψυγειου"].includes(category))return false;
   // Dairy requires fat information, otherwise packaging titles alone do not
   // distinguish normal, low fat, lactose-free and fermented variants.
   const listedFatPercent=/\b\d+(?:[.,]\d+)?\s*%/u.test(title);
