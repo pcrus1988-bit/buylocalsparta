@@ -107,7 +107,7 @@ export function DrinkStockGuestCart({token,initial}:{token:string;initial:Sessio
    {connected&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,340px),1fr))",gap:20,marginTop:28,alignItems:"start"}}>
     <section aria-label="Live drink board">
      <h2 style={{fontSize:25,margin:"0 0 14px"}}>🍹 Today's trading board</h2>
-     <p style={{color:"#bdb2d9",lineHeight:1.5}}>Pick drinks and request a fresh price preview. Prices move during the trading session.</p>
+     <p style={{color:"#bdb2d9",lineHeight:1.5}}>Select drinks and request a fresh server-calculated venue price preview. Animations on venue TV screens are demonstrative only: their simulated prices are never the prices used by this cart.</p>
      {view.products.map(drink=>{
       const count=cart[drink.id]??0;
       return <article key={drink.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:15,padding:17,borderRadius:17,marginBottom:10,border:count?"1px solid #d5ff53":"1px solid #ffffff29",background:"#ffffff10"}}>

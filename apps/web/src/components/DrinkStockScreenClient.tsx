@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import type {SessionView} from "../lib/drinkstock-session-service";
-import {synchronizedShowcaseTrades} from "../lib/drinkstock-screen-showcase";
+import {synchronizedShowcaseTrades,synchronizedShowcasePrices} from "../lib/drinkstock-screen-showcase";
 const euros=(n:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(n/100);
 export function DrinkStockScreenClient({token,initial}:{token:string;initial:SessionView}){
  const [data,setData]=useState(initial),[now,setNow]=useState(Date.now()),[armed,setArmed]=useState(false);
@@ -16,6 +16,9 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  const seconds=crash?Math.max(0,Math.ceil((new Date(crash).getTime()-serverNowMs)/1000)):0;
  const isActual=data.feedMode==="actual";
  const showcase=isActual?[]:synchronizedShowcaseTrades(data.session,data.products,serverNowMs);
+ const demoPrices=isActual?[]:synchronizedShowcasePrices(data.session,data.products,serverNowMs,
+   data.session?.floorPercent??70,data.session?.ceilingPercent??145);
+ const quoteByProduct=new Map(demoPrices.map(item=>[item.productId,item]));
  useEffect(()=>{const tick=window.setInterval(()=>setNow(Date.now()),250);return ()=>window.clearInterval(tick)},[]);
  useEffect(()=>{
  let mounted=true;
@@ -86,11 +89,31 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  <button onClick={fullScreen} style={{background:"#23203f",color:"#fff",border:"1px solid #746a98",borderRadius:12,padding:"12px 16px",cursor:"pointer"}}>⛶ FULLSCREEN</button></div>
  </header>
  <h1 style={{fontSize:"clamp(34px,6vw,78px)",fontWeight:950,letterSpacing:-4,margin:"34px 0 22px"}}>THE DRINK EXCHANGE<span style={{color:"#caff50"}}>.</span></h1>
+ {!isActual&&<div role="status" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:19,padding:"12px 18px",borderRadius:12,background:"#e3b5ff14",border:"1px solid #e3b5ff38"}}>
+  <strong style={{color:"#e9adff",letterSpacing:1}}>↗ SIMULATED MARKET PRICES · NOT CUSTOMER QUOTES</strong>
+  <span style={{fontSize:13,color:"#d0c5e3"}}>VENUE LIMITS {data.session?.floorPercent??70}%–{data.session?.ceilingPercent??145}% · 5-cent steps · synced TVs</span>
+ </div>}
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,270px),1fr))",gap:13}}>
- {data.products.map(product=><article key={product.id} style={{background:leadingProduct===product.id?"#d9ff571c":"#ffffff11",border:leadingProduct===product.id?"2px solid #d9ff57":"1px solid #ffffff27",borderRadius:16,padding:22}}>
- <div style={{color:"#ad9ed9",fontSize:11,letterSpacing:2}}>{product.category.toUpperCase()}</div>
- <h2 style={{fontSize:"clamp(19px,2.5vw,31px)",margin:"12px 0"}}>{product.name}</h2>
- <strong style={{fontSize:"clamp(30px,4vw,52px)",color:crash?"#ff6281":"#ccff50"}}>{euros(product.priceCents)}</strong></article>)}
+ {data.products.map(product=>{
+ const price=quoteByProduct.get(product.id);
+ const displayCents=price?.displayCents??product.priceCents;
+ const delta=price?.movementCents??0;
+ return <article key={product.id} style={{background:leadingProduct===product.id?"#d9ff571c":"#ffffff11",border:leadingProduct===product.id?"2px solid #d9ff57":"1px solid #ffffff27",borderRadius:16,padding:22,transition:"background 350ms ease,border 350ms ease"}}>
+  <div style={{display:"flex",justifyContent:"space-between",gap:9,flexWrap:"wrap"}}>
+   <span style={{color:"#ad9ed9",fontSize:11,letterSpacing:2}}>{product.category.toUpperCase()}</span>
+   <span style={{fontSize:10,letterSpacing:1.1,fontWeight:900,color:isActual?"#80facb":"#f9b8ff"}}>{isActual?"VENUE PRICE":"DEMO PRICE"}</span>
+  </div>
+  <h2 style={{fontSize:"clamp(19px,2.5vw,31px)",margin:"12px 0"}}>{product.name}</h2>
+  <strong key={`${product.id}:${displayCents}`} style={{display:"block",fontSize:"clamp(30px,4vw,52px)",color:crash?"#ff6281":"#ccff50",fontVariantNumeric:"tabular-nums"}}>{euros(displayCents)}</strong>
+  {!isActual&&price&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginTop:10,flexWrap:"wrap"}}>
+   <span style={{color:delta>0?"#d9ff57":delta<0?"#ff8ca5":"#cbc6dc",fontWeight:900,fontSize:14}}>
+    {delta>0?"↗":delta<0?"↘":"↔"} {delta>0?"+":""}{euros(delta)} / tick
+   </span>
+   <span style={{fontSize:12,color:"#d1c1e8"}}>BASE {euros(price.baseCents)} · {price.versusBasePercent>0?"+":""}{price.versusBasePercent}%</span>
+  </div>}
+  {!isActual&&price?.crashDiscount&&<span style={{display:"inline-block",marginTop:9,color:"#ffabc1",fontSize:11,fontWeight:900}}>⚡ SIMULATED CRASH PRESSURE</span>}
+ </article>;
+ })}
  </div>
  {online&&!isActual&&<section aria-label="Synchronized demonstration trades" style={{marginTop:28,padding:22,borderRadius:18,background:"#271235",border:"1px solid #ccff50a0"}}>
   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
@@ -99,7 +122,7 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
     SYNCHRONIZED SIMULATION · NEVER REAL ORDERS
    </strong>
   </div>
-  <p style={{color:"#c3b4dd",fontSize:13}}>Animated sample buys run across remote screens, including every 1.7 seconds during a market crash. These do not change charged prices or represent real customer purchases.</p>
+  <p style={{color:"#c3b4dd",fontSize:13}}>Animated sample buys move display-only prices on all remote screens, including every 1.7 seconds during the crash. These illustrative prices are bounded by the venue limits and are never charged or used for table checkout.</p>
   {!showcase.length?<p style={{color:"#caff50"}}>Starting the synchronized demonstration feed…</p>:
    <ol style={{paddingLeft:22,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,210px),1fr))",gap:12}}>
     {showcase.map((trade,index)=><li key={trade.key} style={{padding:"15px 13px",borderRadius:13,background:index===0?"#d9ff5726":"#ffffff10",border:index===0?"1px solid #d9ff57":"1px solid #ffffff22"}}>
@@ -141,6 +164,6 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
     </li>)}
    </ol>}
  </section>}
- <footer style={{paddingTop:35,color:"#b3aac9",fontSize:12}}>Prices are venue-managed. This screen is view-only. Simulation and actual paid-order feeds are selected by the venue administrator. No customer or table identity is exposed. Customer checkout, charging and official receipts remain disabled pending provider integrations. Separate links are needed for each venue.</footer>
+ <footer style={{paddingTop:35,color:"#b3aac9",fontSize:12}}>Simulation prices are animated illustrations only and cannot be charged. Actual venue prices remain separate. This screen is view-only. Simulation and actual paid-order feeds are selected by the venue administrator. No customer or table identity is exposed. Customer checkout, charging and official receipts remain disabled pending provider integrations. Separate links are needed for each venue.</footer>
  </main>;
 }
