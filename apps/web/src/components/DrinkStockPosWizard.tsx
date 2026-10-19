@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useMemo,useRef,useState} from "react";
-import {EMPTY_POS_DRAFT,selfCheckDraft,validatePosDraft,validateDraftProductMembership,type PosDraft,type SavedPosDraft} from "../lib/drinkstock-pos-draft";
+import {selfCheckDraft,validatePosDraft,validateDraftProductMembership,type PosDraft,type SavedPosDraft} from "../lib/drinkstock-pos-draft";
 import {
  buildMappingCsv,buildVendorRequest,parsePosMenuCsv,posCsvTemplate,
  posSetupPath,proposeExactMatches,PosOnboardingError,
