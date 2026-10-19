@@ -15,7 +15,7 @@ export class PosDraftError extends Error{
  constructor(code:string,status=400){super(code);this.code=code;this.status=status;}
 }
 const providers=new Set<string>(GREEK_HOSPITALITY_POS_PROVIDERS.map(p=>p.id));
-const idPattern=/^[\p{L}\p{N}_.:/@+\-]{1,160}$/u;
+const idPattern=/^[^\u0000-\u001f\u007f]{1,160}$/u;
 const textOk=(v:unknown,max:number):v is string=>
  typeof v==="string"&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
 const record=(x:unknown):x is Record<string,unknown>=>Boolean(x)&&typeof x==="object"&&!Array.isArray(x);
