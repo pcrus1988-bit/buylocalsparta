@@ -3,6 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { HospitalityAdminProvisioning } from "../../../components/HospitalityAdminProvisioning";
+import {DrinkStockAdminTvScreens} from "../../../components/DrinkStockAdminTvScreens";
+import {adminDrinkStockScreens} from "../../../lib/drinkstock-screen-admin";
 import { hasAdminPermission } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 import { hospitalityAdminPartners } from "../../../lib/hospitality-admin-service";
@@ -14,7 +16,10 @@ export default async function HospitalityAdminPage() {
   const principal=await getAdminSession();
   if(!principal) redirect("/admin/login");
   if(!hasAdminPermission(principal,"vendor.manage")) redirect("/admin");
-  const partners=await hospitalityAdminPartners(principal).catch(()=>undefined);
+  const [partners,tvScreens]=await Promise.all([
+    hospitalityAdminPartners(principal).catch(()=>undefined),
+    adminDrinkStockScreens(principal).catch(()=>undefined)
+  ]);
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken}/>
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
@@ -28,6 +33,7 @@ export default async function HospitalityAdminPage() {
       <p>Ο χρήστης πρέπει να έχει ήδη επαληθευμένο λογαριασμό KONTA MOY. Η δημιουργία γίνεται μόνο από εξουσιοδοτημένο διαχειριστή.</p>
       <HospitalityAdminProvisioning csrfToken={principal.csrfToken}/>
     </section>
+    {tvScreens?<DrinkStockAdminTvScreens initial={tvScreens} csrfToken={principal.csrfToken}/>:<section className="shell vendor-section"><h2>TV screen management unavailable</h2></section>}
     <section className="shell vendor-section">
       <h2>Εγγεγραμμένοι συνεργάτες</h2>
       {!partners ? <p role="alert">Δεν ήταν δυνατή η φόρτωση των συνεργατών. Δεν εμφανίζονται υποθετικά δεδομένα.</p> :
