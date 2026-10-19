@@ -123,7 +123,7 @@ export function ExchangeDemo() {
         <div className={styles.terminalHead}>
           <div className={styles.marketIdentity}>
             <div className={styles.marketGlyph} aria-hidden="true">↗</div>
-            <div><span className={styles.overline}>DRINKSTOCK EXCHANGE</span><strong>THE PARTY MARKET</strong></div>
+            <div><span className={styles.overline}>DRINKSTOCK EXCHANGE · €0.01 TICKS</span><strong>THE PARTY MARKET</strong></div>
           </div>
           <div className={[styles.marketState, crashing ? styles.marketStateCrash : ""].join(" ")}>
             <span className={styles.liveDot} aria-hidden="true" />

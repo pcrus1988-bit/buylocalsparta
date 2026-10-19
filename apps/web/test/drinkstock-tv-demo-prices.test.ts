@@ -21,9 +21,9 @@ test("TV prices are deterministic for remote displays and change on demo trades"
  assert.equal(a.length,3);
  assert.ok(a.some(p=>p.displayCents!==p.baseCents),"at least one displayed demo price moves");
  for(const p of a){
-  assert.equal(p.displayCents%5,0);
-  assert.ok(p.displayCents>=p.baseCents*.7);
-  assert.ok(p.displayCents<=p.baseCents*1.45);
+  assert.ok(Number.isSafeInteger(p.displayCents));
+  assert.ok(p.displayCents>=Math.ceil(p.baseCents*.7));
+  assert.ok(p.displayCents<=Math.floor(p.baseCents*1.45));
   assert.equal(p.versusBasePercent,Math.round((p.displayCents/p.baseCents-1)*100));
  }
  assert.deepEqual(prices(t),prices(t+200),"frame updates cannot drift pricing without a new trade");
@@ -32,8 +32,8 @@ test("TV prices are deterministic for remote displays and change on demo trades"
 test("owner-specific bounds cap every simulated price even under prolonged demand",()=>{
  for(const t of [started+4500,started+4500*18,started+4500*2000]){
   for(const p of prices(t,{state:"running",crashUntil:null},90,105)){
-   assert.ok(p.displayCents>=Math.ceil(p.baseCents*.9/5)*5);
-   assert.ok(p.displayCents<=Math.floor(p.baseCents*1.05/5)*5);
+   assert.ok(p.displayCents>=Math.ceil(p.baseCents*.9));
+   assert.ok(p.displayCents<=Math.floor(p.baseCents*1.05));
   }
  }
 });
@@ -48,9 +48,30 @@ test("60-second crash discounts prices while simulated buying continues",()=>{
  assert.ok(later.every(p=>p.crashDiscount));
  assert.ok(during.some((p,i)=>p.displayCents<justBefore[i]!.displayCents));
  assert.ok(synchronizedShowcaseTrades({...session,...crash},drinks,crashStart+1700*25).every(t=>t.crash));
- assert.ok(during.every(p=>p.displayCents>=Math.ceil(p.baseCents*.7/5)*5));
+ assert.ok(during.every(p=>p.displayCents>=Math.ceil(p.baseCents*.7)));
  assert.deepEqual(prices(crashStart+60000,{state:"running",crashUntil:null}),
   prices(crashStart+60000,{state:"running",crashUntil:null}));
+});
+test("TV stock prices accept odd-cent quotes and follow relative order volume",()=>{
+ const products=[
+  {id:"a",name:"A",baseCents:601,priceCents:601},
+  {id:"b",name:"B",baseCents:711,priceCents:711},
+  {id:"c",name:"C",baseCents:903,priceCents:903}
+ ];
+ const scans=Array.from({length:40},(_,i)=>
+  synchronizedShowcasePrices(session,products,started+4500*(i+1),70,145));
+ assert.ok(scans.flat().some(p=>p.displayCents%5!==0),
+  "quotes must not snap to a multiple of five cents");
+ for(const batch of scans)for(const p of batch){
+  assert.ok(Number.isSafeInteger(p.displayCents));
+  assert.ok(p.displayCents>=Math.ceil(p.baseCents*.7));
+  assert.ok(p.displayCents<=Math.floor(p.baseCents*1.45));
+ }
+ const atTrade=started+4500*24;
+ assert.deepEqual(
+  synchronizedShowcasePrices(session,products,atTrade,70,145),
+  synchronizedShowcasePrices(session,products,atTrade+100,70,145),
+  "no random drift between simulated executions");
 });
 test("non-trading states, malformed timestamps and invalid owner limits fail closed",()=>{
  assert.deepEqual(synchronizedShowcasePrices(null,drinks,started+5000,70,145),[]);

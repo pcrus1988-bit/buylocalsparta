@@ -1,6 +1,6 @@
-/** Deterministic 5-cent rehearsal price engine. Never a POS/checkout authority. */
+/** Deterministic, single-cent demand pricing for rehearsal. Never a POS/checkout authority. */
 export type RehearsalDrink = Readonly<{id:string;name:string;baseCents:number;priceCents:number}>;
-export type RehearsalMovement = Readonly<{id:string;name:string;beforeCents:number;afterCents:number;deltaCents:number}>;
+export type RehearsalMovement = Readonly<{id:string;name:string;beforeCents:number;afterCents:number;deltaCents:number;demandUnits?:number}>;
 export const VENUE_MAX_PRODUCTS = 60;
 export const DEFAULT_PRICE_BOUNDS = Object.freeze({floorPercent:70,ceilingPercent:145});
 export type MarketBounds=Readonly<{floorPercent:number;ceilingPercent:number}>;
@@ -23,8 +23,8 @@ export type DrinkStockCategory = typeof DRINKSTOCK_CATEGORIES[number];
 export function drinkPriceBand(baseCents:number,bounds:MarketBounds=DEFAULT_PRICE_BOUNDS):Readonly<{minCents:number;maxCents:number}> {
   if(!Number.isInteger(baseCents)||baseCents<100||baseCents>200000)throw new Error("INVALID_BASE_PRICE");
   const valid=validateMarketBounds(bounds);
-  return {minCents:Math.ceil(baseCents*valid.floorPercent/100/5)*5,
-          maxCents:Math.floor(baseCents*valid.ceilingPercent/100/5)*5};
+  return {minCents:Math.ceil(baseCents*valid.floorPercent/100),
+          maxCents:Math.floor(baseCents*valid.ceilingPercent/100)};
 }
 export function centsFromEuros(value:unknown):number {
   if(typeof value!=="number"||!Number.isFinite(value)||value<1||value>2000||
@@ -40,21 +40,40 @@ export function validateNewDrink(value:unknown):Readonly<{name:string;category:D
     throw new Error("INVALID_CATEGORY");
   return {name,category:v.category as DrinkStockCategory,baseCents:centsFromEuros(v.basePriceEuros)};
 }
-export function priceRehearsalDemand(drinks:readonly RehearsalDrink[],selectedId:string,bounds:MarketBounds=DEFAULT_PRICE_BOUNDS):RehearsalMovement[] {
-  if(!drinks.length||drinks.length>VENUE_MAX_PRODUCTS||!drinks.some(d=>d.id===selectedId))
-    throw new Error("DRINK_NOT_IN_VENUE");
-  return drinks.map(d=>{
-    const band=drinkPriceBand(d.baseCents,bounds);
-    if(!Number.isInteger(d.priceCents)||d.priceCents<band.minCents||d.priceCents>band.maxCents)
-      throw new Error("INVALID_MARKET_STATE");
-    const candidate=Math.round(d.priceCents*(d.id===selectedId?1.07:.985)/5)*5;
-    const afterCents=Math.max(band.minCents,Math.min(band.maxCents,candidate));
-    return {id:d.id,name:d.name,beforeCents:d.priceCents,afterCents,deltaCents:afterCents-d.priceCents};
-  });
+/**
+ * A buy increases its drink's quote, while drinks not bought lose relative
+ * demand. Volume amplifies pressure without changing a price by a fixed
+ * nickel/dime tick. Each integer cent is a valid quote. Owner limits win.
+ *
+ * This is a *manual rehearsal demand signal*, not a captured customer order.
+ */
+export function priceRehearsalDemand(
+ drinks:readonly RehearsalDrink[],selectedId:string,
+ bounds:MarketBounds=DEFAULT_PRICE_BOUNDS,units=1
+):RehearsalMovement[]{
+ if(!Number.isInteger(units)||units<1||units>10)throw new Error("INVALID_DEMAND_UNITS");
+ if(!drinks.length||drinks.length>VENUE_MAX_PRODUCTS||!drinks.some(d=>d.id===selectedId))
+  throw new Error("DRINK_NOT_IN_VENUE");
+ // Smaller buys move prices less than block-sized orders. Unbought listings
+ // ease as liquidity flows toward the popular product.
+ // Use integral basis points to avoid floating half-cent rounding drift.
+ const buyImpactBps=120+Math.min(280,units*50);
+ const absenceImpactBps=40+Math.min(160,units*15);
+ return drinks.map(d=>{
+  const band=drinkPriceBand(d.baseCents,bounds);
+  if(!Number.isSafeInteger(d.priceCents)||d.priceCents<band.minCents||d.priceCents>band.maxCents)
+   throw new Error("INVALID_MARKET_STATE");
+  const bought=d.id===selectedId;
+  const candidate=Math.round(d.priceCents*(bought?10000+buyImpactBps:10000-absenceImpactBps)/10000);
+  const afterCents=Math.max(band.minCents,Math.min(band.maxCents,candidate));
+  return {id:d.id,name:d.name,beforeCents:d.priceCents,afterCents,
+   deltaCents:afterCents-d.priceCents,...(bought?{demandUnits:units}:{})};
+ });
 }
+
 export function validateMarketAction(input:unknown):{
   action:"add_product"|"demand"|"reset"|"pause"|"resume"|"set_bounds"; requestKey:string;
-  productId?:string; product?:ReturnType<typeof validateNewDrink>;bounds?:MarketBounds
+  productId?:string; product?:ReturnType<typeof validateNewDrink>;bounds?:MarketBounds;units?:number
 } {
   if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("INVALID_REQUEST");
   const v=input as Record<string,unknown>;
@@ -69,7 +88,10 @@ export function validateMarketAction(input:unknown):{
   if(action==="demand"){
     if(typeof v.productId!=="string"||!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(v.productId))
       throw new Error("INVALID_PRODUCT_ID");
-    return {action,requestKey,productId:v.productId};
+    const units=v.units===undefined?1:v.units;
+    if(!Number.isInteger(units)||Number(units)<1||Number(units)>10)
+      throw new Error("INVALID_DEMAND_UNITS");
+    return {action,requestKey,productId:v.productId,units:Number(units)};
   }
   return {action,requestKey};
 }

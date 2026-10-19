@@ -25,10 +25,10 @@ export function mayMutateRehearsal(activeSession:boolean,action:string):boolean{
 }
 /** Deterministic at the same session, phase and clock across remote displays.
  * Never uses the venue's actual table labels. Do not feed these into pricing. */
-export function synchronizedShowcaseTrades(
+function showcaseTradesAt(
  session:ShowcaseSession|null,
  products:readonly ShowcaseDrink[],
- nowMs:number
+ nowMs:number,maxTrades:number
 ):ShowcaseTrade[]{
  if(!session||!["running","crashing"].includes(session.state)||products.length===0||
     !Number.isFinite(nowMs)||nowMs<0||!session.startedAt)return [];
@@ -46,7 +46,7 @@ export function synchronizedShowcaseTrades(
  // At the first tick there is no previous trade. Keep a hard maximum of 8 rows.
  if(step<1)return [];
  const seed=hashKey(session.id+":"+phase);
- const count=Math.min(SCREEN_SHOWCASE_MAX_TRADES,step);
+ const count=Math.min(maxTrades,step);
  const result:ShowcaseTrade[]=[];
  for(let i=0;i<count;i++){
   const tick=step-i;
@@ -62,6 +62,12 @@ export function synchronizedShowcaseTrades(
  }
  return result;
 }
+/** The last eight visible trades; pricing is based on a deeper time-weighted tape. */
+export function synchronizedShowcaseTrades(
+ session:ShowcaseSession|null,products:readonly ShowcaseDrink[],nowMs:number
+):ShowcaseTrade[]{
+ return showcaseTradesAt(session,products,nowMs,SCREEN_SHOWCASE_MAX_TRADES);
+}
 
 /** Presentation-only simulated prices. Values are never charged, persisted,
  * written to orders, or used by public table/cart price previews.
@@ -73,9 +79,15 @@ export type ShowcasePrice=Readonly<{
  movementCents:number;versusBasePercent:number;crashDiscount:boolean;
 }>;
 function demoPriceBand(base:number,floorPercent:number,ceilingPercent:number){
- return {floor:Math.ceil(base*floorPercent/100/5)*5,
- ceiling:Math.floor(base*ceilingPercent/100/5)*5};
+ return {floor:Math.ceil(base*floorPercent/100),
+  ceiling:Math.floor(base*ceilingPercent/100)};
 }
+/**
+ * Stock-style demo quotes: recent buy volume bids up popular drinks; weak
+ * relative buying depresses the rest. Every cent is an allowed tick.
+ * Quotes are recalculated from the same bounded 48-trade tape on each TV;
+ * there is no random animation drift and no financial ledger mutation.
+ */
 function demoPriceAt(
  session:ShowcaseSession,products:readonly ShowcasePricedDrink[],
  timestamp:number,floorPercent:number,ceilingPercent:number,
@@ -86,24 +98,36 @@ function demoPriceAt(
  const crashEnd=session.state==="crashing"&&session.crashUntil?Date.parse(session.crashUntil):NaN;
  const crashStart=crashEnd-CRASH_DURATION_MS;
  const inCrash=Number.isFinite(crashEnd)&&crashStart>=start&&timestamp>=crashStart&&timestamp<crashEnd;
- const tick=Math.floor((timestamp-(inCrash?crashStart:start))/(inCrash?CRASH_CADENCE_MS:REGULAR_CADENCE_MS));
- const signals=synchronizedShowcaseTrades(
- inCrash?session:{...session,state:"running",crashUntil:null},
- products,timestamp);
- // Weight only the most recent eight signals. Session age cannot lead to
- // unbounded execution or unbounded inflation.
- let demand=0;
- for(const trade of signals){
-  demand+=trade.productId===product.id?trade.quantity*0.033:-trade.quantity*0.013;
+ const source=inCrash?session:{...session,state:"running" as const,crashUntil:null};
+ const tape=showcaseTradesAt(source,products,timestamp,48);
+ let owned=0,total=0;
+ for(let i=0;i<tape.length;i++){
+  const trade=tape[i]!;
+  const volume=trade.quantity*Math.pow(0.90,i);
+  total+=volume;
+  if(trade.productId===product.id)owned+=volume;
  }
- // Deterministic market movement only at a simulated trade tick, not every
- // animation frame. Each product has its own phase (different price curves).
- const pulse=Math.sin(tick*0.88+(hashKey(session.id+":"+product.id)%100)/14)*0.013;
- const crashPressure=inCrash?-(0.11+0.11*Math.min(1,(timestamp-crashStart)/CRASH_DURATION_MS)):0;
- const price=Math.round(product.baseCents*(1+demand+pulse+crashPressure)/5)*5;
+ let pressure=0;
+ if(products.length===1){
+  // Without competing symbols a buy is still an upward demand signal.
+  pressure=Math.min(.20,owned*.012);
+ }else if(total>0){
+  // Average volume per symbol is the neutral point. A low-demand drink
+  // declines even when all trades are buys (they are buying its peers).
+  const expected=total/products.length;
+  const imbalance=(owned-expected)/Math.max(5,expected);
+  pressure=Math.max(-.20,Math.min(.28,imbalance*.19));
+ }
+ // A crash is an extraordinary downward market shock, not a trading halt.
+ // Quantize the pressure to buy ticks so frames stay identical between trades.
+ const crashTick=inCrash?Math.floor((timestamp-crashStart)/CRASH_CADENCE_MS):0;
+ const crashProgress=Math.min(1,crashTick*CRASH_CADENCE_MS/CRASH_DURATION_MS);
+ const crashPressure=inCrash?-(.10+.12*crashProgress):0;
+ const price=Math.round(product.baseCents*(1+pressure+crashPressure));
  const band=demoPriceBand(product.baseCents,floorPercent,ceilingPercent);
  return Math.max(band.floor,Math.min(band.ceiling,price));
 }
+
 export function synchronizedShowcasePrices(
  session:ShowcaseSession|null,products:readonly ShowcasePricedDrink[],
  nowMs:number,floorPercent:number,ceilingPercent:number

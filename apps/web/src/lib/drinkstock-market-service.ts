@@ -178,7 +178,7 @@ export async function mutateDrinkStockMarket(userId:string,partnerId:string,venu
         try{
           movements=priceRehearsalDemand(products.map((p):RehearsalDrink=>({
             id:p.id,name:p.name,baseCents:p.baseCents,priceCents:p.priceCents
-          })),selectedProductId,venue.bounds);
+          })),selectedProductId,venue.bounds,action.units??1);
         }catch{throw new DrinkStockMarketError("DRINK_NOT_IN_VENUE",404);}
         eventType="demand";
       }else{
@@ -186,11 +186,19 @@ export async function mutateDrinkStockMarket(userId:string,partnerId:string,venu
           afterCents:d.baseCents,deltaCents:d.baseCents-d.priceCents}));
         eventType="reset";
       }
+      // Older venue rows may still hold legacy 5-cent band endpoints.
+      // Rebase each product's band and price in ONE atomic row update, so
+      // newly legal odd-cent prices cannot conflict with the DB band check.
+      const productById=new Map(products.map(p=>[p.id,p]));
       for(const movement of movements){
+        const product=productById.get(movement.id);
+        if(!product)throw new DrinkStockMarketError("DRINK_NOT_IN_VENUE",404);
+        const band=drinkPriceBand(product.baseCents,venue.bounds);
         await client.query(`
-          UPDATE public.drinkstock_products SET price_cents=$1,updated_at=now()
-          WHERE id=$2::uuid AND venue_id=$3::uuid AND partner_id=$4::uuid
-        `,[movement.afterCents,movement.id,venueId,partnerId]);
+          UPDATE public.drinkstock_products
+          SET price_cents=$1,min_cents=$2,max_cents=$3,updated_at=now()
+          WHERE id=$4::uuid AND venue_id=$5::uuid AND partner_id=$6::uuid
+        `,[movement.afterCents,band.minCents,band.maxCents,movement.id,venueId,partnerId]);
       }
     }
     await client.query(`
