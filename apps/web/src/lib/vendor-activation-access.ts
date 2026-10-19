@@ -144,7 +144,7 @@ export async function prepareHubClaimPasswordReset(input: {
         new Date(input.now + VENDOR_SETUP_TTL_MS), new Date(input.now)]);
     const url = new URL("/reset-password", publicOrigin());
     url.searchParams.set("token", token);
-    url.searchParams.set("mode", "vendor");
+    url.searchParams.set("mode", "claim");
     return {
       vendorId: requiredText(row.public_id, "claim.public_id"),
       tradingName: requiredText(row.business_name, "claim.business_name"),
