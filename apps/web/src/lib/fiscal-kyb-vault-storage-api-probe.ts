@@ -65,7 +65,9 @@ function validate(args:FiscalSyntheticStorageProbeArgs){
  if(!key.startsWith("sb_publishable_")&&jwtRole(key)!=="anon")
   throw new Error("FISCAL_M37_PROBE_KEY_UNSAFE");
  const claim=parseClaims(args.scopedJwt);
- if(claim.role!==ROLE||claim.purpose!==PURPOSE||
+ if(typeof claim.probe_run_id!=="string"||
+  !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(claim.probe_run_id)||
+  claim.role!==ROLE||claim.purpose!==PURPOSE||
   typeof claim.exp!=="number"||!Number.isSafeInteger(claim.exp)||
   claim.exp<=Math.floor(args.now/1000)||
   claim.exp>Math.floor(args.now/1000)+15*60||
@@ -132,7 +134,7 @@ export async function runFiscalSyntheticStorageApiProbe(
  args:FiscalSyntheticStorageProbeArgs
 ):Promise<FiscalSyntheticStorageProbeResult>{
  validate(args);
- const path="__synthetic_m37__/"+randomUUID()+"/"+randomBytes(16).toString("hex")+".bin";
+ const path="__synthetic_m37__/"+(parseClaims(args.scopedJwt).probe_run_id as string)+"/"+randomBytes(16).toString("hex")+".bin";
  const url=PROJECT_URL+"/storage/v1/object/"+BUCKET+"/"+path;
  const auth={
   Authorization:"Bearer "+args.scopedJwt,

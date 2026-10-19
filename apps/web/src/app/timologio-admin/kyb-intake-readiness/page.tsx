@@ -39,7 +39,7 @@ export default async function FiscalKybIntakeReadiness(){
     <Link href="/timologio-admin/release-readiness">Έλεγχοι λειτουργίας</Link></nav>
   </header>
   <section className="fiscal-hero">
-   <div className="fiscal-kicker">M38 · Dormant synthetic Storage identity · Uploads OFF</div>
+   <div className="fiscal-kicker">M39 · Run-bound Storage policy rehearsal · Not activated</div>
    <h1>Ετοιμότητα ασφαλούς υποβολής δικαιολογητικών</h1>
    <p>Έλεγχος προϋποθέσεων για μελλοντική υποβολή ευαίσθητων στοιχείων
       επιχείρησης. Καμία ένδειξη παρακάτω δεν αποτελεί αυτόματη έγκριση.</p>
@@ -79,6 +79,39 @@ export default async function FiscalKybIntakeReadiness(){
      Η εφαρμογή συνεχίζει να απαγορεύει κάθε υποβολή και απαιτεί χειροκίνητο έλεγχο ρύθμισης.</p>:
     <p className="fiscal-muted">Δεν εντοπίστηκε προσπάθεια ενεργοποίησης από την ελεγχόμενη
      ρύθμιση. Αυτό δεν πιστοποιεί την πραγματική κατάσταση αποθήκευσης.</p>}
+  </section>
+  <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
+   <h2>M39 · Περιορισμένη πολιτική αποθήκευσης · Μόνο πρόβα CI</h2>
+   <p className="fiscal-muted">
+    Η πολιτική RLS έχει σχεδιαστεί και δοκιμάζεται μόνο σε προσωρινή
+    PostgreSQL. Επιτρέπει αποκλειστικά κρυπτογραφημένα συνθετικά αντικείμενα
+    με συγκεκριμένο αναγνωριστικό δοκιμής, ελεγχόμενο σκοπό και σύντομη ισχύ.
+    Οι πραγματικές πολιτικές του FISCAL παραμένουν αμετάβλητες.
+   </p>
+   <div className="fiscal-grid">
+    <article className="fiscal-card">
+     <small>Δέσμευση ανά δοκιμή</small><h3>UUID · 15 λεπτά μέγιστο</h3>
+     <p>Το ίδιο run ID πρέπει να υπάρχει στο path και στο JWT.
+       Απορρίπτονται ξένες δοκιμές, πραγματικά αρχεία και ληγμένα tokens.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Πολιτικές πραγματικού Storage</small>
+     <h3>{boundary.noObjectPolicies?"Καμία · Κλειδωμένο":
+      "Μεταβολή · Χρειάζεται έλεγχος"}</h3>
+     <p>Ο πραγματικός ρόλος δεν έχει δικαίωμα πρόσβασης στο API.
+        Καμία νέα RLS πολιτική δεν εγκαθίσταται με αυτή την έκδοση.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Δοκιμή απαγορευμένων λειτουργιών</small><h3>Στο CI</h3>
+     <p>Έλεγχοι άρνησης για ξένο run ID, bucket,
+       ληγμένο JWT, list και εγγραφή στοιχείων πελατών.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Πραγματική ενεργοποίηση</small><h3>OFF</h3>
+     <p>Χωρίς JWT issuer, KMS, scanner, πραγματικές εγγραφές ή
+       αλλαγή δικαιωμάτων του authenticator.</p>
+    </article>
+   </div>
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
    <h2>M38 · Πραγματικός, ανενεργός ρόλος δοκιμαστικής αποθήκευσης</h2>

@@ -10,7 +10,8 @@ const now=Date.parse("2026-10-19T11:00:00.000Z");
 function token(role:string,extras:Record<string,unknown>={}){
  const header=Buffer.from(JSON.stringify({alg:"HS256",typ:"JWT"})).toString("base64url");
  const claim=Buffer.from(JSON.stringify({
-  role,purpose:"fiscal_kyb_synthetic_probe_v1",
+  role,probe_run_id:"123e4567-e89b-42d3-a456-426614174000",
+  purpose:"fiscal_kyb_synthetic_probe_v1",
   iat:Math.floor(now/1000)-5,exp:Math.floor(now/1000)+300,...extras
  })).toString("base64url");
  return header+"."+claim+"."+Buffer.from("test-only-not-a-real-signature").toString("base64url");
@@ -101,6 +102,8 @@ test("M37 rejects service_role, anon user tokens, external hosts, stale scopes a
   {scopedJwt:token("anon")},
   {scopedJwt:token("authenticated")},
   {scopedJwt:token("fiscal_kyb_probe",{purpose:"real_documents"})},
+  {scopedJwt:token("fiscal_kyb_probe",{probe_run_id:"wrong"})},
+  {scopedJwt:token("fiscal_kyb_probe",{probe_run_id:"00000000-0000-0000-0000-000000000000"})},
   {scopedJwt:token("fiscal_kyb_probe",{exp:Math.floor(now/1000)-1})},
   {scopedJwt:token("fiscal_kyb_probe",{exp:Math.floor(now/1000)+3600})},
   {scopedJwt:token("fiscal_kyb_probe",{iat:Math.floor(now/1000)-1800})},

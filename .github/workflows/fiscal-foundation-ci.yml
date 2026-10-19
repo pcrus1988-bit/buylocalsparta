@@ -109,6 +109,10 @@ jobs:
         env:
           CI: "true"
         run: node --experimental-strip-types scripts/fiscal-vault-dormant-role-db-smoke.mjs
+      - name: Verify M39 scoped Storage policy blueprint with run and role isolation
+        env:
+          CI: "true"
+        run: node scripts/fiscal-vault-synthetic-rls-db-smoke.mjs
       - name: Verify M36 real PostgreSQL RLS denials with synthetic rows only
         env:
           CI: "true"
