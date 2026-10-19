@@ -6,6 +6,7 @@ import {getFiscalKybIntakeReadiness} from "../../../lib/fiscal-kyb-intake-securi
 import {getFiscalVaultLiveReadiness} from "../../../lib/fiscal-kyb-vault-live-readiness";
 import {runFiscalKybSyntheticRehearsal} from "../../../lib/fiscal-kyb-vault-synthetic-rehearsal";
 import {getFiscalVaultRoleBoundary} from "../../../lib/fiscal-kyb-vault-access-boundary";
+import {inspectFiscalM37IntegrationReadiness} from "../../../lib/fiscal-kyb-vault-storage-api-probe";
 
 export const dynamic="force-dynamic";
 
@@ -22,6 +23,7 @@ export default async function FiscalKybIntakeReadiness(){
  const vault=await getFiscalVaultLiveReadiness();
  const synthetic=runFiscalKybSyntheticRehearsal();
  const boundary=await getFiscalVaultRoleBoundary();
+ const storageIntegration=inspectFiscalM37IntegrationReadiness(process.env);
  const rawUploadFlag=process.env.FISCAL_KYB_UPLOADS_ENABLED?.trim().toLowerCase();
  const status=getFiscalKybIntakeReadiness({
   operatorMfaEnforced:enforced,
@@ -35,7 +37,7 @@ export default async function FiscalKybIntakeReadiness(){
     <Link href="/timologio-admin/release-readiness">Έλεγχοι λειτουργίας</Link></nav>
   </header>
   <section className="fiscal-hero">
-   <div className="fiscal-kicker">M36 · Storage authorization audit · No merchant intake</div>
+   <div className="fiscal-kicker">M37 · Synthetic Storage API connector · No live credentials</div>
    <h1>Ετοιμότητα ασφαλούς υποβολής δικαιολογητικών</h1>
    <p>Έλεγχος προϋποθέσεων για μελλοντική υποβολή ευαίσθητων στοιχείων
       επιχείρησης. Καμία ένδειξη παρακάτω δεν αποτελεί αυτόματη έγκριση.</p>
@@ -75,6 +77,44 @@ export default async function FiscalKybIntakeReadiness(){
      Η εφαρμογή συνεχίζει να απαγορεύει κάθε υποβολή και απαιτεί χειροκίνητο έλεγχο ρύθμισης.</p>:
     <p className="fiscal-muted">Δεν εντοπίστηκε προσπάθεια ενεργοποίησης από την ελεγχόμενη
      ρύθμιση. Αυτό δεν πιστοποιεί την πραγματική κατάσταση αποθήκευσης.</p>}
+  </section>
+  <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
+   <h2>M37 · Έτοιμος τεχνικός σύνδεσμος για ασφαλή συνθετική δοκιμή</h2>
+   <p className="fiscal-muted">
+    Υλοποιήθηκε κώδικας HTTP προς το Supabase Storage με απολύτως
+    τεχνητά, κρυπτογραφημένα bytes. Ελέγχεται μέσω προσομοιωμένου
+    διακομιστή στις δοκιμές CI και ΔΕΝ συνδέεται με το πραγματικό
+    αποθετήριο. Καμία διαδρομή frontend ή API δεν μπορεί να τον καλέσει.
+   </p>
+   <div className="fiscal-grid">
+    <article className="fiscal-card">
+     <small>Σύνδεσμος HTTP</small><h3>Δοκιμασμένος σε CI</h3>
+     <p>POST κρυπτογραφημένων bytes, GET/σύγκριση, DELETE
+       μέσω Storage API και επιβεβαίωση 404.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Περιορισμένο διαπιστευτήριο</small>
+     <h3>{storageIntegration.scopedCredentialsPresent?
+       "Εντοπίστηκε ρύθμιση · Μη επαληθευμένη":"Δεν έχει ρυθμιστεί"}</h3>
+     <p>Απορρίπτονται service_role και απλοί χρήστες.
+        Απαιτείται χωριστός υπογεγραμμένος ρόλος μόνο για δοκιμές.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Ανεξάρτητος διαχειριστής κλειδιών</small><h3>Εκκρεμεί</h3>
+     <p>Η τοπική κρυπτογράφηση δοκιμών δεν είναι ανεξάρτητα
+        επαληθευμένο KMS και δεν επιτρέπει πραγματικά δικαιολογητικά.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Ζωντανή δοκιμή αντικειμένου</small><h3>Δεν εκτελέστηκε</h3>
+     <p>Απαιτούνται ελεγμένη ταυτότητα, περιορισμένες άδειες,
+        έγκριση ασφαλείας και τεκμήρια διαγραφής.</p>
+    </article>
+   </div>
+   <p className="fiscal-alert" style={{marginTop:18}}>
+    <strong>Κανένα upload δικαιολογητικών ή live synthetic write.</strong>
+    {" "}Η ύπαρξη του κώδικα σύνδεσης δεν χορηγεί άδεια πρόσβασης
+    στο Storage ούτε ενεργοποιεί οποιαδήποτε φορολογική έκδοση.
+   </p>
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
    <h2>M36 · Πραγματική επιθεώρηση απομόνωσης ρόλων Storage</h2>

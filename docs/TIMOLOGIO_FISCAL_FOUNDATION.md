@@ -911,3 +911,71 @@ bucket have **not** been run. Tax-document issuance remains disabled.
 
 Refer to current <https://supabase.com/docs/guides/storage/security/access-control>
 and <https://supabase.com/docs/guides/storage/schema/custom-roles>.
+
+
+## Milestone 37 — isolated ciphertext-only Supabase Storage HTTP contract (19 October 2026)
+
+M37 implements a **real provider-specific HTTP protocol client** for future
+strictly authorized synthetic evidence Storage tests. The client is **not
+connected to any live route, button, worker, CI-network or cron**. Neither
+the Vercel FISCAL production environment nor the standalone service has a
+configured narrowly scoped Storage probe JWT and independent KMS grant.
+Live object write/read/delete has **not** been performed.
+
+A live inspection of the separate EU FISCAL Storage catalog before this
+implementation again found the `fiscal-kyb-quarantine` bucket private,
+limited to 12 MiB octet-stream objects, with 0 objects, 0 Storage RLS
+policies. The standalone Vercel environment **key names only** were
+inspected; no scoped Storage token or project publishable key was configured
+and no secret values were retrieved.
+
+The M37 contract does the following, **once separately approved and
+supplied a limited-purpose credential in an isolated server-side job**:
+
+- Accepts no merchant data, filenames, uploaded bytes, object IDs or arbitrary
+  destination URLs. It always generates its own 64 random plaintext bytes and
+  one-time AES-256-GCM key/nonce, writing **ciphertext only** (<=512 B) with
+  a fixed `KMFS37` synthetic marker and bounded opaque object path under
+  `__synthetic_m37__/<uuid>/<random>.bin`.
+- Hard-pins the target to the FISCAL Supabase project URL and exact quarantine
+  bucket; rejects any other host, HTTP or modified paths. Uses the supported
+  Storage API, never SQL inserts/deletes against `storage.objects`.
+- Requires publishable/anon project-key semantics and a distinct JWT **claiming**
+  `role=fiscal_kyb_probe` and
+  `purpose=fiscal_kyb_synthetic_probe_v1` with short expiration. Refuses
+  `service_role`, ordinary merchant JWTs, expired/surprisingly long-lived
+  credentials, and accidental `sb_secret_` keys. Local JWT parsing is only
+  defense in depth; the **remote Storage service must verify its signature**
+  and actual role/permissions. The app cannot issue these credentials.
+- POSTs octet-stream bytes without upsert, GETs authenticated bytes with
+  strict response-size bounds, compares SHA256 in constant time, DELETEs
+  exactly the generated object through the Storage API, and confirms GET
+  responds 404. Explicitly disallows HTTP redirects. On any failure after
+  upload attempt, best-effort cleanup is performed; the result indicates
+  `cleanupUncertain` if deletion remains unverified. No object/secret/key
+  or ciphertext is returned to the caller.
+- Returns only immutable booleans for the synthetic test; all KMS,
+  merchant document, upload/read and tax issuance flags remain false.
+  Buffers with ephemeral local keys and plaintext are zeroed in `finally`.
+- Tests all HTTP calls against a **memory-backed fake transport**, including
+  encrypted PUT/GET/DELETE/404 roundtrip, malicious/mis-scoped tokens, wrong
+  hosts/keys, corrupted ciphertext, unexpected redirects, failed uploads,
+  failed deletions and cleanup-uncertainty reporting. The CI suite **must not
+  contact real Supabase Storage**. Typecheck and standalone builds are gated.
+- The authenticated operator MFA-protected readiness page identifies code
+  availability and missing credentials/KMS independently of M31-M36 live
+  security and storage checks. The dashboard does not run the HTTP probe.
+
+A private, empty bucket with no object policies is **incompatible with
+performing the real Storage API write probe today**. Enabling probe
+operations requires a separately reviewed and provisioned custom, short-lived
+JWT role with narrowly scoped RLS policies and role membership, avoiding
+service-role credential exposure. The M34/M36 strict zero-policy probes
+will need careful updates to validate only such narrowly scoped policies
+before any actual authorization is granted.
+
+**Still unverified:** independent managed KMS, externally operated malware
+scanner, immutable audit retention, Storage API deletion and role/tenant
+acceptance against the real service, legal basis and privacy approvals,
+certifications and production merchant document intake. Legal tax issuance
+and AADE/myDATA transmissions remain locked.
