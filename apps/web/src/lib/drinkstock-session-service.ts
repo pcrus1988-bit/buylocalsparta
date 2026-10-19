@@ -7,7 +7,7 @@ const TOKEN=/^[A-Za-z0-9_-]{43}$/;
 type State="running"|"paused"|"crashing"|"ended"|"scheduled";
 type R={id:string;state:State;revision:number;floor_percent:number;ceiling_percent:number;created_at:Date;started_at:Date|null;ended_at:Date|null;crash_until:Date|null};
 type Db={query<T extends Record<string,unknown>>(sql:string,values?:readonly unknown[]):Promise<{rows:readonly T[];rowCount:number}>};
-export type SessionView={venue:{id:string;partnerId:string;name:string;role?:string};
+export type SessionView={serverNow:string;venue:{id:string;partnerId:string;name:string;role?:string};
  session:{id:string;state:State;revision:number;floorPercent:number;ceilingPercent:number;crashUntil:string|null;startedAt:string|null}|null;
  passes:{id:string;kind:string;tableLabel:string|null}[];
  products:{id:string;name:string;category:string;priceCents:number}[];
@@ -53,7 +53,7 @@ export async function managerSessionView(userId:string,p:string,v:string):Promis
   db.query<{id:string;kind:string;table_label:string|null}>(`SELECT id::text,kind,table_label
  FROM public.drinkstock_access_passes WHERE partner_id=$1::uuid AND venue_id=$2::uuid AND revoked_at IS NULL
  ORDER BY created_at DESC LIMIT 100`,[p,v])]);
- return {venue:{id:v,partnerId:p,name:access.name,role:access.role},
+ return {serverNow:new Date().toISOString(),venue:{id:v,partnerId:p,name:access.name,role:access.role},
   session:session(s),products:d,passes:passes.rows.map(x=>({id:x.id,kind:x.kind,tableLabel:x.table_label}))};
 }
 export type SessionAction={action:"start"|"pause"|"resume"|"crash"|"end"|"create_screen"|"create_table"|"revoke_pass";
@@ -157,6 +157,6 @@ export async function publicSessionView(token:string,kind:"table"|"screen"):Prom
   AND ($3::timestamptz IS NULL OR e.created_at >= $3::timestamptz)
  ORDER BY e.created_at DESC,e.id DESC LIMIT 12
  `,[x.partner_id,x.venue_id,s?.started_at??null]):{rows:[]};
- return {venue:{id:x.venue_id,partnerId:x.partner_id,name:x.name},session:session(s),products:d,passes:[],tableLabel:x.table_label,
+ return {serverNow:new Date().toISOString(),venue:{id:x.venue_id,partnerId:x.partner_id,name:x.name},session:session(s),products:d,passes:[],tableLabel:x.table_label,
  signals:signals.rows.map(q=>({id:q.id,productId:q.product_id,productName:q.product_name,createdAt:new Date(q.created_at).toISOString()}))};
 }
