@@ -38,7 +38,7 @@ export function DrinkStockStaffQueue({partnerId,venueId,csrfToken}:{
  },[endpoint]);
  async function advance(order:StaffOrder,target:NextState){
   if(busy||next[order.state]!==target||order.paymentState!=="paid")return;
-  if(target==="served"&&order.fiscalState!=="issued")return;
+  if(target==="served"&&(order.fiscalState!=="issued"||!order.receiptIssued))return;
   setBusy(order.id);setError("");
   try{
    const response=await fetch(endpoint,{method:"POST",credentials:"same-origin",cache:"no-store",
@@ -74,7 +74,7 @@ export function DrinkStockStaffQueue({partnerId,venueId,csrfToken}:{
    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,290px),1fr))",gap:14,marginTop:18}}>
     {orders.map(order=>{
      const target=next[order.state];
-     const fiscalRequired=target==="served"&&order.fiscalState!=="issued";
+     const fiscalRequired=target==="served"&&(order.fiscalState!=="issued"||!order.receiptIssued);
      const enabled=Boolean(target)&&order.paymentState==="paid"&&!fiscalRequired&&!busy;
      return <article key={order.id} style={{padding:17,borderRadius:16,background:"#ffffff10",border:"1px solid #ffffff24"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
@@ -89,7 +89,7 @@ export function DrinkStockStaffQueue({partnerId,venueId,csrfToken}:{
       </ul>
       {target&&<button type="button" style={{...style,opacity:enabled?1:.45}}
        disabled={!enabled} onClick={()=>void advance(order,target)}>{busy===order.id?"Saving…":labels[target]}</button>}
-      {fiscalRequired&&<p role="status" style={{fontSize:12,color:"#ffa0a7"}}>Service blocked until authorized fiscal receipt issuance is confirmed.</p>}
+      {fiscalRequired&&<p role="status" style={{fontSize:12,color:"#ffa0a7"}}>Service blocked until a verifiable fiscal receipt with provider reference has been issued.</p>}
       {order.paymentState!=="paid"&&<p style={{fontSize:12,color:"#ffa0a7"}}>Payment not in paid state — fulfilment locked.</p>}
      </article>;
     })}
