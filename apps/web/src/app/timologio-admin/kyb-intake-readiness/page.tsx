@@ -8,6 +8,7 @@ import {runFiscalKybSyntheticRehearsal} from "../../../lib/fiscal-kyb-vault-synt
 import {getFiscalVaultRoleBoundary} from "../../../lib/fiscal-kyb-vault-access-boundary";
 import {inspectFiscalM37IntegrationReadiness} from "../../../lib/fiscal-kyb-vault-storage-api-probe";
 import {getFiscalM38RoleReadiness} from "../../../lib/fiscal-kyb-vault-dormant-role-readiness";
+import {getFiscalM43OidcReadiness} from "../../../lib/fiscal-kyb-vault-oidc-readiness";
 
 export const dynamic="force-dynamic";
 
@@ -26,6 +27,7 @@ export default async function FiscalKybIntakeReadiness(){
  const boundary=await getFiscalVaultRoleBoundary();
  const storageIntegration=inspectFiscalM37IntegrationReadiness(process.env);
  const dormantRole=await getFiscalM38RoleReadiness();
+ const oidc=await getFiscalM43OidcReadiness(process.env);
  const rawUploadFlag=process.env.FISCAL_KYB_UPLOADS_ENABLED?.trim().toLowerCase();
  const status=getFiscalKybIntakeReadiness({
   operatorMfaEnforced:enforced,
@@ -39,7 +41,7 @@ export default async function FiscalKybIntakeReadiness(){
     <Link href="/timologio-admin/release-readiness">Έλεγχοι λειτουργίας</Link></nav>
   </header>
   <section className="fiscal-hero">
-   <div className="fiscal-kicker">M42 · Single-use synthetic dispatch contract · No production authorization</div>
+   <div className="fiscal-kicker">M43 · OIDC/JWKS public trust inspection · No Storage authorization</div>
    <h1>Ετοιμότητα ασφαλούς υποβολής δικαιολογητικών</h1>
    <p>Έλεγχος προϋποθέσεων για μελλοντική υποβολή ευαίσθητων στοιχείων
       επιχείρησης. Καμία ένδειξη παρακάτω δεν αποτελεί αυτόματη έγκριση.</p>
@@ -79,6 +81,40 @@ export default async function FiscalKybIntakeReadiness(){
      Η εφαρμογή συνεχίζει να απαγορεύει κάθε υποβολή και απαιτεί χειροκίνητο έλεγχο ρύθμισης.</p>:
     <p className="fiscal-muted">Δεν εντοπίστηκε προσπάθεια ενεργοποίησης από την ελεγχόμενη
      ρύθμιση. Αυτό δεν πιστοποιεί την πραγματική κατάσταση αποθήκευσης.</p>}
+  </section>
+  <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
+   <h2>M43 · Διαλειτουργικότητα εκδότη OIDC/JWKS · Ζωντανός έλεγχος μόνο ανάγνωσης</h2>
+   <p className="fiscal-muted">
+    Ο έλεγχος λειτουργεί με δημόσια μεταδεδομένα ενός ρητά επιλεγμένου
+    εκδότη στο kontamou.site και δημοσιευμένο δημόσιο κλειδί RSA.
+    Απορρίπτει διαφορετικό issuer, ανακατευθύνσεις, ξένα JWKS URLs,
+    λανθασμένο κλειδί και αλγόριθμο. Δεν ζητά διαπιστευτήρια και δεν
+    χορηγεί δικαιώματα σε τρίτους.
+   </p>
+   <div className="fiscal-grid">
+    <article className="fiscal-card">
+     <small>Δημόσια επαλήθευση OIDC/JWKS</small>
+     <h3>{oidc.status==="public_jwks_verified"?"Ταιριάζει δημόσιο κλειδί":
+      oidc.status==="not_configured"?"Δεν έχει ρυθμιστεί":
+      oidc.status==="invalid_pin"?"Ελλιπής ή μη ασφαλής ρύθμιση":
+      oidc.status==="provider_mismatch"?"Αποτυχία επαλήθευσης":
+      "Μη διαθέσιμα μεταδεδομένα"}</h3>
+     <p>Ακόμη και έγκυρη δημόσια υπογραφή δεν βεβαιώνει
+        ενεργή εμπιστοσύνη του Supabase ή δικαιώματα Storage.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Ρόλος authenticator</small>
+     <h3>{dormantRole.status==="dormant_verified"?"Σκόπιμα ανενεργός":
+      "Απαιτείται έλεγχος"}</h3>
+     <p>Δεν ενεργοποιείται πρόσβαση δοκιμών απλώς επειδή υπάρχει
+        δημόσια ταυτότητα OIDC.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Μοναδική χρήση / Storage</small><h3>OFF</h3>
+     <p>Εκκρεμεί ανεξάρτητη απόδειξη για αποτροπή κατάχρησης JWT
+        απευθείας στον πάροχο και για τα δικαιώματα της υπηρεσίας.</p>
+    </article>
+   </div>
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
    <h2>M42 · Εφάπαξ χρήση συνθετικού διαπιστευτηρίου · Μόνο CI</h2>
