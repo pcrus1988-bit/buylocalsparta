@@ -133,6 +133,8 @@ jobs:
         env:
           CI: "true"
         run: node --experimental-strip-types scripts/fiscal-vault-readiness-db-smoke.mjs
+      - name: Verify M45 real 30-day tenant-scoped merchant draft analytics
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-draft-activity.test.ts
       - name: Verify M44 real draft CSV output limits, auth contract and spreadsheet injection defense
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-draft-export.test.ts
       - name: Verify merchant KYB progress never exposes records or grants approval

@@ -10,6 +10,7 @@ import {createHash,randomBytes,scryptSync} from "node:crypto";
 import {fiscalTotp} from "../apps/web/src/lib/fiscal-operator-mfa-crypto.ts";
 import pg from "pg";
 import {runFiscalRecoveryHttpAcceptance} from "./fiscal-mfa-recovery-http-acceptance.mjs";
+import {FISCAL_M45_ACTIVITY_SQL} from "../apps/web/src/lib/fiscal-draft-activity.ts";
 
 if(process.env.CI!=="true"||process.env.FISCAL_STANDALONE_MODE!=="true")
  throw new Error("FISCAL_HTTP_E2E_REQUIRES_EPHEMERAL_CI");
@@ -682,6 +683,45 @@ try{
  assert.ok(!(await excludedExport.text()).includes(draft.body.id),
   "Export must honor selected lane filters");
  console.log("PASS: M44 real saved-draft CSV export, filter and ownership isolation");
+
+ // M45: actual 30-day analytics must read saved database records, not
+ // generated dashboard numbers. Cross-tenant and filter checks query EXACT
+ // same production SQL against this disposable PostgreSQL.
+ const otherDraft=await db.query(
+  "INSERT INTO fiscal_document_intakes(organization_id,lane,source,status,external_id,payload) VALUES($1,'b2b','console','draft',$2,$3::jsonb) RETURNING id",
+  [otherId,"M45-FOREIGN-"+suffix,JSON.stringify({reference:"SECRET_FOREIGN_ACTIVITY",grossMinor:99999999})]
+ );
+ assert.equal(otherDraft.rowCount,1);
+ const ownActivity=await db.query(FISCAL_M45_ACTIVITY_SQL,[orgId,ownerId,"b2b","console"]);
+ assert.ok(ownActivity.rows.some(row=>Number(row.draft_count)>=1),"Real merchant 30-day activity required");
+ assert.ok(ownActivity.rows.every(row=>row.source==="console"&&row.lane==="b2b"));
+ assert.ok(ownActivity.rows.some(row=>BigInt(row.gross_minor)>=12400n),
+  "Real saved draft amount must be represented");
+ const unrelatedActivity=await db.query(FISCAL_M45_ACTIVITY_SQL,[orgId,outsiderId,null,null]);
+ assert.equal(unrelatedActivity.rowCount,0,"Unrelated operator cannot aggregate another merchant");
+ const wrongOrgActivity=await db.query(FISCAL_M45_ACTIVITY_SQL,[otherId,ownerId,null,null]);
+ assert.equal(wrongOrgActivity.rowCount,0,"Merchant cannot aggregate foreign business");
+ const filteredActivity=await db.query(FISCAL_M45_ACTIVITY_SQL,[orgId,ownerId,"b2g",null]);
+ assert.ok(filteredActivity.rows.every(row=>row.lane==="b2g"),"Lane filter must constrain the aggregate");
+ const analyticsResponse=await fetch(base+
+  "/timologio/drafts?organizationId="+orgId+"&lane=b2b&source=console",{
+   headers:{cookie:merchant.cookies},signal:AbortSignal.timeout(12000)
+  });
+ assert.equal(analyticsResponse.status,200,"Merchant analytics must render in real Next.js");
+ const analyticsHtml=await analyticsResponse.text();
+ assert.ok(analyticsHtml.includes("Δραστηριότητα δοκιμαστικών drafts"),
+  "Merchant must see actual 30-day activity");
+ assert.ok(analyticsHtml.includes("Ποσό δοκιμών με διαθέσιμη αξία"));
+ assert.ok(!analyticsHtml.includes("SECRET_FOREIGN_ACTIVITY"),
+  "Unrelated organization drafts must never be rendered");
+ const outsiderPage=await fetch(base+"/timologio/drafts?organizationId="+orgId,{
+  headers:{cookie:stranger.cookies},signal:AbortSignal.timeout(12000)
+ });
+ assert.equal(outsiderPage.status,200);
+ assert.ok((await outsiderPage.text()).includes("Δεν έχετε δικαίωμα πρόσβασης"),
+  "Cross-tenant merchant analytics page must not show another organization's data");
+ console.log("PASS: M45 real 30-day tenant analytics, filters, known amounts and live page isolation");
+
 
 
  const persisted=await db.query(
