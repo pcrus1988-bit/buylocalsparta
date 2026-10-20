@@ -37,11 +37,14 @@ export async function changeCheckoutFallback(principal:SessionPrincipal,action:C
   await db.query("SET LOCAL statement_timeout='8s'");
   const scope=await db.query<{id:string}>(`
    SELECT p.id::text AS id FROM public.hospitality_partners p
-   JOIN public.hospitality_partner_apps a ON a.partner_id=p.id AND a.app_key='drinkStock' AND a.enabled
-   WHERE p.id=$1::uuid AND p.status='active'
-    AND EXISTS (SELECT 1 FROM public.hospitality_venues v WHERE v.partner_id=p.id AND v.status='active')
+   WHERE p.id=$1::uuid
+    AND (NOT $2::boolean OR (p.status='active'
+     AND EXISTS (SELECT 1 FROM public.hospitality_partner_apps a
+       WHERE a.partner_id=p.id AND a.app_key='drinkStock' AND a.enabled)
+     AND EXISTS (SELECT 1 FROM public.hospitality_venues v
+       WHERE v.partner_id=p.id AND v.status='active')))
    FOR UPDATE OF p
-  `,[action.partnerId]);
+  `,[action.partnerId,action.enabled]);
   if(!scope.rows.length)throw new CheckoutFallbackError("HOSPITALITY_PARTNER_NOT_ELIGIBLE",404);
   const earlier=await db.query<{after_enabled:boolean;reason:string;reviewed:Record<string,unknown>}>(`
    SELECT after_enabled,reason,reviewed FROM public.drinkstock_checkout_fallback_events
