@@ -4,7 +4,7 @@ export type DrinkStockStation=typeof DRINKSTOCK_STATIONS[number];
 export function isDrinkStockStation(value:unknown):value is DrinkStockStation{
  return value==="bar"||value==="waiter";
 }
-export const STATION_TRANSITIONS:ReadOnly<Record<DrinkStockStation,Readonly<Partial<Record<DrinkOrderState,DrinkOrderState>>>>> = {
+export const STATION_TRANSITIONS:Readonly<Record<DrinkStockStation,Readonly<Partial<Record<DrinkOrderState,DrinkOrderState>>>>> = {
  bar:{paid:"accepted",accepted:"preparing",preparing:"ready"},
  waiter:{ready:"served"}
 };
