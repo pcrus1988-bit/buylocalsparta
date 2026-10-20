@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import ReviewerTriage from "./reviewer-triage";
 
 type Review = { fragment_id:string; source_title:string; authority:string; source_url:string; section:string; excerpt:string; quality_lane:string; snapshot_date:string };
 type Summary = { pending_current_fragments:number; human_review_candidates:number; possible_duplicates:number; possible_page_chrome:number; short_fragments:number; contributing_sources:number };
@@ -82,6 +83,7 @@ export default function ReviewerWorkspace() {
           <h3>{entry.source_title}</h3><p className="reviewer-authority">{entry.authority}{entry.section?" · "+entry.section:""}</p>
           <p className="reviewer-excerpt">{entry.excerpt}</p>
           {entry.source_url&&<a target="_blank" rel="noopener noreferrer" href={entry.source_url}>Άνοιγμα πρωτότυπης πηγής ↗</a>}
+          <ReviewerTriage fragmentId={entry.fragment_id} token={token}/>
         </article>)}
       </div><div className="reviewer-pagination">
         <button type="button" className="ar-secondary" disabled={offset===0} onClick={()=>setOffset(n=>Math.max(0,n-10))}>← Προηγούμενα</button>
