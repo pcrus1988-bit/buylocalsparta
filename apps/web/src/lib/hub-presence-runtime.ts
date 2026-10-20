@@ -1,6 +1,7 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { directoryPlanAgreement } from "./hub-directory-agreement";
+import { VENDOR_AGREEMENT_TEMPLATE_VERSION } from "./vendor-plan-agreements";
 
 export type ApprovedPresence = Readonly<{
   id: string; businessName: string; hubCity: string;
@@ -13,13 +14,13 @@ export async function approvedHubPresence(id: string, principal?: SessionPrincip
     SELECT h.public_id,h.business_name,h.hub_city,h.email,h.owner_user_id,
            u.public_id AS owner_public_id, EXISTS(
              SELECT 1 FROM vendor_directory_agreement_acceptances a
-             WHERE a.prospect_id=h.id AND a.plan_code='presence'
+             WHERE a.prospect_id=h.id AND a.plan_code='presence' AND a.template_version=$2
            ) AS accepted
     FROM hub_expansion_prospects h
     LEFT JOIN users u ON u.id=h.owner_user_id
     WHERE h.public_id=$1 AND h.plan_code='presence' AND h.status='approved'
     LIMIT 1
-  `, [id]);
+  `, [id, VENDOR_AGREEMENT_TEMPLATE_VERSION]);
   const row = result.rows[0];
   if (!row) return undefined;
   const eligibleEmail = Boolean(principal?.roles.includes("customer") &&
