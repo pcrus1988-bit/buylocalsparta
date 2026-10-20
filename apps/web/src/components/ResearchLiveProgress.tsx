@@ -45,7 +45,7 @@ function safeRatio(numerator: number, denominator: number): number {
   return Math.min(Math.max(numerator / denominator, 0), 1);
 }
 
-export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicResearchStudySummary }) {
+export function ResearchLiveProgress({ initialStudy, showHeatmap = true }: { initialStudy: PublicResearchStudySummary; showHeatmap?: boolean }) {
   const [study, setStudy] = useState(initialStudy);
   const [lastRefresh, setLastRefresh] = useState(() => new Date().toISOString());
 
@@ -236,6 +236,6 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
       </div>)}
     </div>
   </section>
-  {study.slug === "greek-retail-2026" && <ResearchParticipationHeatmap geography={study.participationGeography} />}
+  {showHeatmap && study.slug === "greek-retail-2026" && <ResearchParticipationHeatmap geography={study.participationGeography} />}
   </>;
 }

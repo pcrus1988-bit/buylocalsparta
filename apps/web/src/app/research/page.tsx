@@ -1,4 +1,5 @@
 import { ResearchPublicNavigation } from "../../components/ResearchPublicNavigation";
+import { ResearchLiveProgress } from "../../components/ResearchLiveProgress";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../components/SiteFooter";
@@ -61,7 +62,8 @@ function StudyCard({ study, featured = false }: { study: PublicResearchStudySumm
     {participationFocus ? <div className={styles.publicCardParticipation}>
       <strong>{study.started.toLocaleString("el-GR")} συμμετοχές που ξεκίνησαν</strong>
       <span>Η συλλογή συνεχίζεται · {study.completed.toLocaleString("el-GR")} πλήρη ερωτηματολόγια έως τώρα{(study.administrativelyFinalized ?? 0) > 0 ? " (" + (study.participantConfirmed ?? 0).toLocaleString("el-GR") + " με υποβολή συμμετεχόντων, " + (study.administrativelyFinalized ?? 0).toLocaleString("el-GR") + " με τεκμηριωμένη διαχειριστική οριστικοποίηση)." : "."}</span>
-    </div> : study.targetCompletes > 0 && <>
+    </div> : null}
+    {study.targetCompletes > 0 && <>
       <div className={styles.cardProgress} aria-label={"Πρόοδος " + percent(progress)}>
         <div className={styles.cardProgressFill} style={{ width: (progress * 100).toFixed(1) + "%" }} />
       </div>
@@ -132,7 +134,7 @@ export default async function ResearchObservatoryPage() {
 
       <section className={styles.section}>
         <div className={styles.quickGrid}>
-          <a className={styles.quickLink} href="#studies">
+          <a className={styles.quickLink} href={lead?.status === "fielding" ? "#survey-progress" : "#studies"}>
             <span className={styles.eyebrow}>01 · Πρόοδος</span>
             <strong>Παρακολουθήστε τη συλλογή</strong>
             <span>Δείτε το μέγεθος του δείγματος, τις προσκλήσεις και τις ολοκληρωμένες απαντήσεις.</span>
@@ -154,6 +156,10 @@ export default async function ResearchObservatoryPage() {
           </Link>
         </div>
       </section>
+
+      {lead?.status === "fielding" && <section className={styles.section} id="survey-progress">
+        <ResearchLiveProgress initialStudy={lead} showHeatmap={false} />
+      </section>}
 
       <section className={styles.section} id="studies">
         <div className={styles.sectionHead}>
