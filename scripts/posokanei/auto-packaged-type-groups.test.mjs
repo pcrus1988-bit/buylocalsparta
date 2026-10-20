@@ -1043,3 +1043,27 @@ test("Oct 19 source: grated tomato title forms stay separate from tomato paste, 
   tomatoes[0],{...tomatoes[1],unit_quantity:1}
  ]),[]);
 });
+
+
+test("Oct 19 source: explicitly labelled Zero sugar-free Cola may compare whole packs across brands, not formulations",()=>{
+ const items=[
+  p("vikos","ΒΙΚΟΣ","ΒΙΚΟΣ Cola Zero Χωρίς ζάχαρη 6x330ml","Κόλα","l",1.98),
+  p("pepsi","PEPSI","PEPSI Zero Cola Χωρίς ζάχαρη 6x330ml","Κόλα","l",1.98),
+  p("lemon","B","B Cola Zero με Λεμόνι Χωρίς ζάχαρη 6x330ml","Κόλα","l",1.98),
+  p("regular","C","C Cola 6x330ml","Κόλα","l",1.98),
+  p("diet","D","D Cola Diet Χωρίς ζάχαρη 6x330ml","Κόλα","l",1.98)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(g=>g.memberIds),[["pepsi","vikos"]]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups([items[0],{...items[1],unit_quantity:1.5}]),[]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items.filter(p=>p.source_product_id!=="vikos"&&p.source_product_id!=="pepsi")),[]);
+});
+test("Oct 19 source: vegan corn breadstick types remain isolated from standard corn breadsticks",()=>{
+ const eligible=[
+  p("eleni","Eleni","ELENI Κριτσίνια με Καλαμπόκι Vegan 150g","Κριτσίνια","kg",.15),
+  p("tsatsakis","Τσατσάκης","ΤΣΑΤΣΑΚΗΣ Κριτσίνια Με Καλαμπόκι Vegan 250 gr","Κριτσίνια","kg",.25)
+ ];
+ const ordinary=p("normal","X","X Κριτσίνια με Καλαμπόκι 200g","Κριτσίνια","kg",.2);
+ const different=p("different","Y","Y Κριτσίνια με Σουσάμι Vegan 250gr","Κριτσίνια","kg",.25);
+ assert.deepEqual(deriveAutoPackagedTypeGroups([...eligible,ordinary,different]).map(g=>g.memberIds),[["eleni","tsatsakis"]]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups([eligible[0],{...eligible[1],unit_quantity:.2}]),[]);
+});
