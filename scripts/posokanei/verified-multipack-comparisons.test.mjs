@@ -27,7 +27,9 @@ test("different verified counts of the SAME individual size form one product fam
 });
 
 test("only fully labelled verified whole-pack comparisons can enter approved auto type groups",()=>{
-  const groups=deriveAutoPackagedTypeGroups(products);
+  // A single contradictory source row vetoes the *whole* affected group.
+  assert.deepEqual(deriveAutoPackagedTypeGroups(products),[]);
+  const groups=deriveAutoPackagedTypeGroups(products.filter(p=>p.source_product_id!=="bad"));
   assert.deepEqual(groups.map(group=>group.memberIds),[["four","six"]]);
   assert.equal(groups[0].status,"approved");
 });
