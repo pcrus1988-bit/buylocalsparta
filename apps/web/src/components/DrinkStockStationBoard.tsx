@@ -82,10 +82,10 @@ export function DrinkStockStationBoard({partnerId,venueId,csrfToken,station}:{
  const heading=isBar?"🍸 BAR / PREPARATION":"🛎 WAITERS / FLOOR SERVICE";
  return <section aria-label={isBar?"Bar order preparation board":"Waiter delivery board"}
    style={{maxWidth:1340,margin:"22px auto",borderRadius:22,padding:"clamp(18px,3vw,28px)",
-    color:"#fff",background:"linear-gradient(135deg,#102333,#1d122f)",border:"1px solid #55688c"}}>
+    color:"#fff",background:"linear-gradient(135deg,#15112e,#1d122f)",border:"1px solid #665585"}}>
   <header style={{display:"flex",justifyContent:"space-between",gap:20,flexWrap:"wrap",alignItems:"center"}}>
    <div>
-    <p style={{fontSize:11,letterSpacing:2.7,color:"#d9ff57",fontWeight:900}}>DRINKSTOCK / STAFF STATION</p>
+    <p style={{fontSize:11,letterSpacing:2.7,color:"#caff4e",fontWeight:900}}>DRINKSTOCK / STAFF STATION</p>
     <h1 style={{fontSize:"clamp(28px,5vw,45px)",margin:"4px 0 10px"}}>{heading}</h1>
     <p style={{margin:0,color:"#bfc4d6",fontSize:13,lineHeight:1.6}}>
      {isBar?"New paid orders → accepted → preparing → ready. Mark ready when every drink in the ticket has been prepared.":
@@ -102,16 +102,16 @@ export function DrinkStockStationBoard({partnerId,venueId,csrfToken,station}:{
      {name:"READY / WAITING",value:ready}].map(x=><div key={x.name}
       style={{padding:17,borderRadius:13,border:"1px solid #ffffff2e",background:"#ffffff0b"}}>
       <small style={{letterSpacing:1.1,color:"#b7bed0"}}>{x.name}</small>
-      <div style={{fontWeight:900,fontSize:36,color:"#d9ff57"}}>{x.value}</div>
+      <div style={{fontWeight:900,fontSize:36,color:"#caff4e"}}>{x.value}</div>
     </div>)}
   </div>
   <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
    <div role="group" aria-label="Filter orders" style={{display:"flex",gap:8}}>
     {([["action","Needs action"],["open","Open"],["all","Recent"]] as const).map(([key,name])=>
      <button key={key} type="button" onClick={()=>setFilter(key)}
-      aria-pressed={filter===key} style={{border:filter===key?"1px solid #d9ff57":"1px solid #8992ac",
-       borderRadius:10,padding:"9px 12px",fontWeight:800,color:filter===key?"#11192b":"#fff",
-       background:filter===key?"#d9ff57":"#ffffff17"}}>{name}</button>)}
+      aria-pressed={filter===key} style={{border:filter===key?"1px solid #caff4e":"1px solid #8992ac",
+       borderRadius:10,padding:"9px 12px",fontWeight:800,color:filter===key?"#100c23":"#fff",
+       background:filter===key?"#caff4e":"#ffffff17"}}>{name}</button>)}
    </div>
    <small style={{color:"#a6b0c4"}}>{updated?"Last synced "+new Date(updated).toLocaleTimeString("el-GR"):"Connecting…"}</small>
   </div>
@@ -130,8 +130,8 @@ export function DrinkStockStationBoard({partnerId,venueId,csrfToken,station}:{
      const canAct=!offline&&!busy&&actionable(o,station);
      const receiptBlock=station==="waiter"&&o.state==="ready"&&(!o.receiptIssued||o.fiscalState!=="issued");
      const minutes=Math.max(0,Math.floor((tick-Date.parse(o.createdAt))/60000));
-     return <article key={o.id} style={{background:o.state==="ready"?"#153d3d":"#1f2940",
-      border:o.state==="ready"?"2px solid #d9ff57":"1px solid #556480",borderRadius:15,padding:18}}>
+     return <article key={o.id} style={{background:o.state==="ready"?"#153d3d":"#211936",
+      border:o.state==="ready"?"2px solid #caff4e":"1px solid #556480",borderRadius:15,padding:18}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
        <strong style={{fontSize:25}}>TABLE {o.tableLabel??"—"}</strong>
        <strong style={{fontSize:14,color:"#f5ddab"}}>{minutes} min</strong>
@@ -139,17 +139,17 @@ export function DrinkStockStationBoard({partnerId,venueId,csrfToken,station}:{
       <p style={{fontSize:11,color:"#b2bdcf",marginTop:6}}>
        {time(o.createdAt)} · #{o.id.slice(0,8)} · {euro(o.amountGrossCents)}
       </p>
-      <strong style={{display:"block",fontSize:13,letterSpacing:1,color:o.state==="ready"?"#d9ff57":"#c9ddf2",margin:"14px 0"}}>
+      <strong style={{display:"block",fontSize:13,letterSpacing:1,color:o.state==="ready"?"#caff4e":"#c9ddf2",margin:"14px 0"}}>
        {labels[o.state]??o.state.toUpperCase()}
       </strong>
       <ul style={{listStyle:"none",margin:"0 0 17px",padding:0}}>
        {o.lines.map(line=><li key={line.id} style={{borderTop:"1px solid #ffffff26",padding:"10px 0",fontWeight:700}}>
-        <strong style={{color:"#d9ff57",fontSize:20}}>{line.quantity}×</strong> {line.description}
+        <strong style={{color:"#caff4e",fontSize:20}}>{line.quantity}×</strong> {line.description}
        </li>)}
       </ul>
       {target&&<button type="button" disabled={!canAct} onClick={()=>void advance(o)}
         style={{border:0,borderRadius:12,padding:"14px 12px",width:"100%",fontSize:15,fontWeight:900,
-         background:"#d9ff57",color:"#142133",cursor:canAct?"pointer":"not-allowed",opacity:canAct?1:0.45}}>
+         background:"#caff4e",color:"#142133",cursor:canAct?"pointer":"not-allowed",opacity:canAct?1:0.45}}>
        {busy===o.id?"Saving…":nextLabels[target]}
       </button>}
       {receiptBlock&&<p role="status" style={{fontSize:12,color:"#ffa6a6"}}>
