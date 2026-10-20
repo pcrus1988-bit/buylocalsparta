@@ -6,7 +6,7 @@
  * explicit package-label quantity + positive-listed category are acceptable.
  */
 import {createHash} from "node:crypto";
-import {createBrandIndex,productFamily,referenceQuantity} from "./brand-alternatives.mjs";
+import {createBrandIndex,productFamily,referenceQuantity,contradictoryMultipackFamily} from "./brand-alternatives.mjs";
 const norm=x=>String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
   .toLocaleLowerCase("el-GR").replace(/[’‘´΄']/g,"").replace(/\s+/g," ").trim();
 const clean=x=>norm(x).replace(/[^\p{L}\p{N}]+/gu," ").trim();
@@ -338,8 +338,12 @@ export function deriveAutoPackagedTypeGroups(products,previous=[]){
     if(seen.has(id))duplicateIds.add(id);
     seen.add(id);
   }
+  // Contradictory source quantity evidence vetoes the entire apparent family,
+  // even when rejecting the defective SKU changes its normalized family key.
+  const conflictingFamilies=new Set(products.map(contradictoryMultipackFamily).filter(Boolean));
   const generated=[];
   for(const [key,members] of createBrandIndex(products)){
+    if(conflictingFamilies.has(key))continue;
     const eligible=members.filter(p=>!protectedIds.has(p.source_product_id)&&!duplicateIds.has(p.source_product_id)&&accepted(p));
     if(eligible.length<2||eligible.length>100)continue;
     if(members.some(p=>!protectedIds.has(p.source_product_id)&&
