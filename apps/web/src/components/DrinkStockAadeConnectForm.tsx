@@ -49,7 +49,7 @@ export function DrinkStockAadeConnectForm({partnerId,csrfToken}:{partnerId:strin
    I am authorized to configure AADE access for this partner and accept that this is reporting connectivity only.
   </label>
   <button type="submit" disabled={saving||!confirmed} style={{border:0,padding:13,fontWeight:800,borderRadius:12,
-   background:"#d9ff57",color:"#132536",opacity:(saving||!confirmed)?0.5:1}}>
+   background:"#caff4e",color:"#132536",opacity:(saving||!confirmed)?0.5:1}}>
    {saving?"Verifying secure connection…":"Verify AADE reporting connection"}
   </button>
   {feedback&&<p role="status" style={{fontSize:13}}>{feedback}</p>}
