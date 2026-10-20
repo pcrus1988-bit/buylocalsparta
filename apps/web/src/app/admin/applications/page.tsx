@@ -372,7 +372,7 @@ export default async function ApplicationsPage() {
                   reasonPrompt="Permanent closure reason"
                   danger
                 />
-                {application.vendorId && <Link className="button button-secondary" href={`/api/admin/finance/agreements/plan-preview?plan=${encodeURIComponent(application.requestedPlanCode)}&vendorId=${encodeURIComponent(application.vendorId)}`} target="_blank">Plan agreement DRAFT ↗</Link>}
+                {application.vendorId && <Link className="button button-secondary" href={`/api/admin/finance/agreements/plan-preview?plan=${encodeURIComponent(application.requestedPlanCode)}&vendorId=${encodeURIComponent(application.vendorId)}`} target="_blank">Plan agreement PDF ↗</Link>}
                 <Link className="button button-secondary" href="/admin/finance/agreements">Agreement lifecycle →</Link>
                 {application.vendorId && <Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(application.vendorId)}`}>Partner record</Link>}
               </div>
@@ -406,7 +406,7 @@ export default async function ApplicationsPage() {
             <div className="workspace-inline-note">
               <strong>Agreement workflow:</strong> {prospect.planCode === "claim"
                 ? "Directory-only CLAIM. Publication consent is recorded separately; the full versioned agreement acceptance is not yet released."
-                : "Paid HUB · DRAFT template under legal review. Status conversion requires a plan-matched approved agreement, signed PDF and verified gov.gr reference."}
+                : "Paid HUB · reviewed versioned agreement. Status conversion requires a plan-matched approved agreement, signed PDF and verified gov.gr reference."}
             </div>
             <div className="workspace-inline-note">
               <strong>Subscription snapshot</strong>
@@ -433,7 +433,7 @@ export default async function ApplicationsPage() {
                 {prospect.trialVendorId && <Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(prospect.trialVendorId)}/catalogue`}>Trial catalogue</Link>}
                 {prospect.trialVendorId && <Link className="button button-secondary" href={`/demo/vendor/${encodeURIComponent(prospect.trialVendorId)}`} target="_blank">Private preview ↗</Link>}
                 <Link className="button button-secondary" href={"/admin/hubs/plan-preview?applicationId=" + encodeURIComponent(prospect.internalId) + "&plan=" + encodeURIComponent(prospect.planCode)}>Preview selected plan ↗</Link>
-                <Link className="button button-secondary" target="_blank" href={`/api/admin/finance/agreements/plan-preview?plan=${encodeURIComponent(prospect.planCode)}&billing=${encodeURIComponent(prospect.billingCycle)}&prospectId=${encodeURIComponent(prospect.internalId)}`}>Plan agreement DRAFT PDF ↗</Link>
+                <Link className="button button-secondary" target="_blank" href={`/api/admin/finance/agreements/plan-preview?plan=${encodeURIComponent(prospect.planCode)}&billing=${encodeURIComponent(prospect.billingCycle)}&prospectId=${encodeURIComponent(prospect.internalId)}`}>Plan agreement PDF ↗</Link>
                 {prospect.planCode !== "claim" && <Link className="button button-secondary" href="/admin/finance/agreements">Finance · Governed agreement →</Link>}
                 {prospect.planCode === "claim" && prospect.status === "converted" && <Link className="button button-secondary" href={"/hubs/" + prospect.hubSlug + "/business/" + prospect.internalId} target="_blank">Published CLAIM profile ↗</Link>}
               </div>
