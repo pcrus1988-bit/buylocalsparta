@@ -100,6 +100,8 @@ export type VendorOperatingContext = Readonly<{
   locationId?: string;
   operatingModel: VendorOperatingModel;
   roles: readonly string[];
+  subscriptionPlanCode?: string;
+  subscriptionState?: "active" | "trial" | "inactive";
   capabilities: readonly VendorCapability[];
 }>;
 
@@ -108,12 +110,51 @@ export type VendorOperatingAssignment = Readonly<{
   hubId?: string;
   locationId?: string;
   operatingModel?: VendorOperatingModel;
+  subscriptionPlanCode?: string;
+  subscriptionState?: "active" | "trial" | "inactive";
+  entitledCapabilities?: readonly VendorCapability[];
 }>;
 
 export function capabilitiesForVendorOperatingModel(model: VendorOperatingModel): readonly VendorCapability[] {
   return model === "SELF_GOVERNED"
     ? [...MANAGED_CAPABILITIES, ...SELF_GOVERNED_EXTRA_CAPABILITIES]
     : [...MANAGED_CAPABILITIES];
+}
+
+
+// Plan entitlements are a second, independent ceiling above the existing
+// staff-role and HUB operating-model permissions. Lack of a live entitlement
+// never falls back to the richest tier.
+const PLAN_SHOP_BASE = [
+  "shop.read", "shop.manage", "catalogue.read", "catalogue.submit",
+  "offer.manage", "pricing.manage", "inventory.manage",
+  "orders.read", "orders.manage", "fulfilment.manage", "pickup.manage",
+  "shipping.manage", "local_delivery.manage", "aade.manage",
+  "finance.read", "ask_local.manage", "customer_messages.manage",
+  "seo.guidance.read", "analytics.read", "compliance.submit",
+  "staff.manage", "subscription.manage"
+] as const satisfies readonly VendorCapability[];
+
+const PLAN_GROWTH_EXTRA = ["catalogue.import"] as const satisfies readonly VendorCapability[];
+const PLAN_PRO_EXTRA = ["promotions.manage", "seo.source_data.manage"] as const satisfies readonly VendorCapability[];
+const PLAN_TRIAL = ["shop.read", "shop.manage", "catalogue.read", "catalogue.submit"] as const satisfies readonly VendorCapability[];
+
+export function vendorCapabilitiesForSubscription(
+  planCode: string | undefined,
+  state: "active" | "trial" | "inactive"
+): readonly VendorCapability[] {
+  if (state === "inactive") return [];
+  if (planCode === "claim" || planCode === "presence") return [];
+  if (state === "trial") return [...PLAN_TRIAL];
+  if (planCode === "shop") return [...PLAN_SHOP_BASE];
+  if (planCode === "growth") return [...PLAN_SHOP_BASE, ...PLAN_GROWTH_EXTRA];
+  if (planCode === "pro") return [...PLAN_SHOP_BASE, ...PLAN_GROWTH_EXTRA, ...PLAN_PRO_EXTRA];
+  // Sparta historical merchant subscription plans preserve their established
+  // merchant facilities; this is not a HUB plan upgrade.
+  if (["monthly", "annual", "founding_2026", "legacy_signed"].includes(planCode ?? "")) {
+    return [...PLAN_SHOP_BASE, ...PLAN_GROWTH_EXTRA];
+  }
+  return [];
 }
 
 export function buildVendorOperatingContext(input: {
@@ -123,6 +164,9 @@ export function buildVendorOperatingContext(input: {
   locationId?: string;
   operatingModel?: VendorOperatingModel;
   roles?: readonly string[];
+  subscriptionPlanCode?: string;
+  subscriptionState?: "active" | "trial" | "inactive";
+  entitledCapabilities?: readonly VendorCapability[];
 }): VendorOperatingContext {
   const vendorId = requiredScopeValue(input.vendorId, "vendorId");
   const operatingModel = input.operatingModel ?? "MANAGED";
@@ -137,6 +181,7 @@ export function buildVendorOperatingContext(input: {
   const capabilities = vendorRolePresent
     ? capabilitiesForVendorOperatingModel(operatingModel)
         .filter((capability) => capability !== "catalogue.import" || catalogueImportAllowed)
+        .filter((capability) => !input.entitledCapabilities || input.entitledCapabilities.includes(capability))
     : [];
   return {
     vendorId,
@@ -145,6 +190,8 @@ export function buildVendorOperatingContext(input: {
     ...(locationId ? { locationId } : {}),
     operatingModel,
     roles,
+    ...(input.subscriptionPlanCode ? { subscriptionPlanCode: input.subscriptionPlanCode } : {}),
+    ...(input.subscriptionState ? { subscriptionState: input.subscriptionState } : {}),
     capabilities
   };
 }
