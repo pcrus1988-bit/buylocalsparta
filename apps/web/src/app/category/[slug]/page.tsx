@@ -65,7 +65,18 @@ async function getBoundedCategoryProducts(categorySlug: string) {
   // The crawler projection can legitimately be paused/stale during load-shedding,
   // while the compact dropship live-family table is maintained incrementally.
   // Serialize both reads because the web runtime intentionally owns one PG client.
-  const localProducts = await getCachedCrawlerCatalogCards("23100", "", categorySlug, {}, CATEGORY_PAGE_SIZE);
+  const localProducts = await getCachedCrawlerCatalogCards("23100", "", categorySlug, {}, CATEGORY_PAGE_SIZE).catch((error) => {
+    // Catalogue availability must not make a deploy fail during ISR prerendering.
+    // Preserve the category landing page, allow the dropship projection to fill
+    // the remaining slots, and retry the local projection on the next revalidate.
+    console.error(JSON.stringify({
+      level: "error",
+      event: "storefront.category_local_products_degraded",
+      category: categorySlug,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return [];
+  });
   const dropshipPage = await getCachedPublishedDropshipShopPage({
     query: "",
     category: categorySlug,
