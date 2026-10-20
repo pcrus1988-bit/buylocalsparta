@@ -4,8 +4,8 @@ import QRCode from "react-qr-code";
 import type {SessionView,SessionAction} from "../lib/drinkstock-session-service";
 import {decideSessionRevisionRecovery} from "../lib/drinkstock-session-recovery";
 const money=(v:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(v/100);
-const button:React.CSSProperties={background:"#d9ff57",color:"#151724",border:0,borderRadius:12,padding:"12px 17px",fontWeight:850,cursor:"pointer"};
-const minor:React.CSSProperties={...button,background:"#26343e",color:"#fff",border:"1px solid #50606b"};
+const button:React.CSSProperties={background:"#caff4e",color:"#15112e",border:0,borderRadius:12,padding:"12px 17px",fontWeight:850,cursor:"pointer"};
+const minor:React.CSSProperties={...button,background:"#493a73",color:"#fff",border:"1px solid #50606b"};
 export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{initial:SessionView;partnerId:string;venueId:string;csrfToken:string}){
  const [view,setView]=useState(initial);
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[issued,setIssued]=useState<{kind:"screen"|"table";url:string;label:string}|null>(null);
@@ -77,8 +77,8 @@ export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{
   }finally{busyRef.current=false;setBusy(false);}
  }
  const state=view.session?.state??"none",canManage=view.venue.role==="owner"||view.venue.role==="manager";
- return <section style={{margin:"26px auto",maxWidth:1280,padding:"26px",color:"#fff",background:"linear-gradient(125deg,#111b30,#1e153c)",border:"1px solid #52436c",borderRadius:24}}>
- <p style={{letterSpacing:3,fontSize:11,color:"#d9ff57",fontWeight:900}}>VENUE OPS / SESSION CONTROL</p>
+ return <section style={{margin:"26px auto",maxWidth:1280,padding:"26px",color:"#fff",background:"linear-gradient(125deg,#15112e,#1e153c)",border:"1px solid #52436c",borderRadius:24}}>
+ <p style={{letterSpacing:3,fontSize:11,color:"#caff4e",fontWeight:900}}>VENUE OPS / SESSION CONTROL</p>
  <h2 style={{fontSize:"clamp(25px,4vw,40px)",margin:"9px 0 12px"}}>Trading session · {view.venue.name}</h2>
  <p style={{color:"#c1bbd7"}}>Session: <strong>{state.toUpperCase()}</strong> · {view.products.length} drinks · Bounds {view.session?.floorPercent??70}%–{view.session?.ceilingPercent??145}%</p>
  {view.session?.crashUntil&&<p role="status" style={{fontWeight:900,color:"#ff7979"}}>⚠ MARKET CRASH until {new Date(view.session.crashUntil).toLocaleTimeString("el-GR")}</p>}
@@ -90,8 +90,8 @@ export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{
  {state!=="none"&&state!=="ended"&&<button style={minor} disabled={busy} onClick={()=>void command("end")}>■ End session</button>}
  </div>}
  <aside aria-label="KONTA MOY POS-independent fallback" style={{padding:18,margin:"15px 0 24px",borderRadius:15,
-  background:"#0d2830",border:"1px solid #416b73"}}>
-  <strong style={{color:"#d9ff57"}}>KONTA MOY CHECKOUT · POS FALLBACK</strong>
+  background:"#15112e",border:"1px solid #665585"}}>
+  <strong style={{color:"#caff4e"}}>KONTA MOY CHECKOUT · POS FALLBACK</strong>
   <p style={{color:"#d5d6e6",fontSize:13,lineHeight:1.6,marginBottom:0}}>
    {view.checkoutFallback?.adminEnabled?
     "The platform administrator has approved this partner for the POS-unavailable checkout fallback. Guest payments remain unavailable until KONTA MOY's DrinkStock settlement and certified receipt integration is operational.":
@@ -123,7 +123,7 @@ export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{
    #drinkstock-pass-print-area{position:absolute!important;top:0!important;left:0!important;width:100%!important;background:#fff!important;color:#111!important;box-shadow:none!important;border:0!important;padding:35px!important}
    #drinkstock-pass-actions{display:none!important}
  }`}</style>
- <div id="drinkstock-pass-print-area" style={{marginTop:20,padding:25,borderRadius:15,background:"#fff",color:"#151724",overflowWrap:"anywhere",maxWidth:490}}>
+ <div id="drinkstock-pass-print-area" style={{marginTop:20,padding:25,borderRadius:15,background:"#fff",color:"#15112e",overflowWrap:"anywhere",maxWidth:490}}>
   <strong style={{fontSize:22}}>DRINKSTOCK ↗</strong>
   <h3 style={{margin:"9px 0 4px"}}>{view.venue.name}</h3>
   <p style={{margin:"0 0 14px",fontWeight:900,fontSize:20}}>{issued.kind==="table"?"TABLE "+issued.label:"VENUE DISPLAY"}</p>
@@ -145,8 +145,8 @@ export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{
  <span>{p.kind==="screen"?"📺 Screen":`▦ Table ${p.tableLabel}`} · <small>{p.id.slice(0,8)}</small></span>
  {p.kind==="screen"&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
   <span style={{fontSize:12,color:"#c4bedb"}}>TV feed</span>
-  <button type="button" style={{...minor,background:p.feedMode==="simulation"?"#d9ff57":"#26343e",color:p.feedMode==="simulation"?"#131727":"#fff"}} disabled={!canManage||busy||p.feedMode==="simulation"} aria-pressed={p.feedMode==="simulation"} onClick={()=>void command("set_screen_feed",{passId:p.id,feedMode:"simulation"})}>Simulation</button>
-  <button type="button" style={{...minor,background:p.feedMode==="actual"?"#d9ff57":"#26343e",color:p.feedMode==="actual"?"#131727":"#fff"}} disabled={!canManage||busy||p.feedMode==="actual"} aria-pressed={p.feedMode==="actual"} onClick={()=>void command("set_screen_feed",{passId:p.id,feedMode:"actual"})}>Actual orders</button>
+  <button type="button" style={{...minor,background:p.feedMode==="simulation"?"#caff4e":"#493a73",color:p.feedMode==="simulation"?"#131727":"#fff"}} disabled={!canManage||busy||p.feedMode==="simulation"} aria-pressed={p.feedMode==="simulation"} onClick={()=>void command("set_screen_feed",{passId:p.id,feedMode:"simulation"})}>Simulation</button>
+  <button type="button" style={{...minor,background:p.feedMode==="actual"?"#caff4e":"#493a73",color:p.feedMode==="actual"?"#131727":"#fff"}} disabled={!canManage||busy||p.feedMode==="actual"} aria-pressed={p.feedMode==="actual"} onClick={()=>void command("set_screen_feed",{passId:p.id,feedMode:"actual"})}>Actual orders</button>
  </div>}
  {canManage&&<button style={minor} disabled={busy} onClick={()=>{if(window.confirm("Revoke this link immediately?"))void command("revoke_pass",{passId:p.id});}}>Revoke</button>}
  </div>)}</div>
