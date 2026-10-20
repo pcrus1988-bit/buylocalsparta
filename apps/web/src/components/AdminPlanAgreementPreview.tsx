@@ -62,7 +62,7 @@ export function AdminPlanAgreementPreview() {
         <div className="workspace-compact-row"><strong>Προμήθεια</strong><span>{(plan.commissionRateBps / 100).toLocaleString("el-GR")}%</span></div>
         <div className="workspace-compact-row"><strong>Έκδοση</strong><span>{plan.templateVersion}</span></div>
       </div>
-      <p className="workspace-inline-note">Πριν από παραγωγική χρήση απαιτείται έλεγχος του ελληνικού νομικού κειμένου. Τα σχέδια HUB λαμβάνουν υπόψη την ήδη καταχωρισμένη έκπτωση ένταξης. Εάν πλάνο ή κύκλος δεν συμφωνεί με την αίτηση, ο server αρνείται τη δημιουργία.</p>
+      <p className="workspace-inline-note">Η έκδοση 2026-10-20-v2 έχει λάβει επιβεβαίωση νομικού και λογιστικού ελέγχου. Η προεπισκόπηση δεν αποτελεί αποδοχή ή υπογραφή. Τα σχέδια HUB λαμβάνουν υπόψη την ήδη καταχωρισμένη έκπτωση ένταξης. Εάν πλάνο ή κύκλος δεν συμφωνεί με την αίτηση, ο server αρνείται τη δημιουργία.</p>
       <button className="button button-secondary" type="submit">Δημιουργία PDF προσχεδίου →</button>
     </form>
   </section>;
