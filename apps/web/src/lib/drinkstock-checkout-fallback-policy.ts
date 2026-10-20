@@ -19,7 +19,8 @@ export function checkoutFallbackDecision(enabled:boolean):CheckoutFallbackDecisi
   status:enabled?"approved_pending_adapter":"disabled"};
 }
 export class CheckoutFallbackInputError extends Error{
- constructor(public readonly code:string){super(code);}
+ readonly code:string;
+ constructor(code:string){super(code);this.code=code;}
 }
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export type CheckoutFallbackCommand=Readonly<{
