@@ -105,16 +105,12 @@ if(m.ok){
         body:JSON.stringify({snapshot_id:row.snapshot_id,dry_run:false}),signal:AbortSignal.timeout(25000)
       });
       const result=await e.json().catch(()=>({error:"invalid_response"}));
-      const item={snapshot_id:row.snapshot_id,http_status:e.status,status:result.status||null,
+      let recovery=null;
+      if(!e.ok)recovery=await recordHtmlFailure(row,String(result.error||"http_"+e.status),e.status);
+      extraction.push({snapshot_id:row.snapshot_id,http_status:e.status,status:result.status||null,
         error:result.error||null,run_id:result.run_id||null,fragments:result.fragments||0,
-        manual_review_required:null,state_recorded:null,retry_after:null};
-      if(!e.ok){
-        const recovery=await recordHtmlFailure(row,String(result.error||"http_"+e.status),e.status);
-        item.manual_review_required=recovery.manual_review_required;
-        item.state_recorded=recovery.saved;
-        item.retry_after=recovery.retry_after;
-      }
-      extraction.push(item);
+        ...(recovery?{manual_review_required:recovery.manual_review_required,state_recorded:recovery.saved,
+          retry_after:recovery.retry_after}:{})});
     }catch{
       // Transient worker/transport error: do not hot-loop the same snapshot every ten minutes.
       const recovery=await recordHtmlFailure(row,"html_worker_transport_failure",null).catch(()=>({saved:false,manual_review_required:false}));
