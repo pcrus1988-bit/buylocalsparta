@@ -121,12 +121,18 @@ export async function getFiscalMerchantDraftActivity(
   (filters.source!==undefined&&!SOURCES.includes(filters.source)))
   return summarizeFiscalDraftActivity([]);
  const {fiscalPool}=await import("./fiscal-runtime");
- const result=await fiscalPool().query<FiscalDraftActivityBucket>({
-  text:FISCAL_M45_ACTIVITY_SQL,
-  values:[organizationId,actor.id,filters.lane??null,filters.source??null],
-  query_timeout:5000
- });
- return summarizeFiscalDraftActivity(result.rows);
+ const db=await fiscalPool().connect();
+ try{
+  await db.query("BEGIN READ ONLY");
+  await db.query("SET LOCAL statement_timeout = '5000ms'");
+  const result=await db.query<FiscalDraftActivityBucket>(FISCAL_M45_ACTIVITY_SQL,
+   [organizationId,actor.id,filters.lane??null,filters.source??null]);
+  await db.query("COMMIT");
+  return summarizeFiscalDraftActivity(result.rows);
+ }catch(error){
+  try{await db.query("ROLLBACK");}catch{/* original failure preserved */}
+  throw error;
+ }finally{db.release();}
 }
 export function formatFiscalDraftMinorEuro(minor:bigint):string{
  if(minor<0n)throw Error("FISCAL_M45_NEGATIVE_AMOUNT");
