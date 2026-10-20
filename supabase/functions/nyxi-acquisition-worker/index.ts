@@ -55,7 +55,74 @@ if(r.status>=400&&data.error!=="crawl_delay"){
     body:JSON.stringify({metadata})
   });}catch{ /* Log-only failure: never leak secrets or bypass source controls */ }
   results.push({approval_id:item.id,error:"collector_call_error",manual_review:attempts>=3});
-}}const extraction=[];let extractedThisRun=0;const m=await fetch(url+"/rest/v1/nyxi_corpus_manifest?select=snapshot_id&extraction_status=eq.ready&order=created_at.desc&limit=300",{headers:{authorization:"Bearer "+key,apikey:key}});if(m.ok){const pending=await m.json();for(const row of pending){try{const done=await fetch(url+"/rest/v1/nyxi_extraction_runs?snapshot_id=eq."+row.snapshot_id+"&status=eq.complete&select=id&limit=1",{headers:{authorization:"Bearer "+key,apikey:key}});if(!done.ok){extraction.push({snapshot_id:row.snapshot_id,error:"completion_lookup_failed",http_status:done.status});continue;}if((await done.json()).length){continue;}if(extractedThisRun>=4)break;extractedThisRun++;const e=await fetch(url+"/functions/v1/nyxi-private-extractor",{method:"POST",headers:{authorization:"Bearer "+key,apikey:key,"x-nyxi-scheduler-token":bearer,"content-type":"application/json"},body:JSON.stringify({snapshot_id:row.snapshot_id,dry_run:false}),signal:AbortSignal.timeout(25000)});const result=await e.json().catch(()=>({error:"invalid_response"}));extraction.push({snapshot_id:row.snapshot_id,http_status:e.status,status:result.status||null,error:result.error||null,run_id:result.run_id||null,fragments:result.fragments||0});}catch(e){extraction.push({snapshot_id:row.snapshot_id,error:String(e).slice(0,150)});}}}else extraction.push({error:"manifest_queue_lookup_failed",http_status:m.status});const pdfExtraction=[];
+}}// Fail-closed HTML extraction recovery. A source's capture authorization never grants publication rights.
+const recordHtmlFailure=async(row,reason,httpStatus)=>{
+  const failures=Math.min(50,Math.max(0,Number(row.metadata?.html_failure_count)||0)+1);
+  const terminal=["empty_extraction","unsupported_format","integrity_mismatch","snapshot_missing"].includes(reason);
+  const needsReview=terminal||failures>=5;
+  const now=new Date().toISOString();
+  const metadata={
+    ...(row.metadata||{}),
+    html_failure_count:failures,
+    html_last_error:String(reason||"unknown_extraction_failure").slice(0,90),
+    html_last_http_status:httpStatus,
+    html_last_attempt_at:now,
+    html_manual_review_required:needsReview,
+    html_next_attempt_after:needsReview?null:new Date(Date.now()+6*60*60*1000).toISOString()
+  };
+  const patch={
+    metadata,
+    ...(needsReview?{extraction_status:"manual_review_required"}:{})
+  };
+  // Never overwrite a snapshot whose lifecycle another worker already advanced.
+  const saved=await fetch(url+"/rest/v1/nyxi_corpus_manifest?snapshot_id=eq."+row.snapshot_id+"&extraction_status=eq.ready",{
+    method:"PATCH",headers:{authorization:"Bearer "+key,apikey:key,"content-type":"application/json"},
+    body:JSON.stringify(patch)
+  });
+  return {saved:saved.ok,manual_review_required:needsReview,retry_after:metadata.html_next_attempt_after};
+};
+const extraction=[];let extractedThisRun=0;
+const m=await fetch(url+"/rest/v1/nyxi_corpus_manifest?select=snapshot_id,metadata&extraction_status=eq.ready&order=created_at.desc&limit=300",{headers:{authorization:"Bearer "+key,apikey:key}});
+if(m.ok){
+  const pending=(await m.json()).filter(row=>!row.metadata?.html_manual_review_required&&
+    (!row.metadata?.html_next_attempt_after||Date.parse(row.metadata.html_next_attempt_after)<=Date.now()));
+  for(const row of pending){
+    if(extractedThisRun>=4)break;
+    try{
+      const done=await fetch(url+"/rest/v1/nyxi_extraction_runs?snapshot_id=eq."+row.snapshot_id+"&status=eq.complete&select=id&limit=1",{headers:{authorization:"Bearer "+key,apikey:key}});
+      if(!done.ok){extraction.push({snapshot_id:row.snapshot_id,error:"completion_lookup_failed",http_status:done.status});continue;}
+      if((await done.json()).length){
+        const reconciled=await fetch(url+"/rest/v1/nyxi_corpus_manifest?snapshot_id=eq."+row.snapshot_id+"&extraction_status=eq.ready",{
+          method:"PATCH",headers:{authorization:"Bearer "+key,apikey:key,"content-type":"application/json"},
+          body:JSON.stringify({extraction_status:"complete"})
+        });
+        extraction.push({snapshot_id:row.snapshot_id,status:reconciled.ok?"already_completed":"reconciliation_failed"});
+        continue;
+      }
+      extractedThisRun++;
+      const e=await fetch(url+"/functions/v1/nyxi-private-extractor",{
+        method:"POST",headers:{authorization:"Bearer "+key,apikey:key,"x-nyxi-scheduler-token":bearer,"content-type":"application/json"},
+        body:JSON.stringify({snapshot_id:row.snapshot_id,dry_run:false}),signal:AbortSignal.timeout(25000)
+      });
+      const result=await e.json().catch(()=>({error:"invalid_response"}));
+      const item={snapshot_id:row.snapshot_id,http_status:e.status,status:result.status||null,
+        error:result.error||null,run_id:result.run_id||null,fragments:result.fragments||0};
+      if(!e.ok){
+        const recovery=await recordHtmlFailure(row,String(result.error||"http_"+e.status),e.status);
+        item.manual_review_required=recovery.manual_review_required;
+        item.state_recorded=recovery.saved;
+        item.retry_after=recovery.retry_after;
+      }
+      extraction.push(item);
+    }catch{
+      // Transient worker/transport error: do not hot-loop the same snapshot every ten minutes.
+      const recovery=await recordHtmlFailure(row,"html_worker_transport_failure",null).catch(()=>({saved:false,manual_review_required:false}));
+      extraction.push({snapshot_id:row.snapshot_id,error:"html_worker_transport_failure",
+        state_recorded:recovery.saved,manual_review_required:recovery.manual_review_required});
+    }
+  }
+}else extraction.push({error:"manifest_queue_lookup_failed",http_status:m.status});
+const pdfExtraction=[];
 const pe=await fetch(url+"/rest/v1/nyxi_corpus_manifest?select=snapshot_id,extraction_status,metadata&extraction_status=in.(awaiting_pdf_parser,processing)&order=created_at.desc&limit=80",{headers:{authorization:"Bearer "+key,apikey:key}});
 if(pe.ok){
  const queue=await pe.json();
