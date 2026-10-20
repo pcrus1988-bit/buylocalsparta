@@ -21,8 +21,8 @@ function fixture() {
     acquisition: {id:approvalId,source_id:sourceId,approved_final_url:'https://example.org/archive',
       asset_url:'https://example.org/archive',rights_policy_url:'https://example.org/rights',
       approved_by:'independent human',approved_at:'2026-10-18T11:00:00Z',
-      retention_until:'2026-12-31T00:00:00Z',expires_at:'2026-11-01T00:00:00Z',
-      review_due_at:'2026-10-20T00:00:00Z',acquisition_authorized:true,mirror_authorized:false,
+      retention_until:'2099-12-31T00:00:00Z',expires_at:'2099-11-01T00:00:00Z',
+      review_due_at:'2099-10-20T00:00:00Z',acquisition_authorized:true,mirror_authorized:false,
       metadata:{asset_id:'asset-v1',rights_evidence_sha256:hash(rightsEvidenceBytes)}},
     archiveBytes, rightsEvidenceBytes
   };
@@ -70,6 +70,22 @@ const cases = [
  ['invalid expiry month',f=>f.acquisition.expires_at='2026-13-01T00:00:00Z','ACQUISITION_EXPIRED_AT_FETCH'],
  ['missing retention',f=>delete f.acquisition.retention_until,'RETENTION_SCOPE_MISSING'],
  ['missing source ID',f=>f.source.id=null,'EXACT_SOURCE_APPROVAL_BINDING'],
- ['policy credentials',f=>f.acquisition.rights_policy_url='https://user:pass@example.org/rights','RIGHTS_POLICY_ORIGIN_INVALID']
+ ['policy credentials',f=>f.acquisition.rights_policy_url='https://user:pass@example.org/rights','RIGHTS_POLICY_ORIGIN_INVALID'],
+ ['retention expires after fetch',f=>f.acquisition.retention_until=new Date(Date.now()-1000).toISOString(),'RETENTION_EXPIRED_NOW'],
+ ['authorization expires after fetch',f=>f.acquisition.expires_at=new Date(Date.now()-1000).toISOString(),'ACQUISITION_EXPIRED_NOW'],
+ ['review becomes overdue after fetch',f=>f.acquisition.review_due_at=new Date(Date.now()-1000).toISOString(),'ACQUISITION_REVIEW_OVERDUE_NOW'],
+ ['future-dated snapshot',f=>f.snapshot.fetched_at=new Date(Date.now()+3600000).toISOString(),'FUTURE_DATED_SNAPSHOT'],
+ ['future-dated approval',f=>{f.snapshot.fetched_at=new Date(Date.now()+7200000).toISOString();f.acquisition.approved_at=new Date(Date.now()+3600000).toISOString()},'FUTURE_DATED_APPROVAL'],
+ ['expired retention with valid bytes',f=>f.acquisition.retention_until='2026-10-19T00:00:00Z','RETENTION_EXPIRED_NOW'],
+ ['expiry in the future',f=>f.acquisition.expires_at='2099-12-31T00:00:00Z',null],
+ ['missing acquisition expiry',f=>delete f.acquisition.expires_at,'ACQUISITION_EXPIRY_MISSING_OR_INVALID'],
+ ['null acquisition expiry',f=>f.acquisition.expires_at=null,'ACQUISITION_EXPIRY_MISSING_OR_INVALID'],
+ ['empty acquisition expiry',f=>f.acquisition.expires_at='','ACQUISITION_EXPIRY_MISSING_OR_INVALID'],
+ ['missing review deadline',f=>delete f.acquisition.review_due_at,'REVIEW_DEADLINE_MISSING_OR_INVALID'],
+ ['null review deadline',f=>f.acquisition.review_due_at=null,'REVIEW_DEADLINE_MISSING_OR_INVALID'],
+ ['empty review deadline',f=>f.acquisition.review_due_at='','REVIEW_DEADLINE_MISSING_OR_INVALID']
 ];
-for(const [name,mutator,blocker] of cases) test(name,()=>expectHold(mutator,blocker));
+for(const [name,mutator,blocker] of cases) test(name,()=>{
+  if(blocker) return expectHold(mutator,blocker);
+  const f=fixture();mutator(f);assert.equal(preflightExactAsset(f).state,'READY_FOR_INDEPENDENT_HUMAN_REVIEW');
+});
