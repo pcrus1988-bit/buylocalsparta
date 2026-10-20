@@ -1,6 +1,7 @@
 import {getProductionPostgresRuntime,productionDatabaseConfigured} from "./postgres-runtime";
 import {managerSessionView,SessionError} from "./drinkstock-session-service";
 import {CURRENT_DRINKSTOCK_PRODUCTION_CAPABILITIES,evaluateDrinkStockCheckoutReadiness} from "./drinkstock-checkout-readiness";
+import {VERIFIED_PAYMENT_EVIDENCE_SQL} from "./drinkstock-payment-evidence";
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -15,7 +16,7 @@ export async function drinkStockVenueCheckoutReadiness(userId:string,partnerId:s
  const view=await managerSessionView(userId,partnerId,venueId);
  if(!["owner","manager"].includes(view.venue.role??""))throw new SessionError("MANAGER_ONLY",403);
  const db=getProductionPostgresRuntime().sqlPool;
- const [r,connections]=await Promise.all([db.query<{
+ const [r,connections,fiscalBacklog]=await Promise.all([db.query<{
    active_count:number;vat_pending_count:number
  }>(`
  SELECT COUNT(*)::int AS active_count,
@@ -41,7 +42,13 @@ export async function drinkStockVenueCheckoutReadiness(userId:string,partnerId:s
  LEFT JOIN public.drinkstock_merchant_aade_connections a ON a.partner_id=v.partner_id
  WHERE v.id=$1::uuid AND v.partner_id=$2::uuid
  LIMIT 1
- `,[venueId,partnerId])]);
+ `,[venueId,partnerId]),db.query<{paid_unreceipted:number}>(`
+ SELECT COUNT(*)::int AS paid_unreceipted
+ FROM public.drinkstock_orders o
+ WHERE o.partner_id=$1::uuid AND o.venue_id=$2::uuid
+ AND o.payment_state='paid' AND o.fiscal_state IN ('pending','failed')
+ AND o.order_state='awaiting_payment' AND ${VERIFIED_PAYMENT_EVIDENCE_SQL}
+ `,[partnerId,venueId])]);
  const merchant=connections.rows[0];
  const mollieConnectionValid=Boolean(merchant?.mollie_profile_id&&merchant.payments_capability==="enabled"&&
   merchant.settlements_capability==="enabled"&&!merchant.disabled_at&&merchant.verified_at&&
@@ -62,6 +69,7 @@ export async function drinkStockVenueCheckoutReadiness(userId:string,partnerId:s
   partnerId,venueId,venueName:view.venue.name,canReviewVat:view.venue.role==="owner",
   sessionTrading:view.session?.state==="running"||view.session?.state==="crashing",
   activeProductCount,productsNeedingVatReview,
+  paidOrdersAwaitingFiscalResolution:Number(fiscalBacklog.rows[0]?.paid_unreceipted??0),
   merchantConnectionVerified:mollieConnectionValid,
   merchantFiscalConnectionRecorded:fiscalProviderConnected,
   standardVatJurisdictionReviewed:taxVerified,
