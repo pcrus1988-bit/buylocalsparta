@@ -69,6 +69,52 @@ export function DrinkStockReportsDashboard({report}:{report:DrinkStockPartnerRep
     </li>)}</ol>}
   </section>
  </div>
+ <section aria-label="Evidence-based commercial demand pressure" style={{...block,marginTop:18}}>
+  <h2 style={{fontSize:25,margin:"0 0 8px"}}>↗ Verified-order demand pressure</h2>
+  <p style={{color:"#cabfe0",lineHeight:1.6,fontSize:13}}>
+   A private view of drink demand from orders with matching payment-provider evidence.
+   Products compete <strong>only within the same venue</strong>. The displayed next prices are
+   an <strong>indicative calculation</strong> using your existing price limits — they are never
+   charged, saved as new prices, or presented as live customer quotes.
+   Neither demo orders nor unpaid/refunded orders count.
+  </p>
+  {!report.verifiedDemand.some(v=>v.verifiedUnits>0)?
+   <p style={{padding:18,background:"#ffffff0a",borderRadius:12,color:"#e2cbb0"}}>
+    No eligible paid DrinkStock order evidence in the selected period. Automatic
+    commercial repricing remains disabled until the certified payment adapter is active.
+   </p>:
+   <div style={{display:"grid",gap:16}}>
+    {report.verifiedDemand.filter(v=>v.verifiedUnits>0).map(venue=>{
+     const name=report.venues.find(v=>v.id===venue.venueId)?.name??"Venue";
+     const ranked=[...venue.products].sort((a,b)=>b.verifiedUnits-a.verifiedUnits||a.name.localeCompare(b.name)).slice(0,6);
+     return <div key={venue.venueId} style={{padding:18,borderRadius:15,background:"#101e32",border:"1px solid #4d4c69"}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap",marginBottom:11}}>
+       <strong>{name}</strong><span style={{color:"#b9dca3",fontSize:12}}>
+        {venue.verifiedUnits.toLocaleString("el-GR")} evidenced drinks · {venue.productsWithVerifiedSales} ordered products
+       </span>
+      </div>
+      <div style={{display:"grid",gap:8}}>
+       {ranked.map(drink=><div key={drink.productId} style={{display:"grid",gridTemplateColumns:"minmax(100px,1fr) minmax(92px,auto)",gap:10,padding:"10px 0",borderTop:"1px solid #ffffff20",alignItems:"center"}}>
+        <div style={{minWidth:0}}>
+         <strong style={{fontSize:14}}>{drink.name}</strong>
+         <small style={{display:"block",color:"#afa8bf",marginTop:5}}>{drink.verifiedUnits.toLocaleString("el-GR")} units · {drink.weightPercent.toFixed(1)}% of venue buys</small>
+        </div>
+        <div style={{textAlign:"right"}}>
+         <strong style={{color:drink.movementCents>0?"#d9ff57":drink.movementCents<0?"#f6b3b3":"#ddd"}}>
+          {drink.movementCents>0?"↗":drink.movementCents<0?"↘":"→"} {euro(drink.indicativeCents)}
+         </strong>
+         <small style={{display:"block",color:"#bcb2cb",marginTop:5}}>illustrative · from {euro(drink.currentCents)}</small>
+        </div>
+       </div>)}
+      </div>
+     </div>;
+    })}
+   </div>}
+  <p style={{fontSize:12,color:"#b9acc8",marginTop:15}}>
+   Read-only preview. An authenticated PSP webhook, idempotent order-to-market event processing,
+   and atomic quote updates are required before commercial repricing can be enabled.
+  </p>
+ </section>
  <section aria-label="Recent trading sessions" style={{...block,marginTop:18}}>
   <h2 style={{fontSize:23,marginTop:0}}>⏱ Recent sessions</h2>
   {!report.recentSessions.length?<p style={{color:"#c9c1db"}}>No sessions in the chosen reporting period.</p>:

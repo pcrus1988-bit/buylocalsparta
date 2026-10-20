@@ -1,5 +1,6 @@
 import {getProductionPostgresRuntime,productionDatabaseConfigured} from "./postgres-runtime";
 import {VERIFIED_PAYMENT_EVIDENCE_SQL,parseReportDays} from "./drinkstock-payment-evidence";
+import {verifiedDemandPricePreview,type EvidencedDemandProduct,type VenueDemandPreview} from "./drinkstock-verified-demand";
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export class DrinkStockReportError extends Error {
@@ -20,6 +21,7 @@ export type DrinkStockPartnerReport={
  partnerId:string;partnerName:string;days:7|30|90;generatedAt:string;
  venues:DrinkStockVenueReport[];recentSessions:DrinkStockRecentSession[];
  topDrinks:DrinkStockTopDrink[];daily:DrinkStockDailyTrading[];
+ verifiedDemand:VenueDemandPreview[];
  totals:{verifiedPaidOrders:number;verifiedGrossCents:number;reversalAffectedOrders:number;
  sessions:number;demoDemandSignals:number;actualScreens:number;simulationScreens:number};
  commercialCheckoutEnabled:false;
@@ -30,6 +32,7 @@ type VenueRow={id:string;name:string;paid_orders:number;paid_gross:number;
 type SessionRow={id:string;venue_name:string;state:string;started_at:Date|null;ended_at:Date|null;floor_percent:number;ceiling_percent:number};
 type ProductRow={description:string;quantity:number;gross_cents:number};
 type DailyRow={day:string;orders:number;gross_cents:number};
+type DemandProductRow={id:string;venue_id:string;name:string;price_cents:number;min_cents:number;max_cents:number;verified_units:number};
 
 /** A financial report is not accessible with a public TV/table token or staff role.
  * Every query is partner-scoped and includes independently verified payment evidence.
@@ -48,7 +51,7 @@ export async function drinkStockPartnerReport(userId:string,partnerId:string,raw
  `,[partnerId,userId]);
  if(!scope.rows.length)throw new DrinkStockReportError("NOT_FOUND",404);
  if(!["owner","manager"].includes(scope.rows[0]!.role))throw new DrinkStockReportError("MANAGER_ONLY",403);
- const [venueRows,sessionRows,productRows,dailyRows]=await Promise.all([
+ const [venueRows,sessionRows,productRows,dailyRows,demandRows]=await Promise.all([
   db.query<VenueRow>(`
  SELECT v.id::text,v.name,COALESCE(sales.paid_orders,0)::int AS paid_orders,
  COALESCE(sales.paid_gross,0)::bigint AS paid_gross,
@@ -115,8 +118,44 @@ export async function drinkStockPartnerReport(userId:string,partnerId:string,raw
  AND o.payment_state='paid' AND o.order_state IN ('paid','accepted','preparing','ready','served')
  AND ${VERIFIED_PAYMENT_EVIDENCE_SQL}
  GROUP BY day ORDER BY day DESC LIMIT 90
+ `,[partnerId,days]),
+  // One aggregated, tenant-scoped scan; no customer identity leaves the DB.
+  // All demand inputs must have the same server-side payment evidence policy
+  // used for the TV actual-order feed and owner financial reports.
+  db.query<DemandProductRow>(`
+ SELECT d.id::text AS id,d.venue_id::text AS venue_id,d.name,
+ d.price_cents,d.min_cents,d.max_cents,
+ COALESCE(paid.verified_units,0)::bigint AS verified_units
+ FROM public.drinkstock_products d
+ JOIN public.hospitality_venues v ON v.id=d.venue_id AND v.partner_id=d.partner_id AND v.status='active'
+ LEFT JOIN (
+  SELECT o.venue_id,l.product_id,SUM(l.quantity)::bigint AS verified_units
+  FROM public.drinkstock_orders o
+  JOIN public.drinkstock_order_lines l ON l.order_id=o.id
+  WHERE o.partner_id=$1::uuid
+   AND o.created_at >= now()-($2::int * interval '1 day')
+   AND o.payment_state='paid' AND o.order_state IN ('paid','accepted','preparing','ready','served')
+   AND o.currency='EUR'
+   AND ${VERIFIED_PAYMENT_EVIDENCE_SQL}
+  GROUP BY o.venue_id,l.product_id
+ ) paid ON paid.product_id=d.id AND paid.venue_id=d.venue_id
+ WHERE d.partner_id=$1::uuid AND d.active
+ ORDER BY d.venue_id,d.name,d.id LIMIT 6001
  `,[partnerId,days])
  ]);
+ if(demandRows.rows.length>6000)throw new DrinkStockReportError("DEMAND_PRODUCT_LIMIT",503);
+ const demandByVenue=new Map<string,EvidencedDemandProduct[]>();
+ for(const d of demandRows.rows){
+  const products=demandByVenue.get(d.venue_id)??[];
+  products.push({id:d.id,venueId:d.venue_id,name:d.name,
+   priceCents:num(d.price_cents),minCents:num(d.min_cents),
+   maxCents:num(d.max_cents),verifiedUnits:num(d.verified_units)});
+  demandByVenue.set(d.venue_id,products);
+ }
+ const verifiedDemand=[...demandByVenue.entries()].map(([venueId,products])=>{
+  try{return verifiedDemandPricePreview(venueId,products);}
+  catch{throw new DrinkStockReportError("INVALID_DEMAND_EVIDENCE",503);}
+ });
  const venues=venueRows.rows.map(v=>({
   id:v.id,name:v.name,verifiedPaidOrders:num(v.paid_orders),verifiedGrossCents:num(v.paid_gross),
   reversalAffectedOrders:num(v.reversals),sessionCount:num(v.sessions),demoDemandSignals:num(v.demands),
@@ -128,7 +167,7 @@ export async function drinkStockPartnerReport(userId:string,partnerId:string,raw
    startedAt:x.started_at?new Date(x.started_at).toISOString():null,
    endedAt:x.ended_at?new Date(x.ended_at).toISOString():null,
    floorPercent:num(x.floor_percent),ceilingPercent:num(x.ceiling_percent)})),
-  topDrinks:productRows.rows.map(x=>({name:x.description,quantity:num(x.quantity),grossCents:num(x.gross_cents)})),
+  topDrinks:productRows.rows.map(x=>({name:x.description,quantity:num(x.quantity),grossCents:num(x.gross_cents)})),verifiedDemand,
   daily:dailyRows.rows.map(x=>({day:x.day,orders:num(x.orders),grossCents:num(x.gross_cents)})),
   totals:venues.reduce((t,v)=>({
    verifiedPaidOrders:t.verifiedPaidOrders+v.verifiedPaidOrders,
