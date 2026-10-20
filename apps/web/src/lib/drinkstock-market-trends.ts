@@ -44,7 +44,7 @@ export function priceSparklinePoints(
  const inset=4;
  return prices.map((c,i)=>{
   const x=inset+(width-2*inset)*i/(prices.length-1);
-  const y=inset+(height-2*inset)*(1-(c-low)/span);
+  const y=high===low?height/2:inset+(height-2*inset)*(1-(c-low)/span);
   return x.toFixed(2)+","+y.toFixed(2);
  }).join(" ");
 }
