@@ -7,7 +7,7 @@
  * the certified retail-receipt and atomic commercial order adapters have not
  * been approved for production. They provide the concrete PSP protocol layer.
  */
-import {MerchantConnectionError} from "./drinkstock-merchant-connections";
+import {MerchantConnectionError,merchantMollieServerToken} from "./drinkstock-merchant-connections";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const orderSizeLimit=400000;
 export type MerchantMolliePaymentInput=Readonly<{
@@ -85,4 +85,30 @@ export async function retrieveMerchantMolliePayment(
  const payment=await r.json() as MerchantMolliePaymentResponse;
  if(payment.id!==paymentId)throw new MerchantConnectionError("MOLLIE_PAYMENT_ID_MISMATCH",502);
  return payment;
+}
+
+/**
+ * Partner-aware PSP entrypoint, for the future server-only atomic checkout
+ * coordinator. Deliberately unavailable until a certified receipt adapter and
+ * durable order creation have been installed and separately released.
+ */
+export async function createPartnerDrinkStockPayment(
+ partnerId:string,input:MerchantMolliePaymentInput,
+ release:{receiptIssuerCertified:boolean;commercialOrderPersisted:boolean;releasedForProduction:boolean}
+){
+ if(process.env.DRINKSTOCK_COMMERCIAL_PAYMENTS_ENABLED!=="true"||
+    !release.receiptIssuerCertified||!release.commercialOrderPersisted||!release.releasedForProduction)
+  throw new MerchantConnectionError("DRINKSTOCK_CHECKOUT_NOT_CERTIFIED",409);
+ const merchant=await merchantMollieServerToken(partnerId);
+ if(merchant.profileId!==input.merchantProfileId)throw new MerchantConnectionError("MOLLIE_PROFILE_NOT_MERCHANT");
+ return createMerchantMolliePayment(input,merchant.accessToken,release);
+}
+export async function verifyPartnerDrinkStockPayment(
+ partnerId:string,paymentId:string,evidence:{
+  orderId:string;profileId:string;grossCents:number;
+ }){
+ const merchant=await merchantMollieServerToken(partnerId);
+ if(merchant.profileId!==evidence.profileId)throw new MerchantConnectionError("MOLLIE_PROFILE_NOT_MERCHANT");
+ const actual=await retrieveMerchantMolliePayment(paymentId,merchant.accessToken);
+ return validatePaidMerchantMolliePayment(actual,{...evidence,paymentId});
 }
