@@ -37,6 +37,7 @@ export async function staffOrderQueue(user:string,p:string,v:string,station?:Dri
  JOIN public.drinkstock_access_passes a ON a.id=o.table_pass_id AND a.venue_id=o.venue_id AND a.partner_id=o.partner_id
  WHERE o.partner_id=$1::uuid AND o.venue_id=$2::uuid
  AND o.payment_state IN ('paid','refunded','partially_refunded')
+ AND o.order_state IN ('paid','accepted','preparing','ready','served','refunded')
  AND ${VERIFIED_PAYMENT_EVIDENCE_SQL}
  ORDER BY (o.order_state NOT IN ('paid','accepted','preparing','ready')),o.created_at DESC LIMIT 80`,[p,v]);
  if(!r.rows.length)return {role,orders:[]};
