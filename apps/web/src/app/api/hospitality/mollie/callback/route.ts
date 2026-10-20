@@ -2,6 +2,11 @@ import {hospitalityIdentity} from "../../../../../lib/hospitality-partner-access
 import {completeMerchantMollieConnect,MerchantConnectionError} from "../../../../../lib/drinkstock-merchant-connections";
 export const runtime="nodejs";export const dynamic="force-dynamic";
 export async function GET(request:Request){
+ if(process.env.DRINKSTOCK_PARTNER_CONNECT_ENABLED!=="true")
+  return Response.json({error:"PARTNER_PROVIDER_CONNECTION_NOT_USED_FOR_FALLBACK",
+   providerMode:"kontamou_existing_mollie_and_aade",
+   guestPaymentsEnabled:false},{status:410,headers:{"cache-control":"private, no-store"}});
+
  const url=new URL(request.url);
  if(url.hostname!=="hospitality.kontamou.site")
   return Response.json({error:"INVALID_CALLBACK_HOST"},{status:403});
