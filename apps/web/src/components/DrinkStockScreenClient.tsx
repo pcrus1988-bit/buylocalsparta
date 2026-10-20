@@ -110,7 +110,7 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  const delta=price?.movementCents??0;
  const history=historyByProduct.get(product.id)??[];
  const trendPoints=priceSparklinePoints(history);
- return <article key={product.id} style={{background:leadingProduct===product.id?"#d9ff571c":"#ffffff11",border:leadingProduct===product.id?"2px solid #d9ff57":"1px solid #ffffff27",borderRadius:16,padding:22,transition:"background 350ms ease,border 350ms ease"}}>
+ return <article key={product.id} style={{background:leadingProduct===product.id?"#caff4e1c":"#ffffff11",border:leadingProduct===product.id?"2px solid #caff4e":"1px solid #ffffff27",borderRadius:16,padding:22,transition:"background 350ms ease,border 350ms ease"}}>
   <div style={{display:"flex",justifyContent:"space-between",gap:9,flexWrap:"wrap"}}>
    <span style={{color:"#ad9ed9",fontSize:11,letterSpacing:2}}>{product.category.toUpperCase()}</span>
    <span style={{fontSize:10,letterSpacing:1.1,fontWeight:900,color:isActual?"#80facb":"#f9b8ff"}}>{isActual?"VENUE PRICE":"DEMO PRICE"}</span>
@@ -118,7 +118,7 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
   <h2 style={{fontSize:"clamp(19px,2.5vw,31px)",margin:"12px 0"}}>{product.name}</h2>
   <strong key={`${product.id}:${displayCents}`} style={{display:"block",fontSize:"clamp(30px,4vw,52px)",color:crash?"#ff6281":"#ccff50",fontVariantNumeric:"tabular-nums"}}>{euros(displayCents)}</strong>
   {!isActual&&price&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginTop:10,flexWrap:"wrap"}}>
-   <span style={{color:delta>0?"#d9ff57":delta<0?"#ff8ca5":"#cbc6dc",fontWeight:900,fontSize:14}}>
+   <span style={{color:delta>0?"#caff4e":delta<0?"#ff8ca5":"#cbc6dc",fontWeight:900,fontSize:14}}>
     {delta>0?"↗":delta<0?"↘":"↔"} {delta>0?"+":""}{euros(delta)} / tick
    </span>
    <span style={{fontSize:12,color:"#d1c1e8"}}>BASE {euros(price.baseCents)} · {price.versusBasePercent>0?"+":""}{price.versusBasePercent}%</span>
@@ -145,7 +145,7 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
   <p style={{color:"#c3b4dd",fontSize:13}}>Animated sample buys move display-only prices on all remote screens, including every 1.7 seconds during the crash. These illustrative prices are bounded by the venue limits and are never charged or used for table checkout.</p>
   {!showcase.length?<p style={{color:"#caff50"}}>Starting the synchronized demonstration feed…</p>:
    <ol style={{paddingLeft:22,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,210px),1fr))",gap:12}}>
-    {showcase.map((trade,index)=><li key={trade.key} style={{padding:"15px 13px",borderRadius:13,background:index===0?"#d9ff5726":"#ffffff10",border:index===0?"1px solid #d9ff57":"1px solid #ffffff22"}}>
+    {showcase.map((trade,index)=><li key={trade.key} style={{padding:"15px 13px",borderRadius:13,background:index===0?"#caff4e26":"#ffffff10",border:index===0?"1px solid #caff4e":"1px solid #ffffff22"}}>
      <strong style={{color:trade.crash?"#ff6688":"#caff50"}}>{trade.crash?"⚡ CRASH DEMO BUY":"↗ DEMO BUY"}</strong>
      <div style={{fontSize:19,fontWeight:900,marginTop:8}}>{trade.quantity}× {trade.productName}</div>
      <small style={{display:"block",marginTop:6,color:"#b6a8d3"}}>{trade.demoTable} · {new Date(trade.occurredAtMs).toLocaleTimeString("el-GR",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</small>
@@ -179,7 +179,7 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
   {!data.signals?.length?<p style={{color:"#bcb2d5"}}>No rehearsal demand signals recorded yet.</p>:
    <ol style={{paddingLeft:22,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,240px),1fr))",gap:13}}>
     {data.signals.map(signal=><li key={signal.id} style={{padding:"14px 12px",borderRadius:13,background:"#281b43",fontWeight:700}}>
-     <span style={{color:"#d9ff57"}}>↗ SIGNAL</span> · {signal.productName}
+     <span style={{color:"#caff4e"}}>↗ SIGNAL</span> · {signal.productName}
      <small style={{display:"block",marginTop:6,color:"#ada5c6"}}>{new Date(signal.createdAt).toLocaleTimeString("el-GR",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</small>
     </li>)}
    </ol>}
