@@ -645,6 +645,45 @@ try{
  assert.equal(denied.status,404,"Unrelated merchant must not view draft");
  console.log("PASS: real HTML detail route renders immutable lines; cross-tenant access returns 404");
 
+ const exportPath="/timologio/api/console/drafts/export?organizationId="+orgId+"&lane=b2b&source=console";
+ const exported=await fetch(base+exportPath,{
+  headers:{cookie:merchant.cookies},redirect:"manual",signal:AbortSignal.timeout(12000)
+ });
+ assert.equal(exported.status,200,"Authenticated merchant can export saved test drafts");
+ assert.match(exported.headers.get("content-type")??"",/^text\/csv/);
+ assert.match(exported.headers.get("cache-control")??"",/no-store/);
+ assert.match(exported.headers.get("content-disposition")??"",/attachment;/);
+ const downloadedBytes=Buffer.from(await exported.arrayBuffer());
+ assert.ok(downloadedBytes.subarray(0,3).equals(Buffer.from([0xef,0xbb,0xbf])),
+  "Greek spreadsheet UTF-8 BOM must exist in actual downloadable bytes");
+ const downloaded=downloadedBytes.toString("utf8");
+ assert.ok(downloaded.includes(draft.body.id),"Export must include actual saved draft");
+ assert.ok(downloaded.includes(draftBody.reference),"Export must contain saved reference");
+ assert.ok(downloaded.includes("NON_FISCAL_TEST_DRAFT"));
+ assert.ok(downloaded.includes("NOT_ISSUED_NOT_TRANSMITTED"));
+ assert.ok(!downloaded.includes("444555666"),"No unrelated tenant content");
+ const foreignExport=await fetch(base+exportPath,{
+  headers:{cookie:stranger.cookies},redirect:"manual",signal:AbortSignal.timeout(12000)
+ });
+ assert.equal(foreignExport.status,404,"Cross-tenant export invisible");
+ const anonymousExport=await fetch(base+exportPath,{
+  redirect:"manual",signal:AbortSignal.timeout(12000)
+ });
+ assert.equal(anonymousExport.status,401,"Anonymous export blocked");
+ const malformedExport=await fetch(base+exportPath+"&source=b2g",{
+  headers:{cookie:merchant.cookies},redirect:"manual",signal:AbortSignal.timeout(12000)
+ });
+ assert.equal(malformedExport.status,400,"Duplicate export filters blocked");
+ const excludedExport=await fetch(base+
+  "/timologio/api/console/drafts/export?organizationId="+orgId+"&lane=b2g",{
+   headers:{cookie:merchant.cookies},signal:AbortSignal.timeout(12000)
+ });
+ assert.equal(excludedExport.status,200);
+ assert.ok(!(await excludedExport.text()).includes(draft.body.id),
+  "Export must honor selected lane filters");
+ console.log("PASS: M44 real saved-draft CSV export, filter and ownership isolation");
+
+
  const persisted=await db.query(
   `SELECT d.id,d.status,d.payload->'counterparty' AS counterparty,
     (SELECT count(*)::int FROM fiscal_document_intake_lines l
