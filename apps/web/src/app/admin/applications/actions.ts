@@ -281,6 +281,9 @@ export async function setHubProspectStatus(formData: FormData) {
     if (row.plan_code === "claim" && target === "converted") {
       throw new Error("CLAIM publication requires acceptance by the verified representative.");
     }
+    if (row.plan_code === "presence" && target === "converted") {
+      throw new Error("PRESENCE_ACTIVATION_NOT_READY: The accepted directory terms do not authorize paid activation. Complete billing and the directory publication entitlement workflow first.");
+    }
     if (row.plan_code === "claim" && target === "approved" && from !== target &&
         formData.get("ownershipVerified") !== "on") {
       throw new Error("Manual business representation verification is required for CLAIM approval.");
@@ -353,7 +356,8 @@ export async function setHubProspectStatus(formData: FormData) {
       reference: result.reference,
       state: result.to as Exclude<HubProspectStatus, "pending">,
       reason,
-      claimInvitationId: result.to === "approved" && result.planCode === "claim" ? result.publicId : undefined
+      claimInvitationId: result.to === "approved" && result.planCode === "claim" ? result.publicId : undefined,
+      presenceInvitationId: result.to === "approved" && result.planCode === "presence" ? result.publicId : undefined
     });
     if (!delivery.sent) {
       console.error(JSON.stringify({
@@ -392,6 +396,33 @@ export async function resendApprovedHubClaimEmail(formData: FormData) {
     delivered: delivery.sent, source: "admin_applications"
   });
   if (!delivery.sent) throw new Error("Unable to deliver claimant activation email");
+  revalidateVendorLifecycle();
+}
+
+
+export async function resendApprovedHubPresenceEmail(formData: FormData) {
+  const principal = await requireVendorAdmin(text(formData.get("csrfToken")));
+  const applicationId = text(formData.get("applicationId")).trim();
+  const reason = text(formData.get("reason")).trim();
+  if (reason.length < 3 || reason.length > 500) throw new Error("A 3–500 character reason is required");
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT public_id,hub_slug,business_name,email,created_at
+    FROM hub_expansion_prospects
+    WHERE public_id=$1 AND plan_code='presence' AND status='approved'
+    LIMIT 1
+  `, [applicationId]);
+  if (!result.rowCount) throw new Error("Approved PRESENCE application not found");
+  const row = result.rows[0];
+  const delivery = await sendHubProspectStateEmail({
+    to: text(row.email),
+    businessName: text(row.business_name),
+    reference: hubProspectDisplayReference(text(row.public_id), text(row.hub_slug), new Date(String(row.created_at)).getTime()),
+    state: "approved", reason, presenceInvitationId: text(row.public_id)
+  });
+  await recordAdminAudit(principal, "hub_presence.agreement_invitation_resent", "hub_prospect", text(row.public_id), reason, {
+    delivered: delivery.sent, source: "admin_applications"
+  });
+  if (!delivery.sent) throw new Error("Unable to deliver PRESENCE acceptance email");
   revalidateVendorLifecycle();
 }
 
