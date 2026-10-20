@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../../components/SiteFooter";
 import styles from "../../../../components/ResearchSurveyPage.module.css";
+import previewStyles from "./ResultsPreview.module.css";
 import { getPublishedGreekRetailResults } from "../../../../lib/research-survey-release";
 import { governedStaticSeoMetadata } from "../../../../lib/seo-metadata";
 
@@ -47,17 +48,103 @@ export default async function GreekRetailResultsPage() {
 
   if (!published) {
     return <main className={styles.shell}>
-    <ResearchPublicNavigation active="results" studySlug="greek-retail-2026" />
+      <ResearchPublicNavigation active="results" studySlug="greek-retail-2026" />
+
       <header className={styles.hero}>
-        <div className={styles.brand}>KONTA MOY · ΑΠΟΤΕΛΕΣΜΑΤΑ ΕΡΕΥΝΑΣ</div>
-        <span>Ελληνικό Λιανεμπόριο 2026</span>
-        <h1>Τα αποτελέσματα δεν έχουν δημοσιευθεί ακόμη.</h1>
-        <p>Η πιλοτική δοκιμή ολοκληρώθηκε χωρίς αποτελέσματα προς αξιολόγηση ή δημοσίευση. Η σελίδα θα παρουσιάσει μόνο αποτελέσματα της κύριας έρευνας, αφού ολοκληρωθούν η συλλογή απαντήσεων, οι έλεγχοι ποιότητας και η ανάλυση.</p>
+        <div className={styles.brand}>KONTA MOY · ΠΑΡΑΤΗΡΗΤΗΡΙΟ ΕΛΛΗΝΙΚΟΥ ΛΙΑΝΕΜΠΟΡΙΟΥ</div>
+        <span>Ελληνικό Λιανεμπόριο 2026 · Αποτελέσματα</span>
+        <h1>Πίσω από τους αριθμούς υπάρχουν άνθρωποι.</h1>
+        <p>Η μελέτη καταγράφει την πραγματικότητα των ελληνικών εμπορικών επιχειρήσεων. Οι απαντήσεις θα παρουσιαστούν με επιστημονική τεκμηρίωση, αλλά και με σεβασμό στους ανθρώπους που αφιέρωσαν χρόνο για να μοιραστούν την εμπειρία τους.</p>
+        <div className={previewStyles.status}>Τα τελικά αποτελέσματα δεν έχουν δημοσιευθεί ακόμη</div>
         <div className={styles.meta}>
-          <Link href="/research/greek-retail-2026">← Επισκόπηση μελέτης</Link>
+          <Link href="/research/greek-retail-2026">← Επισκόπηση και πρόοδος της έρευνας</Link>
           <Link href="/research/greek-retail-2026/methodology">Μεθοδολογία</Link>
         </div>
       </header>
+
+      <div className={previewStyles.preview}>
+        <div className={previewStyles.dates} aria-label="Χρονοδιάγραμμα της μελέτης">
+          <article className={previewStyles.dateCard}>
+            <span className={previewStyles.label}>Προγραμματισμένο τέλος συλλογής απαντήσεων</span>
+            <strong><time dateTime="2026-10-30T18:00:00+02:00">30 Οκτωβρίου 2026</time></strong>
+            <p>Παρασκευή, ώρα 18:00 Ελλάδας. Μέχρι τότε προβλέπεται η συλλογή απαντήσεων της κύριας έρευνας.</p>
+          </article>
+          <article className={previewStyles.dateCard}>
+            <span className={previewStyles.label}>Προγραμματισμένη δημοσίευση αποτελεσμάτων</span>
+            <strong><time dateTime="2026-11-01">1 Νοεμβρίου 2026</time></strong>
+            <p>Κυριακή. Η δημοσίευση προϋποθέτει την ολοκλήρωση των ελέγχων ποιότητας και της τελικής ανάλυσης.</p>
+          </article>
+        </div>
+
+        <section className={previewStyles.section} aria-labelledby="preview-steps">
+          <div className={previewStyles.eyebrow}>Από τη συμμετοχή στη δημοσίευση</div>
+          <h2 id="preview-steps">Τι θα συμβεί στη συνέχεια</h2>
+          <div className={previewStyles.steps}>
+            <article className={previewStyles.step}>
+              <span>01 · Έως 30/10</span>
+              <strong>Συλλογή απαντήσεων</strong>
+              <p>Η έρευνα συγκεντρώνει τις εμπειρίες των επιχειρήσεων, με δυνατότητα παρακολούθησης της συνολικής προόδου.</p>
+            </article>
+            <article className={previewStyles.step}>
+              <span>02 · Μετά τη συλλογή</span>
+              <strong>Έλεγχος και ανάλυση</strong>
+              <p>Έλεγχοι εγκυρότητας, ποιότητας, αντιπροσωπευτικότητας και περιορισμών πριν εξαχθούν συμπεράσματα.</p>
+            </article>
+            <article className={previewStyles.step}>
+              <span>03 · Από 01/11, εφόσον ολοκληρωθούν οι έλεγχοι</span>
+              <strong>Δημοσίευση και ενημέρωση</strong>
+              <p>Ανοιχτή παρουσίαση των τελικών ευρημάτων και προγραμματισμένη στοχευμένη κοινοποίησή τους σε αρμόδιους φορείς.</p>
+            </article>
+          </div>
+          <p className={previewStyles.note}>Η 1η Νοεμβρίου αποτελεί στόχο δημοσίευσης και όχι προέγκριση αποτελεσμάτων. Εάν απαιτηθεί επιπλέον έλεγχος, θα προηγηθεί η επιστημονική ορθότητα.</p>
+        </section>
+
+        <section className={previewStyles.section} aria-labelledby="preview-contents">
+          <div className={previewStyles.eyebrow}>Η τελική έκθεση</div>
+          <h2 id="preview-contents">Τι θα περιλαμβάνουν τα αποτελέσματα</h2>
+          <p>Η παρουσίαση σχεδιάζεται ώστε να συνδέει τα συνολικά ευρήματα με την καθημερινή εμπειρία των μικρών και μεσαίων επιχειρήσεων.</p>
+          <div className={previewStyles.topics}>
+            <article className={previewStyles.topic}><strong>Κόστος και οικονομικές πιέσεις</strong><p>Λειτουργικά έξοδα, φορολογικές και άλλες οικονομικές επιβαρύνσεις, ρευστότητα και βιωσιμότητα.</p></article>
+            <article className={previewStyles.topic}><strong>Ψηφιακή ωριμότητα</strong><p>Ηλεκτρονικό εμπόριο, ψηφιακά εργαλεία, εμπόδια και ανάγκες υποστήριξης.</p></article>
+            <article className={previewStyles.topic}><strong>Τοπική αγορά και πελάτες</strong><p>Σχέση με την τοπική κοινωνία, αλλαγές στην κατανάλωση και συνθήκες ανταγωνισμού.</p></article>
+            <article className={previewStyles.topic}><strong>Εργασία και μέλλον</strong><p>Ανάγκες προσωπικού, προσδοκίες, προκλήσεις και προτάσεις των επιχειρήσεων.</p></article>
+            <article className={previewStyles.topic}><strong>Περιοχές, κλάδοι και μέγεθος</strong><p>Συγκρίσεις ανά γεωγραφική ενότητα, κλάδο/ΚΑΔ και χαρακτηριστικά επιχείρησης, όπου το δείγμα το επιτρέπει.</p></article>
+            <article className={previewStyles.topic}><strong>Διαδραστικά γραφήματα και χάρτες</strong><p>Οπτικοποιήσεις με σαφή μεγέθη δείγματος, μεθοδολογία και προστασία από την αναγνώριση συμμετεχόντων.</p></article>
+          </div>
+          <p className={previewStyles.note}>Οι τελικές ενότητες και αναλύσεις εξαρτώνται από την ποιότητα και την επάρκεια των πραγματικών απαντήσεων. Δεν προδικάζουμε ευρήματα ή διαφορές μεταξύ ομάδων.</p>
+        </section>
+
+        <section className={previewStyles.section} aria-labelledby="preview-recipients">
+          <div className={previewStyles.eyebrow}>Η έρευνα δεν θα μείνει σε ένα αρχείο</div>
+          <h2 id="preview-recipients">Ποιους σχεδιάζουμε να ενημερώσουμε</h2>
+          <p>Μετά την οριστικοποίηση της έκθεσης, προγραμματίζεται ενεργή κοινοποίηση των αποτελεσμάτων μέσω του εργαλείου δελτίων Τύπου του KONTA MOY, πέρα από τη δημόσια ανάρτησή τους.</p>
+          <div className={previewStyles.recipients}>
+            <div className={previewStyles.recipient}><strong>Αρμόδια υπουργεία και δημόσιοι φορείς</strong><span>Εθνικής Οικονομίας και Οικονομικών, Ανάπτυξης, Εργασίας και Κοινωνικής Ασφάλισης, και συναφείς υπηρεσίες.</span></div>
+            <div className={previewStyles.recipient}><strong>Πολιτικά κόμματα και κοινοβουλευτικοί αποδέκτες</strong><span>Για την ενημέρωση όσων συμμετέχουν στη διαμόρφωση πολιτικής για τις επιχειρήσεις.</span></div>
+            <div className={previewStyles.recipient}><strong>Επιμελητήρια και εμπορικοί φορείς</strong><span>Επιμελητήρια της χώρας, εμπορικοί σύλλογοι και αντιπροσωπευτικοί επαγγελματικοί οργανισμοί.</span></div>
+            <div className={previewStyles.recipient}><strong>Πανεπιστήμια και ερευνητές</strong><span>Οικονομικές σχολές, ερευνητικά κέντρα και επιστήμονες οικονομίας, φορολογίας και επιχειρηματικότητας.</span></div>
+            <div className={previewStyles.recipient}><strong>Μέσα ενημέρωσης</strong><span>Εθνικά, περιφερειακά και οικονομικά μέσα και συντάκτες σχετικών θεμάτων.</span></div>
+          </div>
+          <p className={previewStyles.note}>Πρόκειται για σχεδιαζόμενες κατηγορίες αποδεκτών, όχι για ήδη πραγματοποιημένες αποστολές ή δεσμεύσεις ανταπόκρισης από τους φορείς.</p>
+        </section>
+
+        <section className={[previewStyles.section, previewStyles.human].join(" ")} aria-labelledby="preview-voices">
+          <div className={previewStyles.eyebrow}>Πίσω από τους αριθμούς</div>
+          <h2 id="preview-voices">Η φωνή σας δεν θα χαθεί μέσα σε διαγράμματα και ποσοστά.</h2>
+          <p>Η τελική έκθεση θα επιδιώξει να αναδείξει και όσα δεν περιγράφονται μόνο με στατιστικούς δείκτες: την αγωνία, τις δυσκολίες, την αντοχή και τις προτάσεις των ανθρώπων του λιανεμπορίου. Τυχόν προσωπικές μαρτυρίες θα χρησιμοποιηθούν μόνο εφόσον επιτρέπεται η δημοσίευσή τους, με κατάλληλη ανωνυμοποίηση και προστασία της ιδιωτικότητας.</p>
+        </section>
+
+        <section className={previewStyles.section} aria-labelledby="preview-transparency">
+          <div className={previewStyles.eyebrow}>Διαφάνεια και εμπιστοσύνη</div>
+          <h2 id="preview-transparency">Πρώτα η ποιότητα. Έπειτα τα συμπεράσματα.</h2>
+          <p>Δεν θα δημοσιευθούν πρόωρα ποσοστά ή μεμονωμένες απαντήσεις όσο η κύρια συλλογή και η ανάλυση εκκρεμούν. Τα τελικά ευρήματα θα συνοδεύονται από περιγραφή της μεθοδολογίας, το σχετικό μέγεθος δείγματος, διαστήματα εμπιστοσύνης όπου είναι διαθέσιμα και ξεκάθαρους περιορισμούς.</p>
+          <div className={previewStyles.links}>
+            <Link href="/research/greek-retail-2026">Παρακολούθηση προόδου έρευνας →</Link>
+            <Link href="/research/greek-retail-2026/methodology">Δείτε τη μεθοδολογία →</Link>
+            <Link href="/research/privacy">Προστασία δεδομένων →</Link>
+          </div>
+        </section>
+      </div>
       <SiteFooter />
     </main>;
   }
