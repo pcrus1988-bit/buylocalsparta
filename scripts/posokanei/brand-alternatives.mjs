@@ -129,6 +129,29 @@ function hasMultipackLabel(p) {
   return [...normalize(p?.name).matchAll(multipackLabel)].length>0;
 }
 
+/**
+ * VETO ONLY: locate the *family that an inconsistent multi-pack would have
+ * claimed* had its source quantity matched its written package label.
+ * This must never be used to approve a match, calculate a price, or recommend
+ * the incorrect SKU. It protects other branded members from the contradiction.
+ */
+export function contradictoryMultipackFamily(p) {
+  if(!hasMultipackLabel(p)||corroboratedMultipack(p))return null;
+  const matches=[...normalize(p?.name).matchAll(multipackLabel)];
+  if(matches.length!==1)return null;
+  const [,countText,perText,unit]=matches[0];
+  const count=Number(countText),per=Number(perText.replace(",","."));
+  const mass=/^(?:kg|kgr|κιλα?|g|gr|γρ|γραμμαρια)$/u.test(unit);
+  const basis=mass?"kg":"l";
+  const large=/^(?:kg|kgr|κιλα?|lt|l|λιτρα?)$/u.test(unit);
+  const expected=count*per*(large?1:0.001);
+  if(!Number.isSafeInteger(count)||count<2||count>30||
+     !Number.isFinite(expected)||expected<=0||expected>40)return null;
+  const corrected={...p,unit:basis,unit_quantity:expected};
+  const family=productFamily(corrected);
+  return family?family+"|"+basis:null;
+}
+
 function words(value) {
   return normalize(value).replace(/[^\p{L}\p{N}%]+/gu," ").trim().split(/\s+/).filter(Boolean);
 }
