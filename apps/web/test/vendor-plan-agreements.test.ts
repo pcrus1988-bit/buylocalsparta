@@ -18,7 +18,7 @@ test("all eight agreement generators have unique versioned snapshots", () => {
     const plan = vendorAgreementPlanTerms(code);
     assert.ok(plan.templateVersion);
     assert.ok(plan.features.length);
-    assert.equal(plan.legalReviewStatus, "pending_legal_review");
+    assert.equal(plan.legalReviewStatus, "approved");
     assert.ok(plan.setupFeeMinor >= 0);
   }
   assert.equal(isVendorAgreementPlanCode("unknown"), false);
@@ -50,8 +50,8 @@ test("CLAIM and PRESENCE cannot be turned into merchant contracts", () => {
     const text = JSON.stringify(document);
     assert.match(text, /ΔΕΝ δημιουργεί λογαριασμό εμπόρου/);
     assert.match(text, /iframe/);
-    assert.match(text, /ΣΗΜΑΝΤΙΚΟ/);
-    assert.match(text, /2026-10-11-v1/);
+    assert.match(text, /Η εγκεκριμένη έκδοση/);
+    assert.match(text, /2026-10-20-v2/);
   }
 });
 
@@ -84,7 +84,7 @@ test("only a non-negative, bounded, approved setup discount may be snapshotted",
   assert.throws(() => planAgreementCommercialSnapshot(growth, { approvedSetupFeeMinor: 1.5 }));
 });
 
-test("marketplace PDF shows the selected plan, entitlements and legal-review watermark", () => {
+test("marketplace PDF shows approved plan snapshot and entitlements", () => {
   const plan = vendorAgreementPlanTerms("growth", "annual");
   const commercial = planAgreementCommercialSnapshot(plan);
   const pdf = buildVendorAgreementDocument({
@@ -94,7 +94,7 @@ test("marketplace PDF shows the selected plan, entitlements and legal-review wat
   });
   const text = JSON.stringify(pdf);
   assert.match(text, /GROWTH/);
-  assert.match(text, /2026-10-11-v1/);
-  assert.match(text, /ΠΡΟΣΧΕΔΙΟ/);
+  assert.match(text, /2026-10-20-v2/);
+  assert.doesNotMatch(text, /ΠΡΟΣΧΕΔΙΟ/);
   assert.match(text, /Παρεχόμενες λειτουργίες/);
 });
