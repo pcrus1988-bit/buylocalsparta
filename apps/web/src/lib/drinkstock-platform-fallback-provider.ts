@@ -40,6 +40,7 @@ export function verifyPlatformMolliePayment(payment:MolliePayment,evidence:Reado
  const m=payment.metadata??{};
  if(payment.paymentId!==evidence.paymentId||payment.status!=="paid"||
     payment.amountCurrency!=="EUR"||payment.amountMinor!==evidence.grossCents||
+    payment.amountRefundedMinor!==0||
     payment.orderId!==evidence.orderId||
     m.source!=="drinkstock"||m.providerMode!==DRINKSTOCK_FALLBACK_PROVIDER_MODE||
     m.partnerId!==evidence.partnerId||m.venueId!==evidence.venueId)
