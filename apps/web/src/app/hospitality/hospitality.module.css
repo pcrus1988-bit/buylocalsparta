@@ -182,6 +182,87 @@
   .navLogin{padding:10px 14px}
 }
 
-/* DrinkStock has its own independent consumer-facing identity and page chrome. */
-.shell:has([data-drinkstock-landing]){background:#0d0a1e}
-.shell:has([data-drinkstock-landing])>.header,.shell:has([data-drinkstock-landing])>.footer{display:none}
+/* DrinkStock owns its chrome and dark color system for ALL nested pages. */
+.shell:has([data-drinkstock-design]){background:#0d0a1e;color:#fff}
+.shell:has([data-drinkstock-design])>.header,.shell:has([data-drinkstock-design])>.footer{display:none}
+
+
+/* Legacy Hospitality module primitives, visually re-skinned ONLY inside DrinkStock.
+   The generic /hospitality gateway remains green/white and is unaffected. */
+:global([data-drinkstock-design]) .main {max-width:1320px;padding:0 26px 95px;color:#fff}
+:global([data-drinkstock-design]) .eyebrow {
+  color:#caff4e;font-size:11px;font-weight:900;letter-spacing:.18em;
+}
+:global([data-drinkstock-design]) .dashboardHeader{padding:70px 0 28px}
+:global([data-drinkstock-design]) .dashboardHeader h1,
+:global([data-drinkstock-design]) .authPane h1 {
+  color:#fff;font-size:clamp(38px,5.5vw,70px);font-weight:950;letter-spacing:-.075em;line-height:1.03;
+}
+:global([data-drinkstock-design]) .authPane h1 em{color:#caff4e;font-style:italic}
+:global([data-drinkstock-design]) .dashboardHeader p{color:#b9b2d2;max-width:800px}
+:global([data-drinkstock-design]) .authPane{
+  color:#fff;background:linear-gradient(145deg,#211936,#15112e);
+  border:1px solid #3a315e;border-radius:24px;
+  box-shadow:0 25px 85px #03010b75,0 0 65px #692dcb12;
+  max-width:720px;
+}
+:global([data-drinkstock-design]) .authPane>p,
+:global([data-drinkstock-design]) .authPane>div>p{color:#b9b2d2}
+:global([data-drinkstock-design]) .authPane h2{color:#fff;letter-spacing:-.04em}
+:global([data-drinkstock-design]) .authPane a:not(.action){color:#cbff50}
+:global([data-drinkstock-design]) .authPane a:not(.action):hover{color:#fff}
+:global([data-drinkstock-design]) .helpCopy{border-top-color:#3c315e;color:#a8a1c4}
+:global([data-drinkstock-design]) .loginForm label{color:#e9e4fb}
+:global([data-drinkstock-design]) .loginForm input{
+  background:#100d25;border:1px solid #665685;color:#fff;min-width:0;
+}
+:global([data-drinkstock-design]) .loginForm input::placeholder{color:#9990b5}
+:global([data-drinkstock-design]) .loginForm input:focus-visible{border-color:#caff4e}
+:global([data-drinkstock-design]) .loginForm button{
+  background:#caff4e;color:#130d26;font-weight:950;
+  box-shadow:0 10px 30px #b0e03c1a;
+}
+:global([data-drinkstock-design]) .loginForm button:hover:not(:disabled){background:#e4ff9c}
+:global([data-drinkstock-design]) .error{color:#ff8eb9}
+:global([data-drinkstock-design]) .partnerGrid{gap:18px}
+:global([data-drinkstock-design]) .partnerCard{
+  padding:clamp(22px,3vw,35px);border-radius:18px;
+  background:linear-gradient(145deg,#211936,#16112c);
+  border:1px solid #493a73;box-shadow:0 16px 45px #03010b35;color:#fff;
+  min-width:0;
+}
+:global([data-drinkstock-design]) .partnerCard:hover{border-color:#9f83de}
+:global([data-drinkstock-design]) .partnerCard span{color:#cbff50}
+:global([data-drinkstock-design]) .partnerCard h2,
+:global([data-drinkstock-design]) .partnerCard strong{color:#fff}
+:global([data-drinkstock-design]) .partnerCard p{color:#b9b2d2}
+:global([data-drinkstock-design]) .partnerCard small{color:#d8cfec}
+:global([data-drinkstock-design]) .action{
+  background:#caff4e;color:#130d26;border-radius:11px;
+  font-size:12px;letter-spacing:.03em;font-weight:950;padding:15px 19px;
+  box-shadow:0 10px 35px #b0e03c20;
+}
+:global([data-drinkstock-design]) .action:hover{background:#e4ff9c}
+:global([data-drinkstock-design]) .secondaryAction{
+  background:#211936;color:#fff;border:1px solid #73638e;border-radius:11px;
+}
+:global([data-drinkstock-design]) .partnerNav{
+  background:#100c23;border-bottom:1px solid #3a315e;
+  padding:15px 20px;gap:9px;position:relative;
+}
+:global([data-drinkstock-design]) .partnerNav a{
+  color:#e0daf5;background:#201734;
+  border:1px solid #54456f;border-radius:10px;
+  font-size:12px;font-weight:850;letter-spacing:.02em;
+}
+:global([data-drinkstock-design]) .partnerNav a:hover{background:#322147;border-color:#caff4e;color:#fff}
+:global([data-drinkstock-design]) .partnerNav button{
+  background:#2d2141;color:#fff;border:1px solid #746290;
+  border-radius:10px;padding:9px 14px;cursor:pointer;
+}
+@media(max-width:760px){
+  :global([data-drinkstock-design]) .main{padding:0 18px 65px}
+  :global([data-drinkstock-design]) .authPane{margin:30px auto;padding:25px}
+  :global([data-drinkstock-design]) .dashboardHeader{padding:45px 0 22px}
+  :global([data-drinkstock-design]) .partnerNav{justify-content:flex-start}
+}
