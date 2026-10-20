@@ -300,6 +300,34 @@ export async function setHubProspectStatus(formData: FormData) {
     if (!HUB_PROSPECT_TRANSITIONS[from].includes(target)) {
       throw new Error(`HUB application cannot move from ${from} to ${target}`);
     }
+    if (target === "converted" && row.plan_code !== "claim") {
+      // Admin status changes must not become a shortcut around Finance agreements.
+      // A trial/vendor shell is not a commercial activation. The agreement must
+      // match the *same application*, plan, billing cycle and approved template.
+      const eligibleAgreement = await tx.query<SqlRow>(`
+        SELECT a.id FROM vendor_commercial_agreements a
+        JOIN hub_expansion_prospects h ON h.vendor_id=a.vendor_id
+        WHERE h.public_id=$1
+          AND h.vendor_id IS NOT NULL
+          AND h.plan_code<>'claim'
+          AND a.status='active'
+          AND a.signed_at IS NOT NULL
+          AND a.signed_pdf_object_key IS NOT NULL
+          AND a.signed_pdf_sha256 IS NOT NULL
+          AND a.govgr_reference IS NOT NULL
+          AND a.govgr_verified_at IS NOT NULL
+          AND a.govgr_verified_by IS NOT NULL
+          AND a.terms_snapshot->>'planMarket'='expansion_hubs'
+          AND a.terms_snapshot->>'planCode'=h.plan_code
+          AND a.terms_snapshot->>'billingCycle'=h.billing_cycle
+          AND a.terms_snapshot->>'legalReviewStatus'='approved'
+          AND length(coalesce(a.terms_snapshot->>'templateVersion',''))>0
+        LIMIT 1
+      `, [text(row.public_id)]);
+      if (!eligibleAgreement.rowCount) {
+        throw new Error("HUB_CONVERSION_REQUIRES_APPROVED_SIGNED_PLAN_AGREEMENT: Generate the matching plan contract in Admin → Finance → Agreements, obtain legal approval and signed gov.gr evidence, verify and activate it before marking the application converted.");
+      }
+    }
     await tx.query("UPDATE hub_expansion_prospects SET status=$2,updated_at=now() WHERE public_id=$1", [text(row.public_id), target]);
     return {
       publicId: text(row.public_id),
