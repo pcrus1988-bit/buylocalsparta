@@ -48,7 +48,7 @@ test("Provider-verified paid evidence demands exact platform order/venue/amount"
  assert.equal(verifyPlatformMolliePayment(p,e).verified,true);
  for(const changed of [
   {...p,status:"pending" as const},{...p,amountMinor:588},
-  {...p,amountCurrency:"USD"},{...p,orderId:payload.requestKey},
+  {...p,amountCurrency:"USD"},{...p,amountRefundedMinor:1},{...p,orderId:payload.requestKey},
   {...p,metadata:{...p.metadata,partnerId:payload.venueId}},
   {...p,metadata:{...p.metadata,venueId:payload.partnerId}}
  ]) assert.throws(()=>verifyPlatformMolliePayment(changed,e),PlatformFallbackError);
