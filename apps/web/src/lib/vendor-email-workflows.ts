@@ -206,6 +206,7 @@ export async function sendHubProspectStateEmail(input: {
   state: "contacted" | "qualified" | "verified" | "approved" | "declined" | "converted";
   reason: string;
   claimInvitationId?: string;
+  presenceInvitationId?: string;
 }) {
   const messages: Record<typeof input.state, { subject: string; body: string }> = {
     contacted: { subject: "Η αίτησή σας εξετάζεται", body: "Η ομάδα KONTA MOY ανέλαβε την αίτησή σας και ξεκίνησε τον έλεγχο." },
@@ -217,10 +218,14 @@ export async function sendHubProspectStateEmail(input: {
   };
   const message = input.state === "approved" && input.claimInvitationId
     ? { subject: "Το δωρεάν CLAIM εγκρίθηκε", body: "Ο έλεγχος ολοκληρώθηκε. Επιβεβαίωσε την εκπροσώπησή σου με τον επαληθευμένο λογαριασμό σου για να δημοσιευθεί η δωρεάν καταχώριση." }
-    : messages[input.state];
+    : input.state === "approved" && input.presenceInvitationId
+      ? { subject: "Η αίτηση PRESENCE εγκρίθηκε για συμβατική αποδοχή", body: "Διάβασε τους όρους PRESENCE και κατάγραψε χωριστά την αποδοχή τους. Η ενεργοποίηση της χρεώσιμης υπηρεσίας θα ολοκληρωθεί μόνο μετά από έλεγχο πληρωμής." }
+      : messages[input.state];
   const activationUrl = input.state === "approved" && input.claimInvitationId
     ? "https://kontamou.site/hubs/claim/" + encodeURIComponent(input.claimInvitationId)
-    : undefined;
+    : input.state === "approved" && input.presenceInvitationId
+      ? "https://kontamou.site/hubs/presence/" + encodeURIComponent(input.presenceInvitationId)
+      : undefined;
 
   return sendTransactionalEmailBestEffort({
     to: input.to,
@@ -233,8 +238,8 @@ export async function sendHubProspectStateEmail(input: {
       "",
       message.body,
       "",
-      activationUrl ? "Ενεργοποίηση δωρεάν CLAIM: " + activationUrl : undefined,
-      activationUrl ? "Απαιτείται σύνδεση με επαληθευμένο email και αποδοχή. Δεν γίνεται χρέωση." : undefined,
+      activationUrl ? "Αποδοχή όρων προγράμματος: " + activationUrl : undefined,
+      activationUrl ? "Απαιτείται σύνδεση με επαληθευμένο email και χωριστή αποδοχή όρων. Η αποδοχή δεν ισοδυναμεί με πληρωμή." : undefined,
       "",
       "Το Vendor Trial, όπου υπάρχει, παραμένει ιδιωτικό και δεν ενεργοποιεί δημόσιες πωλήσεις ή πληρωμές.",
       "",
