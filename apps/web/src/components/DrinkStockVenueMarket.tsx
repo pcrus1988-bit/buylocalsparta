@@ -4,6 +4,7 @@ import type {MarketSnapshot} from "../lib/drinkstock-market-service";
 import type {DrinkStockCategory} from "../lib/drinkstock-market-pricing";
 import {recordedRehearsalPriceSeries,priceSparklinePoints} from "../lib/drinkstock-market-trends";
 import {DrinkStockStarterCataloguePicker} from "./DrinkStockStarterCataloguePicker";
+import {resolveGreekBeverageVat} from "../lib/drinkstock-greek-vat";
 import styles from "../app/hospitality/drinkStock/market.module.css";
 
 const money=(c:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(c/100);
@@ -134,7 +135,14 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
        const trendPoints=priceSparklinePoints(trend);
        return <article key={drink.id} className={styles.drink}>
          <div className={styles.drinkTop}><span className={styles.rank}>#{String(i+1).padStart(2,"0")}</span><span className={styles.category}>{categoryNames[drink.category]}</span></div>
-         <h2>{drink.name}</h2><div className={styles.quote}>{money(drink.priceCents)}</div>
+         <h2>{drink.name}</h2>
+         <p style={{fontSize:11,color:drink.vatClass==="review_required"?"#ffb1ab":"#bcb7d8",margin:"5px 0 9px"}}>
+          {drink.vatClass==="review_required"?"⚠ VAT category must be classified":
+            `VAT guidance · dine-in ${resolveGreekBeverageVat({vatClass:drink.vatClass,mode:"dine_in"}).rateBasisPoints/100}%
+            · takeaway ${resolveGreekBeverageVat({vatClass:drink.vatClass,mode:"takeaway"}).rateBasisPoints/100}%`}
+          {!drink.vatReviewed&&" · merchant review pending"}
+         </p>
+         <div className={styles.quote}>{money(drink.priceCents)}</div>
          <div className={styles.movements}><span className={delta>0?styles.up:delta<0?styles.down:styles.flat}>{delta>0?"▲":delta<0?"▼":"↔"} {pct>0?"+":""}{pct}%</span><span>BASE {money(drink.baseCents)}</span></div>
          <div className={styles.bar} aria-hidden="true"><i style={{width:`${Math.round((drink.priceCents-drink.minCents)/Math.max(1,drink.maxCents-drink.minCents)*100)}%`}}/></div>
          <div className={styles.priceTrend}>
