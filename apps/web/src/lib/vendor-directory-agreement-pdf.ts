@@ -29,10 +29,10 @@ export function buildDirectoryAgreementPreview(data: DirectoryAgreementPreview):
   const { vendor, plan } = data;
   const isClaim = plan.planCode === "claim";
   const content: unknown[] = [
-    { text: "ΠΡΟΣΧΕΔΙΟ ΣΥΜΒΑΣΗΣ — ΥΠΟ ΝΟΜΙΚΟ ΕΛΕΓΧΟ", style: "notice" },
+    ...(plan.legalReviewStatus === "approved" ? [] : [{ text: "ΠΡΟΣΧΕΔΙΟ ΣΥΜΒΑΣΗΣ — ΥΠΟ ΝΟΜΙΚΟ ΕΛΕΓΧΟ", style: "notice" }]),
     { text: isClaim ? "ΟΡΟΙ ΔΩΡΕΑΝ ΚΑΤΑΧΩΡΙΣΗΣ CLAIM" : "ΣΥΜΦΩΝΙΑ ΨΗΦΙΑΚΗΣ ΠΑΡΟΥΣΙΑΣ PRESENCE", style: "title" },
     { text: "KONTA MOY · μη εμπορική καταχώριση HUB", style: "subtitle" },
-    { text: "Κωδικός προσχεδίου: " + data.agreementCode + " · Έκδοση: " + plan.templateVersion },
+    { text: "Κωδικός συμφωνίας: " + data.agreementCode + " · Έκδοση: " + plan.templateVersion },
     { text: "Ημερομηνία δημιουργίας: " + new Date(data.createdAt).toLocaleDateString("el-GR") },
     { text: "Πάροχος: " + KONTA_MOY_LEGAL_DETAILS.legalName + " · ΑΦΜ " + KONTA_MOY_LEGAL_DETAILS.taxNumber },
     { text: "Επιχείρηση: " + value(vendor.legalName) + " · ΑΦΜ " + value(vendor.taxNumber) },
@@ -86,7 +86,7 @@ export function buildDirectoryAgreementPreview(data: DirectoryAgreementPreview):
     ] }, layout: "lightHorizontalLines" },
     { text: "Περιλαμβανόμενα δικαιώματα και λειτουργίες:", style: "article", margin: [0, 15, 0, 4] },
     { ul: plan.features.map(feature => ({ text: feature })) },
-    { text: "ΣΗΜΑΝΤΙΚΟ: Αυτό το PDF αποτελεί μόνο προσχέδιο. Δεν αποδεικνύει αποδοχή, ταυτοποίηση, gov.gr υπογραφή ή ενεργοποίηση υπηρεσίας.", style: "notice", margin: [0, 20, 0, 0] }
+    { text: "Η εγκεκριμένη έκδοση δεν αποτελεί μόνη της αποδοχή από την επιχείρηση. Η αποδοχή τεκμηριώνεται χωριστά, με συγκεκριμένη έκδοση και αποτύπωμα όρων.", style: "notice", margin: [0, 20, 0, 0] }
   ];
   return {
     pageSize: "A4",
