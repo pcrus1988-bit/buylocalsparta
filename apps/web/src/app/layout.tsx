@@ -56,6 +56,7 @@ import { CustomerMobileCommerceProvider } from "../components/CustomerMobileComm
 import { PrivacyConsentProvider } from "../components/PrivacyConsentProvider";
 import { AccessibilityPreferences } from "../components/AccessibilityPreferences";
 import { SiteUtilityLauncher } from "../components/SiteUtilityLauncher";
+import { NearbyOffersWatcher } from "../components/NearbyOffersWatcher";
 import { MobileCatalogFilters } from "../components/MobileCatalogFilters";
 import { PublicTerminologyGuard } from "../components/PublicTerminologyGuard";
 import { CatalogSortAccessibilityBridge } from "../components/CatalogSortAccessibilityBridge";
@@ -195,6 +196,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       </div>
       <AccessibilityPreferences />
       <SiteUtilityLauncher />
+      <NearbyOffersWatcher />
     </body>
   </html>;
 }

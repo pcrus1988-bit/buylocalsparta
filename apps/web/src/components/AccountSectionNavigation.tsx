@@ -27,7 +27,8 @@ const ACCOUNT_GROUPS: readonly AccountGroup[] = [
       { href: "/account/wishlist", label: "Wishlist" },
       { href: "/account/try-on", label: "Try On Me", featured: true },
       { href: "/account/documents", label: "Τα Έγγραφά μου" },
-      { href: "/account/notifications", label: "Ειδοποιήσεις" }
+      { href: "/account/notifications", label: "Ειδοποιήσεις" },
+      { href: "/account/nearby-offers", label: "Κοντινές προσφορές", featured: true }
     ]
   },
   {
