@@ -42,7 +42,11 @@ async function venue(db:Db,userId:string,p:string,v:string,locked=false){
  JOIN public.hospitality_partners p ON p.id=v.partner_id AND p.status='active'
  JOIN public.hospitality_partner_apps a ON a.partner_id=p.id AND a.app_key='drinkStock' AND a.enabled
  JOIN public.hospitality_partner_memberships m ON m.partner_id=p.id AND m.user_id=$1 AND m.status='active'
- WHERE v.id=$3::uuid AND v.partner_id=$2::uuid AND v.status='active' ${locked?"FOR UPDATE OF v":""}`,[userId,p,v]);
+ WHERE v.id=$3::uuid AND v.partner_id=$2::uuid AND v.status='active'
+ AND (m.role<>'staff' OR EXISTS(
+  SELECT 1 FROM public.drinkstock_venue_staff_stations grants
+  WHERE grants.partner_id=v.partner_id AND grants.venue_id=v.id AND grants.user_id=m.user_id
+ )) ${locked?"FOR UPDATE OF v":""}`,[userId,p,v]);
  if(!r.rows[0])throw new SessionError("NOT_FOUND",404);
  return r.rows[0];
 }

@@ -106,3 +106,17 @@ Each screen is a separate authenticated, venue-scoped view. It automatically ref
 2. Tick Bar or Waiter on each user. The authorizing manager and request UUID are recorded. Owners/managers have access automatically.
 3. Use the **Open bar board** and **Open waiter board** links. Staff members log in to the same Hospitality identity and can open only the stations assigned to them.
 4. If nobody is in the assignment list, staff membership must first be provisioned through authorized partner administration. Venue staff assignment does not create new identities or customer orders.
+
+## Venue staff self-onboarding via verified one-time invitation (October 20, 2026)
+
+Staff onboarding no longer requires manual membership SQL or privileged platform admin involvement:
+- An owner or manager opens the DrinkStock venue dashboard's **Bar & waiter stations → Invite bartender / waiter** module. They enter an email and select Bar, Waiter or both.
+- The server verifies the actor's active manager membership and venue's active DrinkStock app; creates a cryptographically random **256-bit invitation token**, storing *only SHA-256* in `drinkstock_staff_invitations`; expires in 7 days. The private claim URL is shown only at creation. No email is automatically sent: copy and deliver it privately to the intended person.
+- The staff member opens `/drinkstock/staff/invite/<secret>` with a **verified KONTA MOY customer account** whose email exactly matches the invitation. New staff may register at `/register`, verify email and sign in at `/login`, then reopen their invitation link.
+- Accept requires session cookies and CSRF, a fresh DB identity check (account active, email verified, not closed, existing customer profile), a live partner/venue/app, a nonrevoked unexpired token, one-time token row lock and venue row lock, and transactionally creates the **staff** membership if missing, with **only the selected venue's station grants**. It cannot create owner/manager permissions or alter existing incompatible roles.
+- Existing staff membership may be given additional venue-specific station permissions on further valid invites. No other venue becomes visible merely because the person belongs to the partner: the partner venue list, market and session scope reject unassigned staff, and staff partner navigation shows only the assigned bar/waiter boards, not Trading Floor controls.
+- Managers can review pending invitations (email, station assignment, expiration) and revoke before use. Replacing a same-email invite revokes its old link. All create, replacement, revoke and accept operations leave `drinkstock_staff_invitation_events` audit rows. Up to 20 simultaneously pending per venue; create command request IDs are idempotent but never return a token on replay.
+- Security: private RLS-enabled invitation/audit tables with no direct anonymous/authenticated Data API grants; hash stored at rest; `noindex` and `no-referrer` on claim page; no customer orders, payments, or fiscal documents created. Do not publish invitations in public channels.
+- Rollout DB file: `db/operations/20261020_drinkstock_staff_invitation_claims.sql`.
+
+**Financial boundary:** The KONTA MOY checkout fallback remains only an admin entitlement. Guest payments are not enabled until the venue-specific payment processor, seller settlement, VAT snapshot and Greek fiscal receipt provider are verified. No paid orders are fabricated to populate staff boards.

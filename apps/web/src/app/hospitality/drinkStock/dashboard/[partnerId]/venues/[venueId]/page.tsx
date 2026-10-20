@@ -24,6 +24,9 @@ export default async function VenueMarketPage({params}:{params:Promise<{partnerI
       <p>Η φόρτωση της αγοράς δοκιμών δεν είναι διαθέσιμη. Η πρόσβαση και τα δεδομένα δεν αντικαθίστανται με δεδομένα άλλου συνεργάτη.</p>
     </section></main>;
   }
+  // Staff never receive manager-only market controls. Their partner workspace
+  // displays direct links solely to the stations assigned to this venue.
+  if(operations.venue.role==="staff")redirect(`/drinkstock/dashboard/${partnerId}`);
   return <div className={styles.main}>
     <p style={{paddingTop:25,fontSize:13}}><Link href={`/drinkStock/dashboard/${partnerId}`}>← Οι χώροι μου</Link></p>
     {["owner","manager"].includes(operations.venue.role??"")&&<div style={{maxWidth:1280,margin:"8px auto",textAlign:"right"}}>

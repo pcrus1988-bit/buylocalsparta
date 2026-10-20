@@ -39,6 +39,10 @@ JOIN public.hospitality_partner_memberships m ON m.partner_id=p.id AND m.user_id
 JOIN public.hospitality_partner_apps a ON a.partner_id=p.id AND a.app_key='drinkStock' AND a.enabled=TRUE
 LEFT JOIN public.drinkstock_venue_settings s ON s.venue_id=v.id AND s.partner_id=v.partner_id
 WHERE v.id=$3::uuid AND v.partner_id=$2::uuid AND v.status='active'
+ AND (m.role<>'staff' OR EXISTS(
+  SELECT 1 FROM public.drinkstock_venue_staff_stations grants
+  WHERE grants.partner_id=v.partner_id AND grants.venue_id=v.id AND grants.user_id=m.user_id
+ ))
 ${lock?"FOR UPDATE OF v":""}
 `;
 async function authorizedVenue(db:ReadDb,userId:string,partnerId:string,venueId:string,lock=false):Promise<MarketVenue>{
