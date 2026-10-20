@@ -18,9 +18,9 @@ export default async function WaiterBoardPage({
   await requireStationAccess(getProductionPostgresRuntime().sqlPool,principal.userId,partnerId,venueId,"waiter");
  }catch{return notFound();}
  const back=`/drinkstock/dashboard/${partnerId}/venues/${venueId}`;
- return <main style={{minHeight:"100vh",padding:"18px clamp(14px,3vw,35px)",background:"#0d0b1b",color:"#fff"}}>
+ return <main style={{minHeight:"100vh",padding:"18px clamp(14px,3vw,35px)",background:"#0d0a1e",color:"#fff"}}>
   <nav style={{maxWidth:1340,margin:"0 auto",display:"flex",flexWrap:"wrap",justifyContent:"space-between",gap:12}}>
-   <Link href={back} style={{color:"#d9ff57"}}>← Venue dashboard</Link>
+   <Link href={back} style={{color:"#caff4e"}}>← Venue dashboard</Link>
    <div style={{display:"flex",gap:15}}>
     <Link href={back+"/bar"} style={{color:"#fff"}}>🍸 Bar</Link>
     <Link href={back+"/waiters"} style={{color:"#fff"}}>🛎 Waiters</Link>
