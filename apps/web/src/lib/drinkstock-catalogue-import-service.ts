@@ -61,7 +61,10 @@ export async function importDrinkStockStarterCatalogue(userId:string,partnerId:s
   if(!["owner","manager"].includes(venue.role))throw new CatalogueImportError("ROLE_FORBIDDEN",403);
   const prior=await readImport(client,partnerId,venueId,command.requestKey);
   if(prior){
-   if(JSON.stringify(prior.selections)!==JSON.stringify(command.items))
+   const oldItems=Array.isArray(prior.selections)?prior.selections as CatalogueSelection[]:[];
+   if(oldItems.length!==command.items.length||
+    oldItems.some((entry,i)=>entry.key!==command.items[i]?.key||
+     Number(entry.baseCents)!==command.items[i]?.baseCents))
     throw new CatalogueImportError("IMPORT_KEY_CONFLICT",409);
    await client.query("COMMIT");committed=true;
    return {selected:Number(prior.selected_count),imported:Number(prior.imported_count),
