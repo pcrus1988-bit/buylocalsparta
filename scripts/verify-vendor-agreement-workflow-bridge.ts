@@ -39,4 +39,24 @@ assert.ok(claim.includes("templateSha256"), "CLAIM specific terms fingerprint re
 assert.ok(!claim.includes("merchant agreement accepted"), "CLAIM must not claim merchant-contract acceptance");
 assert.ok(plan.includes('VENDOR_AGREEMENT_LEGAL_STATUS = "approved"'),
   "Reviewed terms must use new approved immutable version");
+const claimant = read("apps/web/src/lib/hub-claim-runtime.ts");
+const directory = read("apps/web/src/lib/hub-directory-agreement.ts");
+const directorySql = read("db/migrations/0454_directory_agreement_acceptance.sql");
+const agreementPage = read("apps/web/src/app/hubs/claim/[id]/page.tsx");
+for (const term of [
+  "vendor_directory_agreement_acceptances",
+  "CLAIM_AGREEMENT_VERSION_CHANGED",
+  "acceptance.templateSha256",
+  "status='converted'"
+]) assert.ok(claimant.includes(term), "CLAIM acceptance missing transaction protection: " + term);
+for (const term of [
+  "buildDirectoryAgreementPreview",
+  'createHash("sha256")',
+  "CLAIM_AGREEMENT_AUTH_REQUIRED",
+  "vendorAgreementPlanTerms"
+]) assert.ok(directory.includes(term), "Directory template fingerprint missing: " + term);
+assert.ok(directorySql.includes("UNIQUE(prospect_id,template_version)"), "Acceptance must be idempotent per template");
+assert.ok(directorySql.includes("ENABLE ROW LEVEL SECURITY"), "Private acceptance evidence must use RLS");
+assert.ok(agreementPage.includes('name="termsConsent" required'), "Plan agreement must have its own required checkbox");
+assert.ok(agreementPage.includes('name="publishConsent" required'), "Separate publishing consent must remain required");
 console.log("Vendor agreements: plan-matched HUB + Sparta activation gates, admin draft visibility and CLAIM directory separation OK.");
