@@ -1,10 +1,10 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { vendorReturnOperationalAction, vendorReturnsWorkspace } from "../../../../../lib/vendor-backoffice-service";
 import { vendorReturnIntakeAction } from "../../../../../lib/return-operations-service";
 
 export async function POST(request:Request){
   try{
-    const p=await requireVendorSession(request,true);
+    const { principal: p }=await requireVendorCapability("fulfilment.manage",request,true);
     const b=await request.json() as {returnId?:unknown;kind?:unknown;action?:unknown;reference?:unknown;reason?:unknown};
     const returnId=typeof b.returnId==="string"?b.returnId:"";
     const action=typeof b.action==="string"?b.action:"";
