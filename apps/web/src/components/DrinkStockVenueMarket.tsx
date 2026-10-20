@@ -139,7 +139,7 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
          <div className={styles.priceTrend}>
           <span>RECORDED REHEARSAL PRICE TREND</span>
           {trendPoints?<svg role="img" aria-label={`${drink.name} recorded price trend: ${money(trend[0]!)} to ${money(trend[trend.length-1]!)} over ${trend.length-1} market moves`} viewBox="0 0 160 44" preserveAspectRatio="none">
-            <polyline points={trendPoints} fill="none" stroke={trend[trend.length-1]!>=trend[0]!? "#a2ff89":"#ffb37a"} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
+            <polyline points={trendPoints} fill="none" stroke={trend[trend.length-1]! >= trend[0]! ? "#a2ff89":"#ffb37a"} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
            </svg>:<small>Trend appears after recorded price movements</small>}
          </div>
          {!display&&market.canManage&&<button type="button" disabled={!active||operationsActive||Boolean(busy)} className={styles.buySignal}
