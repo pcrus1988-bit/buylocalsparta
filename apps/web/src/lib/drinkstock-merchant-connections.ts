@@ -147,7 +147,9 @@ export async function connectMerchantAade(userId:string,partnerId:string,raw:unk
   const client=new AadeMyDataClient({environment:env,baseUrl:env==="production"?
    "https://mydatapi.aade.gr/myDATA":"https://mydataapidev.aade.gr",
    userId:usr,subscriptionKey:key,requestTimeoutMs:12000,specVersion:"2.0.2"});
-  await client.requestTransmittedDocs({mark:"0",entityVatNumber:taxId});
+  const date=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Athens",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date());
+  // One-day read-only probe avoids downloading the merchant's entire sales archive.
+  await client.requestTransmittedDocs({mark:"0",entityVatNumber:taxId,dateFrom:date,dateTo:date});
   verified=true;
  }catch{/* Connection failure is recorded; never imply fiscal issuance */}
  const c=await pool().connect();let done=false;
