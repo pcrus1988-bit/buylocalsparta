@@ -1163,6 +1163,19 @@ export async function ensureGreekRetailAutomaticReminderBatch(): Promise<Readonl
         AND COALESCE(stats.sent_reminders,0) < $4
         AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
               <= now() - ($5::int * interval '1 day')
+        -- Retain existing suppressions and exclude any address with an earlier
+        -- bounce, complaint, failed handoff, pending handoff, or sent email
+        -- without a confirmed delivery. Never retry uncertain deliveries.
+        AND NOT EXISTS (
+          SELECT 1
+          FROM research_invite_messages previous_delivery
+          WHERE previous_delivery.contact_point_id=ri.contact_point_id
+            AND previous_delivery.attempt_kind IN ('initial','reminder')
+            AND (
+              previous_delivery.status IN ('bounced','complained','failed','sending')
+              OR (previous_delivery.status='sent' AND previous_delivery.delivered_at IS NULL)
+            )
+        )
         AND NOT EXISTS (
           SELECT 1
           FROM research_invite_messages pending_delay
@@ -3893,6 +3906,19 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
         AND COALESCE(stats.sent_reminders,0) < $3
         AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
               <= now() - ($4::int * interval '1 day')
+        -- Retain existing suppressions and exclude any address with an earlier
+        -- bounce, complaint, failed handoff, pending handoff, or sent email
+        -- without a confirmed delivery. Never retry uncertain deliveries.
+        AND NOT EXISTS (
+          SELECT 1
+          FROM research_invite_messages previous_delivery
+          WHERE previous_delivery.contact_point_id=ri.contact_point_id
+            AND previous_delivery.attempt_kind IN ('initial','reminder')
+            AND (
+              previous_delivery.status IN ('bounced','complained','failed','sending')
+              OR (previous_delivery.status='sent' AND previous_delivery.delivered_at IS NULL)
+            )
+        )
         AND NOT EXISTS (
           SELECT 1
           FROM research_invite_messages pending_delay
@@ -4049,6 +4075,19 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
         AND stats.sent_reminders < $4
         AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
               <= now() - ($5::int * interval '1 day')
+        -- Retain existing suppressions and exclude any address with an earlier
+        -- bounce, complaint, failed handoff, pending handoff, or sent email
+        -- without a confirmed delivery. Never retry uncertain deliveries.
+        AND NOT EXISTS (
+          SELECT 1
+          FROM research_invite_messages previous_delivery
+          WHERE previous_delivery.contact_point_id=ri.contact_point_id
+            AND previous_delivery.attempt_kind IN ('initial','reminder')
+            AND (
+              previous_delivery.status IN ('bounced','complained','failed','sending')
+              OR (previous_delivery.status='sent' AND previous_delivery.delivered_at IS NULL)
+            )
+        )
         AND NOT EXISTS (
           SELECT 1
           FROM research_invite_messages pending_delay
