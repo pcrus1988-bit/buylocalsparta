@@ -127,7 +127,7 @@ export async function merchantConnectionsStatus(userId:string,partnerId:string){
   receiptIssuanceVerified:y?.receipt_issuance_verified===true},guestPaymentsEnabled:false as const};
 }
 export function validGreekTaxNumber(value:string){
- if(!/^\d{9}$/.test(value))return false;
+ if(!/^\d{9}$/.test(value)||value==="000000000")return false;
  const total=[256,128,64,32,16,8,4,2].reduce((sum,factor,i)=>sum+Number(value[i])*factor,0);
  return (total%11)%10===Number(value[8]);
 }
