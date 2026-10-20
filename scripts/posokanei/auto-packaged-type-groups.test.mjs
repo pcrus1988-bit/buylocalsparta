@@ -577,14 +577,14 @@ test("source-described wholegrain linguine, oat flakes and rusks preserve their 
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["l1","l2"],["o1","o2"],["r1","r2"]]);
 });
-test("wholegrain breadsticks retain style and vegan/free-from vetoes",()=>{
+test("wholegrain breadsticks stay apart from narrowly reviewed vegan corn subtype",()=>{
  const list=[
  p("c1","MR GRAND","MR GRAND Κριτσίνια Ολικής Άλεσης 250γρ","Κριτσίνια","kg",.25),
  p("c2","ΦΑΙΔΩΝ","ΦΑΙΔΩΝ Κριτσίνια Ολικής Άλεσης 400g","Κριτσίνια","kg",.4),
  p("cv1","ELENI","ELENI Κριτσίνια με Καλαμπόκι Vegan 150g","Κριτσίνια","kg",.15),
  p("cv2","ΤΣΑΤΣΑΚΗΣ","ΤΣΑΤΣΑΚΗΣ Κριτσίνια με Καλαμπόκι Vegan 250g","Κριτσίνια","kg",.25)
  ];
- assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["c1","c2"]]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["cv1","cv2"],["c1","c2"]]);
 });
 test("only exact source-declared gluten-free mustard/ketchup variants share their own comparison family",()=>{
  const list=[
