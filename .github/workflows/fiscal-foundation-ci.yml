@@ -133,6 +133,8 @@ jobs:
         env:
           CI: "true"
         run: node --experimental-strip-types scripts/fiscal-vault-readiness-db-smoke.mjs
+      - name: Verify M44 real draft CSV output limits, auth contract and spreadsheet injection defense
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-draft-export.test.ts
       - name: Verify merchant KYB progress never exposes records or grants approval
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-merchant-kyb-progress.test.ts
       - name: Verify strictly bounded KYB evidence checklist and non-approval states
