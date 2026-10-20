@@ -16,6 +16,17 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  // 2026-10-19, source-reviewed conventional pantry types. These are
+  // positive category + subtype gates, not category-wide equivalence.
+  // The complete title signature, distinct brands, corroborated physical
+  // package labels and claim veto remain binding for each exact-source SKU.
+  ["ρυζι μπασματι",["kg",/(?=.*ρυζι)(?=.*basmati)/u]],
+  ["ρυζι καρολινα",["kg",/(?=.*ρυζι)(?=.*καρολιν)/u]],
+  ["ρυζι γλασε",["kg",/(?=.*ρυζι)(?=.*γλασ)/u]],
+  ["πεννες ριγε",["kg",/(?=.*πεν)(?=.*ριγε)/u]],
+  ["φασολια",["kg",/(?=.*φασολια)(?=.*(?:μετρια|μαυροματικα))/u]],
+  ["σαλτσα ντοματας",["kg",/(?:(?=.*ντοματ)(?=.*τριμμεν)|(?=.*τοματ)(?=.*τριφτ))/u]],
+
   // Explicitly described 2026-10-17/18 ordinary grocery and personal-care
   // variants: NEVER approve a generic parent category by itself.
   ["αφροι και τζελ",["l",/(?=.*αφρ)(?=.*ξυρισματ)(?=.*(?:^|[^\p{L}])men(?=$|[^\p{L}]))(?=.*sensitive)/u]],
@@ -239,6 +250,21 @@ function hasForbiddenClaim(category,title){
   if(safeLabelledGlutenFreeCategories.has(category) &&
      /χωρις\s+γλουτενη/u.test(title))
     withoutApprovedVariant=withoutApprovedVariant.replace(/χωρις\s+γλουτενη/gu," ");
+  // The published 19 Oct catalogue explicitly identifies ordinary Zero
+  // cola with both "Zero" and "Χωρίς ζάχαρη" on the package. This is
+  // product-type comparison only, never equal sweetener/caffeine formulation.
+  if(category==="κολα" &&
+     /(?:^|[^\p{L}])zero(?=$|[^\p{L}])/u.test(title) &&
+     /χωρις\s+ζαχαρη/u.test(title))
+    withoutApprovedVariant=withoutApprovedVariant
+      .replace(/(?:^|[^\p{L}])zero(?=$|[^\p{L}])/gu," ")
+      .replace(/χωρις\s+ζαχαρη/gu," ");
+  // Same exact declared "with corn, Vegan" breadstick type only; no
+  // certification, allergy or ingredients equivalence is inferred.
+  if(["κριτσινια","κριστινια"].includes(category) &&
+     /κριτσιν.*(?:με\s+)?καλαμποκ/u.test(title) &&
+     /(?:^|[^\p{L}])vegan(?=$|[^\p{L}])/u.test(title))
+    withoutApprovedVariant=withoutApprovedVariant.replace(/(?:^|[^\p{L}])vegan(?=$|[^\p{L}])/gu," ");
   if(safeLabelledNonCarbonatedCategories.has(category) &&
      /χωρις\s+ανθρακικο/u.test(title))
     withoutApprovedVariant=withoutApprovedVariant.replace(/χωρις\s+ανθρακικο/gu," ");
@@ -274,6 +300,11 @@ function accepted(p){
   // Exact cross-brand family matching is necessary, but not sufficient.
   if(["πουλερικα","πατατες"].includes(category)&&
      /πανε|παναρισ|marinat|μαριναρ|seasoned|καρυκευ|μπαχαρ|spiced|προτηγαν|prefried|pre-fried|προψημεν|breaded|battered|wedge|σφην|sticks|τηγανιτ|προετοιμασμεν/u.test(title))return false;
+  // Dried beans are not ready meals, canned beans or cooked pulses.
+  // Source "Φασόλια" contains multiple preparations; matching the type words
+  // alone must never override contradictory processing indicators.
+  if(category==="φασολια" &&
+     /κατεψυγμεν|μαγειρεμ|προμαγειρεμ|παρασκευασμεν|βρασμεν|κονσερβ|ετοιμ|σε\s+σαλτσ|canned|cooked|ready\s+to/u.test(title))return false;
   // Pet-food descriptions can be precise while naming a veterinary diet or
   // additional meat/formulation. Such titles must never acquire automatic
   // approval merely because their names match between two brands.

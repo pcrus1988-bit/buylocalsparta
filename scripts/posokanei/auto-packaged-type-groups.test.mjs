@@ -577,14 +577,14 @@ test("source-described wholegrain linguine, oat flakes and rusks preserve their 
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds).sort((a,b)=>a[0].localeCompare(b[0])),[["l1","l2"],["o1","o2"],["r1","r2"]]);
 });
-test("wholegrain breadsticks retain style and vegan/free-from vetoes",()=>{
+test("wholegrain breadsticks stay apart from narrowly reviewed vegan corn subtype",()=>{
  const list=[
  p("c1","MR GRAND","MR GRAND Κριτσίνια Ολικής Άλεσης 250γρ","Κριτσίνια","kg",.25),
  p("c2","ΦΑΙΔΩΝ","ΦΑΙΔΩΝ Κριτσίνια Ολικής Άλεσης 400g","Κριτσίνια","kg",.4),
  p("cv1","ELENI","ELENI Κριτσίνια με Καλαμπόκι Vegan 150g","Κριτσίνια","kg",.15),
  p("cv2","ΤΣΑΤΣΑΚΗΣ","ΤΣΑΤΣΑΚΗΣ Κριτσίνια με Καλαμπόκι Vegan 250g","Κριτσίνια","kg",.25)
  ];
- assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["c1","c2"]]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups(list).map(g=>g.memberIds),[["cv1","cv2"],["c1","c2"]]);
 });
 test("only exact source-declared gluten-free mustard/ketchup variants share their own comparison family",()=>{
  const list=[
@@ -978,4 +978,92 @@ test("even previously eligible canned wet dog food cannot waive veterinary indic
  p("b","B","B Κονσέρβα Σκύλου με Κοτόπουλο και Γαλοπούλα Κτηνιατρική Δίαιτα 400g","Υγρή Τροφή για Σκύλους","kg",.4)
  ];
  assert.deepEqual(deriveAutoPackagedTypeGroups(family),[]);
+});
+
+
+test("Oct 19 source: Basmati, Carolina and Glacé rice only compare within exact rice variety and origin",()=>{
+ const rice=[
+  p("bas-a","WORLD'S MARKET","WORLD'S MARKET Ρύζι Basmati 500gr","Ρύζι Μπασμάτι","kg",.5),
+  p("bas-b","BALI","BALI Ρύζι Basmati 500g","Ρύζι Μπασμάτι","kg",.5),
+  p("bas-c","FARMER","FARMER Ρύζι Basmati 1kg","Ρύζι Μπασμάτι","kg",1),
+  p("bas-organic","ORGANIC","ORGANIC Ρύζι Basmati Βιολογικό 500g","Ρύζι Μπασμάτι","kg",.5),
+  p("car-a","FARMER","FARMER Ρύζι Καρολίνα 1kg","Ρύζι Καρολίνα","kg",1),
+  p("car-b","ΑΓΡΟΤΥΠ","ΑΓΡΟΤΥΠ Ρύζι Καρολίνα 500g","Ρύζι Καρολίνα","kg",.5),
+  p("car-greek-a","ΑΒ","ΑΒ Ρύζι Καρολίνα Ελληνικό 500g","Ρύζι Καρολίνα","kg",.5),
+  p("car-greek-b","ΣΚΛΑΒΕΝΙΤΗΣ","ΣΚΛΑΒΕΝΙΤΗΣ Ρύζι Καρολίνα Ελληνικό 500g","Ρύζι Καρολίνα","kg",.5),
+  p("gl-a","FARMER","FARMER Ρύζι Γλασσέ 1kg","Ρύζι Γλασέ","kg",1),
+  p("gl-b","ΕΛΛΗΝΙΚΗ ΣΠΟΡΑ","ΕΛΛΗΝΙΚΗ ΣΠΟΡΑ Ρύζι Γλασσέ 500g","Ρύζι Γλασέ","kg",.5)
+ ];
+ const groups=deriveAutoPackagedTypeGroups(rice).map(x=>x.memberIds.join(","));
+ assert.deepEqual(groups.sort(),["bas-a,bas-b,bas-c","car-a,car-b","car-greek-a,car-greek-b","gl-a,gl-b"].sort());
+});
+
+test("Oct 19 source: ordinary rigate penne never merges with smooth, wholegrain or size-drift packs",()=>{
+ const eligible=[
+  p("a","MELISSA","MELISSA Πένες Ριγέ 500g","Πέννες Ριγέ","kg",.5),
+  p("b","BARILLA","BARILLA Πένες Ριγέ 500g","Πέννες Ριγέ","kg",.5)
+ ];
+ const excluded=[
+  p("smooth","A","A Πένες Λείες 500g","Πέννες Ριγέ","kg",.5),
+  p("whole-a","A","A Πένες Ριγέ Ολικής Άλεσης 500g","Πέννες Ριγέ","kg",.5),
+  p("whole-b","B","B Πένες Ριγέ Ολικής Άλεσης 500g","Πέννες Ριγέ","kg",.5),
+  p("wrong-a","C","C Πένες Ριγέ 500g","Πέννες Ριγέ","kg",.8)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups([...eligible,...excluded]).map(g=>g.memberIds),[]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups([...eligible,...excluded.slice(0,3)]).map(g=>g.memberIds),[["a","b"]]);
+});
+
+test("Oct 19 source: medium and black-eyed dry beans stay separate from giant and prepared pulses",()=>{
+ const pms=[
+  p("m1","my kouzina","MY KOUZINA Φασόλια Μέτρια 500g","Φασόλια","kg",.5),
+  p("m2","FARMER","FARMER Φασόλια Μέτρια 500gr","Φασόλια","kg",.5),
+  p("g1","Agrino","AGRINO Φασόλια Γίγαντες 500g","Φασόλια","kg",.5),
+  p("g2","MY KOUZINA","MY KOUZINA Φασόλια Γίγαντες 500g","Φασόλια","kg",.5),
+  p("b1","3 ΑΛΦΑ","3 ΑΛΦΑ Φασόλια Μαυρομάτικα Εισαγωγής 500g","Φασόλια","kg",.5),
+  p("b2","ΣΚΛΑΒΕΝΙΤΗΣ","ΣΚΛΑΒΕΝΙΤΗΣ Φασόλια Μαυρομάτικα Εισαγωγής 500g","Φασόλια","kg",.5),
+  p("ready1","A","A Φασόλια Μέτρια Μαγειρεμένα 500g","Φασόλια","kg",.5),
+  p("ready2","B","B Φασόλια Μέτρια Μαγειρεμένα 500g","Φασόλια","kg",.5)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(pms).map(g=>g.memberIds.map(x=>x).sort()).sort((a,b)=>a[0].localeCompare(b[0])),[["b1","b2"],["m1","m2"]]);
+});
+
+test("Oct 19 source: grated tomato title forms stay separate from tomato paste, passata and declared source drift",()=>{
+ const tomatoes=[
+  p("t1","GUSTONA","GUSTONA Τομάτα στον Τρίφτη 500g","Σάλτσα Ντομάτας","kg",.5),
+  p("t2","ΟΜΟΣΠΟΝΔΙΑ","ΟΜΟΣΠΟΝΔΙΑ Τομάτα στον Τρίφτη 680g","Σάλτσα Ντομάτας","kg",.68),
+  p("g1","Μαράτα","ΜΑΡΑΤΑ Ντομάτες Τριμμένες 500g","Σάλτσα Ντομάτας","kg",.5),
+  p("g2","ΧΩΡΙΟ","ΧΩΡΙΟ Ντομάτες Τριμμένες 500g","Σάλτσα Ντομάτας","kg",.5),
+  p("paste1","A","A Ντοματοπολτός 500g","Σάλτσα Ντομάτας","kg",.5),
+  p("paste2","B","B Ντοματοπολτός 500g","Σάλτσα Ντομάτας","kg",.5)
+ ];
+ const approved=deriveAutoPackagedTypeGroups(tomatoes).map(g=>g.memberIds);
+ assert.equal(approved.length,2);
+ assert.deepEqual(approved.sort((a,b)=>a[0].localeCompare(b[0])),[["g1","g2"],["t1","t2"]]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups([
+  tomatoes[0],{...tomatoes[1],unit_quantity:1}
+ ]),[]);
+});
+
+
+test("Oct 19 source: explicitly labelled Zero sugar-free Cola may compare whole packs across brands, not formulations",()=>{
+ const items=[
+  p("vikos","ΒΙΚΟΣ","ΒΙΚΟΣ Cola Zero Χωρίς ζάχαρη 6x330ml","Κόλα","l",1.98),
+  p("pepsi","PEPSI","PEPSI Zero Cola Χωρίς ζάχαρη 6x330ml","Κόλα","l",1.98),
+  p("lemon","B","B Cola Zero με Λεμόνι Χωρίς ζάχαρη 6x330ml","Κόλα","l",1.98),
+  p("regular","C","C Cola 6x330ml","Κόλα","l",1.98),
+  p("diet","D","D Cola Diet Χωρίς ζάχαρη 6x330ml","Κόλα","l",1.98)
+ ];
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items).map(g=>g.memberIds),[["pepsi","vikos"]]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups([items[0],{...items[1],unit_quantity:1.5}]),[]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups(items.filter(p=>p.source_product_id!=="vikos"&&p.source_product_id!=="pepsi")),[]);
+});
+test("Oct 19 source: vegan corn breadstick types remain isolated from standard corn breadsticks",()=>{
+ const eligible=[
+  p("eleni","Eleni","ELENI Κριτσίνια με Καλαμπόκι Vegan 150g","Κριτσίνια","kg",.15),
+  p("tsatsakis","Τσατσάκης","ΤΣΑΤΣΑΚΗΣ Κριτσίνια Με Καλαμπόκι Vegan 250 gr","Κριτσίνια","kg",.25)
+ ];
+ const ordinary=p("normal","X","X Κριτσίνια με Καλαμπόκι 200g","Κριτσίνια","kg",.2);
+ const different=p("different","Y","Y Κριτσίνια με Σουσάμι Vegan 250gr","Κριτσίνια","kg",.25);
+ assert.deepEqual(deriveAutoPackagedTypeGroups([...eligible,ordinary,different]).map(g=>g.memberIds),[["eleni","tsatsakis"]]);
+ assert.deepEqual(deriveAutoPackagedTypeGroups([eligible[0],{...eligible[1],unit_quantity:.2}]),[]);
 });
