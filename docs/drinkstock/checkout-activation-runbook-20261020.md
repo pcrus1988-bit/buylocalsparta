@@ -28,3 +28,17 @@ If any PSP, settlement, VAT jurisdiction or fiscal provider is not verifiably re
 ### External authority
 AADE licensed providers: https://www.aade.gr/mydata/adeiodotimena-logismika-parohon-ilektronikis-timologisis
 AADE explanation of provider-issued documents: https://www.aade.gr/en/mydata/e-invoicing-service-providers
+
+## 20 October — transaction evidence, tax jurisdiction and owner readiness
+
+The checkout activation page now reads the actual per-partner merchant-owned Mollie capability record (enabled payments/settlements, selected profile, active connection checked within 7 days), the merchant's recorded AADE/receipt-issuer connection state and an **owner-reviewed standard mainland VAT jurisdiction**. Owner confirmation is audited in `drinkstock_venue_tax_context_events`; it requires a 20–600 character rationale and is restricted to the **standard dine-in** regime. No reduced-island VAT can be self-certified here; those locations require separate evidence and a different activation workflow.
+
+An authenticated Mollie classic webhook route exists at `/api/hospitality/mollie/payment-webhook`. It accepts only the untrusted `id=tr_...` form body, checks that a private `drinkstock_merchant_payment_attempts` row was previously created by the authorized future commercial order coordinator, then **retrieves** that payment through the **partner-owned Mollie OAuth access**. It checks the live payment's status, profile, merchant order metadata, amount in cents and EUR. Only after this server-side proof is validated does it append one uniquely keyed `payment_verified` event and change the internal order's payment state to `paid`, **retaining `order_state='awaiting_payment'` and setting `fiscal_state='pending'`**.
+
+No unreceipted paid order appears in the bar or waiter queue, and no actual order is promoted to the public TV feed without the existing paid-order state. The venue checkout readiness page displays a fiscal exception count for verified paid orders awaiting a legal receipt. Never mark such a pending order served, manufacture a receipt reference or claim provider issuance from a successful Mollie charge.
+
+The genuine paid-order to legal-receipt bridge **is still missing**. No route or database flag grants a payment intent that could charge guests. A future coordinator must atomically persist an immutable server-locked session/table/price/VAT order snapshot and a Mollie payment attempt before returning the hosted checkout URL. A licensed fiscal provider/FHM/eSEND route must issue and confirm the legal retail receipt, store the provider's verifiable reference, then advance the order to `paid` for bartender preparation. The coordinator must also implement provider-verified failure/cancellation and refunds, PSP/AADE reconciliation and idempotent operational demand.
+
+Activation evidence as of inspection: admin approvals 1, merchant Mollie accounts with verified payment + settlement capability 0, certified retail receipt connections 0, VAT-reviewed drinks 0, paid DrinkStock orders 0. For onboarding: the venue owner must first review products and the applicable jurisdiction, connect **their own** eligible Mollie organization and the proper certified receipt issuer. Until those steps and the missing software are complete, the guest price preview and `checkoutLive:false` remain mandatory.
+
+Official Mollie classic webhook contract (fetch the object by ID; never trust the callback itself): https://docs.mollie.com/reference/webhooks
