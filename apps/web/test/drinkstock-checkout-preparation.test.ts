@@ -43,7 +43,7 @@ test("quote expiration, session change and browser repricing fail shut",()=>{
   {session:{id:session,state:"paused"}},
   {session:{id:"00000000-0000-4000-8000-000000000000",state:"running"}},
   {trustedQuote:{...preview,totalGrossCents:1}},
-  {trustedQuote:{...preview,checkoutEnabled:true as false}},
+  {trustedQuote:{...preview,checkoutEnabled:true as unknown as false}},
   {lockedProducts:[{...products[0],priceCents:621},products[1]]}
  ])assert.throws(()=>prepareDrinkStockCheckoutIntent({...params,...changes}));
 });
