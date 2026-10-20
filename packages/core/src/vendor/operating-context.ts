@@ -157,6 +157,23 @@ export function vendorCapabilitiesForSubscription(
   return [];
 }
 
+function roleAllowsVendorCapability(roles: readonly string[], capability: VendorCapability): boolean {
+  if (roles.includes("vendor_owner") || roles.includes("vendor_manager")) return true;
+  const permissions: Readonly<Record<string, readonly VendorCapability[]>> = {
+    vendor_catalog: [
+      "shop.read","catalogue.read","catalogue.submit","catalogue.import","offer.manage",
+      "pricing.manage","inventory.manage","compliance.submit","seo.guidance.read"
+    ],
+    vendor_fulfilment: [
+      "shop.read","orders.read","orders.manage","fulfilment.manage","pickup.manage",
+      "shipping.manage","inventory.manage","local_delivery.manage"
+    ],
+    vendor_finance: ["shop.read","orders.read","finance.read","analytics.read"],
+    vendor_adviser: ["shop.read","ask_local.manage","customer_messages.manage"]
+  };
+  return roles.some(role => permissions[role]?.includes(capability));
+}
+
 export function buildVendorOperatingContext(input: {
   vendorId: string;
   marketId?: string;
@@ -177,10 +194,9 @@ export function buildVendorOperatingContext(input: {
   const locationId = optionalScopeValue(input.locationId);
   const roles = [...(input.roles ?? [])];
   const vendorRolePresent = roles.some(isVendorStaffRole);
-  const catalogueImportAllowed = roles.some((role) => role === "vendor_owner" || role === "vendor_catalog");
   const capabilities = vendorRolePresent
     ? capabilitiesForVendorOperatingModel(operatingModel)
-        .filter((capability) => capability !== "catalogue.import" || catalogueImportAllowed)
+        .filter((capability) => roleAllowsVendorCapability(roles, capability))
         .filter((capability) => !input.entitledCapabilities || input.entitledCapabilities.includes(capability))
     : [];
   return {
