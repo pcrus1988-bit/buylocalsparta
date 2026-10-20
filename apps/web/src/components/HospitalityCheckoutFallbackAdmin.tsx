@@ -38,7 +38,7 @@ function PartnerApproval({partner,csrfToken}:{partner:HospitalityAdminPartner;cs
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[status,setStatus]=useState("");
  async function change(enabled:boolean){
   if(busy)return;
-  if(partner.status!=="active"||!partner.drinkStockEnabled||partner.venues<1){
+  if(enabled&&(partner.status!=="active"||!partner.drinkStockEnabled||partner.venues<1)){
    setError("The partner, app and at least one venue must be active.");return;
   }
   if(reason.trim().length<15||reason.trim().length>600){
@@ -76,23 +76,23 @@ function PartnerApproval({partner,csrfToken}:{partner:HospitalityAdminPartner;cs
    </strong>
   </div>
   <div style={{display:"grid",gap:9,marginBottom:14}}>
-   <label style={field}><input type="checkbox" checked={posUnavailable} disabled={busy||inactive} onChange={e=>setPosUnavailable(e.target.checked)}/> Compatible POS unavailable for this partner</label>
-   <label style={field}><input type="checkbox" checked={merchantAuthorizationReviewed} disabled={busy||inactive} onChange={e=>setMerchantAuthorizationReviewed(e.target.checked)}/> Merchant/seller-of-record authorization reviewed</label>
-   <label style={field}><input type="checkbox" checked={settlementReviewed} disabled={busy||inactive} onChange={e=>setSettlementReviewed(e.target.checked)}/> Settlement and payment-provider responsibilities reviewed</label>
-   <label style={field}><input type="checkbox" checked={fiscalReviewed} disabled={busy||inactive} onChange={e=>setFiscalReviewed(e.target.checked)}/> Greek VAT and fiscal-receipt responsibilities reviewed</label>
+   <label style={field}><input type="checkbox" checked={posUnavailable} disabled={busy||(inactive&&!approved)} onChange={e=>setPosUnavailable(e.target.checked)}/> Compatible POS unavailable for this partner</label>
+   <label style={field}><input type="checkbox" checked={merchantAuthorizationReviewed} disabled={busy||(inactive&&!approved)} onChange={e=>setMerchantAuthorizationReviewed(e.target.checked)}/> Merchant/seller-of-record authorization reviewed</label>
+   <label style={field}><input type="checkbox" checked={settlementReviewed} disabled={busy||(inactive&&!approved)} onChange={e=>setSettlementReviewed(e.target.checked)}/> Settlement and payment-provider responsibilities reviewed</label>
+   <label style={field}><input type="checkbox" checked={fiscalReviewed} disabled={busy||(inactive&&!approved)} onChange={e=>setFiscalReviewed(e.target.checked)}/> Greek VAT and fiscal-receipt responsibilities reviewed</label>
   </div>
   <label style={{display:"grid",gap:7,fontWeight:700,fontSize:13}}>Admin review / revocation reason
-   <textarea value={reason} minLength={15} maxLength={600} rows={2} disabled={busy||inactive}
+   <textarea value={reason} minLength={15} maxLength={600} rows={2} disabled={busy||(inactive&&!approved)}
     onChange={e=>setReason(e.target.value)} style={{...control,width:"100%"}} placeholder="Explain POS limitations and why checkout fallback is eligible…"/>
   </label>
   <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginTop:13}}>
    <button type="button" className="button" disabled={busy||inactive||approved}
     onClick={()=>void change(true)}>Approve fallback</button>
-   <button type="button" disabled={busy||inactive||!approved} style={{...control,cursor:"pointer",fontWeight:800}}
+   <button type="button" disabled={busy||!approved} style={{...control,cursor:"pointer",fontWeight:800}}
     onClick={()=>void change(false)}>Revoke fallback</button>
    <small style={{color:"#596373"}}>{initial.updatedAt?"Last saved: "+new Date(initial.updatedAt).toLocaleString("el-GR"):"Never reviewed"}</small>
   </div>
-  {inactive&&<p role="status" style={{color:"#964b21"}}>Partner, DrinkStock app and a venue must all be active.</p>}
+  {inactive&&<p role="status" style={{color:"#964b21"}}>New approval requires an active partner, DrinkStock app and venue. Existing approvals can still be revoked.</p>}
   {error&&<p role="alert" style={{color:"#a21d2d"}}>{error}</p>}
   {status&&<p role="status" style={{color:"#205f44"}}>{status}</p>}
  </article>;
