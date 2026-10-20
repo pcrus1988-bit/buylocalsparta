@@ -33,7 +33,7 @@ export function DrinkStockStaffInviteClaim({token,csrfToken}:{
  }
  return <div style={{marginTop:18}}>
   <button type="button" disabled={busy} onClick={()=>void accept()}
-   style={{padding:"15px 22px",borderRadius:12,fontWeight:900,background:"#d9ff57",color:"#11202a",border:0,cursor:"pointer"}}>
+   style={{padding:"15px 22px",borderRadius:12,fontWeight:900,background:"#caff4e",color:"#11202a",border:0,cursor:"pointer"}}>
    {busy?"Confirming…":"ACCEPT VENUE STAFF INVITATION ↗"}
   </button>
   {error&&<p role="alert" style={{color:"#ffc4c4",marginTop:14}}>{error}</p>}
