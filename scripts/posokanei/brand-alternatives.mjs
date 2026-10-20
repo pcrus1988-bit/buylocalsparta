@@ -99,6 +99,59 @@ function greekToLatin(value) {
   const source=normalize(value);
   return source.replace(/ου|αι|ει|οι|υι|μπ|ντ|γκ|γγ|[α-ω]/g,ch=>pairs[ch]||one[ch]||ch);
 }
+
+/**
+ * A multi-pack may have a different count across brands while containing the
+ * same individual package size. Require the source's *total* physical quantity
+ * to corroborate the label before normalizing any count. A single bottle and
+ * a 6-pack, or 330ml and 500ml component sizes, never become one family.
+ */
+const multipackLabel=/(?:^|[^\p{L}\p{N}])(\d{1,3})\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(kg|kgr|κιλα?|g|gr|γρ|γραμμαρια|lt|l|λιτρα?|ml|μλ)(?=$|[^\p{L}])/gu;
+function corroboratedMultipack(p) {
+  const labels=[...normalize(p?.name).matchAll(multipackLabel)];
+  if(labels.length!==1)return null;
+  const [raw,countText,sizeText,unit]=labels[0];
+  const count=Number(countText),perItem=Number(sizeText.replace(",","."));
+  const mass=/^(?:kg|kgr|κιλα?|g|gr|γρ|γραμμαρια)$/u.test(unit);
+  const basis=mass?"kg":"l";
+  const large=/^(?:kg|kgr|κιλα?|lt|l|λιτρα?)$/u.test(unit);
+  const each=perItem*(large?1:0.001);
+  const eachSmall=Math.round(each*1000);
+  const published=referenceQuantity(p);
+  if(!Number.isSafeInteger(count)||count<2||count>30||
+     !Number.isFinite(each)||each<=0||eachSmall<=0||
+     Math.abs(each*1000-eachSmall)>1e-6||
+     !published||published.unit!==basis||
+     count*each>40||Math.abs(published.amount-count*each)>1e-6)return null;
+  return {raw,basis,eachSmall};
+}
+function hasMultipackLabel(p) {
+  return [...normalize(p?.name).matchAll(multipackLabel)].length>0;
+}
+
+/**
+ * VETO ONLY: locate the *family that an inconsistent multi-pack would have
+ * claimed* had its source quantity matched its written package label.
+ * This must never be used to approve a match, calculate a price, or recommend
+ * the incorrect SKU. It protects other branded members from the contradiction.
+ */
+export function contradictoryMultipackFamily(p) {
+  if(!hasMultipackLabel(p)||corroboratedMultipack(p))return null;
+  const matches=[...normalize(p?.name).matchAll(multipackLabel)];
+  if(matches.length!==1)return null;
+  const [,countText,perText,unit]=matches[0];
+  const count=Number(countText),per=Number(perText.replace(",","."));
+  const mass=/^(?:kg|kgr|κιλα?|g|gr|γρ|γραμμαρια)$/u.test(unit);
+  const basis=mass?"kg":"l";
+  const large=/^(?:kg|kgr|κιλα?|lt|l|λιτρα?)$/u.test(unit);
+  const expected=count*per*(large?1:0.001);
+  if(!Number.isSafeInteger(count)||count<2||count>30||
+     !Number.isFinite(expected)||expected<=0||expected>40)return null;
+  const corrected={...p,unit:basis,unit_quantity:expected};
+  const family=productFamily(corrected);
+  return family?family+"|"+basis:null;
+}
+
 function words(value) {
   return normalize(value).replace(/[^\p{L}\p{N}%]+/gu," ").trim().split(/\s+/).filter(Boolean);
 }
@@ -126,6 +179,8 @@ export function productFamily(p) {
   const category=normalize(p?.category).replace(/[^\p{L}\p{N}]+/gu," ").trim();
   if(!category||typeof p?.name!=="string")return null;
   let name=normalize(p.name);
+  const pack=corroboratedMultipack(p);
+  if(pack)name=name.replace(pack.raw,` multipack${pack.eachSmall}${pack.basis==="l"?"ml":"g"} `);
   // Discard only physical package volume/weight. Fat %, age, strength,
   // dosage, chemical variants, number of ply, etc. must still match.
   name=name.replace(/(?:^|[^\p{L}\p{N}])\d+(?:[.,]\d+)?\s*(?:kg|gr|g|ml|lt|l|γρ|γραμ|γραμμαρια|κιλ|λιτρα|μλ)(?=$|[^\p{L}])/gu," ");
@@ -163,6 +218,12 @@ export function isAutomaticBrandEquivalent(source,candidate) {
     normalize(source.category)!==normalize(candidate.category))return false;
   const a=referenceQuantity(source),b=referenceQuantity(candidate);
   if(!a||!b||a.unit!==b.unit)return false;
+  // Never infer a cross-brand match from a multi-pack label unless both
+  // published total quantities corroborate that label and inner size.
+  if(hasMultipackLabel(source)||hasMultipackLabel(candidate)){
+    const left=corroboratedMultipack(source),right=corroboratedMultipack(candidate);
+    if(!left||!right||left.basis!==right.basis||left.eachSmall!==right.eachSmall)return false;
+  }
   const family=productFamily(source);
   return !!family&&family===productFamily(candidate);
 }
