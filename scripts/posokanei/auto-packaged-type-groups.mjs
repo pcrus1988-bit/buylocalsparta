@@ -289,7 +289,7 @@ function accepted(p){
   // Source "Φασόλια" contains multiple preparations; matching the type words
   // alone must never override contradictory processing indicators.
   if(category==="φασολια" &&
-     /κατεψυγμεν|μαγειρεμ|προμαγειρεμ|παρασκευασμεν|βρασμεν|κονσερβ|ετοιμ|σε\\s+σαλτσ|canned|cooked|ready\\s+to/u.test(title))return false;
+     /κατεψυγμεν|μαγειρεμ|προμαγειρεμ|παρασκευασμεν|βρασμεν|κονσερβ|ετοιμ|σε\s+σαλτσ|canned|cooked|ready\s+to/u.test(title))return false;
   // Pet-food descriptions can be precise while naming a veterinary diet or
   // additional meat/formulation. Such titles must never acquire automatic
   // approval merely because their names match between two brands.
