@@ -278,3 +278,8 @@ Extend named variants only: precisely worded «Κοφτό» pasta in the corresp
 ### Reviewer-driven safety refinements (18 October)
 
 The Men Sensitive predicate now requires men as a complete delimited token, never part of women; White Musk requires the exact adjacent scent phrase, not White Tea Musk. Cat chicken pâté additionally rejects explicitly described second meats, jelly/gravy and other preparations. Veterinary, prescription, renal, urinary, clinical and analogous dietary wording vetoes automatic approval for both wet cat and dog food, including otherwise plausible chicken/turkey-labelled products. Negative fixtures cover two-brand matching of the prohibited variants. No veterinary/nutritional equivalence is inferred.
+
+
+### 2026-10-19 dated supermarket reference: bounded everyday staples
+
+The newly published full 10,330-product public archive identifies same-name, independently branded, physically labelled ordinary Basmati, Carolina and Glacé rice, striped penne, dry medium or imported black-eyed beans, and grated tomatoes. New positive gates apply only to these exact detailed source categories and explicitly described subtypes. Brand-free **complete** title signatures preserve origin, rice variety, pasta shape, processing and specialty modifiers; labelled whole-pack quantity must independently match the published reference. Cooked, canned and prepared beans fail closed, as do unreviewed wholegrain pasta, organic groceries, tomato paste and passata. A contradictory same-family source row rejects the entire automatically proposed family. The claim is shopper-selected **product-type comparability**, never identical ingredients, allergens, provenance, certification, branch availability, nutrition or automatic substitution.
