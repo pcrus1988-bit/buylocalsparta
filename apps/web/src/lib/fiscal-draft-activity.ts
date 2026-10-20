@@ -3,7 +3,7 @@
  * Counts genuine saved, never-issued test records in the last 30 rolling days.
  * Does not infer income, taxable sales, legally valid VAT or issued invoices.
  */
-import {fiscalPool} from "./fiscal-runtime";
+// Load the database driver only when the authenticated server query executes.
 import type {FiscalActor} from "./fiscal-auth";
 import type {FiscalInboxFilters,FiscalInboxLane,FiscalInboxSource} from "./fiscal-draft-inbox";
 
@@ -120,6 +120,7 @@ export async function getFiscalMerchantDraftActivity(
   (filters.lane!==undefined&&!LANES.includes(filters.lane))||
   (filters.source!==undefined&&!SOURCES.includes(filters.source)))
   return summarizeFiscalDraftActivity([]);
+ const {fiscalPool}=await import("./fiscal-runtime");
  const result=await fiscalPool().query<FiscalDraftActivityBucket>({
   text:FISCAL_M45_ACTIVITY_SQL,
   values:[organizationId,actor.id,filters.lane??null,filters.source??null],
