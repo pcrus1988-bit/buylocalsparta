@@ -43,6 +43,8 @@ export function preflightExactAsset({ source, snapshot, acquisition, archiveByte
   const p = v.provenance && typeof v.provenance === 'object' ? v.provenance : {};
   const fm = v.fetch_metadata && typeof v.fetch_metadata === 'object' ? v.fetch_metadata : {};
   const am = a.metadata && typeof a.metadata === 'object' ? a.metadata : {};
+  // The current clock cannot be overridden by a caller.
+  const currentTime = Date.now();
 
   check(UUID.test(s.id ?? '') && UUID.test(v.id ?? '') && UUID.test(a.id ?? '') && v.source_id === s.id && a.source_id === s.id && p.asset_approval_id === a.id, 'EXACT_SOURCE_APPROVAL_BINDING');
   check(nonempty(fm.asset_id) && fm.asset_id === am.asset_id, 'ASSET_ID_BINDING');
@@ -50,15 +52,22 @@ export function preflightExactAsset({ source, snapshot, acquisition, archiveByte
   const fetchTime = instant(v.fetched_at), approvalTime = instant(a.approved_at), retentionTime = instant(a.retention_until);
   check(Number.isFinite(fetchTime) && Number.isFinite(approvalTime) && approvalTime <= fetchTime, 'NO_RETROACTIVE_ACQUISITION');
   check(Number.isFinite(retentionTime) && Number.isFinite(fetchTime) && retentionTime >= fetchTime, 'RETENTION_SCOPE_MISSING');
+  check(Number.isFinite(fetchTime) && fetchTime <= currentTime, 'FUTURE_DATED_SNAPSHOT');
+  check(Number.isFinite(approvalTime) && approvalTime <= currentTime, 'FUTURE_DATED_APPROVAL');
+  check(Number.isFinite(retentionTime) && currentTime <= retentionTime, 'RETENTION_EXPIRED_NOW');
   check(a.acquisition_authorized === true && a.mirror_authorized === false, 'ACQUISITION_SCOPE_INVALID');
   check(s.status === 'active', 'SOURCE_NOT_ACTIVE');
   check(v.http_status === 200, 'ARCHIVE_HTTP_STATUS_INVALID');
   check(nonempty(a.approved_by) && !/\b(ai[ _-]?assisted|agent|bot|worker|automation|model)\b/i.test(a.approved_by), 'INDEPENDENT_APPROVAL_NOT_ATTESTED');
   check(nonempty(a.rights_policy_url) && firstParty(s.canonical_url, a.rights_policy_url), 'RIGHTS_POLICY_ORIGIN_INVALID');
-  const expiresTime = a.expires_at == null ? Infinity : instant(a.expires_at);
-  const reviewTime = a.review_due_at == null ? Infinity : instant(a.review_due_at);
-  check(!Number.isNaN(expiresTime) && fetchTime <= expiresTime, 'ACQUISITION_EXPIRED_AT_FETCH');
-  check(!Number.isNaN(reviewTime) && fetchTime <= reviewTime, 'ACQUISITION_REVIEW_OVERDUE_AT_FETCH');
+  const expiresTime = a.expires_at == null ? NaN : instant(a.expires_at);
+  const reviewTime = a.review_due_at == null ? NaN : instant(a.review_due_at);
+  check(Number.isFinite(expiresTime), 'ACQUISITION_EXPIRY_MISSING_OR_INVALID');
+  check(Number.isFinite(expiresTime) && fetchTime <= expiresTime, 'ACQUISITION_EXPIRED_AT_FETCH');
+  check(Number.isFinite(reviewTime), 'REVIEW_DEADLINE_MISSING_OR_INVALID');
+  check(Number.isFinite(reviewTime) && fetchTime <= reviewTime, 'ACQUISITION_REVIEW_OVERDUE_AT_FETCH');
+  check(!Number.isNaN(expiresTime) && currentTime <= expiresTime, 'ACQUISITION_EXPIRED_NOW');
+  check(!Number.isNaN(reviewTime) && currentTime <= reviewTime, 'ACQUISITION_REVIEW_OVERDUE_NOW');
   check(p.no_link_following === true && p.original_bytes_preserved === true, 'PROVENANCE_SCOPE_INVALID');
   check(SHA256.test(v.sha256 ?? '') && v.storage_bucket === 'nyxi-evidence' && typeof v.storage_path === 'string' &&
     v.storage_path.startsWith(`${s.id}/${v.sha256}/`) &&
