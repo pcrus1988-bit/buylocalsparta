@@ -1174,3 +1174,45 @@ Provider compatibility sources:
 - https://supabase.com/docs/guides/auth/third-party/custom-oidc
 - https://supabase.com/docs/guides/auth/third-party/overview
 - https://docs.aws.amazon.com/kms/latest/APIReference/API_Sign.html
+
+
+## Milestone 42 — durable single-use synthetic probe dispatch (20 October 2026)
+
+M42 adds `fiscal-kyb-vault-replay-barrier.ts` — a **server-only, disconnected**
+one-time dispatch guard for a future **synthetic** Storage API probe. The
+wrapper first validates the strict M40 RS256 signature and claims, then demands
+an injected **atomic durable reservation** of both `jti` and
+`probe_run_id` before any network call. A rejected duplicate, database error
+or malformed token fails closed. A Storage error does **not** release or
+reuse either identifier.
+
+The independent PostgreSQL blueprint
+`fiscal/security/m42_synthetic_probe_replay_REVIEW_ONLY.sql` is **NOT a
+production migration**. It creates an append-only-use record with unique
+token and run identifiers, a five-minute limit, RLS enabled and forced, zero
+policies, and no ordinary-client grants. The parameterized
+`fiscalSqlReplayReservation` uses `INSERT ... ON CONFLICT DO NOTHING
+RETURNING` and does not expose DB errors or JWTs. It needs an separately
+approved privileged writer *before* any production integration; the proposed
+schema is not applied to either production database.
+
+Fiscal CI tests an actual **disposable local PostgreSQL** instance: six
+concurrent attempted redemptions permit exactly one use, a second token
+cannot reuse the run, expiration does not resurrect tokens, expired/overlong
+leases fail, and anonymous/authenticated roles cannot read or insert
+records. Separate unit tests show signature/claim rejection happens before
+database/HTTP access, and an unsuccessful synthetic HTTP call still consumes
+its test token. No merchant identities or documents are used.
+
+**Scope limitation:** local dispatch prevention is **not end-to-end bearer
+JWT replay prevention**. A stolen scoped JWT might still be reusable directly
+against Supabase Storage while unexpired. Before any real Storage use,
+independently establish issuer/JWKS and KMS rotation, verify provider role
+trust, strictly isolate short-lived tokens, assess or enforce downstream
+replay/one-request authorization, review privileges and emergency revocation,
+and obtain explicit approval for synthetic-only live testing and auditable
+cleanup. M42 does not activate a worker, public endpoint, private key,
+token issuer, Storage RLS policy, probe role grant, or bucket upload.
+
+**Production merchant KYB intake, approvals, fiscal issuance, myDATA/AADE
+and POS/B2G actions remain disabled.**
