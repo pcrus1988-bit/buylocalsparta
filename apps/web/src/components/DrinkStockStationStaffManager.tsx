@@ -2,6 +2,7 @@
 import {useEffect,useState} from "react";
 import type {StationStaffMember} from "../lib/drinkstock-station-access-service";
 import type {DrinkStockStation} from "../lib/drinkstock-station-policy";
+import {DrinkStockStaffInvitations} from "./DrinkStockStaffInvitations";
 type Directory={members:StationStaffMember[];error?:string};
 export function DrinkStockStationStaffManager({partnerId,venueId,csrfToken}:{
  partnerId:string;venueId:string;csrfToken:string
@@ -56,12 +57,13 @@ export function DrinkStockStationStaffManager({partnerId,venueId,csrfToken}:{
     <a href={root+"/waiters"} style={{padding:"10px 12px",border:"1px solid #d9ff57",borderRadius:10,color:"#d9ff57"}}>Open waiter board ↗</a>
    </nav>
   </div>
+  <DrinkStockStaffInvitations partnerId={partnerId} venueId={venueId} csrfToken={csrfToken}/>
   {error&&<p role="alert" style={{padding:12,color:"#ffc3c3",background:"#57262b",borderRadius:9}}>Station access status: {error}</p>}
   {notice&&<p role="status" style={{color:"#d9ff57"}}>{notice}</p>}
   {members===null?<p role="status">Loading staff station assignments…</p>:
    !members.length?<p style={{padding:16,background:"#ffffff09",borderRadius:12}}>
     No active staff member is registered for this Hospitality partner yet.
-    Add a staff membership before assigning bar or waiter permissions.
+    Create a venue-specific invitation above. After a staff member accepts it with a verified KONTA MOY account, their station permissions will appear below.
    </p>:
    <div style={{display:"grid",gap:9,marginTop:15}}>
     <div style={{display:"grid",gridTemplateColumns:"minmax(90px,1fr) 95px 95px",gap:9,

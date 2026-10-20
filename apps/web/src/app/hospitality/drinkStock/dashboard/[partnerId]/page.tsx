@@ -37,10 +37,17 @@ export default async function DrinkStockPartnerPage({ params }: { params: Promis
         <span>VENUE / {venue.status.toUpperCase()}</span>
         <h2>{venue.name}</h2>
         <p>Ανεξάρτητος κατάλογος, ελεγχόμενες τιμές και ιστορικό προσομοίωσης αποκλειστικά για αυτόν τον χώρο.</p>
-        {venue.status==="active"?
-        <Link href={`/drinkstock/dashboard/${partnerId}/venues/${venue.venueId}`} className={styles.action}>
-          Άνοιγμα Trading Floor ↗
-        </Link>:<p>Ο χώρος είναι ανενεργός.</p>}
+        {venue.status!=="active"?<p>Ο χώρος είναι ανενεργός.</p>:
+         partner.role==="staff"?
+          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+           {venue.barAssigned&&<Link href={`/drinkstock/dashboard/${partnerId}/venues/${venue.venueId}/bar`}
+             className={styles.action}>🍸 Bar station ↗</Link>}
+           {venue.waiterAssigned&&<Link href={`/drinkstock/dashboard/${partnerId}/venues/${venue.venueId}/waiters`}
+             className={styles.action}>🛎 Waiter station ↗</Link>}
+          </div>:
+          <Link href={`/drinkstock/dashboard/${partnerId}/venues/${venue.venueId}`} className={styles.action}>
+           Άνοιγμα Trading Floor ↗
+          </Link>}
       </article>) : <article className={styles.partnerCard}>
         <h2>Δεν υπάρχουν καταχωρισμένοι χώροι.</h2>
         <p>Οι χώροι θα εμφανιστούν αφού προστεθούν από την ομάδα διαχείρισης KONTA MOY.</p>
