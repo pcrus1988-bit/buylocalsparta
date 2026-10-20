@@ -106,7 +106,8 @@ if(m.ok){
       });
       const result=await e.json().catch(()=>({error:"invalid_response"}));
       const item={snapshot_id:row.snapshot_id,http_status:e.status,status:result.status||null,
-        error:result.error||null,run_id:result.run_id||null,fragments:result.fragments||0};
+        error:result.error||null,run_id:result.run_id||null,fragments:result.fragments||0,
+        manual_review_required:null,state_recorded:null,retry_after:null};
       if(!e.ok){
         const recovery=await recordHtmlFailure(row,String(result.error||"http_"+e.status),e.status);
         item.manual_review_required=recovery.manual_review_required;
