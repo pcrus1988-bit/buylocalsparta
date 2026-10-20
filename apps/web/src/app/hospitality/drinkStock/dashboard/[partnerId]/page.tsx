@@ -32,6 +32,11 @@ export default async function DrinkStockPartnerPage({ params }: { params: Promis
      <p style={{color:"#e7e8eb",fontSize:14}}>See per-venue sessions, TV screen modes, demo activity and provider-verified order values. No simulation is counted as a sale.</p>
      <Link href={`/drinkstock/dashboard/${partnerId}/reports`} style={{display:"inline-block",background:"#d9ff57",color:"#182027",padding:"12px 17px",borderRadius:12,fontWeight:850,textDecoration:"none"}}>Open trading reports ↗</Link>
     </section>}
+    {partner.role==="owner"&&<section style={{maxWidth:1240,margin:"20px auto",padding:18,border:"1px solid #89b2d0",borderRadius:15}}>
+     <h2>💳 Merchant payment & tax connections</h2>
+     <p>Connect your own Mollie merchant account and Greek AADE myDATA credentials. Guest checkout stays disabled until fiscal receipts are legally operational.</p>
+     <Link href={`/drinkStock/dashboard/${partnerId}/payments`} className={styles.action}>Mollie & AADE setup ↗</Link>
+    </section>}
     <section className={styles.partnerGrid} aria-label="Your venues">
       {venues.length ? venues.map(venue=><article className={styles.partnerCard} key={venue.venueId}>
         <span>VENUE / {venue.status.toUpperCase()}</span>
