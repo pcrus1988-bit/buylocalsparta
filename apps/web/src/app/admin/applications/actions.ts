@@ -269,7 +269,9 @@ export async function setHubProspectStatus(formData: FormData) {
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
   const result = await uow.withTransaction(platformScope(principal.userId), async (tx) => {
     const current = await tx.query<SqlRow>(`
-      SELECT public_id,hub_slug,business_name,email,plan_code,status::text AS status,created_at
+      SELECT public_id,hub_slug,business_name,email,plan_code,billing_cycle,payment_state,
+             vendor_id::text AS vendor_uuid,owner_user_id::text AS owner_uuid,
+             status::text AS status,created_at
       FROM hub_expansion_prospects
       WHERE public_id=$1 OR id::text=$1
       LIMIT 1
@@ -303,20 +305,23 @@ export async function setHubProspectStatus(formData: FormData) {
     if (!HUB_PROSPECT_TRANSITIONS[from].includes(target)) {
       throw new Error(`HUB application cannot move from ${from} to ${target}`);
     }
-    if (target === "converted" && row.plan_code !== "claim") {
-      // Admin status changes must not become a shortcut around Finance agreements.
-      // A trial/vendor shell is not a commercial activation. The agreement must
-      // match the *same application*, plan, billing cycle and approved template.
+    if (target === "converted" && !["claim","presence"].includes(String(row.plan_code))) {
+      if (!row.vendor_uuid || !row.owner_uuid) throw new Error("HUB_ACTIVATION_OWNER_AND_VENDOR_REQUIRED");
+      if (!["paid","settled"].includes(String(row.payment_state))) {
+        throw new Error("HUB_ACTIVATION_REQUIRES_VERIFIED_PAYMENT: Paid merchant plans cannot be activated on an unpaid application.");
+      }
       const eligibleAgreement = await tx.query<SqlRow>(`
-        SELECT a.id FROM vendor_commercial_agreements a
+        SELECT a.id::text AS agreement_uuid,a.status::text AS agreement_status
+        FROM vendor_commercial_agreements a
         JOIN hub_expansion_prospects h ON h.vendor_id=a.vendor_id
         WHERE h.public_id=$1
-          AND h.vendor_id IS NOT NULL
-          AND h.plan_code<>'claim'
-          AND a.status='active'
+          AND h.vendor_id IS NOT NULL AND h.plan_code NOT IN ('claim','presence')
+          AND a.status IN ('govgr_verified','eligible_for_activation','active')
           AND a.signed_at IS NOT NULL
+          AND a.source_document_reference IS NOT NULL
           AND a.signed_pdf_object_key IS NOT NULL
           AND a.signed_pdf_sha256 IS NOT NULL
+          AND a.signed_document_received_at IS NOT NULL
           AND a.govgr_reference IS NOT NULL
           AND a.govgr_verified_at IS NOT NULL
           AND a.govgr_verified_by IS NOT NULL
@@ -325,11 +330,35 @@ export async function setHubProspectStatus(formData: FormData) {
           AND a.terms_snapshot->>'billingCycle'=h.billing_cycle
           AND a.terms_snapshot->>'legalReviewStatus'='approved'
           AND length(coalesce(a.terms_snapshot->>'templateVersion',''))>0
-        LIMIT 1
+        ORDER BY CASE WHEN a.status='active' THEN 0 ELSE 1 END,a.created_at DESC LIMIT 1 FOR UPDATE OF a
       `, [text(row.public_id)]);
       if (!eligibleAgreement.rowCount) {
-        throw new Error("HUB_CONVERSION_REQUIRES_APPROVED_SIGNED_PLAN_AGREEMENT: Generate the matching plan contract in Admin → Finance → Agreements, obtain legal approval and signed gov.gr evidence, verify and activate it before marking the application converted.");
+        throw new Error("HUB_CONVERSION_REQUIRES_APPROVED_SIGNED_PLAN_AGREEMENT: Verify the signed gov.gr contract in Admin → Finance → Agreements.");
       }
+      const agreement = eligibleAgreement.rows[0];
+      const actor = await tx.query<SqlRow>("SELECT id::text AS actor_uuid FROM users WHERE public_id=$1 LIMIT 1", [principal.userId]);
+      if (!actor.rowCount) throw new Error("HUB_ACTIVATION_ACTOR_REQUIRED");
+      const activatedAt = new Date();
+      if (agreement.agreement_status !== "active") {
+        await tx.query(`
+          UPDATE vendor_commercial_agreements
+          SET status='superseded',ends_at=LEAST(COALESCE(ends_at,$3),$3),updated_at=$3
+          WHERE vendor_id=$1::uuid AND id<>$2::uuid AND status='active'
+        `, [row.vendor_uuid,agreement.agreement_uuid,activatedAt]);
+        await tx.query(`
+          UPDATE vendor_commercial_agreements
+          SET status='active',activated_at=$3,activated_by=$2::uuid,updated_at=$3
+          WHERE id=$1::uuid
+        `, [agreement.agreement_uuid,actor.rows[0].actor_uuid,activatedAt]);
+      }
+      await tx.query(`
+        UPDATE vendor_businesses SET status='active',demo_mode=false,
+          public_directory_visible=false,
+          public_directory_visibility_reason='Final HUB approval; public publication still requires separate authorization',
+          public_directory_visibility_updated_at=$2,contract_started_at=COALESCE(contract_started_at,$2),
+          contract_ended_at=NULL,updated_at=$2
+        WHERE id=$1::uuid
+      `, [row.vendor_uuid,activatedAt]);
     }
     await tx.query("UPDATE hub_expansion_prospects SET status=$2,updated_at=now() WHERE public_id=$1", [text(row.public_id), target]);
     return {
