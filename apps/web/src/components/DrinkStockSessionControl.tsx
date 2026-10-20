@@ -89,6 +89,18 @@ export function DrinkStockSessionControl({initial,partnerId,venueId,csrfToken}:{
  {state==="paused"&&<button style={button} disabled={busy} onClick={()=>void command("resume")}>▶ Resume</button>}
  {state!=="none"&&state!=="ended"&&<button style={minor} disabled={busy} onClick={()=>void command("end")}>■ End session</button>}
  </div>}
+ <aside aria-label="KONTA MOY POS-independent fallback" style={{padding:18,margin:"15px 0 24px",borderRadius:15,
+  background:"#0d2830",border:"1px solid #416b73"}}>
+  <strong style={{color:"#d9ff57"}}>KONTA MOY CHECKOUT · POS FALLBACK</strong>
+  <p style={{color:"#d5d6e6",fontSize:13,lineHeight:1.6,marginBottom:0}}>
+   {view.checkoutFallback?.adminEnabled?
+    "The platform administrator has approved this partner for the POS-unavailable checkout fallback. Guest payments remain unavailable until KONTA MOY's DrinkStock settlement and certified receipt integration is operational.":
+    "Admin approval required. If your venue has no compatible POS, request KONTA MOY checkout eligibility from the platform administrator. No orders are charged until the approved payment and fiscal integration is active."}
+  </p>
+  <small style={{color:"#ffcc9e",display:"block",marginTop:10}}>
+   {view.checkoutFallback?.adminEnabled?"✓ ADMIN APPROVED · ⏳ CUSTOMER CHECKOUT NOT ACTIVE":"● NOT APPROVED · CUSTOMER CHECKOUT NOT ACTIVE"}
+  </small>
+ </aside>
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:14}}>
  <div style={{padding:18,borderRadius:15,background:"#ffffff0b",border:"1px solid #ffffff20"}}>
  <h3>📺 Screens anywhere</h3>
