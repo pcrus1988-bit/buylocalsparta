@@ -48,13 +48,13 @@ test("DrinkStock uses one isolated visual system on every nested route", () => {
   const table = source("drinkStock/table/[token]/page.tsx");
 
   assert.match(layout, /data-drinkstock-design/, "all nested routes share the product shell");
-  assert.match(layout, /design-system\\.css/, "product tokens are loaded from nested layout");
-  assert.match(tokens, /--ds-bg:\\s*#0d0a1e/, "canonical party-market background");
-  assert.match(tokens, /--ds-lime:\\s*#caff4e/, "canonical neon-lime CTA");
-  assert.match(tokens, /--ds-pink:\\s*#ff50a6/, "canonical down-price accent");
-  assert.match(gateway, /\\.shell:has\\(\\[data-drinkstock-design\\]\\)/,
+  assert.match(layout, /design-system\.css/, "product tokens are loaded from nested layout");
+  assert.match(tokens, /--ds-bg:\s*#0d0a1e/, "canonical party-market background");
+  assert.match(tokens, /--ds-lime:\s*#caff4e/, "canonical neon-lime CTA");
+  assert.match(tokens, /--ds-pink:\s*#ff50a6/, "canonical down-price accent");
+  assert.match(gateway, /\.shell:has\(\[data-drinkstock-design\]\)/,
     "only DrinkStock hides the broader Hospitality gateway chrome");
-  assert.match(gateway, /:global\\(\\[data-drinkstock-design\\]\\) \\.partnerCard/,
+  assert.match(gateway, /:global\(\[data-drinkstock-design\]\) \.partnerCard/,
     "legacy partner pages are themed without changing the gateway");
   assert.match(market, /Product-level visual alignment/, "trading floor inherits the exchange language");
   assert.match(tv, /data-drinkstock-standalone/, "TV screen keeps fullscreen presentation");
