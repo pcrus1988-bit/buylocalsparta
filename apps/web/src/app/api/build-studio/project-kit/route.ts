@@ -8,9 +8,9 @@ import {
 import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
 import {
   PROJECT_ACCESSORY_RULES,
-  calculateVerifiedPaintQuantity,
+  calculateVerifiedMaterialQuantity,
   extractManufacturerComponentNames,
-  choosePaintPackPlan,
+  chooseMaterialPackPlan,
   variantRouteKey,
   type PaintBuildPackVariant
 } from "../../../../lib/paint-build-project-kit";
@@ -53,6 +53,9 @@ type FamilyVariant = PaintBuildPackVariant & Readonly<{
 type ProfileRow = Readonly<{
   coverage_m2_per_litre_min: number | string | null;
   coverage_m2_per_litre_max: number | string | null;
+  consumption_value_min: number | string | null;
+  consumption_value_max: number | string | null;
+  consumption_unit: string | null;
   number_of_coats_min: number | string | null;
   number_of_coats_max: number | string | null;
   dry_to_touch_minutes_min: number | null;
@@ -224,6 +227,7 @@ async function readProfile(manufacturerProductId: string): Promise<ProfileRow | 
   const result = await db.query<ProfileRow>(
     `select
        coverage_m2_per_litre_min,coverage_m2_per_litre_max,
+       consumption_value_min,consumption_value_max,consumption_unit,
        number_of_coats_min,number_of_coats_max,
        dry_to_touch_minutes_min,dry_to_touch_minutes_max,
        recoat_minutes_min,recoat_minutes_max,
@@ -306,14 +310,17 @@ function manufacturerQuantityFromProfile(
 ) {
   if (!profile) return undefined;
   const aggregate = twoCoatCoverage(coverageEvidence?.normalized_value);
-  return calculateVerifiedPaintQuantity({
+  return calculateVerifiedMaterialQuantity({
     areaM2,
     coverageMin: numberValue(profile.coverage_m2_per_litre_min),
     coverageMax: numberValue(profile.coverage_m2_per_litre_max),
     coatsMin: numberValue(profile.number_of_coats_min),
     coatsMax: numberValue(profile.number_of_coats_max),
     twoCoatCoverageMin: aggregate?.min,
-    twoCoatCoverageMax: aggregate?.max
+    twoCoatCoverageMax: aggregate?.max,
+    consumptionMin: numberValue(profile.consumption_value_min),
+    consumptionMax: numberValue(profile.consumption_value_max),
+    consumptionUnit: profile.consumption_unit ?? undefined
   });
 }
 
@@ -456,9 +463,9 @@ async function requiredSystemItems(manufacturerProductId: string, areaM2: number
       routeGroups.set(key, [...(routeGroups.get(key) ?? []), variant]);
     }
     const plans = [...routeGroups.values()]
-      .map((variants) => choosePaintPackPlan(variants, quantity.max))
+      .map((variants) => chooseMaterialPackPlan(variants, quantity.max, quantity.unit))
       .filter((plan): plan is NonNullable<typeof plan> => Boolean(plan))
-      .sort((a, b) => a.totalPriceMinor - b.totalPriceMinor || a.surplusLitres - b.surplusLitres);
+      .sort((a, b) => a.totalPriceMinor - b.totalPriceMinor || a.surplusAmount - b.surplusAmount);
     const plan = plans[0];
     if (!plan) {
       unresolved.push({
@@ -560,9 +567,9 @@ async function scenarioRequiredSystemItems(eligibility: ScenarioEligibilityRow |
     routeGroups.set(key, [...(routeGroups.get(key) ?? []), variant]);
   }
   const plans = [...routeGroups.values()]
-    .map((variants) => choosePaintPackPlan(variants, quantity.max))
+    .map((variants) => chooseMaterialPackPlan(variants, quantity.max, quantity.unit))
     .filter((plan): plan is NonNullable<typeof plan> => Boolean(plan))
-    .sort((a, b) => a.totalPriceMinor - b.totalPriceMinor || a.surplusLitres - b.surplusLitres);
+    .sort((a, b) => a.totalPriceMinor - b.totalPriceMinor || a.surplusAmount - b.surplusAmount);
   const plan = plans[0];
   if (!plan) {
     unresolved.push({
@@ -642,14 +649,18 @@ export async function POST(request: Request) {
       : {
           status: "available" as const,
           areaM2,
-          unit: "L" as const,
+          unit: verifiedQuantity.unit,
           min: verifiedQuantity.min,
           max: verifiedQuantity.max,
           coatsMin: verifiedQuantity.coatsMin,
           coatsMax: verifiedQuantity.coatsMax,
           basisEl: verifiedQuantity.basis === "manufacturer_two_coat_coverage"
             ? "Θεωρητική ποσότητα απευθείας από την επαληθευμένη κάλυψη δύο στρώσεων που δημοσιεύει η VITEX. Δεν προστέθηκε γενικός συντελεστής απωλειών."
-            : "Θεωρητική ποσότητα από επαληθευμένα m²/L και αριθμό στρώσεων VITEX."
+            : verifiedQuantity.basis === "manufacturer_area_per_mass"
+              ? "Θεωρητική ποσότητα από την επαληθευμένη απόδοση m²/kg του κατασκευαστή. Δεν προστέθηκε γενικός συντελεστής απωλειών."
+              : verifiedQuantity.basis === "manufacturer_mass_per_area"
+                ? "Θεωρητική ποσότητα από την επαληθευμένη κατανάλωση kg/m² του κατασκευαστή. Δεν προστέθηκε γενικός συντελεστής απωλειών."
+                : "Θεωρητική ποσότητα από επαληθευμένα m²/L και αριθμό στρώσεων VITEX."
         };
     const customerGuide = buildCustomerGuide(guidance);
     const technical = {
@@ -664,6 +675,11 @@ export async function POST(request: Request) {
       coats: profile ? {
         min: numberValue(profile.number_of_coats_min) ?? verifiedQuantity?.coatsMin,
         max: numberValue(profile.number_of_coats_max) ?? verifiedQuantity?.coatsMax
+      } : undefined,
+      consumption: profile?.consumption_unit ? {
+        min: numberValue(profile.consumption_value_min),
+        max: numberValue(profile.consumption_value_max),
+        unit: profile.consumption_unit
       } : undefined,
       twoCoatCoverageM2PerLitre: aggregateCoverage,
       dryToTouchMinutes: profile ? {
@@ -701,8 +717,8 @@ export async function POST(request: Request) {
 
     const routeKey = variantRouteKey(selectedVariant);
     const routeVariants = family.variants.filter((variant) => variantRouteKey(variant) === routeKey);
-    const packPlan = quantityEstimate.status === "available" && quantityEstimate.max
-      ? choosePaintPackPlan(routeVariants, quantityEstimate.max)
+    const packPlan = quantityEstimate.status === "available" && quantityEstimate.max && quantityEstimate.unit
+      ? chooseMaterialPackPlan(routeVariants, quantityEstimate.max, quantityEstimate.unit)
       : undefined;
 
     const [required, scenarioRequired, accessories] = await Promise.all([

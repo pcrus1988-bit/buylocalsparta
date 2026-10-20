@@ -26,6 +26,27 @@ export type PaintBuildPackPlan = Readonly<{
   lines: readonly PaintBuildPackLine[];
 }>;
 
+export type PaintBuildMaterialUnit = "L" | "kg";
+
+export type MaterialPackLine = Readonly<{
+  variant: PaintBuildPackVariant;
+  quantity: number;
+  unit: PaintBuildMaterialUnit;
+  amountEach: number;
+  totalAmount: number;
+  totalPriceMinor: number;
+}>;
+
+export type MaterialPackPlan = Readonly<{
+  unit: PaintBuildMaterialUnit;
+  requiredAmount: number;
+  totalAmount: number;
+  surplusAmount: number;
+  totalPriceMinor: number;
+  packCount: number;
+  lines: readonly MaterialPackLine[];
+}>;
+
 export type ProjectAccessoryRule = Readonly<{
   key: string;
   categoryCode: string;
@@ -98,6 +119,19 @@ export function packLitres(packValue: number, packUnit: string): number | undefi
   const unit = packUnit.trim().toLocaleLowerCase("en");
   if (unit === "l" || unit === "lt" || unit === "litre" || unit === "liter") return packValue;
   if (unit === "ml") return packValue / 1000;
+  return undefined;
+}
+
+export function packMaterialAmount(
+  packValue: number,
+  packUnit: string,
+  targetUnit: PaintBuildMaterialUnit
+): number | undefined {
+  if (!Number.isFinite(packValue) || packValue <= 0) return undefined;
+  const unit = packUnit.trim().toLocaleLowerCase("en");
+  if (targetUnit === "L") return packLitres(packValue, packUnit);
+  if (unit === "kg" || unit === "kilogram" || unit === "kilograms") return packValue;
+  if (unit === "g" || unit === "gr" || unit === "gram" || unit === "grams") return packValue / 1000;
   return undefined;
 }
 
@@ -203,6 +237,75 @@ export function calculateVerifiedPaintQuantity(input: Readonly<{
   return undefined;
 }
 
+export type VerifiedMaterialQuantity = Readonly<{
+  min: number;
+  max: number;
+  unit: PaintBuildMaterialUnit;
+  coatsMin?: number;
+  coatsMax?: number;
+  basis:
+    | "coverage_and_coats"
+    | "manufacturer_two_coat_coverage"
+    | "manufacturer_area_per_mass"
+    | "manufacturer_mass_per_area";
+}>;
+
+function normalizedConsumptionUnit(value?: string): string {
+  return (value ?? "")
+    .normalize("NFKC")
+    .replace(/㎡/g, "m²")
+    .replace(/\s+/g, "")
+    .toLocaleLowerCase("en");
+}
+
+/**
+ * Generic quantity calculation for Paint & Build.
+ * Supports litres from coating coverage as before, plus mass only when the
+ * manufacturer explicitly publishes either m²/kg or kg/m². Unknown units fail closed.
+ */
+export function calculateVerifiedMaterialQuantity(input: Readonly<{
+  areaM2: number;
+  coverageMin?: number;
+  coverageMax?: number;
+  coatsMin?: number;
+  coatsMax?: number;
+  twoCoatCoverageMin?: number;
+  twoCoatCoverageMax?: number;
+  consumptionMin?: number;
+  consumptionMax?: number;
+  consumptionUnit?: string;
+}>): VerifiedMaterialQuantity | undefined {
+  const paint = calculateVerifiedPaintQuantity(input);
+  if (paint) return { ...paint, unit: "L" };
+
+  const areaM2 = positiveNumber(input.areaM2);
+  const consumptionMin = positiveNumber(input.consumptionMin);
+  const consumptionMax = positiveNumber(input.consumptionMax) ?? consumptionMin;
+  if (!areaM2 || !consumptionMin || !consumptionMax) return undefined;
+
+  const low = Math.min(consumptionMin, consumptionMax);
+  const high = Math.max(consumptionMin, consumptionMax);
+  const unit = normalizedConsumptionUnit(input.consumptionUnit);
+
+  if (/^(m²|m2)\/kg(?:coverage)?$/.test(unit)) {
+    return {
+      min: Math.round((areaM2 / high) * 100) / 100,
+      max: Math.round((areaM2 / low) * 100) / 100,
+      unit: "kg",
+      basis: "manufacturer_area_per_mass"
+    };
+  }
+  if (/^kg\/(m²|m2)$/.test(unit)) {
+    return {
+      min: Math.round((areaM2 * low) * 100) / 100,
+      max: Math.round((areaM2 * high) * 100) / 100,
+      unit: "kg",
+      basis: "manufacturer_mass_per_area"
+    };
+  }
+  return undefined;
+}
+
 type PlanCandidate = {
   lines: PaintBuildPackLine[];
   totalLitres: number;
@@ -301,6 +404,117 @@ export function choosePaintPackPlan(
     requiredLitres: Math.round(requiredLitres * 100) / 100,
     totalLitres: Math.round(best.totalLitres * 1000) / 1000,
     surplusLitres: Math.round((best.totalLitres - requiredLitres) * 1000) / 1000,
+    totalPriceMinor: best.totalPriceMinor,
+    packCount: best.packCount,
+    lines: best.lines
+  };
+}
+
+
+type MaterialPlanCandidate = {
+  lines: MaterialPackLine[];
+  totalAmount: number;
+  totalPriceMinor: number;
+  packCount: number;
+};
+
+function materialCandidatePlan(
+  variants: readonly PaintBuildPackVariant[],
+  counts: readonly number[],
+  unit: PaintBuildMaterialUnit
+): MaterialPlanCandidate {
+  const lines = variants.flatMap((variant, index) => {
+    const quantity = counts[index] ?? 0;
+    const amountEach = packMaterialAmount(variant.packValue, variant.packUnit, unit);
+    if (!quantity || !amountEach) return [];
+    return [{
+      variant,
+      quantity,
+      unit,
+      amountEach,
+      totalAmount: amountEach * quantity,
+      totalPriceMinor: variant.priceMinor * quantity
+    }];
+  });
+  return {
+    lines,
+    totalAmount: lines.reduce((sum, line) => sum + line.totalAmount, 0),
+    totalPriceMinor: lines.reduce((sum, line) => sum + line.totalPriceMinor, 0),
+    packCount: lines.reduce((sum, line) => sum + line.quantity, 0)
+  };
+}
+
+/**
+ * Unit-aware pack optimizer. It never converts between volume and mass and
+ * therefore cannot silently assume product density.
+ */
+export function chooseMaterialPackPlan(
+  variantsInput: readonly PaintBuildPackVariant[],
+  requiredAmountInput: number,
+  unit: PaintBuildMaterialUnit
+): MaterialPackPlan | undefined {
+  const requiredAmount = Number(requiredAmountInput);
+  if (!Number.isFinite(requiredAmount) || requiredAmount <= 0) return undefined;
+
+  const deduped = new Map<string, PaintBuildPackVariant>();
+  for (const variant of variantsInput) {
+    const amount = packMaterialAmount(variant.packValue, variant.packUnit, unit);
+    if (!amount || !Number.isSafeInteger(variant.priceMinor) || variant.priceMinor <= 0) continue;
+    const key = `${amount.toFixed(6)}|${variant.priceMinor}`;
+    const current = deduped.get(key);
+    if (!current || variant.title.localeCompare(current.title, "el") < 0) deduped.set(key, variant);
+  }
+  const variants = [...deduped.values()]
+    .sort((a, b) =>
+      (packMaterialAmount(b.packValue, b.packUnit, unit) ?? 0)
+      - (packMaterialAmount(a.packValue, a.packUnit, unit) ?? 0)
+    )
+    .slice(0, 8);
+  if (!variants.length) return undefined;
+
+  const amounts = variants.map((variant) => packMaterialAmount(variant.packValue, variant.packUnit, unit) as number);
+  const smallest = Math.min(...amounts);
+  const maxPacks = Math.min(99, Math.max(2, Math.ceil(requiredAmount / smallest) + 2));
+  const candidates: MaterialPlanCandidate[] = [];
+  const counts = new Array(variants.length).fill(0);
+
+  function enumerate(index: number, currentAmount: number, currentPacks: number) {
+    if (index === variants.length) {
+      if (currentAmount + 1e-9 >= requiredAmount && currentPacks > 0) {
+        candidates.push(materialCandidatePlan(variants, counts, unit));
+      }
+      return;
+    }
+    const size = amounts[index];
+    const remainingPacks = maxPacks - currentPacks;
+    const enough = Math.ceil(Math.max(0, requiredAmount - currentAmount) / size);
+    const cap = Math.min(remainingPacks, Math.max(1, enough + 2));
+    for (let quantity = 0; quantity <= cap; quantity += 1) {
+      counts[index] = quantity;
+      enumerate(index + 1, currentAmount + size * quantity, currentPacks + quantity);
+      if (candidates.length > 15000) break;
+    }
+    counts[index] = 0;
+  }
+
+  enumerate(0, 0, 0);
+  if (!candidates.length) return undefined;
+  const leastSurplus = Math.min(...candidates.map((candidate) => candidate.totalAmount - requiredAmount));
+  const sensibleWindow = Math.max(smallest, requiredAmount * 0.4);
+  const practical = candidates.filter(
+    (candidate) => candidate.totalAmount - requiredAmount <= leastSurplus + sensibleWindow + 1e-9
+  );
+  practical.sort((a, b) =>
+    a.totalPriceMinor - b.totalPriceMinor
+    || (a.totalAmount - requiredAmount) - (b.totalAmount - requiredAmount)
+    || a.packCount - b.packCount
+  );
+  const best = practical[0] ?? candidates[0];
+  return {
+    unit,
+    requiredAmount: Math.round(requiredAmount * 100) / 100,
+    totalAmount: Math.round(best.totalAmount * 1000) / 1000,
+    surplusAmount: Math.round((best.totalAmount - requiredAmount) * 1000) / 1000,
     totalPriceMinor: best.totalPriceMinor,
     packCount: best.packCount,
     lines: best.lines

@@ -64,7 +64,7 @@ type FamilyVariant = Readonly<{
 type QuantityEstimate = Readonly<{
   status: "available" | "missing_manufacturer_values" | "manufacturer_not_selected";
   areaM2: number;
-  unit?: "L";
+  unit?: "L" | "kg";
   min?: number;
   max?: number;
   coatsMin?: number;
@@ -73,16 +73,18 @@ type QuantityEstimate = Readonly<{
 }>;
 
 type PackPlan = Readonly<{
-  requiredLitres: number;
-  totalLitres: number;
-  surplusLitres: number;
+  unit: "L" | "kg";
+  requiredAmount: number;
+  totalAmount: number;
+  surplusAmount: number;
   totalPriceMinor: number;
   packCount: number;
   lines: readonly Readonly<{
     variant: FamilyVariant;
     quantity: number;
-    litresEach: number;
-    totalLitres: number;
+    unit: "L" | "kg";
+    amountEach: number;
+    totalAmount: number;
     totalPriceMinor: number;
   }>[];
 }>;
@@ -103,6 +105,7 @@ type ProjectKitResponse = Readonly<{
     coverageM2PerLitre?: Readonly<{ min?: number; max?: number; conditions?: string | null }>;
     twoCoatCoverageM2PerLitre?: Readonly<{ min: number; max: number }>;
     coats?: Readonly<{ min?: number; max?: number }>;
+    consumption?: Readonly<{ min?: number; max?: number; unit: string }>;
     dryToTouchMinutes?: Readonly<{ min?: number | null; max?: number | null }>;
     recoatMinutes?: Readonly<{ min?: number | null; max?: number | null }>;
     primerRequired?: boolean | null;
@@ -456,7 +459,8 @@ function FamilyOverlay({
             </div>
 
             <div className={styles.techGrid}>
-              <div><small>Κάλυψη VITEX · 1 στρώση</small><strong>{rangeText(detail.technical.coverageM2PerLitre?.min, detail.technical.coverageM2PerLitre?.max, " m²/L")}</strong></div>
+              {detail.technical.coverageM2PerLitre?.min || detail.technical.coverageM2PerLitre?.max ? <div><small>Κάλυψη VITEX · 1 στρώση</small><strong>{rangeText(detail.technical.coverageM2PerLitre?.min, detail.technical.coverageM2PerLitre?.max, " m²/L")}</strong></div> : null}
+              {detail.technical.consumption?.min || detail.technical.consumption?.max ? <div><small>Απόδοση / κατανάλωση κατασκευαστή</small><strong>{rangeText(detail.technical.consumption.min, detail.technical.consumption.max, ` ${detail.technical.consumption.unit}`)}</strong></div> : null}
               {detail.technical.twoCoatCoverageM2PerLitre ? <div><small>Κάλυψη VITEX · 2 στρώσεις</small><strong>{rangeText(detail.technical.twoCoatCoverageM2PerLitre.min, detail.technical.twoCoatCoverageM2PerLitre.max, " m²/L")}</strong></div> : null}
               <div><small>Στρώσεις υπολογισμού</small><strong>{rangeText(detail.technical.coats?.min, detail.technical.coats?.max)}</strong></div>
               <div><small>Στέγνωμα αφής</small><strong>{rangeText(detail.technical.dryToTouchMinutes?.min, detail.technical.dryToTouchMinutes?.max, "′")}</strong></div>
@@ -481,7 +485,7 @@ function FamilyOverlay({
                 <small>ΥΠΟΛΟΓΙΣΜΟΣ ΓΙΑ {areaM2} m²</small>
                 {quantity?.status === "available" ? (
                   <>
-                    <strong>Απαίτηση: {quantity.min === quantity.max ? quantity.min : `${quantity.min}–${quantity.max}`} L</strong>
+                    <strong>Απαίτηση: {quantity.min === quantity.max ? quantity.min : `${quantity.min}–${quantity.max}`} {quantity.unit ?? "L"}</strong>
                     {plan ? <p>Προτεινόμενη αγορά: {plan.lines.map((line) => `${line.quantity} × ${paintBuildPackageLabel(`${line.variant.packValue}${line.variant.packUnit}`)}`).join(" + ")} · {money(plan.totalPriceMinor)}</p> : <p>Δεν υπάρχει ασφαλής συνδυασμός διαθέσιμων συσκευασιών.</p>}
                     <p>{quantity.basisEl}</p>
                   </>
