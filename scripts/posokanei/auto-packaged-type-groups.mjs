@@ -16,6 +16,17 @@ const idValid=id=>typeof id==="string"&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 // precise; generic "foods", infant, alcohol, supplements, care and medicine
 // categories are deliberately absent.
 const specs=new Map([
+  // 2026-10-19, source-reviewed conventional pantry types. These are
+  // positive category + subtype gates, not category-wide equivalence.
+  // The complete title signature, distinct brands, corroborated physical
+  // package labels and claim veto remain binding for each exact-source SKU.
+  ["ρυζι μπασματι",["kg",/(?=.*ρυζι)(?=.*basmati)/u]],
+  ["ρυζι καρολινα",["kg",/(?=.*ρυζι)(?=.*καρολιν)/u]],
+  ["ρυζι γλασε",["kg",/(?=.*ρυζι)(?=.*γλασ)/u]],
+  ["πεννες ριγε",["kg",/(?=.*πεν)(?=.*ριγε)/u]],
+  ["φασολια",["kg",/(?=.*φασολια)(?=.*(?:μετρια|μαυροματικα))/u]],
+  ["σαλτσα ντοματας",["kg",/(?:(?=.*ντοματ)(?=.*τριμμεν)|(?=.*τοματ)(?=.*τριφτ))/u]],
+
   // Explicitly described 2026-10-17/18 ordinary grocery and personal-care
   // variants: NEVER approve a generic parent category by itself.
   ["αφροι και τζελ",["l",/(?=.*αφρ)(?=.*ξυρισματ)(?=.*(?:^|[^\p{L}])men(?=$|[^\p{L}]))(?=.*sensitive)/u]],
@@ -274,6 +285,11 @@ function accepted(p){
   // Exact cross-brand family matching is necessary, but not sufficient.
   if(["πουλερικα","πατατες"].includes(category)&&
      /πανε|παναρισ|marinat|μαριναρ|seasoned|καρυκευ|μπαχαρ|spiced|προτηγαν|prefried|pre-fried|προψημεν|breaded|battered|wedge|σφην|sticks|τηγανιτ|προετοιμασμεν/u.test(title))return false;
+  // Dried beans are not ready meals, canned beans or cooked pulses.
+  // Source "Φασόλια" contains multiple preparations; matching the type words
+  // alone must never override contradictory processing indicators.
+  if(category==="φασολια" &&
+     /κατεψυγμεν|μαγειρεμ|προμαγειρεμ|παρασκευασμεν|βρασμεν|κονσερβ|ετοιμ|σε\\s+σαλτσ|canned|cooked|ready\\s+to/u.test(title))return false;
   // Pet-food descriptions can be precise while naming a veterinary diet or
   // additional meat/formulation. Such titles must never acquire automatic
   // approval merely because their names match between two brands.
