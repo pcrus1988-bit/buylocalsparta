@@ -1216,3 +1216,70 @@ token issuer, Storage RLS policy, probe role grant, or bucket upload.
 
 **Production merchant KYB intake, approvals, fiscal issuance, myDATA/AADE
 and POS/B2G actions remain disabled.**
+
+
+## Milestone 43 — real public OIDC/JWKS compatibility inspector (20 October 2026)
+
+**What is implemented:** `fiscal-kyb-vault-oidc-readiness.ts` supplies a
+server-only, read-only validation of an independently hosted OIDC issuer's
+**public** discovery document and signing-key set. It is wired to the existing
+MFA-protected `/timologio-admin/kyb-intake-readiness` dashboard.
+Without explicitly pinned server-only public configuration it reports
+`not_configured` and performs **zero network requests**.
+
+Only an issuer hosted on the KONTA MOY-owned `kontamou.site` domain is
+eligible for a network probe. Administrators must independently verify DNS
+ownership and issuer deployment before setting the pins:
+
+- `FISCAL_KYB_OIDC_ISSUER`: exact HTTPS issuer origin, without path/query/port.
+- `FISCAL_KYB_OIDC_KID`: exact pre-approved public key identifier.
+- `FISCAL_KYB_OIDC_PUBLIC_KEY_PEM`: matching 3072-bit-or-stronger RSA
+  **PUBLIC** key (never supply any private key).
+
+The checker fetches `/.well-known/openid-configuration` with redirect
+following disabled, four-second timeout, no authorization header and a
+32 KiB response cap. It accepts only a pinned same-origin JWKS URL;
+public `kid`, `kty=RSA`, `n`, `e`, signing-use and RS256 properties
+must match the operator-pinned public key. Host substitution, private JWK
+fields, duplicate matching key IDs, wrong signing algorithm, HTTP redirects
+and oversized/non-JSON responses fail closed. No tokens, KMS operations,
+merchant data, secrets or Storage requests are made. The operator page
+receives a boolean/status-only result, never the public key or response body.
+
+**Crucial: public metadata verification is not Supabase trust.**
+A successful M43 checker only establishes that the issuer publishes the
+expected public key. It does not prove an issuer is registered under Supabase
+Authentication > Third-Party Auth; that the provider's access token is accepted
+by Storage; that the custom `fiscal_kyb_probe` role is mapped through the
+`authenticator` Postgres role; or that a bearer token is unusable after a
+one-time claim in FISCAL PostgreSQL. The M38 dormant role *intentionally*
+lacks authenticator membership. M42's local replay ledger cannot invalidate
+a JWT directly replayed against Storage. Registering the issuer or granting
+the custom role without independently reviewed downstream authorization is
+prohibited.
+
+**Safer next production design:** use a strictly protected server-side
+gateway/BFF for all merchant evidence intake, keep raw Storage bearer
+credentials out of browser responses, couple every single-use ticket
+atomically to authenticated tenant and action, encrypt prior to quarantine,
+validate independent malware screening and audited deletion, and conduct
+adversarial tenant/replay checks. Evaluate a gateway-only Storage access
+strategy instead of making M39's dormant direct-probe JWT a production
+merchant credential. No gateway, secret-key bypass, role grants or Storage
+policies are enabled in M43.
+
+Verified read-only snapshot on 20 October 2026 for production FISCAL
+Supabase (`kcpwxplxqtqdsfwlfsaa`, EU Frankfurt): private bucket exists;
+zero objects, zero `storage.objects` policies, dormant nonlogin probe role,
+no `authenticator` role membership and no live replay ledger. This
+PostgreSQL check does **not** reveal whether third-party OIDC integrations
+have been set through the Supabase Management API; issuer registration
+remains independently unverified.
+
+References:
+- https://supabase.com/docs/guides/auth/third-party/custom-oidc
+- https://supabase.com/docs/guides/auth/third-party/overview
+- https://supabase.com/docs/guides/storage/security/access-control
+
+All real KYB document uploads and approvals, B2C/POS/B2B/B2G fiscal
+issuance and AADE/myDATA transmission remain disabled.
