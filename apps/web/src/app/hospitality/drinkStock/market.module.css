@@ -81,3 +81,62 @@
 .priceTrend>span{color:#8cadba;font-size:9px;letter-spacing:.12em;font-weight:900}
 .priceTrend svg{width:100%;height:44px;overflow:visible}
 .priceTrend small{display:grid;place-items:center;min-height:44px;font-size:10px;color:#809ea7}
+
+
+/* Product-level visual alignment with /drinkstock's neon exchange landing. */
+.stage{
+  background:#111029;color:#fff;border-color:#3a315e;border-radius:24px;
+  box-shadow:0 36px 110px #03010b9c,0 0 65px #692dcb17;
+}
+.header{
+  background:radial-gradient(circle at 95% 15%,#692fb36b,transparent 48%),linear-gradient(125deg,#211936,#100c25);
+  border-bottom:1px solid #3a315e;
+}
+.header h1 span,.overline{color:#caff4e}
+.header p{color:#b9b2d2}
+.header p strong{color:#e6ffac}
+.statusWrap{background:#191332;border-color:#584777}
+.statusWrap small{color:#aaa2c5}
+.liveDot{background:#caff4e;box-shadow:0 0 22px #caff4e}
+.pauseDot{background:#ff50a6;box-shadow:0 0 22px #ff50a680}
+.stats{background:#0e0b24;border-block-color:#3a315e}
+.stats>div{border-right-color:#3a315e}
+.stats span,.toolbarInfo span{color:#aca4c8}
+.stats strong{color:#fff}
+.toolbar{background:#17132c;border-bottom-color:#3a315e}
+.toolbarButtons button,.disclaimer button{background:#211936;color:#fff;border-color:#665585}
+.toolbarButtons button:hover:not(:disabled),.disclaimer button:hover:not(:disabled){border-color:#caff4e}
+.toolbarButtons .primary,.form button,.boundsForm button,.buySignal{
+  background:#caff4e;color:#130d26;border-color:#caff4e;
+  box-shadow:0 10px 30px #b0e03c18;
+}
+.toolbarButtons .primary:hover:not(:disabled),.form button:hover:not(:disabled),.boundsForm button:hover:not(:disabled),.buySignal:hover:not(:disabled){background:#e4ff9c}
+.board,.boardDisplay{background:radial-gradient(circle at 85% 5%,#352063,#0f0c26 72%)}
+.drink{background:linear-gradient(145deg,#231a40,#15112d);border-color:#453769}
+.drink:hover{border-color:#caff4e}
+.rank,.quote{color:#caff4e}
+.category,.movements{color:#b8b1cf}
+.up{color:#caff4e}.down{color:#ff50a6}.flat{color:#c4b8de}
+.bar{background:#44365b}
+.bar i{background:linear-gradient(90deg,#ff50a6,#caff4e)}
+.empty{background:#19132e;border-color:#665585}
+.empty p{color:#b9b2d2}
+.editor,.history{background:#19132f;border-color:#453869}
+.heading span{color:#caff4e}
+.form label,.boundsForm label{color:#e6e0f5}
+.form input,.form select,.boundsForm input{
+  background:#100d25;color:#fff;border:1px solid #665585;
+}
+.form small,.history li small,.noEvents{color:#aca4c8}
+.history li{color:#eee7fb;border-bottom-color:#3a315e}
+.success{background:#203622;color:#deffb2;border-color:#5d8e56}
+.error{background:#411a34;color:#ffc6e2;border-color:#b74787}
+.disclaimer{background:#0c0a20;border-color:#3a315e;color:#b3aaca}
+.boundsEditor{background:linear-gradient(120deg,#251940,#17112f);border-color:#5b477c}
+.boundsEditor>p,.boundsEditor>small{color:#b9b2d2}
+.priceTrend{background:#100d25;border-color:#453869}
+.priceTrend>span,.priceTrend small{color:#aba2c8}
+.stage :is(button,input,select):focus-visible{outline-color:#caff4e}
+@media(max-width:700px){
+  .stats>div:nth-child(-n+2){border-bottom-color:#3a315e}
+}

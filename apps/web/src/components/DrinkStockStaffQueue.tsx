@@ -11,7 +11,7 @@ const labels:Record<NextState,string>={
  accepted:"✓ Accept",preparing:"🍹 Start preparing",ready:"✓ Mark ready",served:"✓ Mark served"
 };
 const euro=(c:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(c/100);
-const style:React.CSSProperties={padding:"12px 18px",fontWeight:800,borderRadius:12,border:0,color:"#101322",background:"#d9ff57",cursor:"pointer"};
+const style:React.CSSProperties={padding:"12px 18px",fontWeight:800,borderRadius:12,border:0,color:"#100c23",background:"#caff4e",cursor:"pointer"};
 
 export function DrinkStockStaffQueue({partnerId,venueId,csrfToken}:{
  partnerId:string;venueId:string;csrfToken:string
@@ -56,16 +56,16 @@ export function DrinkStockStaffQueue({partnerId,venueId,csrfToken}:{
  const pending=orders.filter(o=>["paid","accepted","preparing","ready"].includes(o.state)).length;
  return <section aria-label="DrinkStock order fulfilment" style={{
   maxWidth:1280,margin:"24px auto",padding:"clamp(18px,3vw,28px)",color:"#fff",
-  background:"linear-gradient(130deg,#142836,#1d1434)",
+  background:"linear-gradient(130deg,#15112e,#1d1434)",
   border:"1px solid #6c5774",borderRadius:24
  }}>
   <header style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
-   <div><p style={{fontSize:11,letterSpacing:3,color:"#d9ff57",fontWeight:900}}>STAFF / FULFILMENT</p>
+   <div><p style={{fontSize:11,letterSpacing:3,color:"#caff4e",fontWeight:900}}>STAFF / FULFILMENT</p>
     <h2 style={{fontSize:"clamp(24px,4vw,36px)",margin:"6px 0"}}>Drink order queue</h2>
     <p style={{fontSize:13,color:"#c6bad6",lineHeight:1.6}}>Only provider-confirmed paid orders appear here. No demo orders or invented sales.</p>
    </div>
    <div role="status" style={{padding:"12px 16px",border:"1px solid #ffffff32",borderRadius:14}}>
-    <strong style={{fontSize:26,color:"#d9ff57"}}>{pending}</strong> <span>open orders</span>
+    <strong style={{fontSize:26,color:"#caff4e"}}>{pending}</strong> <span>open orders</span>
    </div>
   </header>
   {error&&<p role="alert" style={{padding:12,background:"#60202c",borderRadius:12}}>Order queue unavailable: {error}</p>}
@@ -78,7 +78,7 @@ export function DrinkStockStaffQueue({partnerId,venueId,csrfToken}:{
      const enabled=Boolean(target)&&order.paymentState==="paid"&&!fiscalRequired&&!busy;
      return <article key={order.id} style={{padding:17,borderRadius:16,background:"#ffffff10",border:"1px solid #ffffff24"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
-       <strong>▦ Table {order.tableLabel??"—"}</strong><strong style={{color:"#d9ff57"}}>{euro(order.amountGrossCents)}</strong>
+       <strong>▦ Table {order.tableLabel??"—"}</strong><strong style={{color:"#caff4e"}}>{euro(order.amountGrossCents)}</strong>
       </div>
       <p style={{fontSize:12,color:"#b9b2d0"}}>{new Date(order.createdAt).toLocaleString("el-GR")} · {order.id.slice(0,8)}</p>
       <strong style={{display:"block",margin:"12px 0",textTransform:"uppercase"}}>{order.state.replaceAll("_"," ")}</strong>

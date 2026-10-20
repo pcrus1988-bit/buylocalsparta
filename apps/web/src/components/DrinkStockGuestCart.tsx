@@ -88,8 +88,8 @@ export function DrinkStockGuestCart({token,initial}:{token:string;initial:Sessio
   <style>{`@keyframes dsGuestPulse{0%,100%{box-shadow:0 0 0 0 #ff355a77}50%{box-shadow:0 0 0 12px #ff355a00}}.ds-guest-crash{animation:dsGuestPulse 1s infinite}@media(prefers-reduced-motion:reduce){.ds-guest-crash{animation:none}}`}</style>
   <div style={{maxWidth:1120,margin:"0 auto"}}>
    <header style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:18,flexWrap:"wrap",borderBottom:"1px solid #ffffff33",paddingBottom:22}}>
-    <div><p style={{letterSpacing:4,color:"#d5ff53",fontSize:11,fontWeight:900}}>DRINKSTOCK / YOUR TABLE</p>
-     <h1 style={{fontSize:"clamp(34px,6vw,68px)",fontWeight:950,letterSpacing:-2,margin:"8px 0"}}>THE DRINK<span style={{color:"#d5ff53"}}> EXCHANGE.</span></h1>
+    <div><p style={{letterSpacing:4,color:"#caff4e",fontSize:11,fontWeight:900}}>DRINKSTOCK / YOUR TABLE</p>
+     <h1 style={{fontSize:"clamp(34px,6vw,68px)",fontWeight:950,letterSpacing:-2,margin:"8px 0"}}>THE DRINK<span style={{color:"#caff4e"}}> EXCHANGE.</span></h1>
      <p style={{color:"#cfc3e9",fontWeight:700,margin:0}}>{view.venue.name} · TABLE {view.tableLabel??"—"}</p>
     </div>
     <div style={{padding:"12px 18px",borderRadius:14,border:"1px solid #ffffff45",background:"#ffffff11",fontWeight:850}}>
@@ -110,22 +110,22 @@ export function DrinkStockGuestCart({token,initial}:{token:string;initial:Sessio
      <p style={{color:"#bdb2d9",lineHeight:1.5}}>Select drinks and request a fresh server-calculated venue price preview. Animations on venue TV screens are demonstrative only: their simulated prices are never the prices used by this cart.</p>
      {view.products.map(drink=>{
       const count=cart[drink.id]??0;
-      return <article key={drink.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:15,padding:17,borderRadius:17,marginBottom:10,border:count?"1px solid #d5ff53":"1px solid #ffffff29",background:"#ffffff10"}}>
+      return <article key={drink.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:15,padding:17,borderRadius:17,marginBottom:10,border:count?"1px solid #caff4e":"1px solid #ffffff29",background:"#ffffff10"}}>
        <div style={{minWidth:0}}><strong style={{fontSize:17}}>{drink.name}</strong><small style={{display:"block",marginTop:6,color:"#b3a6d2"}}>{drink.category.toUpperCase()}</small>
-        <strong style={{display:"block",marginTop:9,color:"#d5ff53",fontSize:23}}>{money(drink.priceCents)}</strong>
+        <strong style={{display:"block",marginTop:9,color:"#caff4e",fontSize:23}}>{money(drink.priceCents)}</strong>
        </div>
        <div style={{display:"flex",alignItems:"center",gap:8}}>
         <button type="button" disabled={!live||loading||count===0} onClick={()=>adjust(drink.id,-1)} aria-label={`Remove one ${drink.name}`} style={{...actionStyle,background:"#392b50",color:"#fff",opacity:(!live||count===0)?0.4:1}}>−</button>
         <span style={{minWidth:20,textAlign:"center",fontWeight:900}}>{count}</span>
-        <button type="button" disabled={!live||loading||count===10||totalUnits>=24} onClick={()=>adjust(drink.id,1)} aria-label={`Add one ${drink.name}`} style={{...actionStyle,background:"#d5ff53",opacity:(!live||count===10||totalUnits>=24)?0.4:1}}>+</button>
+        <button type="button" disabled={!live||loading||count===10||totalUnits>=24} onClick={()=>adjust(drink.id,1)} aria-label={`Add one ${drink.name}`} style={{...actionStyle,background:"#caff4e",opacity:(!live||count===10||totalUnits>=24)?0.4:1}}>+</button>
        </div>
       </article>;
      })}
      {!view.products.length&&<p>No drinks listed for this venue yet.</p>}
     </section>
     <section aria-label="Guest cart" style={{background:"linear-gradient(140deg,#272043,#1c1730)",padding:22,borderRadius:22,border:"1px solid #88769f"}}>
-     <p style={{color:"#d5ff53",fontSize:12,letterSpacing:3,fontWeight:900}}>YOUR TABLE / PRICE PREVIEW</p>
-     <h2 style={{fontSize:28,margin:"10px 0"}}>🛒 Your drinks <span style={{color:"#d5ff53"}}>({totalUnits})</span></h2>
+     <p style={{color:"#caff4e",fontSize:12,letterSpacing:3,fontWeight:900}}>YOUR TABLE / PRICE PREVIEW</p>
+     <h2 style={{fontSize:28,margin:"10px 0"}}>🛒 Your drinks <span style={{color:"#caff4e"}}>({totalUnits})</span></h2>
      {!selected.length?<p style={{color:"#c9bddb"}}>Choose a drink from the live board to start building a cart.</p>:
       <ul style={{paddingLeft:18,lineHeight:2}}>
        {selected.map(([id,qty])=>{
@@ -134,17 +134,17 @@ export function DrinkStockGuestCart({token,initial}:{token:string;initial:Sessio
        })}
       </ul>}
      <button type="button" disabled={!live||!connected||!selected.length||loading} onClick={()=>void calculate()}
-      style={{...actionStyle,width:"100%",padding:17,background:"#d5ff53",fontSize:16,opacity:(!live||!selected.length||loading)?0.5:1}}>
+      style={{...actionStyle,width:"100%",padding:17,background:"#caff4e",fontSize:16,opacity:(!live||!selected.length||loading)?0.5:1}}>
       {loading?"Verifying current prices…":"↗ CHECK CURRENT PRICE"}
      </button>
      {error&&<p role="alert" style={{color:"#ff9fae",lineHeight:1.6}}>{error}</p>}
      {preview&&<div role="status" style={{marginTop:20,padding:18,borderRadius:16,background:"#ffffff12"}}>
-      <strong style={{color:unexpired?"#d5ff53":"#ffa0a0"}}>{unexpired?`Preview expires in ${secondsRemaining}s`:"Price preview expired"}</strong>
+      <strong style={{color:unexpired?"#caff4e":"#ffa0a0"}}>{unexpired?`Preview expires in ${secondsRemaining}s`:"Price preview expired"}</strong>
       <ul style={{paddingLeft:18}}>
        {preview.lines.map(line=><li key={line.productId} style={{padding:"6px 0"}}>{line.quantity} × {line.description} — {money(line.lineGrossCents)}</li>)}
       </ul>
       <div style={{display:"flex",justifyContent:"space-between",gap:12,paddingTop:13,borderTop:"1px solid #ffffff36"}}>
-       <strong>Displayed total</strong><strong style={{color:"#d5ff53",fontSize:23}}>{money(preview.totalGrossCents)}</strong>
+       <strong>Displayed total</strong><strong style={{color:"#caff4e",fontSize:23}}>{money(preview.totalGrossCents)}</strong>
       </div>
       <small style={{display:"block",color:"#bcb2d0",marginTop:10}}>Based on server prices at {new Date(preview.quotedAt).toLocaleTimeString("el-GR")}. Not a binding offer or finalized checkout.</small>
      </div>}

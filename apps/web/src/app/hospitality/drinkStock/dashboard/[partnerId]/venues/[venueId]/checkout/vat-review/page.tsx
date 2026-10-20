@@ -17,9 +17,9 @@ export default async function VenueVatReviewPage({params}:{params:Promise<{partn
   return <main><h1>VAT review unavailable</h1><p>Could not verify venue permissions. Nothing has been changed.</p></main>;
  }
  if(market.venue.role!=="owner")notFound();
- return <main style={{background:"#0e1a30",color:"#f4f5ff",minHeight:"100vh",padding:"30px 16px"}}>
+ return <main style={{background:"#0d0a1e",color:"#f4f5ff",minHeight:"100vh",padding:"30px 16px"}}>
   <section style={{maxWidth:980,margin:"0 auto"}}>
-   <Link href={`/drinkStock/dashboard/${partnerId}/venues/${venueId}/checkout`} style={{color:"#d9ff57"}}>← Checkout activation</Link>
+   <Link href={`/drinkStock/dashboard/${partnerId}/venues/${venueId}/checkout`} style={{color:"#caff4e"}}>← Checkout activation</Link>
    <h1>Review the drinks' VAT classification</h1>
    <p>These product classifications are recorded under the venue owner's authority and audited.
     The applicable rate still depends on the service mode and the venue's verified jurisdiction.

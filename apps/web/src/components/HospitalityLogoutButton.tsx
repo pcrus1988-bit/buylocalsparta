@@ -13,5 +13,5 @@ export function HospitalityLogoutButton(){
      router.replace("/drinkstock/login");
      router.refresh();
    }finally{setBusy(false);}
- }} style={{border:"1px solid #b5c8ba",borderRadius:99,background:"transparent",padding:"12px 16px",cursor:"pointer"}}>Αποσύνδεση</button>;
+ }} style={{border:"1px solid var(--ds-border, #665585)",borderRadius:11,background:"var(--ds-surface-raised, #211936)",color:"var(--ds-ink, #fff)",padding:"12px 16px",cursor:"pointer",fontWeight:850}}>Αποσύνδεση</button>;
 }

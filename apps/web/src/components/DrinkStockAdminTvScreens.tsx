@@ -27,9 +27,9 @@ export function DrinkStockAdminTvScreens({initial,csrfToken}:{initial:AdminScree
       <small style={{display:"block",opacity:.75}}>TV screen · {screen.passId.slice(0,8)}</small></div>
      <div role="group" aria-label={`TV source for ${screen.venueName}`} style={{display:"flex",gap:7,flexWrap:"wrap"}}>
       <button type="button" aria-pressed={screen.feedMode==="simulation"} disabled={Boolean(busy)||screen.feedMode==="simulation"}
-       onClick={()=>void change(screen,"simulation")} style={{padding:"10px 14px",borderRadius:10,border:"1px solid #444",background:screen.feedMode==="simulation"?"#d9ff57":"#fff",color:"#101820",fontWeight:800,cursor:"pointer"}}>Simulation</button>
+       onClick={()=>void change(screen,"simulation")} style={{padding:"10px 14px",borderRadius:10,border:"1px solid #444",background:screen.feedMode==="simulation"?"#caff4e":"#fff",color:"#101820",fontWeight:800,cursor:"pointer"}}>Simulation</button>
       <button type="button" aria-pressed={screen.feedMode==="actual"} disabled={Boolean(busy)||screen.feedMode==="actual"}
-       onClick={()=>void change(screen,"actual")} style={{padding:"10px 14px",borderRadius:10,border:"1px solid #444",background:screen.feedMode==="actual"?"#d9ff57":"#fff",color:"#101820",fontWeight:800,cursor:"pointer"}}>Actual Orders</button>
+       onClick={()=>void change(screen,"actual")} style={{padding:"10px 14px",borderRadius:10,border:"1px solid #444",background:screen.feedMode==="actual"?"#caff4e":"#fff",color:"#101820",fontWeight:800,cursor:"pointer"}}>Actual Orders</button>
      </div>
     </div>)}
    </div>}

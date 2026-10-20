@@ -8,15 +8,15 @@ export function DrinkStockReportsDashboard({report}:{report:DrinkStockPartnerRep
  const max=Math.max(1,...report.daily.map(d=>d.grossCents));
  return <div style={{maxWidth:1250,margin:"0 auto",padding:"24px 18px 65px",color:"#fff",fontFamily:"Arial,sans-serif"}}>
  <div style={{marginBottom:24}}>
-  <Link href={`/drinkstock/dashboard/${report.partnerId}`} style={{color:"#d9ff57"}}>← Partner dashboard</Link>
+  <Link href={`/drinkstock/dashboard/${report.partnerId}`} style={{color:"#caff4e"}}>← Partner dashboard</Link>
   <p style={{color:"#c3ff70",fontSize:12,letterSpacing:3,fontWeight:900,marginTop:24}}>DRINKSTOCK / VENUE INTELLIGENCE</p>
-  <h1 style={{fontSize:"clamp(32px,5vw,56px)",lineHeight:1.07,letterSpacing:-2,margin:"8px 0"}}>Trading reports<span style={{color:"#d9ff57"}}>.</span></h1>
+  <h1 style={{fontSize:"clamp(32px,5vw,56px)",lineHeight:1.07,letterSpacing:-2,margin:"8px 0"}}>Trading reports<span style={{color:"#caff4e"}}>.</span></h1>
   <p style={{color:"#c6bdd9"}}>{report.partnerName} · Private owner/manager reports · Data updated {date(report.generatedAt)}</p>
  </div>
  <nav aria-label="Report date range" style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:18}}>
  {[7,30,90].map(days=><Link key={days} href={`${base}?days=${days}`} aria-current={report.days===days?"page":undefined}
  style={{padding:"11px 16px",borderRadius:12,border:"1px solid #ffffff35",
- color:report.days===days?"#121a21":"#fff",background:report.days===days?"#d9ff57":"#28233e",fontWeight:850,textDecoration:"none"}}>Last {days} days</Link>)}
+ color:report.days===days?"#15112e":"#fff",background:report.days===days?"#caff4e":"#28233e",fontWeight:850,textDecoration:"none"}}>Last {days} days</Link>)}
  </nav>
  <p role="note" style={{padding:16,borderLeft:"4px solid #f0bc70",background:"#a45c1624",borderRadius:10,color:"#ffe9c3",fontSize:14,lineHeight:1.65}}>
   <strong>Reporting integrity:</strong> Commercial totals are derived only from orders with a matching, non-demo provider verification event and exact gross payment amount. Demo trading signals are displayed separately and never count as revenue. This is an operational order-value report, not an accounting or VAT return. Payment capture and fiscal issuance remain disabled until certified integration.
@@ -31,7 +31,7 @@ export function DrinkStockReportsDashboard({report}:{report:DrinkStockPartnerRep
   {label:"Reversed / partial-refund orders",value:String(report.totals.reversalAffectedOrders),detail:"Count only, not assumed refund value"}
  ].map(item=><div key={item.label} style={{...block,minHeight:132}}>
   <p style={{fontSize:12,color:"#bdb3d2",letterSpacing:.5,margin:0}}>{item.label}</p>
-  <strong style={{display:"block",fontSize:"clamp(25px,3vw,34px)",margin:"11px 0",color:"#d9ff57"}}>{item.value}</strong>
+  <strong style={{display:"block",fontSize:"clamp(25px,3vw,34px)",margin:"11px 0",color:"#caff4e"}}>{item.value}</strong>
   <small style={{color:"#c6bed6"}}>{item.detail}</small>
  </div>)}
  </div>
@@ -42,7 +42,7 @@ export function DrinkStockReportsDashboard({report}:{report:DrinkStockPartnerRep
   <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",minWidth:700,width:"100%",textAlign:"left",fontSize:14}}>
    <thead><tr>{["Venue","Verified orders","Gross order value","Sessions","Demo signals","Actual / demo TVs"].map(x=><th key={x} style={{padding:12,borderBottom:"1px solid #ffffff55",color:"#ddd4ec"}}>{x}</th>)}</tr></thead>
    <tbody>{report.venues.map(v=><tr key={v.id}>
-    <td style={{padding:12,borderBottom:"1px solid #ffffff20"}}><Link href={`/drinkstock/dashboard/${report.partnerId}/venues/${v.id}`} style={{color:"#d9ff57"}}>{v.name} ↗</Link></td>
+    <td style={{padding:12,borderBottom:"1px solid #ffffff20"}}><Link href={`/drinkstock/dashboard/${report.partnerId}/venues/${v.id}`} style={{color:"#caff4e"}}>{v.name} ↗</Link></td>
     <td style={{padding:12,borderBottom:"1px solid #ffffff20"}}>{v.verifiedPaidOrders}</td>
     <td style={{padding:12,borderBottom:"1px solid #ffffff20"}}>{euro(v.verifiedGrossCents)}</td>
     <td style={{padding:12,borderBottom:"1px solid #ffffff20"}}>{v.sessionCount}</td>
@@ -57,7 +57,7 @@ export function DrinkStockReportsDashboard({report}:{report:DrinkStockPartnerRep
    {!report.daily.length?<p style={{color:"#c9c1db"}}>No provider-verified paid DrinkStock orders in the selected period. Simulation activity is intentionally excluded.</p>:
    <div style={{display:"grid",gap:10}}>{report.daily.map(d=><div key={d.day} style={{display:"grid",gridTemplateColumns:"88px minmax(0,1fr) 95px",alignItems:"center",gap:10,fontSize:12}}>
     <span>{d.day.slice(5)}</span><div style={{height:13,background:"#ffffff15",borderRadius:7}}>
-     <div style={{height:"100%",width:`${Math.max(2,Math.round(d.grossCents/max*100))}%`,background:"#d9ff57",borderRadius:7}}/>
+     <div style={{height:"100%",width:`${Math.max(2,Math.round(d.grossCents/max*100))}%`,background:"#caff4e",borderRadius:7}}/>
     </div><span style={{textAlign:"right"}}>{euro(d.grossCents)}</span>
    </div>)}</div>}
   </section>
@@ -87,7 +87,7 @@ export function DrinkStockReportsDashboard({report}:{report:DrinkStockPartnerRep
     {report.verifiedDemand.filter(v=>v.verifiedUnits>0).map(venue=>{
      const name=report.venues.find(v=>v.id===venue.venueId)?.name??"Venue";
      const ranked=[...venue.products].sort((a,b)=>b.verifiedUnits-a.verifiedUnits||a.name.localeCompare(b.name)).slice(0,6);
-     return <div key={venue.venueId} style={{padding:18,borderRadius:15,background:"#101e32",border:"1px solid #4d4c69"}}>
+     return <div key={venue.venueId} style={{padding:18,borderRadius:15,background:"#100c23",border:"1px solid #4d4c69"}}>
       <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap",marginBottom:11}}>
        <strong>{name}</strong><span style={{color:"#b9dca3",fontSize:12}}>
         {venue.verifiedUnits.toLocaleString("el-GR")} evidenced drinks · {venue.productsWithVerifiedSales} ordered products
@@ -100,7 +100,7 @@ export function DrinkStockReportsDashboard({report}:{report:DrinkStockPartnerRep
          <small style={{display:"block",color:"#afa8bf",marginTop:5}}>{drink.verifiedUnits.toLocaleString("el-GR")} units · {drink.weightPercent.toFixed(1)}% of venue buys</small>
         </div>
         <div style={{textAlign:"right"}}>
-         <strong style={{color:drink.movementCents>0?"#d9ff57":drink.movementCents<0?"#f6b3b3":"#ddd"}}>
+         <strong style={{color:drink.movementCents>0?"#caff4e":drink.movementCents<0?"#f6b3b3":"#ddd"}}>
           {drink.movementCents>0?"↗":drink.movementCents<0?"↘":"→"} {euro(drink.indicativeCents)}
          </strong>
          <small style={{display:"block",color:"#bcb2cb",marginTop:5}}>illustrative · from {euro(drink.currentCents)}</small>

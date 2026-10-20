@@ -93,7 +93,7 @@ function DrinkVatLine({product,partnerId,venueId,csrfToken,sessionActive}:{
     I am the venue owner and confirm the classification based on the actual drink, its ingredients and applicable Greek tax rules.
    </label>
    <button type="button" onClick={()=>void save()} disabled={saving||sessionActive||!confirmed}
-    style={{padding:12,borderRadius:10,fontWeight:800,background:"#d9ff57",color:"#162326",opacity:(saving||sessionActive||!confirmed)?0.5:1}}>
+    style={{padding:12,borderRadius:10,fontWeight:800,background:"#caff4e",color:"#162326",opacity:(saving||sessionActive||!confirmed)?0.5:1}}>
     {saving?"Saving…":"Save audited VAT classification"}
    </button>
    {error&&<p role="alert" style={{color:"#ffabba",margin:0}}>{error}</p>}
