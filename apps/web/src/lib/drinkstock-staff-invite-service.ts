@@ -152,6 +152,20 @@ export async function claimVenueStaffInvite(u:string,token:string){
   `,[u]);
   if(!account.rows.length)throw new StaffInviteError("VERIFIED_CUSTOMER_ACCOUNT_REQUIRED",403);
   const acceptedBy=account.rows[0]!;
+  // Same lock order as invitation creation/revocation: venue first, then invitation.
+  const lookup=await db.query<{partner_id:string;venue_id:string}>(`
+   SELECT partner_id::text,venue_id::text FROM public.drinkstock_staff_invitations
+   WHERE token_sha256=$1 LIMIT 1
+  `,[digest(token)]);
+  const loc=lookup.rows[0];
+  if(!loc)throw new StaffInviteError("INVITE_NOT_AVAILABLE",403);
+  const venue=await db.query<{id:string}>(`
+   SELECT v.id::text FROM public.hospitality_venues v
+   JOIN public.hospitality_partners p ON p.id=v.partner_id AND p.status='active'
+   JOIN public.hospitality_partner_apps a ON a.partner_id=p.id AND a.app_key='drinkStock' AND a.enabled
+   WHERE v.id=$1::uuid AND v.partner_id=$2::uuid AND v.status='active' FOR UPDATE OF v
+  `,[loc.venue_id,loc.partner_id]);
+  if(!venue.rows.length)throw new StaffInviteError("VENUE_NOT_ACTIVE",403);
   const result=await db.query<{id:string;partner_id:string;venue_id:string;email:string;
    bar:boolean;waiter:boolean;accepted_at:Date|null;accepted_user_id:string|null;
    revoked_at:Date|null;expires_at:Date}>(`
@@ -171,14 +185,6 @@ export async function claimVenueStaffInvite(u:string,token:string){
   }
   if(new Date(invite.expires_at).getTime()<=Date.now())
    throw new StaffInviteError("INVITE_EXPIRED",410);
-  // Lock the venue to serialize role and station grants with assignment changes.
-  const venue=await db.query<{id:string}>(`
-   SELECT v.id::text FROM public.hospitality_venues v
-   JOIN public.hospitality_partners p ON p.id=v.partner_id AND p.status='active'
-   JOIN public.hospitality_partner_apps a ON a.partner_id=p.id AND a.app_key='drinkStock' AND a.enabled
-   WHERE v.id=$1::uuid AND v.partner_id=$2::uuid AND v.status='active' FOR UPDATE OF v
-  `,[invite.venue_id,invite.partner_id]);
-  if(!venue.rows.length)throw new StaffInviteError("VENUE_NOT_ACTIVE",403);
   const member=await db.query<{role:string;status:string}>(`
    SELECT role,status FROM public.hospitality_partner_memberships
    WHERE partner_id=$1::uuid AND user_id=$2 FOR UPDATE
