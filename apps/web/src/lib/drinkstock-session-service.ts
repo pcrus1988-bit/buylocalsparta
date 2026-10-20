@@ -190,6 +190,23 @@ export async function publicSessionView(token:string,kind:"table"|"screen"):Prom
      AND length(btrim(e.provider))>1 AND lower(btrim(e.provider)) NOT IN ('demo','simulation','test')
      AND length(btrim(e.provider_event_id))>0
      AND e.payload_sha256 ~ '^[0-9a-f]{64}
+ ) verified ON TRUE
+ JOIN public.drinkstock_order_lines l ON l.order_id=o.id
+ JOIN public.drinkstock_products d ON d.id=l.product_id
+   AND d.partner_id=o.partner_id AND d.venue_id=o.venue_id
+ WHERE o.partner_id=$1::uuid AND o.venue_id=$2::uuid
+  AND o.session_id=$3::uuid AND o.payment_state='paid'
+  AND o.order_state IN ('paid','accepted','preparing','ready','served')
+ ORDER BY verified.received_at DESC,o.id DESC,l.id DESC LIMIT 16
+ `,[x.partner_id,x.venue_id,s.id]):{rows:[]};
+ return {serverNow:new Date().toISOString(),venue:{id:x.venue_id,partnerId:x.partner_id,name:x.name},session:session(s),products:d,passes:[],tableLabel:x.table_label,
+ ...(kind==="screen"?{feedMode:x.feed_mode}:{}),
+ ...(kind==="screen"&&x.feed_mode==="actual"?{actualTrades:confirmed.rows.filter(q=>mayDisplayActualOrder(q.payment_state,q.order_state,q.event_type,true)).map(q=>({
+ productId:q.product_id,description:q.description,quantity:Number(q.quantity),
+ paidAt:new Date(q.paid_at).toISOString()}))}:{}),
+ signals:signals.rows.map(q=>({id:q.id,productId:q.product_id,productName:q.product_name,createdAt:new Date(q.created_at).toISOString()}))};
+}
+
    ORDER BY e.received_at DESC LIMIT 1
  ) verified ON TRUE
  JOIN public.drinkstock_order_lines l ON l.order_id=o.id
