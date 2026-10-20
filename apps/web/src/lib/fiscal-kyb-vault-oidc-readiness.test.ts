@@ -99,7 +99,7 @@ test("M43 blocks OIDC redirect, cross-host JWKS, wrong issuer and unsupported al
 });
 test("M43 prevents a foreign key, private JWK, duplicate kid, unsigned algorithm and missing key",async()=>{
  const wrong=generateKeyPairSync("rsa",{modulusLength:3072});
- const foreign=createPublicKey(wrong.publicKey).export({format:"jwk"}) as {
+ const foreign=wrong.publicKey.export({format:"jwk"}) as {
   n:string;e:string
  };
  const candidate=jwtKeys.keys[0];
