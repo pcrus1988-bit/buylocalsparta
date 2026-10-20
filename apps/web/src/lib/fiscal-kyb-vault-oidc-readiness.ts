@@ -104,7 +104,7 @@ function validJwksLocation(uri:unknown,issuer:string):uri is string{
    url.username===""&&url.password===""&&url.search===""&&
    url.hash===""&&url.pathname.startsWith("/")&&
    !url.pathname.includes("..")&&!url.pathname.includes("//")&&
-   /^[\/a-zA-Z0-9_-]+$/.test(url.pathname)&&url.href===uri;
+   /^[\/a-zA-Z0-9._-]+$/.test(url.pathname)&&url.href===uri;
  }catch{return false;}
 }
 /**
