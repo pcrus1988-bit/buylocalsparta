@@ -48,7 +48,7 @@ test("fiscal and merchant separation are enforced in admin and SQL data boundari
  assert.match(route,/get\("origin"\)/);
  const policy=source("../src/lib/drinkstock-checkout-fallback-service.ts");
  assert.match(policy,/FOR UPDATE OF p/);
- assert.match(policy,/NOT \\$2::boolean OR/,"inactive partners remain revocable");
+ assert.match(policy,/NOT \$2::boolean OR/,"inactive partners remain revocable");
  assert.match(policy,/FROM public\.hospitality_partner_apps/);
  assert.match(policy,/CHECKOUT_REQUEST_KEY_CONFLICT/);
  assert.match(policy,/INSERT INTO public\.drinkstock_checkout_fallback_events/);
