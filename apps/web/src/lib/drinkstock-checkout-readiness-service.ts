@@ -29,7 +29,7 @@ export async function drinkStockVenueCheckoutReadiness(userId:string,partnerId:s
  const adminApproved=Boolean(approval?.adminEnabled&&approval.posUnavailable&&
   approval.merchantAuthorizationReviewed&&approval.settlementReviewed&&approval.fiscalReviewed);
  return {
-  partnerId,venueId,venueName:view.venue.name,
+  partnerId,venueId,venueName:view.venue.name,canReviewVat:view.venue.role==="owner",
   sessionTrading:view.session?.state==="running"||view.session?.state==="crashing",
   activeProductCount,productsNeedingVatReview,
   ...evaluateDrinkStockCheckoutReadiness({
