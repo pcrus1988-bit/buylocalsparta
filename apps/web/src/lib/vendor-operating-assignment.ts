@@ -6,6 +6,7 @@ import {
   type VendorOperatingAssignment
 } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { platformScope } from "@buy-local-sparta/postgres-runtime";
 
 function databaseAvailable(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim());
@@ -33,7 +34,9 @@ export async function resolveVendorOperatingAssignment(
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
   return uow.withTransaction(
-    { actorUserId: principal.userId, vendorId },
+    // Agreement/prospect RLS is platform-only; limit this internal entitlement lookup
+    // strictly to the vendor ID from the authenticated membership/session.
+    platformScope(principal.userId),
     async (tx) => {
       const result = await tx.query<SqlRow>(`
         SELECT
@@ -90,7 +93,7 @@ export async function resolveVendorOperatingAssignment(
           FROM vendor_commercial_agreements a WHERE a.vendor_id=v.id
           ORDER BY CASE WHEN a.status='active' THEN 0 ELSE 1 END,a.created_at DESC LIMIT 1
         ) agreement ON true
-        WHERE v.public_id = $1 OR v.id::text = $1
+        WHERE (v.public_id = $1 OR v.id::text = $1)
         LIMIT 1
       `, [vendorId]);
 
