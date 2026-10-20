@@ -3,6 +3,7 @@ import { useEffect,useState,type FormEvent } from "react";
 import type {MarketSnapshot} from "../lib/drinkstock-market-service";
 import type {DrinkStockCategory} from "../lib/drinkstock-market-pricing";
 import {recordedRehearsalPriceSeries,priceSparklinePoints} from "../lib/drinkstock-market-trends";
+import {DrinkStockStarterCataloguePicker} from "./DrinkStockStarterCataloguePicker";
 import styles from "../app/hospitality/drinkStock/market.module.css";
 
 const money=(c:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(c/100);
@@ -161,6 +162,7 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
    </form>
    <small>{boundsLocked?"🔒 Bounds are locked during a trading session or rehearsal. End the trading session and pause rehearsal before editing.":"Editable now: floor 50–100%, ceiling 100–200%. Default 70–145%."}</small>
   </section>}
+  {!display&&<DrinkStockStarterCataloguePicker market={market} partnerId={partnerId} venueId={venueId} csrfToken={csrfToken} onImported={setMarket}/>}
   {!display&&<div className={styles.lower}>
     <section className={styles.editor}>
       <div className={styles.heading}><span>01 / BUILD THE BOARD</span><h2>+ Add a drink</h2></div>
