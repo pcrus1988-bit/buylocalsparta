@@ -254,17 +254,17 @@ function hasForbiddenClaim(category,title){
   // cola with both "Zero" and "Χωρίς ζάχαρη" on the package. This is
   // product-type comparison only, never equal sweetener/caffeine formulation.
   if(category==="κολα" &&
-     /(?:^|[^\\p{L}])zero(?=$|[^\\p{L}])/u.test(title) &&
-     /χωρις\\s+ζαχαρη/u.test(title))
+     /(?:^|[^\p{L}])zero(?=$|[^\p{L}])/u.test(title) &&
+     /χωρις\s+ζαχαρη/u.test(title))
     withoutApprovedVariant=withoutApprovedVariant
-      .replace(/(?:^|[^\\p{L}])zero(?=$|[^\\p{L}])/gu," ")
-      .replace(/χωρις\\s+ζαχαρη/gu," ");
+      .replace(/(?:^|[^\p{L}])zero(?=$|[^\p{L}])/gu," ")
+      .replace(/χωρις\s+ζαχαρη/gu," ");
   // Same exact declared "with corn, Vegan" breadstick type only; no
   // certification, allergy or ingredients equivalence is inferred.
   if(["κριτσινια","κριστινια"].includes(category) &&
-     /κριτσιν.*(?:με\\s+)?καλαμποκ/u.test(title) &&
-     /(?:^|[^\\p{L}])vegan(?=$|[^\\p{L}])/u.test(title))
-    withoutApprovedVariant=withoutApprovedVariant.replace(/(?:^|[^\\p{L}])vegan(?=$|[^\\p{L}])/gu," ");
+     /κριτσιν.*(?:με\s+)?καλαμποκ/u.test(title) &&
+     /(?:^|[^\p{L}])vegan(?=$|[^\p{L}])/u.test(title))
+    withoutApprovedVariant=withoutApprovedVariant.replace(/(?:^|[^\p{L}])vegan(?=$|[^\p{L}])/gu," ");
   if(safeLabelledNonCarbonatedCategories.has(category) &&
      /χωρις\s+ανθρακικο/u.test(title))
     withoutApprovedVariant=withoutApprovedVariant.replace(/χωρις\s+ανθρακικο/gu," ");
