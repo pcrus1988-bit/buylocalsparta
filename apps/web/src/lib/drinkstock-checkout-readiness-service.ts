@@ -26,24 +26,13 @@ export async function drinkStockVenueCheckoutReadiness(userId:string,partnerId:s
    OR vat_class NOT IN ('alcoholic','non_alcoholic','water'))::int AS vat_pending_count
  FROM public.drinkstock_products
  WHERE partner_id=$1::uuid AND venue_id=$2::uuid AND active
- `,[partnerId,venueId]),db.query<{
-  standard_rate_confirmed:boolean;payments_capability:string|null;
-  settlements_capability:string|null;verified_at:Date|null;disabled_at:Date|null;
-  mollie_profile_id:string|null;fiscal_issuance_route:string|null;
-  aade_environment:string|null;connectivity_state:string|null;
-  receipt_issuance_verified:boolean|null
- }>(`
- SELECT COALESCE(t.standard_rate_confirmed,FALSE) AS standard_rate_confirmed,
-  m.payments_capability,m.settlements_capability,m.verified_at,m.disabled_at,
-  m.mollie_profile_id,a.fiscal_issuance_route,a.aade_environment,
-  a.connectivity_state,a.receipt_issuance_verified
+ `,[partnerId,venueId]),db.query<{standard_rate_confirmed:boolean}>(`
+ SELECT COALESCE(t.standard_rate_confirmed,FALSE) AS standard_rate_confirmed
  FROM public.hospitality_venues v
  LEFT JOIN public.drinkstock_venue_tax_context t
-  ON t.venue_id=v.id AND t.partner_id=v.partner_id AND t.service_mode='dine_in' AND t.jurisdiction='standard'
- LEFT JOIN public.drinkstock_mollie_merchant_connections m ON m.partner_id=v.partner_id
- LEFT JOIN public.drinkstock_merchant_aade_connections a ON a.partner_id=v.partner_id
- WHERE v.id=$1::uuid AND v.partner_id=$2::uuid
- LIMIT 1
+  ON t.venue_id=v.id AND t.partner_id=v.partner_id
+  AND t.service_mode='dine_in' AND t.jurisdiction='standard'
+ WHERE v.id=$1::uuid AND v.partner_id=$2::uuid LIMIT 1
  `,[venueId,partnerId]),db.query<{paid_unreceipted:number}>(`
  SELECT COUNT(*)::int AS paid_unreceipted
  FROM public.drinkstock_orders o
