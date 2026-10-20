@@ -81,7 +81,7 @@ export function DrinkStockStarterCataloguePicker({market,partnerId,venueId,csrfT
    so the starter library must not be used for commercial pricing of regulated goods without a separate compliance check.
   </p>
   <details>
-   <summary style={{cursor:"pointer",fontWeight:900,padding:"12px 0",color:"#d9ff57"}}>
+   <summary style={{cursor:"pointer",fontWeight:900,padding:"12px 0",color:"#caff4e"}}>
     Open starter catalogue · {remaining} available slots · {selected.length} selected
    </summary>
    <div style={{display:"flex",gap:8,flexWrap:"wrap",margin:"13px 0"}}>
@@ -92,7 +92,7 @@ export function DrinkStockStarterCataloguePicker({market,partnerId,venueId,csrfT
     const entries=available.filter(p=>p.category===group);
     if(!entries.length)return null;
     return <div key={group} style={{marginBottom:20}}>
-     <h3 style={{margin:"12px 0 8px",color:"#d5ff53"}}>{categoryName[group]}</h3>
+     <h3 style={{margin:"12px 0 8px",color:"#caff4e"}}>{categoryName[group]}</h3>
      <div style={{display:"grid",gap:8}}>
       {entries.map(p=>{
        const dine=resolveGreekBeverageVat({vatClass:p.vatClass,mode:"dine_in"}).rateBasisPoints/100;
