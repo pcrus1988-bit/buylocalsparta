@@ -2,6 +2,8 @@ import {getProductionPostgresRuntime,productionDatabaseConfigured} from "./postg
 import {managerSessionView,SessionError} from "./drinkstock-session-service";
 import {CURRENT_DRINKSTOCK_PRODUCTION_CAPABILITIES,evaluateDrinkStockCheckoutReadiness} from "./drinkstock-checkout-readiness";
 import {VERIFIED_PAYMENT_EVIDENCE_SQL} from "./drinkstock-payment-evidence";
+import {molliePaymentsProviderReadiness} from "./mollie-runtime";
+import {myDataReadiness} from "./mydata-runtime";
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -16,7 +18,7 @@ export async function drinkStockVenueCheckoutReadiness(userId:string,partnerId:s
  const view=await managerSessionView(userId,partnerId,venueId);
  if(!["owner","manager"].includes(view.venue.role??""))throw new SessionError("MANAGER_ONLY",403);
  const db=getProductionPostgresRuntime().sqlPool;
- const [r,connections,fiscalBacklog]=await Promise.all([db.query<{
+ const [r,connections,fiscalBacklog,mollieReadiness,aadeReadiness]=await Promise.all([db.query<{
    active_count:number;vat_pending_count:number
  }>(`
  SELECT COUNT(*)::int AS active_count,
@@ -48,18 +50,22 @@ export async function drinkStockVenueCheckoutReadiness(userId:string,partnerId:s
  WHERE o.partner_id=$1::uuid AND o.venue_id=$2::uuid
  AND o.payment_state='paid' AND o.fiscal_state IN ('pending','failed')
  AND o.order_state='awaiting_payment' AND ${VERIFIED_PAYMENT_EVIDENCE_SQL}
- `,[partnerId,venueId])]);
+ `,[partnerId,venueId]),
+ molliePaymentsProviderReadiness().catch(()=>({enabled:false,ready:false,environment:"unknown"})),
+ myDataReadiness().catch(()=>({configured:false,ready:false,environment:"unknown"}))
+ ]);
  const merchant=connections.rows[0];
- const mollieConnectionValid=Boolean(merchant?.mollie_profile_id&&merchant.payments_capability==="enabled"&&
-  merchant.settlements_capability==="enabled"&&!merchant.disabled_at&&merchant.verified_at&&
-  (Date.now()-new Date(merchant.verified_at).getTime())<=7*24*3600*1000);
+ // KONTA MOY central Mollie credentials are the selected fallback provider.
+ // Existing merchant OAuth records are historical and are not a prerequisite.
+ const platformMollieLive=Boolean(mollieReadiness.enabled&&mollieReadiness.ready&&
+  mollieReadiness.environment==="live");
  const taxVerified=Boolean(merchant?.standard_rate_confirmed);
  // AADE/myDATA reporting is not a certified fiscal retail-receipt transport.
  // Report the connection as a prerequisite, but do NOT flip the receipt-adapter
  // capability true until the actual issuer (FHM/eSEND/approved provider) exists.
- const fiscalProviderConnected=Boolean(merchant?.receipt_issuance_verified&&
-  merchant.aade_environment==="production"&&merchant.connectivity_state==="verified"&&
-  merchant.fiscal_issuance_route&&merchant.fiscal_issuance_route!=="unverified");
+ const sharedAadeConfigured=Boolean(aadeReadiness.configured);
+ // Issuance and settlement remain blocked until legal seller and receipt evidence
+ // is separately verified; a connected API is only infrastructure readiness.
  const activeProductCount=Number(r.rows[0]?.active_count??0);
  const productsNeedingVatReview=Number(r.rows[0]?.vat_pending_count??0);
  const approval=view.checkoutFallback;
@@ -70,14 +76,14 @@ export async function drinkStockVenueCheckoutReadiness(userId:string,partnerId:s
   sessionTrading:view.session?.state==="running"||view.session?.state==="crashing",
   activeProductCount,productsNeedingVatReview,
   paidOrdersAwaitingFiscalResolution:Number(fiscalBacklog.rows[0]?.paid_unreceipted??0),
-  merchantConnectionVerified:mollieConnectionValid,
-  merchantFiscalConnectionRecorded:fiscalProviderConnected,
+  merchantConnectionVerified:platformMollieLive,
+  merchantFiscalConnectionRecorded:sharedAadeConfigured,
   standardVatJurisdictionReviewed:taxVerified,
   ...evaluateDrinkStockCheckoutReadiness({
    adminApproved,venueActive:true,activeProductCount,productsNeedingVatReview,
    ...CURRENT_DRINKSTOCK_PRODUCTION_CAPABILITIES,
    vatJurisdictionVerified:taxVerified,
-   merchantSettlementOperational:mollieConnectionValid
+   merchantSettlementOperational:false
   })
  };
 }
