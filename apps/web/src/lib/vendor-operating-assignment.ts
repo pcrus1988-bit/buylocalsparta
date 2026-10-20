@@ -122,7 +122,9 @@ export async function resolveVendorOperatingAssignment(
       const expiresAt = row.subscription_ends_at ? new Date(String(row.subscription_ends_at)).getTime() : undefined;
       const startsAt = row.subscription_starts_at ? new Date(String(row.subscription_starts_at)).getTime() : undefined;
       const now = Date.now();
-      const subscriptionValid = row.subscription_status === "active" &&
+      const subscriptionPlanMatches = !hubPlan && !appPlan ||
+        text(row.subscription_plan) === (hubPlan ?? appPlan);
+      const subscriptionValid = subscriptionPlanMatches && row.subscription_status === "active" &&
         (startsAt === undefined || startsAt <= now) &&
         (expiresAt === undefined || expiresAt > now);
       const hubContractValid = agreementActive &&
