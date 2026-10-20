@@ -34,6 +34,8 @@ assert.ok(cards.includes("Finance · Governed agreement"), "Admin must offer off
 assert.ok(finance.includes("assertAgreementApprovedForSigning"), "Finance must reject pending legal templates");
 assert.ok(preview.includes("Requested agreement plan or billing cycle does not match"), "Preview must reject another plan/cycle");
 assert.ok(claim.includes('formData.get("publishConsent")'), "CLAIM publication consent required");
+assert.ok(claim.includes('formData.get("termsConsent")'), "CLAIM versioned terms consent required");
+assert.ok(claim.includes("templateSha256"), "CLAIM specific terms fingerprint required");
 assert.ok(!claim.includes("merchant agreement accepted"), "CLAIM must not claim merchant-contract acceptance");
 assert.ok(plan.includes('VENDOR_AGREEMENT_LEGAL_STATUS = "approved"'),
   "Reviewed terms must use new approved immutable version");
