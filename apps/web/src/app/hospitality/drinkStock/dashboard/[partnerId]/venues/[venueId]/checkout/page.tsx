@@ -5,6 +5,7 @@ import {hospitalityIdentity} from "../../../../../../../../lib/hospitality-partn
 import {drinkStockVenueCheckoutReadiness} from "../../../../../../../../lib/drinkstock-checkout-readiness-service";
 import {SessionError} from "../../../../../../../../lib/drinkstock-session-service";
 import styles from "../../../../../../hospitality.module.css";
+import {DrinkStockStandardTaxReview} from "../../../../../../../../components/DrinkStockStandardTaxReview";
 
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"DrinkStock · Checkout activation",robots:{index:false,follow:false}};
@@ -35,6 +36,19 @@ export default async function VenueCheckoutReadinessPage({params}:{
     <p style={{marginBottom:0}}>Readiness: {status.readyCount} of {status.totalCount} checks satisfied.
      Customers can view a temporary price estimate but cannot submit a paid order.</p>
    </div>
+   {status.canReviewVat&&<DrinkStockStandardTaxReview
+    partnerId={partnerId} venueId={venueId} csrfToken={principal.csrfToken}
+    alreadyConfirmed={status.standardVatJurisdictionReviewed}/>}
+   {status.paidOrdersAwaitingFiscalResolution>0&&<div role="alert" style={{padding:18,border:"2px solid #f29973",borderRadius:15,background:"#4b2724",margin:"20px 0"}}>
+    <strong>Fiscal exception: {status.paidOrdersAwaitingFiscalResolution} verified paid orders awaiting a legal receipt</strong>
+    <p>These orders have not been released to bar preparation. Inspect the merchant's fiscal issuer and resolve the receipt or refund through an authorized workflow. Do not mark them served manually.</p>
+   </div>}
+   <h2>Provider connections</h2>
+   <p>Merchant-owned Mollie payment and settlement capability:
+    <strong> {status.merchantConnectionVerified?"Verified within 7 days":"Not currently verified"}</strong>.
+    Retail fiscal issuer connection: <strong>{status.merchantFiscalConnectionRecorded?
+      "Recorded as verified (receipt adapter still required)":"Not verified"}</strong>.
+    The KONTA MOY marketplace merchant is never substituted for this venue.</p>
    <h2>Verified readiness</h2>
    <div style={{display:"grid",gap:10}}>
     {good.map(check=><div key={check.code} style={{border:"1px solid #355d53",borderRadius:12,padding:14}}>

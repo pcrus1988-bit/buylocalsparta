@@ -1,0 +1,72 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const read=(s:string)=>readFileSync(new URL(s,import.meta.url),"utf8");
+test("real TV feed uses a complete, safe payment digest predicate",()=>{
+ const live=read("../src/lib/drinkstock-session-service.ts");
+ assert.match(live,/e\.payload_sha256 ~ '\^\[0-9a-f\]\{64\}\$'/);
+ assert.match(live,/AND o\.payment_state='paid'/);
+ assert.match(live,/o\.order_state IN \('paid','accepted','preparing','ready','served'\)/);
+ assert.match(live,/JOIN public\.drinkstock_order_lines/);
+ assert.match(live,/a\.kind=\$2 AND a\.revoked_at IS NULL/);
+});
+test("tax attestation is owner-only and cannot self-certify island reduction or receipt readiness",()=>{
+ const code=read("../src/lib/drinkstock-venue-tax-context-service.ts");
+ const db=read("../../../db/operations/20261020_drinkstock_venue_tax_jurisdiction.sql");
+ assert.match(code,/scope\.rows\[0\]\?\.role!=="owner"/);
+ assert.match(code,/FOR UPDATE OF v/);
+ assert.match(code,/standard_rate_confirmed/);
+ assert.match(code,/TAX_REQUEST_CONFLICT/);
+ assert.match(code,/drinkstock_venue_tax_context_events/);
+ assert.match(db,/service_mode text NOT NULL DEFAULT 'dine_in' CHECK\(service_mode='dine_in'\)/);
+ assert.match(db,/jurisdiction text NOT NULL DEFAULT 'standard' CHECK\(jurisdiction='standard'\)/);
+ assert.match(db,/ENABLE ROW LEVEL SECURITY/g);
+ assert.match(db,/REVOKE ALL ON public\.drinkstock_venue_tax_context/);
+ const route=read("../src/app/api/hospitality/partners/[partnerId]/venues/[venueId]/checkout-tax/route.ts");
+ assert.match(route,/assertCustomerCsrf/);
+ assert.match(route,/get\("origin"\)/);
+});
+test("actual readiness is based on scoped DB merchant evidence but payment capability stays fail-closed",()=>{
+ const code=read("../src/lib/drinkstock-checkout-readiness-service.ts");
+ assert.match(code,/drinkstock_mollie_merchant_connections/);
+ assert.match(code,/drinkstock_merchant_aade_connections/);
+ assert.match(code,/merchant\.payments_capability==="enabled"/);
+ assert.match(code,/merchant\.settlements_capability==="enabled"/);
+ assert.match(code,/merchantConnectionVerified/);
+ assert.match(code,/merchantFiscalConnectionRecorded/);
+ assert.match(code,/vatJurisdictionVerified:taxVerified/);
+ assert.match(code,/CURRENT_DRINKSTOCK_PRODUCTION_CAPABILITIES/);
+ const policy=read("../src/lib/drinkstock-checkout-readiness.ts");
+ assert.match(policy,/checkoutLive: false/);
+ assert.match(policy,/pspVerificationOperational: false/);
+ assert.match(policy,/certifiedReceiptIssuerOperational: false/);
+});
+test("webhook only correlates to existing internal order, retrieves merchant-owned Mollie payment and holds fiscal",()=>{
+ const code=read("../src/lib/drinkstock-mollie-payment-reconciliation.ts");
+ const sql=read("../../../db/operations/20261020_drinkstock_merchant_payment_attempts.sql");
+ assert.match(code,/verifyPartnerDrinkStockPayment/);
+ assert.match(code,/JOIN public\.drinkstock_orders o ON o\.id=a\.order_id/);
+ assert.match(code,/FOR UPDATE OF a,o/);
+ assert.match(code,/PAYMENT_ORDER_AMOUNT_MISMATCH/);
+ assert.match(code,/PAYMENT_EVIDENCE_DUPLICATE_CONFLICT/);
+ assert.match(code,/payment_state='paid'/);
+ assert.match(code,/fiscal_state='pending'/);
+ assert.match(code,/order_state='awaiting_payment'/);
+ assert.doesNotMatch(code,/order_state='paid'/);
+ assert.match(code,/payload_sha256/);
+ assert.match(sql,/payment_id text NOT NULL UNIQUE/);
+ assert.match(sql,/ENABLE ROW LEVEL SECURITY/);
+ assert.match(sql,/REVOKE ALL ON public\.drinkstock_merchant_payment_attempts/);
+ const route=read("../src/app/api/hospitality/mollie/payment-webhook/route.ts");
+ assert.match(route,/readDrinkStockMollieWebhook/);
+ assert.match(route,/reconcileDrinkStockMollieWebhook/);
+ assert.doesNotMatch(route,/api\/payments\/mollie\/webhook/);
+});
+
+test("unreceipted captured payments never surface as bar or waiter tickets",()=>{
+ const code=read("../src/lib/drinkstock-fulfilment-service.ts");
+ assert.ok(code.includes("AND o.order_state IN ('paid','accepted','preparing','ready','served','refunded')"));
+ const readiness=read("../src/lib/drinkstock-checkout-readiness-service.ts");
+ assert.match(readiness,/paidOrdersAwaitingFiscalResolution/);
+ assert.match(readiness,/VERIFIED_PAYMENT_EVIDENCE_SQL/);
+});

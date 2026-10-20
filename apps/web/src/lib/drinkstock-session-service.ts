@@ -189,8 +189,8 @@ export async function publicSessionView(token:string,kind:"table"|"screen"):Prom
      AND e.amount_cents=o.amount_gross_cents
      AND length(btrim(e.provider))>1 AND lower(btrim(e.provider)) NOT IN ('demo','simulation','test')
      AND length(btrim(e.provider_event_id))>0
-     AND e.payload_sha256 ~ '^[0-9a-f]{64}
-   ORDER BY e.received_at DESC LIMIT 1
+     AND e.payload_sha256 ~ '^[0-9a-f]{64}$'
+    ORDER BY e.received_at DESC LIMIT 1
  ) verified ON TRUE
  JOIN public.drinkstock_order_lines l ON l.order_id=o.id
  JOIN public.drinkstock_products d ON d.id=l.product_id
