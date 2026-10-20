@@ -1,4 +1,4 @@
-import {readDrinkStockMollieWebhook,reconcileDrinkStockMollieWebhook,DrinkStockPaymentVerifyError} from "../../../../../../lib/drinkstock-mollie-payment-reconciliation";
+import {readDrinkStockMollieWebhook,reconcileDrinkStockMollieWebhook,DrinkStockPaymentVerifyError} from "../../../../../lib/drinkstock-mollie-payment-reconciliation";
 export const runtime="nodejs";export const dynamic="force-dynamic";
 const headers={"cache-control":"no-store","x-robots-tag":"noindex, nofollow"};
 /** Mollie's webhook body only supplies an untrusted payment ID; the payment is
