@@ -33,6 +33,11 @@ export default async function FiscalDraftInbox({searchParams}:{
  if(filters.lane)nextParams.set("lane",filters.lane);
  if(filters.source)nextParams.set("source",filters.source);
  if(inbox.nextCursor)nextParams.set("after",inbox.nextCursor);
+ const exportParams=new URLSearchParams();
+ if(account)exportParams.set("organizationId",account.id);
+ if(filters.lane)exportParams.set("lane",filters.lane);
+ if(filters.source)exportParams.set("source",filters.source);
+ if(filters.after)exportParams.set("after",filters.after);
  return <main className="fiscal-shell"><div className="fiscal-wrap">
   <header className="fiscal-topbar"><Link href="/timologio" className="fiscal-brand">KONTA MOY <span>FISCAL</span></Link>
    <nav><Link href="/timologio/dashboard">Οι επιχειρήσεις μου</Link><Link href="/timologio/counterparties">Αντισυμβαλλόμενοι</Link><Link href="/timologio/developers">Διασυνδέσεις</Link></nav>
@@ -68,6 +73,10 @@ export default async function FiscalDraftInbox({searchParams}:{
      <div className="fiscal-section">
       <h2>Εγγραφές · {account.legal_name}</h2>
       <p className="fiscal-muted">Εμφανίζονται έως 25 εγγραφές ανά σελίδα, με τις νεότερες πρώτες. Δεν προφορτώνονται όλα τα δεδομένα.</p>
+      <p><a className="fiscal-button secondary" style={{color:"#10323c"}}
+       href={"/timologio/api/console/drafts/export?"+exportParams.toString()}>
+       Λήψη CSV · Τρέχουσα σελίδα (έως 25 εγγραφές)</a></p>
+      <p className="fiscal-muted">Το CSV περιέχει μόνο τις πραγματικά αποθηκευμένες δοκιμαστικές εγγραφές που εμφανίζονται στην επιλεγμένη σελίδα. Κάθε γραμμή χαρακτηρίζεται ρητά «NON_FISCAL_TEST_DRAFT · NOT_ISSUED_NOT_TRANSMITTED». Δεν είναι επίσημο παραστατικό ούτε μπορεί να χρησιμοποιηθεί για φορολογική υποβολή.</p>
       {inbox.rows.length===0?<p>Δεν υπάρχουν πρόχειρες εγγραφές για αυτά τα φίλτρα.</p>:
        <div style={{overflowX:"auto"}}>
         <table className="fiscal-table">
