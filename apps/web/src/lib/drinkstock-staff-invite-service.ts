@@ -1,7 +1,6 @@
 import {createHash,randomBytes} from "node:crypto";
 import {getProductionPostgresRuntime,productionDatabaseConfigured} from "./postgres-runtime";
 import {parseStaffInviteClaim,type StaffInviteCreate} from "./drinkstock-staff-invite-policy";
-import {StationAccessError,requireStationAccess} from "./drinkstock-station-access-service";
 export class StaffInviteError extends Error{
  readonly code:string;readonly status:number;
  constructor(code:string,status:number){super(code);this.code=code;this.status=status;}
@@ -167,10 +166,10 @@ export async function claimVenueStaffInvite(u:string,token:string){
   `,[loc.venue_id,loc.partner_id]);
   if(!venue.rows.length)throw new StaffInviteError("VENUE_NOT_ACTIVE",403);
   const result=await db.query<{id:string;partner_id:string;venue_id:string;email:string;
-   bar:boolean;waiter:boolean;accepted_at:Date|null;accepted_user_id:string|null;
+   bar:boolean;waiter:boolean;created_by:string;accepted_at:Date|null;accepted_user_id:string|null;
    revoked_at:Date|null;expires_at:Date}>(`
    SELECT i.id::text,i.partner_id::text,i.venue_id::text,i.email::text,
-    i.bar,i.waiter,i.accepted_at,i.accepted_user_id,i.revoked_at,i.expires_at
+    i.bar,i.waiter,i.created_by,i.accepted_at,i.accepted_user_id,i.revoked_at,i.expires_at
    FROM public.drinkstock_staff_invitations i
    WHERE i.token_sha256=$1
    FOR UPDATE OF i
@@ -203,7 +202,7 @@ export async function claimVenueStaffInvite(u:string,token:string){
       partner_id,venue_id,user_id,station,assigned_by)
     VALUES($1::uuid,$2::uuid,$3,$4,$5)
     ON CONFLICT(venue_id,user_id,station) DO NOTHING
-   `,[invite.partner_id,invite.venue_id,u,station,invite.id]);
+   `,[invite.partner_id,invite.venue_id,u,station,invite.created_by]);
   }
   await db.query(`
    UPDATE public.drinkstock_staff_invitations
