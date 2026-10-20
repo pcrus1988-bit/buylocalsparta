@@ -59,4 +59,18 @@ assert.ok(directorySql.includes("UNIQUE(prospect_id,template_version)"), "Accept
 assert.ok(directorySql.includes("ENABLE ROW LEVEL SECURITY"), "Private acceptance evidence must use RLS");
 assert.ok(agreementPage.includes('name="termsConsent" required'), "Plan agreement must have its own required checkbox");
 assert.ok(agreementPage.includes('name="publishConsent" required'), "Separate publishing consent must remain required");
+const presence = read("apps/web/src/lib/hub-presence-runtime.ts");
+const presencePage = read("apps/web/src/app/hubs/presence/[id]/page.tsx");
+const stateEmails = read("apps/web/src/lib/vendor-email-workflows.ts");
+for (const term of [
+  "vendor_directory_agreement_acceptances",
+  "PRESENCE_AGREEMENT_VERSION_CHANGED",
+  "status='approved'",
+  "directoryPlanAgreement",
+  "publicationConsent"
+]) assert.ok(presence.includes(term), "PRESENCE terms acceptance incomplete: " + term);
+assert.ok(presencePage.includes('name="termsConsent" required'), "PRESENCE requires distinct terms consent");
+assert.ok(presencePage.includes('name="publishConsent" required'), "PRESENCE requires separate future publication consent");
+assert.ok(hub.includes("PRESENCE_ACTIVATION_NOT_READY"), "Unverified PRESENCE billing/publication must not become converted");
+assert.ok(stateEmails.includes("presenceInvitationId"), "Approved PRESENCE must have agreement acceptance invitation");
 console.log("Vendor agreements: plan-matched HUB + Sparta activation gates, admin draft visibility and CLAIM directory separation OK.");
