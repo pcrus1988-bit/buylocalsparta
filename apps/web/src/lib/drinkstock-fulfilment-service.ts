@@ -1,6 +1,8 @@
 import {getProductionPostgresRuntime,productionDatabaseConfigured} from "./postgres-runtime";
 import {mayAdvanceOrder,type DrinkOrderState,type PaymentState} from "./drinkstock-commerce-policy";
 import {VERIFIED_PAYMENT_EVIDENCE_SQL,ISSUED_RECEIPT_EVIDENCE_SQL} from "./drinkstock-payment-evidence";
+import {mayStationAdvance,type DrinkStockStation} from "./drinkstock-station-policy";
+import {requireStationAccess} from "./drinkstock-station-access-service";
 export class FulfilmentError extends Error {constructor(public readonly code:string,public readonly status:number){super(code);}}
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export type StaffOrder={
@@ -23,10 +25,11 @@ async function permission(db:Db,user:string,p:string,v:string){
  if(!r.rows[0])throw new FulfilmentError("NOT_FOUND",404);
  return r.rows[0].role;
 }
-export async function staffOrderQueue(user:string,p:string,v:string):Promise<{role:string;orders:StaffOrder[]}>{
+export async function staffOrderQueue(user:string,p:string,v:string,station?:DrinkStockStation):Promise<{role:string;orders:StaffOrder[]}>{
  scope(p,v);const db=getProductionPostgresRuntime().sqlPool;
  const role=await permission(db,user,p,v);
- if(role==="viewer")throw new FulfilmentError("STAFF_REQUIRED",403);
+ if(station)await requireStationAccess(db,user,p,v,station);
+ else if(role!=="owner"&&role!=="manager")throw new FulfilmentError("MANAGER_REQUIRED",403);
  const r=await db.query<{id:string;table_label:string|null;order_state:DrinkOrderState;payment_state:PaymentState;fiscal_state:string;receipt_issued:boolean;amount_gross_cents:number;created_at:Date}>(`
  SELECT o.id::text,a.table_label,o.order_state,o.payment_state,o.fiscal_state,o.amount_gross_cents,o.created_at,
  ${ISSUED_RECEIPT_EVIDENCE_SQL} AS receipt_issued
@@ -59,13 +62,14 @@ export function validateFulfilmentAction(value:unknown):{orderId:string;next:"ac
   throw new FulfilmentError("INVALID_ACTION",400);
  return {orderId:b.orderId,requestKey:b.requestKey,next:b.next as "accepted"|"preparing"|"ready"|"served"};
 }
-export async function advanceStaffOrder(user:string,p:string,v:string,command:ReturnType<typeof validateFulfilmentAction>){
+export async function advanceStaffOrder(user:string,p:string,v:string,command:ReturnType<typeof validateFulfilmentAction>,station?:DrinkStockStation){
  scope(p,v);
  const db=await getProductionPostgresRuntime().sqlPool.connect();
  try{
  await db.query("BEGIN");await db.query("SET LOCAL statement_timeout='8s'");
  const role=await permission(db,user,p,v);
- if(!["owner","manager","staff"].includes(role))throw new FulfilmentError("STAFF_REQUIRED",403);
+ if(station)await requireStationAccess(db,user,p,v,station);
+ else if(role!=="owner"&&role!=="manager")throw new FulfilmentError("MANAGER_REQUIRED",403);
  const found=await db.query<{id:string;order_state:DrinkOrderState;payment_state:PaymentState;fiscal_state:string;confirmed_payment:boolean;issued_receipt:boolean}>(`
  SELECT o.id::text,o.order_state,o.payment_state,o.fiscal_state,
   ${VERIFIED_PAYMENT_EVIDENCE_SQL} AS confirmed_payment,
@@ -78,6 +82,8 @@ export async function advanceStaffOrder(user:string,p:string,v:string,command:Re
  WHERE order_id=$1::uuid AND request_key=$2::uuid`,[command.orderId,command.requestKey]);
  if(was.rows.length){await db.query("COMMIT");return {replayed:true,orderState:order.order_state};}
  if(order.payment_state!=="paid"||!order.confirmed_payment)throw new FulfilmentError("PAYMENT_NOT_VERIFIED",409);
+ if(station&&!mayStationAdvance(station,order.order_state,command.next))
+  throw new FulfilmentError("STATION_TRANSITION_FORBIDDEN",403);
  if(!mayAdvanceOrder(order.order_state,command.next,order.payment_state))
   throw new FulfilmentError("INVALID_ORDER_TRANSITION",409);
  if(command.next==="served"&&(order.fiscal_state!=="issued"||!order.issued_receipt))
