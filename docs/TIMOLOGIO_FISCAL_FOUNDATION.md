@@ -1283,3 +1283,45 @@ References:
 
 All real KYB document uploads and approvals, B2C/POS/B2B/B2G fiscal
 issuance and AADE/myDATA transmission remain disabled.
+
+
+## Milestone 44 — production merchant draft CSV export (20 October 2026)
+
+M44 adds a **real, useful download of merchant-owned saved test drafts**.
+Inside authenticated `/timologio/drafts`, select the business and optional
+lane/source filters; the new `Λήψη CSV` action exports precisely the records
+visible **on the current page (at most 25 rows)**. It is available through
+the separately deployed `fiscal/service` Next.js application at
+`GET /timologio/api/console/drafts/export`.
+
+**Data source:** existing live, independently hosted FISCAL PostgreSQL
+`fiscal_document_intakes`, not generated/demo fixtures. Every query
+joins the logged-in merchant's active `fiscal_memberships` and
+`fiscal_users`, checks organization ID and holds the same stable
+`created_at,id` pagination as the merchant inbox. A second
+server-side organization-membership check rejects unauthorized organization
+IDs with 404; unauthenticated calls return 401; malformed, duplicated or
+unexpected filter fields return 400. This is a read-only GET with
+`Cache-Control: private, no-store`, anti-indexing and download-only headers;
+it writes no database rows, emails no data and contacts no third parties.
+
+**CSV safeguards:** UTF-8 BOM for Greek spreadsheet support; fixed schema,
+fixed safe filename, CR/LF/control and bidirectional override stripping,
+doubled quote escaping, formula-like cell prefix protection and a hard
+25-record cap. Only selected draft metadata is exported, not an organization's
+entire record history in one unbounded request. Each exported row carries
+`NON_FISCAL_TEST_DRAFT` and `NOT_ISSUED_NOT_TRANSMITTED`; blank gross
+amounts are not silently converted to zero.
+
+The feature does **not** create, sign, number, convert, issue, settle,
+print as a legal invoice, or transmit anything to AADE/myDATA. It does not
+modify KYB approvals, tenant memberships, account recovery, Storage access,
+external provider credentials or production feature flags. The separately
+gated M22 migrations 0018–0021 remain unaffected.
+
+Acceptance includes CSV/filter/parser/injection tests, standalone route
+manifest verification and a real Next.js HTTP test against a disposable,
+isolated FISCAL PostgreSQL: logged-in merchant can export a freshly stored
+draft, unrelated merchant gets 404, anonymous gets 401, duplicate filter
+gets 400, filtered lane excludes unrelated drafts. **CI fixtures are never
+sent to or written to the live FISCAL database.**
