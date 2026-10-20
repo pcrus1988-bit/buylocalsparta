@@ -103,6 +103,8 @@ jobs:
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-vault-access-boundary.test.ts
       - name: Verify M37 synthetic HTTP Storage API contract and cleanup failures
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-vault-storage-api-probe.test.ts
+      - name: Verify M43 pinned live OIDC/JWKS compatibility and SSRF-negative gates
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-vault-oidc-readiness.test.ts
       - name: Verify M42 single-use synthetic dispatch and fail-closed signature gate
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-kyb-vault-replay-barrier.test.ts
       - name: Verify M42 atomic PostgreSQL replay ledger with concurrent sessions and denial roles
