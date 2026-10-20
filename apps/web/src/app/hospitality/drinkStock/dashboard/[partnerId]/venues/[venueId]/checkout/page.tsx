@@ -52,6 +52,10 @@ export default async function VenueCheckoutReadinessPage({params}:{
      style={{display:"inline-block",padding:"12px 16px",borderRadius:11,background:"#d9ff57",color:"#142132",fontWeight:800,textDecoration:"none"}}>
      Review drink VAT classifications ↗
    </Link></p>}
+   {status.canReviewVat&&<p><Link href={`/drinkStock/dashboard/${partnerId}/payments`}
+    style={{display:"inline-block",padding:"12px 16px",borderRadius:11,background:"#b9e9ff",color:"#142132",fontWeight:800,textDecoration:"none"}}>
+    Connect merchant Mollie & AADE ↗
+   </Link></p>}
    <p><Link href={`/drinkStock/dashboard/${partnerId}/venues/${venueId}/integrations`}>View POS integration options ↗</Link></p>
    <p style={{fontSize:13,opacity:.8}}>No payment credentials, bank payout details or fiscal provider secrets are displayed here. Operational adapter checks cannot be approved by the venue or switched on through this page.</p>
   </section>
