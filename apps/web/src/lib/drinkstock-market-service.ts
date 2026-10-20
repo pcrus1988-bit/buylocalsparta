@@ -1,10 +1,11 @@
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import {mayMutateRehearsal} from "./drinkstock-screen-showcase";
+import type {BeverageVatClass} from "./drinkstock-greek-vat";
 import { drinkPriceBand, priceRehearsalDemand, VENUE_MAX_PRODUCTS, DEFAULT_PRICE_BOUNDS, venueCanManageMarket, mayEditPreSessionConfig, type MarketBounds, type RehearsalDrink, type RehearsalMovement, type DrinkStockCategory, type validateMarketAction } from "./drinkstock-market-pricing";
 
 type Action = ReturnType<typeof validateMarketAction>;
 export type MarketVenue = Readonly<{id:string;name:string;partnerId:string;role:string;rehearsalEnabled:boolean;activeSession:boolean;bounds:MarketBounds}>;
-export type MarketProduct = Readonly<{id:string;name:string;category:DrinkStockCategory;baseCents:number;priceCents:number;minCents:number;maxCents:number;active:boolean}>;
+export type MarketProduct = Readonly<{id:string;name:string;category:DrinkStockCategory;baseCents:number;priceCents:number;minCents:number;maxCents:number;active:boolean;vatClass:BeverageVatClass;vatReviewed:boolean;catalogueKey:string|null}>;
 export type MarketEvent = Readonly<{id:string;type:string;selectedProductId:string|null;movements:RehearsalMovement[];createdAt:string}>;
 export type MarketSnapshot = Readonly<{venue:MarketVenue;products:MarketProduct[];events:MarketEvent[];canManage:boolean;mode:"rehearsal_only"}>;
 
@@ -47,9 +48,9 @@ async function authorizedVenue(db:ReadDb,userId:string,partnerId:string,venueId:
   return {id:row.id,name:row.name,partnerId:row.partner_id,role:row.role,rehearsalEnabled:row.rehearsal_enabled,activeSession:row.active_session,
     bounds:{floorPercent:Number(row.floor_percent),ceilingPercent:Number(row.ceiling_percent)}};
 }
-type ProductRow={id:string;name:string;category:DrinkStockCategory;base_cents:number;price_cents:number;min_cents:number;max_cents:number;active:boolean};
+type ProductRow={id:string;name:string;category:DrinkStockCategory;base_cents:number;price_cents:number;min_cents:number;max_cents:number;active:boolean;vat_class:BeverageVatClass;vat_reviewed:boolean;catalogue_key:string|null};
 const productSql=`
-SELECT d.id::text AS id,d.name,d.category,d.base_cents,d.price_cents,d.min_cents,d.max_cents,d.active
+SELECT d.id::text AS id,d.name,d.category,d.base_cents,d.price_cents,d.min_cents,d.max_cents,d.active,d.vat_class,d.vat_reviewed,d.catalogue_key
 FROM public.drinkstock_products d
 WHERE d.partner_id=$2::uuid AND d.venue_id=$3::uuid AND d.active=TRUE
 AND EXISTS(
@@ -66,7 +67,8 @@ async function authorizedProducts(db:ReadDb,u:string,p:string,v:string):Promise<
   const result=await db.query<ProductRow>(productSql,[u,p,v]);
   if(result.rows.length>VENUE_MAX_PRODUCTS)throw new DrinkStockMarketError("PRODUCT_LIMIT_REACHED",409);
   return result.rows.map(d=>({id:d.id,name:d.name,category:d.category,baseCents:Number(d.base_cents),
-    priceCents:Number(d.price_cents),minCents:Number(d.min_cents),maxCents:Number(d.max_cents),active:Boolean(d.active)}));
+    priceCents:Number(d.price_cents),minCents:Number(d.min_cents),maxCents:Number(d.max_cents),active:Boolean(d.active),
+    vatClass:d.vat_class,vatReviewed:Boolean(d.vat_reviewed),catalogueKey:d.catalogue_key}));
 }
 type EventRow={id:string;event_type:string;selected_product_id:string|null;movements:unknown;created_at:string|Date};
 export async function drinkStockMarketSnapshot(userId:string,partnerId:string,venueId:string):Promise<MarketSnapshot>{
