@@ -628,6 +628,13 @@ export async function activateCommercialAgreement(principal: SessionPrincipal, r
     `, [agreementId]);
     if (!current.rowCount) throw new Error("Agreement not found");
     const row = current.rows[0];
+    const linkedHub = await client.query(
+      "SELECT 1 FROM hub_expansion_prospects WHERE vendor_id=$1::uuid LIMIT 1",
+      [row.vendor_id]
+    );
+    if (linkedHub.rowCount) {
+      throw new Error("HUB_FINAL_ACTIVATION_REQUIRES_APPLICATION: Complete the plan-specific agreement, verified payment and final conversion from Admin → Applications. Finance must not activate a HUB vendor independently.");
+    }
     if (!["govgr_verified","eligible_for_activation","suspended"].includes(String(row.status))) throw new Error("Agreement is not eligible for activation");
     if (!row.signed_pdf_object_key || !row.signed_pdf_sha256 || !row.signed_document_received_at || !row.govgr_reference || !row.govgr_verified_at || !row.govgr_verified_by) throw new Error("Activation requires a stored signed PDF and verified gov.gr reference");
     const actorUserId = await resolveActorUserId(client, principal);

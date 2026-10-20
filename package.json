@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "npm --workspace @buy-local-sparta/web run build",
-    "test:vendor-plan-agreements": "node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs --test apps/web/test/vendor-plan-agreements.test.ts",
+    "test:vendor-plan-agreements": "node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs --test apps/web/test/vendor-plan-agreements.test.ts && node --experimental-strip-types scripts/verify-vendor-agreement-workflow-bridge.ts && node --experimental-strip-types scripts/verify-vendor-subscription-boundary.ts",
     "test:core": "node --experimental-strip-types --test packages/core/test/*.test.ts",
     "test:admin-mail-attachment": "node --experimental-strip-types --test apps/web/src/lib/admin-mail-attachment-headers.test.ts",
     "test:research-press-csv": "node --experimental-strip-types --test scripts/verify-research-press-csv.test.ts",

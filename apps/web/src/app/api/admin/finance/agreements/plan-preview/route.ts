@@ -131,7 +131,7 @@ export async function GET(request: Request) {
     return new Response(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": "attachment; filename=KONTAMOU-" + code + "-DRAFT.pdf",
+        "Content-Disposition": "attachment; filename=KONTAMOU-" + code + "-" + (plan.legalReviewStatus === "approved" ? "TERMS" : "DRAFT") + ".pdf",
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff"
       }

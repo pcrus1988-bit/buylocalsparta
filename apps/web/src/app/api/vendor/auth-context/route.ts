@@ -17,6 +17,8 @@ export async function GET() {
         hubId: context.hubId,
         locationId: context.locationId,
         operatingModel: context.operatingModel,
+        subscriptionPlanCode: context.subscriptionPlanCode,
+        subscriptionState: context.subscriptionState,
         capabilities: context.capabilities
       },
       trial: trial ? {

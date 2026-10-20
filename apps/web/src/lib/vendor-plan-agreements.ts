@@ -5,8 +5,9 @@ import { getHubExpansionPlan, type HubBillingCycle, type HubExpansionPlanCode } 
  * catalogue; Sparta legacy prices mirror /join/sparta pending centralization.
  * This catalog is deliberately versioned: signed snapshots must NEVER be rewritten.
  */
-export const VENDOR_AGREEMENT_TEMPLATE_VERSION = "2026-10-11-v1";
-export const VENDOR_AGREEMENT_LEGAL_STATUS = "pending_legal_review" as const;
+// New operator-confirmed reviewed release; legacy v1 remains immutable.
+export const VENDOR_AGREEMENT_TEMPLATE_VERSION = "2026-10-20-v2";
+export const VENDOR_AGREEMENT_LEGAL_STATUS = "approved" as const;
 export type SpartaAgreementPlanCode = "monthly" | "annual" | "founding_2026";
 export type VendorAgreementPlanCode = HubExpansionPlanCode | SpartaAgreementPlanCode;
 export type VendorAgreementKind = "directory" | "merchant";
