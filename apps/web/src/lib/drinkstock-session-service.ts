@@ -3,6 +3,7 @@ import {getProductionPostgresRuntime,productionDatabaseConfigured} from "./postg
 import {operationalSessionCanStart} from "./drinkstock-screen-showcase";
 import {isTvFeedMode,mayDisplayActualOrder} from "./drinkstock-screen-feed-policy";
 import {EXPIRE_DRINKSTOCK_CRASH_SQL} from "./drinkstock-session-recovery";
+import {checkoutFallbackByPartner,type CheckoutFallbackSnapshot} from "./drinkstock-checkout-fallback-service";
 export class SessionError extends Error{constructor(public readonly code:string,public readonly status:number){super(code);}}
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TOKEN=/^[A-Za-z0-9_-]{43}$/;
@@ -11,7 +12,8 @@ type R={id:string;state:State;revision:number;floor_percent:number;ceiling_perce
 type Db={query<T extends Record<string,unknown>>(sql:string,values?:readonly unknown[]):Promise<{rows:readonly T[];rowCount:number}>};
 export type ScreenFeedMode="simulation"|"actual";
 export type VerifiedScreenTrade={productId:string;description:string;quantity:number;paidAt:string};
-export type SessionView={serverNow:string;feedMode?:ScreenFeedMode;actualTrades?:VerifiedScreenTrade[];venue:{id:string;partnerId:string;name:string;role?:string};
+export type SessionView={serverNow:string;feedMode?:ScreenFeedMode;actualTrades?:VerifiedScreenTrade[];
+ checkoutFallback?:CheckoutFallbackSnapshot;venue:{id:string;partnerId:string;name:string;role?:string};
  session:{id:string;state:State;revision:number;floorPercent:number;ceilingPercent:number;crashUntil:string|null;startedAt:string|null}|null;
  passes:{id:string;kind:string;tableLabel:string|null;feedMode:ScreenFeedMode}[];
  products:{id:string;name:string;category:string;baseCents:number;priceCents:number}[];
@@ -53,12 +55,12 @@ async function products(db:Db,p:string,v:string){
 export async function managerSessionView(userId:string,p:string,v:string):Promise<SessionView>{
  checkScope(p,v);const db=getProductionPostgresRuntime().sqlPool;
  const access=await venue(db,userId,p,v);
- const [s,d,passes]=await Promise.all([current(db,p,v),products(db,p,v),
+ const [s,d,passes,checkoutFallback]=await Promise.all([current(db,p,v),products(db,p,v),
   db.query<{id:string;kind:string;table_label:string|null;feed_mode:ScreenFeedMode}>(`SELECT id::text,kind,table_label,feed_mode
  FROM public.drinkstock_access_passes WHERE partner_id=$1::uuid AND venue_id=$2::uuid AND revoked_at IS NULL
- ORDER BY created_at DESC LIMIT 100`,[p,v])]);
+ ORDER BY created_at DESC LIMIT 100`,[p,v]),checkoutFallbackByPartner(p)]);
  return {serverNow:new Date().toISOString(),venue:{id:v,partnerId:p,name:access.name,role:access.role},
-  session:session(s),products:d,passes:passes.rows.map(x=>({id:x.id,kind:x.kind,tableLabel:x.table_label,feedMode:x.feed_mode}))};
+  session:session(s),products:d,checkoutFallback,passes:passes.rows.map(x=>({id:x.id,kind:x.kind,tableLabel:x.table_label,feedMode:x.feed_mode}))};
 }
 export type SessionAction={action:"start"|"pause"|"resume"|"crash"|"end"|"create_screen"|"create_table"|"revoke_pass"|"set_screen_feed";
  requestKey:string;tableLabel?:string;passId?:string;feedMode?:ScreenFeedMode;expectedRevision?:number};
