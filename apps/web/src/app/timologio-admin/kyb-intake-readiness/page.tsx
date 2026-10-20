@@ -39,7 +39,7 @@ export default async function FiscalKybIntakeReadiness(){
     <Link href="/timologio-admin/release-readiness">Έλεγχοι λειτουργίας</Link></nav>
   </header>
   <section className="fiscal-hero">
-   <div className="fiscal-kicker">M41 · KMS signing contract rehearsal · No production issuer</div>
+   <div className="fiscal-kicker">M42 · Single-use synthetic dispatch contract · No production authorization</div>
    <h1>Ετοιμότητα ασφαλούς υποβολής δικαιολογητικών</h1>
    <p>Έλεγχος προϋποθέσεων για μελλοντική υποβολή ευαίσθητων στοιχείων
       επιχείρησης. Καμία ένδειξη παρακάτω δεν αποτελεί αυτόματη έγκριση.</p>
@@ -79,6 +79,33 @@ export default async function FiscalKybIntakeReadiness(){
      Η εφαρμογή συνεχίζει να απαγορεύει κάθε υποβολή και απαιτεί χειροκίνητο έλεγχο ρύθμισης.</p>:
     <p className="fiscal-muted">Δεν εντοπίστηκε προσπάθεια ενεργοποίησης από την ελεγχόμενη
      ρύθμιση. Αυτό δεν πιστοποιεί την πραγματική κατάσταση αποθήκευσης.</p>}
+  </section>
+  <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
+   <h2>M42 · Εφάπαξ χρήση συνθετικού διαπιστευτηρίου · Μόνο CI</h2>
+   <p className="fiscal-muted">
+    Η νέα πύλη ελέγχει την ψηφιακή υπογραφή πριν από κάθε δοκιμή και
+    απαιτεί ατομική δέσμευση στο PostgreSQL για τον μοναδικό κωδικό
+    διαπιστευτηρίου και τον κωδικό εκτέλεσης. Αν επαναληφθεί η χρήση
+    ή αποτύχει η βάση, η δοκιμή απορρίπτεται χωρίς πρόσβαση στο Storage.
+    Οι ταυτόχρονες δεσμεύσεις ελέγχονται μόνο σε προσωρινή βάση CI.
+   </p>
+   <div className="fiscal-grid">
+    <article className="fiscal-card">
+     <small>Προστασία διπλής εκτέλεσης</small><h3>Έλεγχος CI</h3>
+     <p>Μία δέσμευση ανά κωδικό και εκτέλεση, χωρίς επαναχρησιμοποίηση
+        ύστερα από σφάλμα ή λήξη.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Σχήμα PostgreSQL</small><h3>Μόνο για αναθεώρηση</h3>
+     <p>Δεν εφαρμόστηκε στην παραγωγή και δεν δίνει δικαιώματα
+        πρόσβασης σε κανένα χρήστη ή υπηρεσία.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Εξωτερική επαναχρησιμοποίηση JWT</small><h3>Δεν έχει αποκλειστεί</h3>
+     <p>Απαιτείται ανεξάρτητος έλεγχος στον πάροχο Storage πριν από
+        οποιαδήποτε πραγματική ενεργοποίηση.</p>
+    </article>
+   </div>
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:22}}>
    <h2>M41 · Σχεδιασμός εξωτερικής υπογραφής KMS · Μόνο δοκιμή CI</h2>
