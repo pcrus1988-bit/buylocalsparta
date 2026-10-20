@@ -15,13 +15,14 @@ type ClaimAgreementSubject = Readonly<{
   email: string;
 }>;
 
-export function claimDirectoryAgreement(subject: ClaimAgreementSubject) {
-  if (subject.plan_code !== "claim" || subject.billing_cycle !== "annual") {
-    throw new Error("CLAIM_AGREEMENT_PLAN_MISMATCH");
+export function directoryPlanAgreement(subject: ClaimAgreementSubject, code: "claim" | "presence") {
+  if (subject.plan_code !== code || (code === "claim" && subject.billing_cycle !== "annual") ||
+      !["annual","monthly"].includes(subject.billing_cycle)) {
+    throw new Error("DIRECTORY_AGREEMENT_PLAN_MISMATCH");
   }
-  const plan = vendorAgreementPlanTerms("claim", "annual");
-  if (plan.legalReviewStatus !== "approved") throw new Error("CLAIM_AGREEMENT_UNAPPROVED");
-  const agreementCode = "CLAIM-" + subject.public_id;
+  const plan = vendorAgreementPlanTerms(code, subject.billing_cycle as "annual" | "monthly");
+  if (plan.legalReviewStatus !== "approved") throw new Error("DIRECTORY_AGREEMENT_UNAPPROVED");
+  const agreementCode = code.toUpperCase() + "-" + subject.public_id;
   const createdAt = "2026-10-20T00:00:00.000Z";
   const vendor = {
     legalName: subject.legal_name,
@@ -38,7 +39,11 @@ export function claimDirectoryAgreement(subject: ClaimAgreementSubject) {
   return { plan, vendor, agreementCode, createdAt, templateSha256, terms };
 }
 
-export async function claimDirectoryAgreementForViewer(id: string, principal: SessionPrincipal) {
+export function claimDirectoryAgreement(subject: ClaimAgreementSubject) {
+  return directoryPlanAgreement(subject, "claim");
+}
+
+export async function directoryPlanAgreementForViewer(id: string, principal: SessionPrincipal, code: "claim" | "presence") {
   if (!/^hubprospect_[A-Za-z0-9_-]{6,90}$/.test(id) || !principal.roles.includes("customer")) {
     throw new Error("CLAIM_AGREEMENT_AUTH_REQUIRED");
   }
@@ -48,17 +53,25 @@ export async function claimDirectoryAgreementForViewer(id: string, principal: Se
     FROM hub_expansion_prospects h
     JOIN users u ON lower(u.email::text)=lower(h.email)
       AND u.public_id=$2 AND u.status='active' AND u.email_verified_at IS NOT NULL
-    WHERE h.public_id=$1 AND h.plan_code='claim' AND h.status='approved'
+    WHERE h.public_id=$1 AND h.plan_code=$3 AND h.status='approved'
     LIMIT 1
-  `, [id, principal.userId]);
+  `, [id, principal.userId, code]);
   if (!rows.rowCount) throw new Error("CLAIM_AGREEMENT_NOT_ELIGIBLE");
-  return claimDirectoryAgreement(rows.rows[0] as ClaimAgreementSubject);
+  return directoryPlanAgreement(rows.rows[0] as ClaimAgreementSubject, code);
 }
 
-export async function renderClaimDirectoryAgreementPdf(id: string, principal: SessionPrincipal) {
-  const approved = await claimDirectoryAgreementForViewer(id, principal);
+export async function claimDirectoryAgreementForViewer(id: string, principal: SessionPrincipal) {
+  return directoryPlanAgreementForViewer(id, principal, "claim");
+}
+
+export async function renderDirectoryPlanAgreementPdf(id: string, principal: SessionPrincipal, code: "claim" | "presence") {
+  const approved = await directoryPlanAgreementForViewer(id, principal, code);
   return renderDirectoryAgreementPreviewPdf({
     agreementCode: approved.agreementCode, createdAt: approved.createdAt,
     vendor: approved.vendor, plan: approved.plan
   });
+}
+
+export async function renderClaimDirectoryAgreementPdf(id: string, principal: SessionPrincipal) {
+  return renderDirectoryPlanAgreementPdf(id, principal, "claim");
 }
