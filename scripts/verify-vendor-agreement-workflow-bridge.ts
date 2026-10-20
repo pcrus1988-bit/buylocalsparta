@@ -59,6 +59,10 @@ assert.ok(directorySql.includes("UNIQUE(prospect_id,template_version)"), "Accept
 assert.ok(directorySql.includes("ENABLE ROW LEVEL SECURITY"), "Private acceptance evidence must use RLS");
 assert.ok(agreementPage.includes('name="termsConsent" required'), "Plan agreement must have its own required checkbox");
 assert.ok(agreementPage.includes('name="publishConsent" required'), "Separate publishing consent must remain required");
+const commercial = read("apps/web/src/lib/admin-commercial-agreements.ts");
+assert.ok(hub.includes("HUB_ACTIVATION_REQUIRES_VERIFIED_PAYMENT"), "Paid HUB must fail closed until payment verification");
+assert.ok(hub.includes("UPDATE vendor_businesses SET status='active'"), "Paid HUB final activation must atomically update the vendor");
+assert.ok(commercial.includes("HUB_FINAL_ACTIVATION_REQUIRES_APPLICATION"), "Finance must not directly activate HUB vendors");
 const presence = read("apps/web/src/lib/hub-presence-runtime.ts");
 const presencePage = read("apps/web/src/app/hubs/presence/[id]/page.tsx");
 const stateEmails = read("apps/web/src/lib/vendor-email-workflows.ts");
