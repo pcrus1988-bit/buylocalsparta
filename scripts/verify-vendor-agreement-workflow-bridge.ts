@@ -73,4 +73,8 @@ assert.ok(presencePage.includes('name="termsConsent" required'), "PRESENCE requi
 assert.ok(presencePage.includes('name="publishConsent" required'), "PRESENCE requires separate future publication consent");
 assert.ok(hub.includes("PRESENCE_ACTIVATION_NOT_READY"), "Unverified PRESENCE billing/publication must not become converted");
 assert.ok(stateEmails.includes("presenceInvitationId"), "Approved PRESENCE must have agreement acceptance invitation");
+const hubApplication = read("apps/web/src/lib/hub-prospect-application-runtime.ts");
+assert.ok(hubApplication.includes("const shouldTrial = plan.ecommerce"), "Directory plans must never provision commerce trial vendors");
+assert.ok(hubApplication.includes("!getHubExpansionPlan(planCode)?.ecommerce"), "Admin trial provisioning must reject CLAIM and PRESENCE");
+assert.ok(cards.includes('!["claim","presence"].includes(prospect.planCode)'), "Directory plans must not show trial controls");
 console.log("Vendor agreements: plan-matched HUB + Sparta activation gates, admin draft visibility and CLAIM directory separation OK.");
