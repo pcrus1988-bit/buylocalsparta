@@ -26,12 +26,12 @@ test("tax attestation is owner-only and cannot self-certify island reduction or 
  assert.match(route,/assertCustomerCsrf/);
  assert.match(route,/get\("origin"\)/);
 });
-test("actual readiness is based on scoped DB merchant evidence but payment capability stays fail-closed",()=>{
+test("fallback readiness uses KONTA MOY shared providers and preserves fiscal safety gates",()=>{
  const code=read("../src/lib/drinkstock-checkout-readiness-service.ts");
- assert.match(code,/drinkstock_mollie_merchant_connections/);
- assert.match(code,/drinkstock_merchant_aade_connections/);
- assert.match(code,/merchant\.payments_capability==="enabled"/);
- assert.match(code,/merchant\.settlements_capability==="enabled"/);
+ assert.match(code,/molliePaymentsProviderReadiness/);
+ assert.match(code,/myDataReadiness/);
+ assert.match(code,/mollieReadiness\.environment==="live"/);
+ assert.match(code,/merchantSettlementOperational:false/);
  assert.match(code,/merchantConnectionVerified/);
  assert.match(code,/merchantFiscalConnectionRecorded/);
  assert.match(code,/vatJurisdictionVerified:taxVerified/);
