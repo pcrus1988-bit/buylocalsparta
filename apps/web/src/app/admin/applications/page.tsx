@@ -419,8 +419,8 @@ export default async function ApplicationsPage() {
             <div className="workspace-inline-note">Contact: <strong>{prospect.contactName}</strong> · {prospect.addressLine} · {prospect.postalCode}{prospect.websiteUrl ? ` · ${prospect.websiteUrl}` : ""}</div>
             <div className="workspace-inline-note">
               <strong>3-day Trial:</strong>{" "}
-              {prospect.planCode === "claim"
-                ? "Not included with CLAIM."
+              {["claim","presence"].includes(prospect.planCode)
+                ? "Directory-only plan: commerce Trial unavailable."
                 : prospect.trialVendorId
                   ? trialActive
                     ? `ACTIVE · expires ${fmtDate(prospect.trialExpiresAt!)}`
@@ -440,7 +440,7 @@ export default async function ApplicationsPage() {
               </div>
             </div>
 
-            {prospect.planCode !== "claim" && !["declined", "converted"].includes(prospect.status) && <form action={provisionHubProspectTrialAction} className="admin-directory-filters" style={{ marginTop: 12 }}>
+            {!["claim","presence"].includes(prospect.planCode) && !["declined", "converted"].includes(prospect.status) && <form action={provisionHubProspectTrialAction} className="admin-directory-filters" style={{ marginTop: 12 }}>
               <input type="hidden" name="csrfToken" value={applicationWorkspace.csrfToken} />
               <input type="hidden" name="applicationId" value={prospect.internalId} />
               <input type="hidden" name="reason" value="Create or resend private 3-day Trial access from Admin Applications" />
