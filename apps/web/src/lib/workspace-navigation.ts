@@ -24,17 +24,17 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
     label: "Αρχική", href: "/vendor", icon: "⌂",
     description: "Σήμερα, εκκρεμότητες και γρήγορες ενέργειες",
-    links: [{ label: "Αρχική", href: "/vendor", icon: "⌂" }]
+    links: [{ label: "Αρχική", href: "/vendor", icon: "⌂", vendorCapability: "shop.read" }]
   },
   {
     label: "Παραγγελίες", href: "/vendor/orders", icon: "□",
     description: "Από αποδοχή μέχρι παράδοση και επιστροφή",
     links: [
-      { label: "Όλες", href: "/vendor/orders", icon: "□" },
-      { label: "Προθεσμίες", href: "/vendor/notifications", icon: "!" },
+      { label: "Όλες", href: "/vendor/orders", icon: "□", vendorCapability: "orders.read" },
+      { label: "Προθεσμίες", href: "/vendor/notifications", icon: "!", vendorCapability: "orders.read" },
       { label: "Αποστολές", href: "/vendor/shipping", icon: "↗", vendorCapability: "shipping.manage" },
-      { label: "Παραλαβές", href: "/vendor/pickup/scan", icon: "⌁" },
-      { label: "Επιστροφές", href: "/vendor/returns", icon: "↩" }
+      { label: "Παραλαβές", href: "/vendor/pickup/scan", icon: "⌁", vendorCapability: "pickup.manage" },
+      { label: "Επιστροφές", href: "/vendor/returns", icon: "↩", vendorCapability: "fulfilment.manage" }
     ]
   },
   {
@@ -43,7 +43,7 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     links: [
       { label: "Κατάλογος", href: "/vendor/catalog", icon: "▦", vendorCapability: "catalogue.read" },
       { label: "Εισαγωγή XML", href: "/vendor/catalog/feed", icon: "⇩", vendorCapability: "catalogue.import" },
-      { label: "Φωτογραφίες & έγγραφα", href: "/vendor/trust", icon: "✓" }
+      { label: "Φωτογραφίες & έγγραφα", href: "/vendor/trust", icon: "✓", vendorCapability: "shop.manage" }
     ]
   },
   {
@@ -69,14 +69,14 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     description: "Πωλήσεις, απόδοση και αναφορές",
     links: [
       { label: "Απόδοση", href: "/vendor/analytics", icon: "∿", vendorCapability: "analytics.read" },
-      { label: "Αναφορές", href: "/vendor/reports", icon: "▤" }
+      { label: "Αναφορές", href: "/vendor/reports", icon: "▤", vendorCapability: "analytics.read" }
     ]
   },
   {
     label: "Ρυθμίσεις", href: "/vendor/settings", icon: "⚙",
     description: "Στοιχεία καταστήματος, ομάδα και συνεργασία",
     links: [
-      { label: "Όλες οι ρυθμίσεις", href: "/vendor/settings", icon: "⚙" },
+      { label: "Όλες οι ρυθμίσεις", href: "/vendor/settings", icon: "⚙", vendorCapability: "shop.read" },
       { label: "Πρόσβαση ομάδας", href: "/vendor/daily-access", icon: "◈", vendorCapability: "staff.manage" },
       { label: "Παραδόσεις", href: "/vendor/settings/delivery", icon: "⌁", vendorCapability: "local_delivery.manage" },
       { label: "AADE & φορολογικά", href: "/vendor/settings/aade", icon: "#", vendorCapability: "aade.manage" },
