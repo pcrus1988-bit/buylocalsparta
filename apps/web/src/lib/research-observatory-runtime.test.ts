@@ -42,3 +42,21 @@ test("recovery counters do not rewrite response statuses or manufacture consent"
   assert.match(publicQuery, /reachedFinalNeedsCorrection:/);
   assert.doesNotMatch(publicQuery, /INSERT INTO research_consents|UPDATE research_responses SET status='completed'/);
 });
+
+const researchLandingSource = readFileSync(new URL("../app/research/page.tsx", import.meta.url), "utf8");
+const liveProgressSource = readFileSync(new URL("../components/ResearchLiveProgress.tsx", import.meta.url), "utf8");
+
+test("active survey progress is shown directly on the public research landing page", () => {
+  assert.match(researchLandingSource, /id="survey-progress"/);
+  assert.match(researchLandingSource, /<ResearchLiveProgress initialStudy={lead} showHeatmap={false}/);
+  assert.match(researchLandingSource, /href={lead\?\.status === "fielding" \? "#survey-progress" : "#studies"}/);
+  assert.match(researchLandingSource, /\{study\.targetCompletes > 0 && <>/);
+  assert.match(researchLandingSource, /<strong>\{study\.started\.toLocaleString\("el-GR"\)\} συμμετοχές που ξεκίνησαν<\/strong>/);
+});
+
+test("the landing progress updates from the main-only public endpoint without duplicating the map", () => {
+  assert.match(liveProgressSource, /fetch\("\/api\/research\/observatory", \{ cache: "no-store" \}\)/);
+  assert.match(liveProgressSource, /window\.setInterval\(refresh, 30_000\)/);
+  assert.match(liveProgressSource, /showHeatmap = true/);
+  assert.match(liveProgressSource, /showHeatmap && study\.slug === "greek-retail-2026"/);
+});
