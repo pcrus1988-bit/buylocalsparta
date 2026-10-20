@@ -9,7 +9,7 @@
 - CLAIM directory-only acceptance is not a merchant contract. A verified owner must view their company-specific approved terms, accept the exact fingerprinted version and separately authorize public business-data publication. Both consents and the conversion are a single transaction. An immutable `vendor_directory_agreement_acceptances` row stores the identified owner, plan/cycle, version, SHA-256, terms, timestamp and publication consent.
 - Previously converted CLAIM listings and legacy signed merchant contracts are preserved as historical, without any fictional backfill of signatures or acceptance events.
 - PRESENCE is a directory-only plan. Approved applicants now receive an agreement link, authenticate as verified representatives, view their company-specific PDF, and record independent terms and future-publication consent. This does **not** charge, activate or publish a paid service; the billing, invoicing and public PRESENCE entitlements remain a separate release gate. It must not become a merchant checkout vendor.
-- Paid HUB conversion and new Sparta final activation require matching plan/cycle, approved version and governed signing evidence. Provisioned trial/demo accounts are never commercial activation.
+- Paid HUB conversion and new Sparta final activation require matching plan/cycle, approved version and governed signing evidence. The HUB final conversion and actual vendor activation now share a transaction, and require verified paid/settled payment state. Finance cannot activate a HUB vendor independently. Provisioned trial/demo accounts are never commercial activation.
 
 ## Verification
 
