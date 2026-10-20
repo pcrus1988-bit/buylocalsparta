@@ -9,7 +9,7 @@ export class PlatformFallbackError extends Error {
 }
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const DRINKSTOCK_FALLBACK_PROVIDER_MODE="kontamou_existing_mollie_and_aade" as const;
-export const PLATFORM_PAYMENT_RELEASED=false as const;
+export const PLATFORM_PAYMENT_RELEASED:boolean=false;
 export type PlatformMollieIntent=Readonly<{
  partnerId:string;venueId:string;orderId:string;requestKey:string;
  grossCents:number;redirectUrl:string;webhookUrl:string;
@@ -83,7 +83,7 @@ export async function platformFallbackDiagnostics(userId:string,partnerId:string
  */
 export async function createPlatformDrinkStockMolliePayment(input:PlatformMollieIntent){
  const intent=platformMollieIntent(input);
- if(PLATFORM_PAYMENT_RELEASED!==true)
+ if(!PLATFORM_PAYMENT_RELEASED)
   throw new PlatformFallbackError("DRINKSTOCK_PLATFORM_FISCAL_CHECKOUT_NOT_RELEASED",409);
  if(process.env.DRINKSTOCK_PLATFORM_FALLBACK_ENABLED!=="true")
   throw new PlatformFallbackError("DRINKSTOCK_PLATFORM_FALLBACK_DISABLED",409);
