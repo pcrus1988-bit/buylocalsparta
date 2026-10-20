@@ -346,7 +346,7 @@ export function VendorWorkspaceHeader() {
             : <img src="/brand/kontamou-sparta-logo.webp" alt="ΚΟΝΤΑ ΜΟΥ Σπάρτη" width={78} height={52} style={{ display: "block", width: "78px", height: "52px", objectFit: "contain" }} />}
           <span>
             <strong>Χώρος συνεργάτη</strong>
-            <small>{selfGoverned ? `Αυτοδιαχειριζόμενο HUB · ${marketLabel}${operatingContext?.hubId ? ` · ${operatingContext.hubId}` : ""}` : "ΚΟΝΤΑ ΜΟΥ Σπάρτη"}</small>
+            <small>{operatingContext?.subscriptionPlanCode ? `Πλάνο ${operatingContext.subscriptionPlanCode.toUpperCase()} · ${operatingContext.subscriptionState === "active" ? "Ενεργό" : operatingContext.subscriptionState === "trial" ? "Δοκιμαστικό" : "Ανενεργό"}` : selfGoverned ? `Αυτοδιαχειριζόμενο HUB · ${marketLabel}${operatingContext?.hubId ? ` · ${operatingContext.hubId}` : ""}` : "ΚΟΝΤΑ ΜΟΥ Σπάρτη"}</small>
           </span>
         </Link>
         <button className="workspace-menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="vendor-workspace-navigation" aria-label={menuOpen ? "Κλείσιμο μενού συνεργάτη" : "Άνοιγμα μενού συνεργάτη"} onClick={() => setMenuOpen((current) => !current)}>
