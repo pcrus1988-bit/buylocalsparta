@@ -8,7 +8,7 @@ import { WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceSectionHeading } fr
 import { WorkspaceQuickLinks } from "../../components/WorkspaceQuickLinks";
 import { vendorHomeOverview } from "../../lib/vendor-home-overview";
 import { isDropshippingOnlyVendorPublicId } from "../../lib/vendor-dropshipping-constants";
-import { getVendorSession } from "../../lib/vendor-session";
+import { getVendorSession, vendorOperatingContextForPrincipal } from "../../lib/vendor-session";
 
 export const metadata: Metadata = { title: "Χώρος συνεργάτη", robots: { index: false, follow: false } };
 
@@ -20,11 +20,27 @@ export default async function VendorBackofficePage() {
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
 
+  const permissions = await vendorOperatingContextForPrincipal(principal);
+  if (!permissions.capabilities.includes("shop.read")) {
+    return <main className="vendor-app">
+      <VendorWorkspaceHeader />
+      <section className="shell vendor-hero dashboard-hero-refined">
+        <div>
+          <div className="eyebrow">Συνδρομή · Περιορισμένη πρόσβαση</div>
+          <h1>Ο χώρος συνεργάτη δεν έχει ενεργοποιημένες εμπορικές λειτουργίες.</h1>
+          <p className="lead">Η πρόσβαση σε εργαλεία, προϊόντα, παραγγελίες και οικονομικά καθορίζεται από το ενεργό πρόγραμμα και την κατάσταση της σύμβασης.</p>
+          <p>Πρόγραμμα: <strong>{permissions.subscriptionPlanCode ?? "Μη επιβεβαιωμένο"}</strong> · Κατάσταση: <strong>{permissions.subscriptionState ?? "Ανενεργό"}</strong>.</p>
+          <p>Αν το πρόγραμμα έχει εγκριθεί πρόσφατα, επικοινώνησε με την ομάδα ΚΟΝΤΑ ΜΟΥ για να ολοκληρωθεί η ενεργοποίηση.</p>
+          <Link className="button button-secondary" href="/vendor/login">Σύνδεση συνεργάτη</Link>
+        </div>
+      </section>
+    </main>;
+  }
   // Keep the landing route on one database-dependent operation. The Vercel web
   // runtime intentionally has a one-client pool; parallel DB calls here used to
   // queue behind each other and amplify timeouts under load.
   const overview = await vendorHomeOverview(principal);
-  const canImportXml = principal.roles.some((role) => role === "vendor_owner" || role === "vendor_catalog");
+  const canImportXml = permissions.capabilities.includes("catalogue.import");
   const dropshippingOnly = isDropshippingOnlyVendorPublicId(principal.vendorId);
   const dataAvailable = !overview.degraded;
   const performance = overview.performance;
