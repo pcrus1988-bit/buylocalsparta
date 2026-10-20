@@ -76,6 +76,9 @@ export function DrinkStockStarterCataloguePicker({market,partnerId,venueId,csrfT
    explicit alcohol classifications, and <strong>24% dine-in / 13% non-alcoholic takeaway</strong> VAT guidance.
    Alcoholic takeaway remains 24%. Special island rates require separate verification. All menu
    entries are venue-specific; no automatic stock, payment or receipt is created.
+   <strong> Warning:</strong> Some regulated facilities cap bottled-water and coffee prices.
+   The current trading engine cannot enforce those special absolute legal maxima,
+   so the starter library must not be used for commercial pricing of regulated goods without a separate compliance check.
   </p>
   <details>
    <summary style={{cursor:"pointer",fontWeight:900,padding:"12px 0",color:"#d9ff57"}}>
