@@ -62,3 +62,11 @@ test("webhook only correlates to existing internal order, retrieves merchant-own
  assert.match(route,/reconcileDrinkStockMollieWebhook/);
  assert.doesNotMatch(route,/api\/payments\/mollie\/webhook/);
 });
+
+test("unreceipted captured payments never surface as bar or waiter tickets",()=>{
+ const code=read("../src/lib/drinkstock-fulfilment-service.ts");
+ assert.ok(code.includes("AND o.order_state IN ('paid','accepted','preparing','ready','served','refunded')"));
+ const readiness=read("../src/lib/drinkstock-checkout-readiness-service.ts");
+ assert.match(readiness,/paidOrdersAwaitingFiscalResolution/);
+ assert.match(readiness,/VERIFIED_PAYMENT_EVIDENCE_SQL/);
+});
