@@ -1,4 +1,5 @@
 import {readDrinkStockMollieWebhook,reconcileDrinkStockMollieWebhook,DrinkStockPaymentVerifyError} from "../../../../../lib/drinkstock-mollie-payment-reconciliation";
+import {MerchantConnectionError} from "../../../../../lib/drinkstock-merchant-connections";
 export const runtime="nodejs";export const dynamic="force-dynamic";
 const headers={"cache-control":"no-store","x-robots-tag":"noindex, nofollow"};
 /** Mollie's webhook body only supplies an untrusted payment ID; the payment is
@@ -16,6 +17,11 @@ export async function POST(request:Request){
   const result=await reconcileDrinkStockMollieWebhook(paymentId);
   return Response.json({ok:true,recognized:result.recognized},{headers});
  }catch(e){
+  // Mollie notifies us for failed, expired, canceled and still-pending
+  // payments too. A non-paid response from server-side verification does not
+  // authorize processing and must not cause an infinite webhook retry loop.
+  if(e instanceof MerchantConnectionError&&e.code==="MOLLIE_PAYMENT_NOT_VERIFIED")
+   return Response.json({ok:true,verifiedPaid:false},{headers});
   if(e instanceof DrinkStockPaymentVerifyError)
    return Response.json({error:e.code},{status:e.status,headers});
   // Retryable: provider token expired, unreachable, or database unavailable.
