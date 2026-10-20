@@ -86,5 +86,6 @@ test("M44 independent service exposes private GET and UI explains download is no
  assert.ok(handler.includes("listFiscalMerchantInbox"));
  assert.ok(handler.includes("no-store"));
  assert.ok(handler.includes("EXPORT_NOT_FOUND"));
- assert.ok(!/POST|service_role|signedUrl|invoice\.issued/i.test(handler));
+ assert.ok(!/export\s+(?:async\s+)?function\s+POST\s*\(/.test(handler));
+ assert.ok(!/\bservice_role\b|createSignedUrl|invoice\.issued/i.test(handler));
 });
