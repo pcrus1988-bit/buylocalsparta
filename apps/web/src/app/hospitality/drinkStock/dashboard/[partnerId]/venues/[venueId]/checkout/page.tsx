@@ -29,7 +29,7 @@ export default async function VenueCheckoutReadinessPage({params}:{
    <p><Link href={`/drinkStock/dashboard/${partnerId}/venues/${venueId}`}>← Trading Floor</Link></p>
    <span className={styles.eyebrow}>DRINKSTOCK / CHECKOUT</span>
    <h1>Payment activation · {status.venueName}</h1>
-   <p>Each hospitality venue requires its own verified legal seller, merchant settlement, provider-authenticated payments and certified Greek receipts. The administrator's approval is only the first gate.</p>
+   <p>The POS fallback reuses KONTA MOY's Mollie and AADE infrastructure. No separate payment or AADE account is needed from the hospitality venue. Its legal seller, settlement obligations and certified receipt issuer must still be verified. Administrator approval is only the first gate.</p>
    <div role="status" style={{padding:18,margin:"20px 0",borderRadius:15,border:"1px solid #ffba83",background:"#2b1d20"}}>
     <strong style={{color:"#ffdc93"}}>Guest checkout is not activated</strong>
     <p style={{marginBottom:0}}>Readiness: {status.readyCount} of {status.totalCount} checks satisfied.
@@ -54,7 +54,7 @@ export default async function VenueCheckoutReadinessPage({params}:{
    </Link></p>}
    {status.canReviewVat&&<p><Link href={`/drinkStock/dashboard/${partnerId}/payments`}
     style={{display:"inline-block",padding:"12px 16px",borderRadius:11,background:"#b9e9ff",color:"#142132",fontWeight:800,textDecoration:"none"}}>
-    Connect merchant Mollie & AADE ↗
+    KONTA MOY Mollie & AADE fallback status ↗
    </Link></p>}
    <p><Link href={`/drinkStock/dashboard/${partnerId}/venues/${venueId}/integrations`}>View POS integration options ↗</Link></p>
    <p style={{fontSize:13,opacity:.8}}>No payment credentials, bank payout details or fiscal provider secrets are displayed here. Operational adapter checks cannot be approved by the venue or switched on through this page.</p>
