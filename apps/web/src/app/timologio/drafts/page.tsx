@@ -4,6 +4,7 @@ import {fiscalCsrfValue,fiscalMerchantAccounts,getFiscalActor} from "../../../li
 import {FiscalConsoleDraftForm} from "../../../components/FiscalConsoleDraftForm";
 import {listFiscalCounterparties} from "../../../lib/fiscal-counterparties";
 import {fiscalInboxFilters,listFiscalMerchantInbox} from "../../../lib/fiscal-draft-inbox";
+import {formatFiscalDraftMinorEuro,getFiscalMerchantDraftActivity,summarizeFiscalDraftActivity} from "../../../lib/fiscal-draft-activity";
 export const dynamic="force-dynamic";
 
 const laneLabel:Record<string,string>={b2c:"B2C · Λιανική",pos:"POS",b2b:"B2B · Τιμολόγια",b2g:"B2G · Δημόσιο"};
@@ -25,9 +26,11 @@ export default async function FiscalDraftInbox({searchParams}:{
  const [accounts,params,csrf]=await Promise.all([fiscalMerchantAccounts(actor),searchParams,fiscalCsrfValue()]);
  const account=params.organizationId?accounts.find(a=>a.id===params.organizationId):accounts[0];
  const filters=fiscalInboxFilters(params);
- const [inbox,counterparties]=account?await Promise.all([
-  listFiscalMerchantInbox(actor,account.id,filters),listFiscalCounterparties(actor,account.id)
- ]):[{rows:[],nextCursor:null},[]];
+ const [inbox,counterparties,activity]=account?await Promise.all([
+  listFiscalMerchantInbox(actor,account.id,filters),
+  listFiscalCounterparties(actor,account.id),
+  getFiscalMerchantDraftActivity(actor,account.id,filters)
+ ]):[{rows:[],nextCursor:null},[],summarizeFiscalDraftActivity([])];
  const nextParams=new URLSearchParams();
  if(account)nextParams.set("organizationId",account.id);
  if(filters.lane)nextParams.set("lane",filters.lane);
@@ -67,6 +70,27 @@ export default async function FiscalDraftInbox({searchParams}:{
       </label>
       <button type="submit" className="fiscal-button">Εφαρμογή φίλτρων</button>
      </form>
+     <section className="fiscal-section" aria-label="Ανάλυση δοκιμαστικών εγγραφών 30 ημερών">
+      <h2>Δραστηριότητα δοκιμαστικών drafts · 30 ημέρες</h2>
+      <p className="fiscal-muted">Πραγματικές αποθηκευμένες εγγραφές της επιλεγμένης επιχείρησης τις τελευταίες 30 ημέρες, σύμφωνα με τα φίλτρα κατηγορίας και πηγής. Τα σύνολα καλύπτουν όλες τις σελίδες, όχι μόνο την τρέχουσα. Δεν αντιπροσωπεύουν πωλήσεις ή νόμιμο κύκλο εργασιών.</p>
+      <div className="fiscal-grid">
+       <article className="fiscal-card"><small>Δοκιμαστικές εγγραφές</small><h3>{activity.count.toString()}</h3><p>Δεν έχει εκδοθεί φορολογικό παραστατικό.</p></article>
+       <article className="fiscal-card"><small>Ποσό δοκιμών με διαθέσιμη αξία</small><h3>{formatFiscalDraftMinorEuro(activity.grossMinor)}</h3><p>Μη φορολογικό άθροισμα. Μόνο εγγραφές με έγκυρο αποθηκευμένο ποσό.</p></article>
+       <article className="fiscal-card"><small>Εγγραφές χωρίς έγκυρο ποσό</small><h3>{activity.missingAmountCount.toString()}</h3><p>Δεν υπολογίζονται ως μηδενική αξία.</p></article>
+      </div>
+      {activity.count>0n?<div className="fiscal-grid" style={{marginTop:16}}>
+       <article className="fiscal-card"><h3>Ανά κατηγορία</h3>
+        <ul>{activity.byLane.map(item=><li key={item.key}>{laneLabel[item.key]??item.key}: <strong>{item.count.toString()}</strong> · {formatFiscalDraftMinorEuro(item.grossMinor)}</li>)}</ul>
+       </article>
+       <article className="fiscal-card"><h3>Ανά πηγή</h3>
+        <ul>{activity.bySource.map(item=><li key={item.key}>{sourceLabel[item.key]??item.key}: <strong>{item.count.toString()}</strong> · {formatFiscalDraftMinorEuro(item.grossMinor)}</li>)}</ul>
+       </article>
+       <article className="fiscal-card"><h3>Ημέρες με δραστηριότητα</h3>
+        <p className="fiscal-muted">Πρόσφατες 7 ημέρες που είχαν δοκιμαστικές εγγραφές, ώρα Ελλάδας.</p>
+        <ul>{activity.daily.slice(-7).map(item=><li key={item.key}>{item.key}: <strong>{item.count.toString()}</strong></li>)}</ul>
+       </article>
+      </div>:<p className="fiscal-muted">Δεν υπάρχουν αποθηκευμένα δοκιμαστικά drafts τις τελευταίες 30 ημέρες για αυτά τα φίλτρα.</p>}
+     </section>
      {account.status==="approved"&&["owner","accountant"].includes(account.role)&&csrf
       ?<FiscalConsoleDraftForm key={account.id} organizationId={account.id} csrfToken={csrf} counterparties={counterparties}/>
       :<p className="fiscal-muted">Η δημιουργία δοκιμαστικών drafts διατίθεται μετά την έγκριση της επιχείρησης, σε ιδιοκτήτη ή εξουσιοδοτημένο λογιστή.</p>}
