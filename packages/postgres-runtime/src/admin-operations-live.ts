@@ -36,7 +36,7 @@ export class PostgresAdminOperationsLiveService extends BasePostgresAdminOperati
   override async transitionVendorApplication(principal: SessionPrincipal, input: { applicationId: string; to: VendorOnboardingState; reason: string; now?: number }) {
     const now=input.now??Date.now(); const reason=input.reason.trim(); if(reason.length<3) throw new Error("Transition reason is required");
     const result=await this.#onboardingUow.withTransaction(platformScope(principal.userId), async(tx)=>{
-      const current=await tx.query<SqlRow>(`SELECT a.id::text AS application_uuid,a.public_id,a.status::text AS status,a.owner_user_id::text AS owner_uuid,a.market_id::text AS market_uuid,a.legal_name,a.trading_name,a.tax_number,a.gemi_number,a.contact_email,a.phone,a.address_line1,a.postcode,a.shop_story,a.vendor_id::text AS vendor_uuid,v.public_id AS vendor_public_id
+      const current=await tx.query<SqlRow>(`SELECT a.id::text AS application_uuid,a.public_id,a.status::text AS status,a.owner_user_id::text AS owner_uuid,a.market_id::text AS market_uuid,a.legal_name,a.trading_name,a.tax_number,a.gemi_number,a.contact_email,a.phone,a.address_line1,a.postcode,a.shop_story,a.requested_plan_code,a.created_at AS application_created_at,a.vendor_id::text AS vendor_uuid,v.public_id AS vendor_public_id
         FROM vendor_applications a JOIN users u ON u.id=a.owner_user_id LEFT JOIN vendor_businesses v ON v.id=a.vendor_id
         WHERE a.public_id=$1 OR a.id::text=$1 FOR UPDATE OF a`,[input.applicationId]);
       if(!current.rowCount) throw new Error("Vendor application not found");
@@ -70,7 +70,7 @@ export class PostgresAdminOperationsLiveService extends BasePostgresAdminOperati
 
       if(input.to==="active") {
         if(!vendorUuid) throw new Error("The shop record is missing. Complete verification/catalog onboarding before activation.");
-        const agreement=await tx.query<SqlRow>(`SELECT id::text AS agreement_uuid,status::text AS status,signed_at,source_document_reference,signed_pdf_object_key,signed_pdf_sha256,signed_document_received_at,govgr_reference,govgr_verified_at,govgr_verified_by
+        const agreement=await tx.query<SqlRow>(`SELECT id::text AS agreement_uuid,status::text AS status,signed_at,source_document_reference,signed_pdf_object_key,signed_pdf_sha256,signed_document_received_at,govgr_reference,govgr_verified_at,govgr_verified_by,terms_snapshot
           FROM vendor_commercial_agreements WHERE vendor_id=$1::uuid
           ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'eligible_for_activation' THEN 1 WHEN 'govgr_verified' THEN 2 ELSE 3 END,updated_at DESC,created_at DESC LIMIT 1 FOR UPDATE`,[vendorUuid]);
         const documented=agreement.rows[0]; if(!documented) throw new Error("Activation is blocked until the governed cooperation agreement workflow is completed.");
@@ -80,6 +80,19 @@ export class PostgresAdminOperationsLiveService extends BasePostgresAdminOperati
         const legacyActive=agreementStatus==="active"&&signedDocumented;
         const verifiedForFinalActivation=["govgr_verified","eligible_for_activation"].includes(agreementStatus)&&signedDocumented&&govgrVerified;
         if(!legacyActive&&!verifiedForFinalActivation) throw new Error("Activation is blocked until the signed gov.gr PDF is stored, its reference is verified by Admin, and the agreement is ready for final activation.");
+        // Existing signed pre-template records retain their legal lifecycle.
+        // New applications may NEVER claim activation through an unrelated
+        // legacy agreement or a generated DRAFT awaiting legal review.
+        if(epoch(row.application_created_at,"application.created_at")>=Date.parse("2026-10-11T00:00:00.000Z")) {
+          const terms=jsonObject(documented.terms_snapshot);
+          if(terms.planMarket!=="sparta"
+            || terms.planCode!==row.requested_plan_code
+            || typeof terms.templateVersion!=="string" || !terms.templateVersion.trim()
+            || terms.legalReviewStatus!=="approved"
+            || !verifiedForFinalActivation) {
+            throw new Error("The application requires a legally approved, versioned agreement matching the selected Sparta subscription and verified gov.gr signature before activation.");
+          }
+        }
         if(verifiedForFinalActivation){
           const actor=await tx.query<SqlRow>("SELECT id::text AS actor_uuid FROM users WHERE public_id=$1 OR id::text=$1 LIMIT 1",[principal.userId]); if(!actor.rowCount) throw new Error("Admin user record is required for final activation audit");
           const actorUuid=text(actor.rows[0].actor_uuid,"actor_uuid"); const agreementUuid=text(documented.agreement_uuid,"agreement_uuid");
