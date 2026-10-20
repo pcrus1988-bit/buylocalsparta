@@ -452,7 +452,7 @@ export default async function ApplicationsPage() {
               <input type="hidden" name="applicationId" value={prospect.internalId} />
               <input type="hidden" name="status" value={next.status} />
               <label><span>Workflow note</span><input name="reason" defaultValue={`Admin review: ${prospect.status} → ${next.status}`} minLength={3} maxLength={500} required /></label>
-              {prospect.planCode === "claim" && next.status === "approved" && <label className="workspace-inline-note"><input type="checkbox" name="ownershipVerified" required /> Έλεγξα τεκμηριωμένα ότι ο αιτών εκπροσωπεί την επιχείρηση. Το ΓΕΜΗ μόνο του δεν αποδεικνύει δικαίωμα διαχείρισης.</label>}
+              {["claim","presence"].includes(prospect.planCode) && next.status === "approved" && <label className="workspace-inline-note"><input type="checkbox" name="ownershipVerified" required /> Έλεγξα τεκμηριωμένα ότι ο αιτών εκπροσωπεί την επιχείρηση. Το ΓΕΜΗ μόνο του δεν αποδεικνύει δικαίωμα διαχείρισης.</label>}
               <button className="button button-secondary" type="submit">{next.label}</button>
             </form>}
 
