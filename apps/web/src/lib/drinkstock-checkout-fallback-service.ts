@@ -58,8 +58,15 @@ export async function changeCheckoutFallback(principal:SessionPrincipal,action:C
       throw new CheckoutFallbackError("CHECKOUT_REQUEST_KEY_CONFLICT",409);
    }
    await db.query("COMMIT");committed=true;
+   // Use the already-owned SQL client before releasing it. Avoid a second
+   // pool connection (which can deadlock at max=1) during replay.
+   const snapshot=await db.query<FallbackRow>(`
+     SELECT enabled,pos_unavailable,merchant_authorization_reviewed,
+       settlement_reviewed,fiscal_reviewed,reason,updated_at
+     FROM public.drinkstock_checkout_fallback WHERE partner_id=$1::uuid
+   `,[action.partnerId]);
    return {partnerId:action.partnerId,replayed:true,
-     checkout:await checkoutFallbackByPartner(action.partnerId),auditRecorded:true};
+     checkout:mapFallback(snapshot.rows[0]),auditRecorded:true};
   }
   const existing=await db.query<{enabled:boolean}>(`
     SELECT enabled FROM public.drinkstock_checkout_fallback WHERE partner_id=$1::uuid
