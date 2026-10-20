@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { HospitalityAdminProvisioning } from "../../../components/HospitalityAdminProvisioning";
+import {HospitalityCheckoutFallbackAdmin} from "../../../components/HospitalityCheckoutFallbackAdmin";
 import {DrinkStockAdminTvScreens} from "../../../components/DrinkStockAdminTvScreens";
 import {adminDrinkStockScreens} from "../../../lib/drinkstock-screen-admin";
 import { hasAdminPermission } from "../../../lib/admin-runtime";
@@ -33,6 +34,7 @@ export default async function HospitalityAdminPage() {
       <p>Ο χρήστης πρέπει να έχει ήδη επαληθευμένο λογαριασμό KONTA MOY. Η δημιουργία γίνεται μόνο από εξουσιοδοτημένο διαχειριστή.</p>
       <HospitalityAdminProvisioning csrfToken={principal.csrfToken}/>
     </section>
+    {partners&&<HospitalityCheckoutFallbackAdmin partners={partners} csrfToken={principal.csrfToken}/>}
     {tvScreens?<DrinkStockAdminTvScreens initial={tvScreens} csrfToken={principal.csrfToken}/>:<section className="shell vendor-section"><h2>TV screen management unavailable</h2></section>}
     <section className="shell vendor-section">
       <h2>Εγγεγραμμένοι συνεργάτες</h2>
