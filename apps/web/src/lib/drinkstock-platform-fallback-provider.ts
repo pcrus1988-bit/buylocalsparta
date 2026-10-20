@@ -62,7 +62,7 @@ export async function platformFallbackDiagnostics(userId:string,partnerId:string
  return {
   providerMode:DRINKSTOCK_FALLBACK_PROVIDER_MODE,
   partnerId,partnerName:membership.partnerName,adminApproved:approved.adminEnabled,
-  mollie:{account:"KONTA MOY",configured:molliePaymentsEnabled(),
+  mollie:{account:"KONTA MOY",configured:Boolean(process.env.MOLLIE_API_KEY?.trim()),
    liveReady:psp?.enabled===true&&psp.ready===true&&psp.environment==="live"},
   aade:{account:"KONTA MOY",configured:fiscal?.configured===true,
    directErpReady:fiscal?.ready===true&&fiscal.environment==="production",
