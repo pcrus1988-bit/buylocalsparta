@@ -1325,3 +1325,41 @@ isolated FISCAL PostgreSQL: logged-in merchant can export a freshly stored
 draft, unrelated merchant gets 404, anonymous gets 401, duplicate filter
 gets 400, filtered lane excludes unrelated drafts. **CI fixtures are never
 sent to or written to the live FISCAL database.**
+
+
+## Milestone 45 — real merchant 30-day draft activity dashboard (20 October 2026)
+
+M45 adds live, server-rendered **business-specific** activity indicators to the
+existing authenticated `/timologio/drafts` merchant workspace. Unlike an
+illustrative demo, the displayed counts come from the actual saved
+`fiscal_document_intakes` in the standalone FISCAL PostgreSQL service. The
+window is the **previous rolling 30 days** at query time, while daily bucket
+labels use `Europe/Athens`. Chosen lane/source filters are respected; the
+current draft page cursor is intentionally ignored, so counts reflect **all**
+matching drafts in the window rather than only the first 25.
+
+One parameterized read-only PostgreSQL GROUP BY query joins both
+`fiscal_memberships` and active `fiscal_users`; membership and
+`organization_id` are checked within the query. Only records with
+`status='draft'` can contribute. The index on
+`(organization_id, created_at DESC, id DESC)` for draft rows already exists
+in production, so no schema change is necessary. The application receives
+at most 372 day/lane/source aggregate rows, not raw customer or counterparty
+data. A bounded query timeout applies.
+
+Displayed indicators are non-fiscal counts, source/type breakdowns, latest
+active calendar days, and the sum of **valid stored non-fiscal gross test
+amounts**. Missing, invalid or out-of-range gross amounts are omitted
+from the monetary sum and explicitly counted as unknown, never treated as
+zero-value sales. The SQL uses a nested validity CASE to avoid casting
+arbitrary JSON text to PostgreSQL numeric. BigInt arithmetic keeps very
+large sums exact. The UI explicitly says **not revenue, not invoices and
+not approved tax calculations**.
+
+CI adds pure aggregate/parser/security tests, the normal full Fiscal build
+and isolated PostgreSQL/real HTTP acceptance. The latter verifies both
+the actual saved test draft and read-only HTML render, as well as
+non-member denials and lane/source filtering. No merchant-facing
+approvals, issuance, AADE/myDATA transmission, KYB evidence access,
+recovery changes, private key changes or third-party integrations are
+activated by this feature.
