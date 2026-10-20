@@ -172,3 +172,38 @@ export async function connectMerchantAade(userId:string,partnerId:string,raw:unk
     "AADE credentials stored, but reporting connectivity is not yet verified"};
  }catch(e){if(!done)try{await c.query("ROLLBACK");}catch{}throw e;}finally{c.release();}
 }
+
+/**
+ * Internal ONLY: obtains a short-lived OAuth access token for the connected
+ * hospitality merchant after re-checking live Mollie capabilities. The refresh
+ * token remains in Supabase Vault; update is serialized per merchant.
+ * Do not expose this function in any public/table API route.
+ */
+export async function merchantMollieServerToken(partnerId:string){
+ if(!uuid.test(partnerId))throw new MerchantConnectionError("NOT_FOUND",404);
+ const c=await pool().connect();let done=false;
+ try{
+  await c.query("BEGIN");await c.query("SET LOCAL statement_timeout='27s'");
+  const found=await c.query<{mollie_organization_id:string;mollie_profile_id:string|null;refresh_secret_id:string;disabled_at:Date|null}>(
+   "SELECT mollie_organization_id,mollie_profile_id,refresh_secret_id::text,disabled_at FROM public.drinkstock_mollie_merchant_connections WHERE partner_id=$1::uuid FOR UPDATE",[partnerId]);
+  const saved=found.rows[0];
+  if(!saved||saved.disabled_at||!saved.mollie_profile_id)
+   throw new MerchantConnectionError("MOLLIE_MERCHANT_NOT_READY",409);
+  const token=await c.query<{decrypted_secret:string}>(
+   "SELECT decrypted_secret FROM vault.decrypted_secrets WHERE id=$1::uuid",[saved.refresh_secret_id]);
+  const oldRefresh=token.rows[0]?.decrypted_secret;
+  if(!oldRefresh||!oldRefresh.startsWith("refresh_"))
+   throw new MerchantConnectionError("MOLLIE_MERCHANT_AUTH_MISSING",503);
+  const refreshed=await exchange({grant_type:"refresh_token",refresh_token:oldRefresh});
+  const live=await probe(refreshed.access_token);
+  if(live.organizationId!==saved.mollie_organization_id||!live.operational||
+     live.profileId!==saved.mollie_profile_id)
+   throw new MerchantConnectionError("MOLLIE_MERCHANT_CAPABILITIES_CHANGED",409);
+  await c.query("SELECT vault.update_secret($1::uuid,$2,NULL,NULL,NULL)",
+   [saved.refresh_secret_id,refreshed.refresh_token]);
+  await c.query("UPDATE public.drinkstock_mollie_merchant_connections SET scopes=$2,payments_capability=$3,settlements_capability=$4,verified_at=now() WHERE partner_id=$1::uuid",
+   [partnerId,refreshed.scope,live.payments,live.settlements]);
+  await c.query("COMMIT");done=true;
+  return {accessToken:refreshed.access_token,organizationId:live.organizationId,profileId:live.profileId};
+ }catch(e){if(!done)try{await c.query("ROLLBACK");}catch{}throw e;}finally{c.release();}
+}
