@@ -653,8 +653,10 @@ try{
  assert.match(exported.headers.get("content-type")??"",/^text\/csv/);
  assert.match(exported.headers.get("cache-control")??"",/no-store/);
  assert.match(exported.headers.get("content-disposition")??"",/attachment;/);
- const downloaded=await exported.text();
- assert.ok(downloaded.startsWith("\ufeff"),"Greek spreadsheet UTF-8 BOM");
+ const downloadedBytes=Buffer.from(await exported.arrayBuffer());
+ assert.ok(downloadedBytes.subarray(0,3).equals(Buffer.from([0xef,0xbb,0xbf])),
+  "Greek spreadsheet UTF-8 BOM must exist in actual downloadable bytes");
+ const downloaded=downloadedBytes.toString("utf8");
  assert.ok(downloaded.includes(draft.body.id),"Export must include actual saved draft");
  assert.ok(downloaded.includes(draftBody.reference),"Export must contain saved reference");
  assert.ok(downloaded.includes("NON_FISCAL_TEST_DRAFT"));
