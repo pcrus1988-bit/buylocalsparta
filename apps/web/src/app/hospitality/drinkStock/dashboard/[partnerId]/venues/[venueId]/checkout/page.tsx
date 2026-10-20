@@ -39,6 +39,10 @@ export default async function VenueCheckoutReadinessPage({params}:{
    {status.canReviewVat&&<DrinkStockStandardTaxReview
     partnerId={partnerId} venueId={venueId} csrfToken={principal.csrfToken}
     alreadyConfirmed={status.standardVatJurisdictionReviewed}/>}
+   {status.paidOrdersAwaitingFiscalResolution>0&&<div role="alert" style={{padding:18,border:"2px solid #f29973",borderRadius:15,background:"#4b2724",margin:"20px 0"}}>
+    <strong>Fiscal exception: {status.paidOrdersAwaitingFiscalResolution} verified paid orders awaiting a legal receipt</strong>
+    <p>These orders have not been released to bar preparation. Inspect the merchant's fiscal issuer and resolve the receipt or refund through an authorized workflow. Do not mark them served manually.</p>
+   </div>}
    <h2>Provider connections</h2>
    <p>Merchant-owned Mollie payment and settlement capability:
     <strong> {status.merchantConnectionVerified?"Verified within 7 days":"Not currently verified"}</strong>.
