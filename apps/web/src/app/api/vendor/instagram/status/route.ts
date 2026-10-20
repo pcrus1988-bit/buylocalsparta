@@ -1,4 +1,4 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { vendorInstagramConnectionStatus } from "../../../../../lib/vendor-instagram-service";
 
 export const runtime = "nodejs";
@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    const principal = await requireVendorSession(request);
+    const { principal } = await requireVendorCapability("shop.read", request);
     return Response.json(await vendorInstagramConnectionStatus(principal), {
       headers: { "Cache-Control": "no-store" }
     });
