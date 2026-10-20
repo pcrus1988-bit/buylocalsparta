@@ -284,9 +284,9 @@ export async function setHubProspectStatus(formData: FormData) {
     if (row.plan_code === "presence" && target === "converted") {
       throw new Error("PRESENCE_ACTIVATION_NOT_READY: The accepted directory terms do not authorize paid activation. Complete billing and the directory publication entitlement workflow first.");
     }
-    if (row.plan_code === "claim" && target === "approved" && from !== target &&
+    if (["claim","presence"].includes(String(row.plan_code)) && target === "approved" && from !== target &&
         formData.get("ownershipVerified") !== "on") {
-      throw new Error("Manual business representation verification is required for CLAIM approval.");
+      throw new Error("Manual business representation verification is required for CLAIM/PRESENCE approval.");
     }
     if (from === target) {
       return {
