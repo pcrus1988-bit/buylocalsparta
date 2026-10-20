@@ -91,11 +91,48 @@ export const FISCAL_M45_ACTIVITY_SQL=`
  WITH scoped AS (
   SELECT d.lane,d.source,
    (d.created_at AT TIME ZONE 'Europe/Athens')::date AS local_day,
-   CASE
-    WHEN d.payload->>'grossMinor' ~ '^[0-9]{1,13}$'
-     AND length(d.payload->>'grossMinor')<=13
-     AND (d.payload->>'grossMinor')::numeric<=1000000000000
-    THEN (d.payload->>'grossMinor')::numeric
+   CASE WHEN d.payload->>'grossMinor' ~ '^[0-9]{1,13}
+  FROM fiscal_document_intakes d
+  JOIN fiscal_memberships m
+   ON m.organization_id=d.organization_id AND m.user_id=$2
+  JOIN fiscal_users u ON u.id=m.user_id AND u.disabled_at IS NULL
+  WHERE d.organization_id=$1 AND d.status='draft'
+   AND d.created_at>=now()-interval '30 days' AND d.created_at<=now()
+   AND ($3::text IS NULL OR d.lane=$3)
+   AND ($4::text IS NULL OR d.source=$4)
+ )
+ SELECT local_day::text AS day,lane,source,
+  count(*)::text AS draft_count,
+  count(safe_gross_minor)::text AS known_amount_count,
+  COALESCE(sum(safe_gross_minor),0)::text AS gross_minor
+ FROM scoped
+ GROUP BY local_day,lane,source
+ ORDER BY local_day,lane,source
+`;
+export async function getFiscalMerchantDraftActivity(
+ actor:Pick<FiscalActor,"id">,organizationId:string,
+ filters:Pick<FiscalInboxFilters,"lane"|"source">
+):Promise<FiscalDraftActivity>{
+ if(!UUID.test(actor.id)||!UUID.test(organizationId)||
+  (filters.lane!==undefined&&!LANES.includes(filters.lane))||
+  (filters.source!==undefined&&!SOURCES.includes(filters.source)))
+  return summarizeFiscalDraftActivity([]);
+ const result=await fiscalPool().query<FiscalDraftActivityBucket>({
+  text:FISCAL_M45_ACTIVITY_SQL,
+  values:[organizationId,actor.id,filters.lane??null,filters.source??null],
+  query_timeout:5000
+ });
+ return summarizeFiscalDraftActivity(result.rows);
+}
+export function formatFiscalDraftMinorEuro(minor:bigint):string{
+ if(minor<0n)throw Error("FISCAL_M45_NEGATIVE_AMOUNT");
+ const whole=minor/100n;
+ const cents=(minor%100n).toString().padStart(2,"0");
+ return new Intl.NumberFormat("el-GR").format(whole)+","+cents+" €";
+}
+
+    THEN CASE WHEN (d.payload->>'grossMinor')::numeric<=1000000000000
+      THEN (d.payload->>'grossMinor')::numeric ELSE NULL END
     ELSE NULL END AS safe_gross_minor
   FROM fiscal_document_intakes d
   JOIN fiscal_memberships m
