@@ -75,3 +75,9 @@
 .boundsForm button:disabled{opacity:.5;cursor:not-allowed}
 .boundsEditor>small{display:block;margin-top:14px;color:#bacfd4;line-height:1.5}
 @media(max-width:700px){.boundsForm{grid-template-columns:1fr}.boundsEditor{padding:20px}}
+
+
+.priceTrend{display:grid;gap:6px;min-height:75px;background:#061d2777;padding:10px 12px;border:1px solid #2f515a;border-radius:9px}
+.priceTrend>span{color:#8cadba;font-size:9px;letter-spacing:.12em;font-weight:900}
+.priceTrend svg{width:100%;height:44px;overflow:visible}
+.priceTrend small{display:grid;place-items:center;min-height:44px;font-size:10px;color:#809ea7}

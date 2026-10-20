@@ -156,3 +156,39 @@ export function synchronizedShowcasePrices(
    crashDiscount:crashActive};
  });
 }
+
+/**
+ * Last 12 executed demo-tick quotes, not a browser-side random graph.
+ * A crash starts a new 1.7s phase; no inaccessible historical session or
+ * payment records are reconstructed. All venue TVs get identical points.
+ */
+export type ShowcasePriceSeries=Readonly<{productId:string;prices:readonly number[]}>;
+export function synchronizedShowcasePriceHistory(
+ session:ShowcaseSession|null,products:readonly ShowcasePricedDrink[],
+ nowMs:number,floorPercent:number,ceilingPercent:number
+):ShowcasePriceSeries[]{
+ if(!session||!session.startedAt||!Number.isFinite(nowMs)||products.length===0)return [];
+ const start=Date.parse(session.startedAt);
+ if(!Number.isFinite(start)||nowMs<start)return [];
+ const crashEnd=session.state==="crashing"&&session.crashUntil?Date.parse(session.crashUntil):NaN;
+ const crashStart=crashEnd-CRASH_DURATION_MS;
+ const isCrash=Number.isFinite(crashEnd)&&crashStart>=start&&nowMs>=crashStart&&nowMs<crashEnd;
+ const phaseStart=isCrash?crashStart:start;
+ const cadence=isCrash?CRASH_CADENCE_MS:REGULAR_CADENCE_MS;
+ const tick=Math.floor((nowMs-phaseStart)/cadence);
+ if(tick<0)return [];
+ const count=Math.min(12,tick+1);
+ const byId=new Map<string,number[]>();
+ for(let i=tick-count+1;i<=tick;i++){
+  const frame=phaseStart+i*cadence;
+  const quotes=synchronizedShowcasePrices(session,products,frame,floorPercent,ceilingPercent);
+  if(quotes.length!==products.length)return [];
+  for(const quote of quotes){
+   if(!Number.isSafeInteger(quote.displayCents)||quote.displayCents<1)return [];
+   const points=byId.get(quote.productId)??[];
+   points.push(quote.displayCents);
+   byId.set(quote.productId,points);
+  }
+ }
+ return products.map(p=>({productId:p.id,prices:byId.get(p.id)??[]}));
+}

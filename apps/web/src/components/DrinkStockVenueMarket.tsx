@@ -2,6 +2,7 @@
 import { useEffect,useState,type FormEvent } from "react";
 import type {MarketSnapshot} from "../lib/drinkstock-market-service";
 import type {DrinkStockCategory} from "../lib/drinkstock-market-pricing";
+import {recordedRehearsalPriceSeries,priceSparklinePoints} from "../lib/drinkstock-market-trends";
 import styles from "../app/hospitality/drinkStock/market.module.css";
 
 const money=(c:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(c/100);
@@ -128,11 +129,19 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
      {market.products.map((drink,i)=>{
        const delta=drink.priceCents-drink.baseCents;
        const pct=Math.round(delta/drink.baseCents*100);
+       const trend=recordedRehearsalPriceSeries(market.events,drink.id,drink.priceCents);
+       const trendPoints=priceSparklinePoints(trend);
        return <article key={drink.id} className={styles.drink}>
          <div className={styles.drinkTop}><span className={styles.rank}>#{String(i+1).padStart(2,"0")}</span><span className={styles.category}>{categoryNames[drink.category]}</span></div>
          <h2>{drink.name}</h2><div className={styles.quote}>{money(drink.priceCents)}</div>
          <div className={styles.movements}><span className={delta>0?styles.up:delta<0?styles.down:styles.flat}>{delta>0?"▲":delta<0?"▼":"↔"} {pct>0?"+":""}{pct}%</span><span>BASE {money(drink.baseCents)}</span></div>
          <div className={styles.bar} aria-hidden="true"><i style={{width:`${Math.round((drink.priceCents-drink.minCents)/Math.max(1,drink.maxCents-drink.minCents)*100)}%`}}/></div>
+         <div className={styles.priceTrend}>
+          <span>RECORDED REHEARSAL PRICE TREND</span>
+          {trendPoints?<svg role="img" aria-label={`${drink.name} recorded price trend: ${money(trend[0]!)} to ${money(trend[trend.length-1]!)} over ${trend.length-1} market moves`} viewBox="0 0 160 44" preserveAspectRatio="none">
+            <polyline points={trendPoints} fill="none" stroke={trend[trend.length-1]! >= trend[0]! ? "#a2ff89":"#ffb37a"} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
+           </svg>:<small>Trend appears after recorded price movements</small>}
+         </div>
          {!display&&market.canManage&&<button type="button" disabled={!active||operationsActive||Boolean(busy)} className={styles.buySignal}
           onClick={()=>act({action:"demand",productId:drink.id,units:demandUnits})}>⚡ BUY {demandUnits}× <span>↗</span></button>}
        </article>;

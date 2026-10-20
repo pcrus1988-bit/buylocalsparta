@@ -1,7 +1,8 @@
 "use client";
-import {useEffect,useRef,useState} from "react";
+import {useEffect,useMemo,useRef,useState} from "react";
 import type {SessionView} from "../lib/drinkstock-session-service";
-import {synchronizedShowcaseTrades,synchronizedShowcasePrices} from "../lib/drinkstock-screen-showcase";
+import {synchronizedShowcaseTrades,synchronizedShowcasePrices,synchronizedShowcasePriceHistory} from "../lib/drinkstock-screen-showcase";
+import {priceSparklinePoints} from "../lib/drinkstock-market-trends";
 const euros=(n:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(n/100);
 export function DrinkStockScreenClient({token,initial}:{token:string;initial:SessionView}){
  const [data,setData]=useState(initial),[now,setNow]=useState(Date.now()),[armed,setArmed]=useState(false);
@@ -19,6 +20,15 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  const demoPrices=isActual?[]:synchronizedShowcasePrices(data.session,data.products,serverNowMs,
    data.session?.floorPercent??70,data.session?.ceilingPercent??145);
  const quoteByProduct=new Map(demoPrices.map(item=>[item.productId,item]));
+ // Charts advance at the simulated execution tick, never at the 250ms UI timer.
+ const trendCadence=crash&&seconds>0?1700:4500;
+ const trendAnchor=crash&&seconds>0?Date.parse(crash)-60000:Date.parse(data.session?.startedAt??"");
+ const trendNow=Number.isFinite(trendAnchor)?
+  trendAnchor+Math.floor(Math.max(0,serverNowMs-trendAnchor)/trendCadence)*trendCadence:serverNowMs;
+ const trendHistory=useMemo(()=>isActual?[]:synchronizedShowcasePriceHistory(
+  data.session,data.products,trendNow,data.session?.floorPercent??70,data.session?.ceilingPercent??145
+ ),[isActual,data.session,data.products,trendNow]);
+ const historyByProduct=new Map(trendHistory.map(s=>[s.productId,s.prices]));
  useEffect(()=>{const tick=window.setInterval(()=>setNow(Date.now()),250);return ()=>window.clearInterval(tick)},[]);
  useEffect(()=>{
  let mounted=true;
@@ -98,6 +108,8 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
  const price=quoteByProduct.get(product.id);
  const displayCents=price?.displayCents??product.priceCents;
  const delta=price?.movementCents??0;
+ const history=historyByProduct.get(product.id)??[];
+ const trendPoints=priceSparklinePoints(history);
  return <article key={product.id} style={{background:leadingProduct===product.id?"#d9ff571c":"#ffffff11",border:leadingProduct===product.id?"2px solid #d9ff57":"1px solid #ffffff27",borderRadius:16,padding:22,transition:"background 350ms ease,border 350ms ease"}}>
   <div style={{display:"flex",justifyContent:"space-between",gap:9,flexWrap:"wrap"}}>
    <span style={{color:"#ad9ed9",fontSize:11,letterSpacing:2}}>{product.category.toUpperCase()}</span>
@@ -110,6 +122,14 @@ export function DrinkStockScreenClient({token,initial}:{token:string;initial:Ses
     {delta>0?"↗":delta<0?"↘":"↔"} {delta>0?"+":""}{euros(delta)} / tick
    </span>
    <span style={{fontSize:12,color:"#d1c1e8"}}>BASE {euros(price.baseCents)} · {price.versusBasePercent>0?"+":""}{price.versusBasePercent}%</span>
+  </div>}
+  {!isActual&&trendPoints&&<div style={{marginTop:12,padding:"10px 10px 6px",border:"1px solid #ffffff25",borderRadius:10,background:"#06081b90"}}>
+   <div style={{color:"#ada4cb",fontSize:10,fontWeight:800,letterSpacing:1.1}}>PRICE TREND · LAST {history.length-1} DEMO TICKS</div>
+   <svg role="img" aria-label={`${product.name} simulated price trend from ${euros(history[0]!)} to ${euros(history[history.length-1]!)}`}
+      viewBox="0 0 160 44" preserveAspectRatio="none" style={{width:"100%",height:50,marginTop:5}}>
+    <polyline points={trendPoints} fill="none" stroke={history[history.length-1]! >= history[0]!?"#caff50":"#ff8ca5"}
+       strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
+   </svg>
   </div>}
   {!isActual&&price?.crashDiscount&&<span style={{display:"inline-block",marginTop:9,color:"#ffabc1",fontSize:11,fontWeight:900}}>⚡ SIMULATED CRASH PRESSURE</span>}
  </article>;
