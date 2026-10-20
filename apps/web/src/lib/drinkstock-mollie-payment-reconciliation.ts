@@ -73,18 +73,21 @@ export async function reconcileDrinkStockMollieWebhook(
    amountCents:Number(attempt.amount_cents),currency:"EUR",status:"paid",
    profileId:attempt.profile_id
   })).digest("hex");
-  await db.query(`
+  const inserted=await db.query<{id:string}>(`
    INSERT INTO public.drinkstock_payment_events(
     order_id,provider,provider_event_id,event_type,amount_cents,payload_sha256)
    VALUES($1::uuid,'mollie',$2,'payment_verified',$3,$4)
-   ON CONFLICT(provider,provider_event_id) DO NOTHING
+   ON CONFLICT(provider,provider_event_id) DO NOTHING RETURNING id::text
   `,[attempt.order_id,paymentId,Number(attempt.amount_cents),digest]);
-  await db.query(`
+  if(inserted.rows.length!==1)throw new DrinkStockPaymentVerifyError("PAYMENT_EVIDENCE_DUPLICATE_CONFLICT",409);
+  const updated=await db.query<{id:string}>(`
    UPDATE public.drinkstock_orders SET payment_state='paid',
      fiscal_state='pending',updated_at=now()
    WHERE id=$1::uuid AND partner_id=$2::uuid AND venue_id=$3::uuid
     AND payment_state='pending' AND order_state='awaiting_payment'
+   RETURNING id::text
   `,[attempt.order_id,attempt.partner_id,attempt.venue_id]);
+  if(updated.rows.length!==1)throw new DrinkStockPaymentVerifyError("PAYMENT_ORDER_UPDATE_CONFLICT",409);
   await db.query(`
    UPDATE public.drinkstock_merchant_payment_attempts SET state='fiscal_pending',verified_at=now()
    WHERE id=$1::uuid
