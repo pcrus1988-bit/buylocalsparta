@@ -28,13 +28,13 @@ for (const item of [
   "verifiedForFinalActivation",
   "2026-10-11T00:00:00.000Z"
 ]) assert.ok(sparta.includes(item), "Sparta merchant activation missing plan gate: " + item);
-assert.ok(cards.includes("Plan agreement DRAFT PDF"), "HUB applications must link to plan-specific draft");
-assert.ok(cards.includes("Plan agreement DRAFT ↗"), "Sparta applications must link to plan-specific draft");
+assert.ok(cards.includes("Plan agreement PDF"), "HUB applications must link to plan-specific draft");
+assert.ok(cards.includes("Plan agreement PDF ↗"), "Sparta applications must link to plan-specific draft");
 assert.ok(cards.includes("Finance · Governed agreement"), "Admin must offer official contract lifecycle");
 assert.ok(finance.includes("assertAgreementApprovedForSigning"), "Finance must reject pending legal templates");
 assert.ok(preview.includes("Requested agreement plan or billing cycle does not match"), "Preview must reject another plan/cycle");
 assert.ok(claim.includes('formData.get("publishConsent")'), "CLAIM publication consent required");
 assert.ok(!claim.includes("merchant agreement accepted"), "CLAIM must not claim merchant-contract acceptance");
-assert.ok(plan.includes('VENDOR_AGREEMENT_LEGAL_STATUS = "pending_legal_review"'),
-  "Unreviewed plan templates must remain drafts until formally approved");
+assert.ok(plan.includes('VENDOR_AGREEMENT_LEGAL_STATUS = "approved"'),
+  "Reviewed terms must use new approved immutable version");
 console.log("Vendor agreements: plan-matched HUB + Sparta activation gates, admin draft visibility and CLAIM directory separation OK.");
