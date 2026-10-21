@@ -1,0 +1,217 @@
+/*
+ * NYXI / STUDIO 3.0 — public immersive beauty workspace.
+ * No external font, runtime UI library, AR or back-end dependencies.
+ * Scope deliberately excludes /admin reviewer authentication surfaces.
+ */
+:root{--nx-ink:#1c101a;--nx-plum:#341629;--nx-petal:#efe1dc;--nx-sand:#e8d0c4;--nx-milk:#f7f3ed;--nx-mauve:#a66b87;--nx-accent:#b64a76}
+html{scroll-padding-top:12px}
+body:has(.nyxi-rebuild){background:#f2ebe7;background-image:none}
+.nyxi-rebuild{max-width:none!important;padding-inline:clamp(18px,3.8vw,74px)!important;color:var(--nx-ink);overflow:clip}
+.nyxi-rebuild button{touch-action:manipulation}
+.nyxi-rebuild :is(button,a,input,select):focus-visible{outline:3px solid #d66c99;outline-offset:3px}
+.nyxi-skip-link{position:absolute;z-index:100;top:-100px;left:20px;background:white;padding:12px}
+.nyxi-skip-link:focus{top:4px}
+.nyxi-main-header{display:grid;grid-template-columns:1fr auto 1fr;gap:24px;align-items:center;border:0!important;padding:26px 0!important}
+.nyxi-main-header::after{display:none}
+.nyxi-main-header .logo{font-size:clamp(39px,3.4vw,50px);letter-spacing:-.11em}
+.nyxi-main-header .header-right{justify-self:end}
+.nyxi-head-manifesto{font-weight:700;font-size:10px;letter-spacing:.25em;color:#806371}
+.nyxi-main-header .header-link{letter-spacing:.17em}
+.nyxi-main-header .beta-label{font-size:9px}
+.nyxi-rebuild .nyxi-cover{min-height:clamp(640px,78svh,960px);margin-top:0;box-shadow:0 32px 60px #1b0e171f}
+.nyxi-rebuild .nyxi-cover-media img{filter:saturate(.75) contrast(1.12) brightness(.9)}
+.nyxi-rebuild .nyxi-cover-film{background:
+ linear-gradient(100deg,rgba(19,7,17,.95) 0%,rgba(26,9,23,.86) 33%,rgba(27,8,20,.18) 77%),
+ linear-gradient(0deg,rgba(22,5,18,.69),transparent 33%)}
+.nyxi-rebuild .nyxi-cover h1{font-size:clamp(75px,9.6vw,154px);letter-spacing:-.075em}
+.nyxi-rebuild .nyxi-cover-copy{max-width:min(800px,72%);}
+.nyxi-rebuild .nyxi-cover-primary{background:#e8c8b9;color:#241422;border-color:#e8c8b9}
+.nyxi-rebuild .nyxi-cover-action-mark{background:#3c1730}
+.nyxi-rebuild .nyxi-cover-footer{letter-spacing:.2em}
+.nyxi-editorial-ticker{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:22px clamp(3px,2vw,18px);border-bottom:1px solid #c9b6b8;color:#6f4f61;font-size:10px;letter-spacing:.17em;font-weight:750}
+.nyxi-editorial-ticker span:nth-child(even){font-size:16px;color:#b87a92}
+.nyxi-experience{scroll-margin-top:24px;margin-top:0;}
+.nyxi-experience-intro{padding:clamp(68px,9vw,145px) 0 clamp(40px,5vw,76px)}
+.nyxi-eyebrow{color:#7b445f;font-size:11px;letter-spacing:.24em;font-weight:800}
+.nyxi-experience-intro-bottom{display:flex;align-items:end;justify-content:space-between;gap:60px}
+.nyxi-experience-intro-bottom h2{font-family:"Iowan Old Style","Baskerville","Palatino Linotype",Georgia,serif;font-weight:400;font-size:clamp(55px,7.8vw,118px);letter-spacing:-.075em;line-height:.97;margin:22px 0 0;text-wrap:balance}
+.nyxi-experience-intro-bottom h2 em{font-weight:400;font-style:italic;color:#a45372}
+.nyxi-experience-intro-bottom p{max-width:330px;margin:0 0 11px;font-size:clamp(14px,1.3vw,18px);color:#705966;line-height:1.75}
+.nyxi-workspace{display:grid;grid-template-columns:minmax(205px,310px) minmax(0,1fr);align-items:stretch;gap:0;background:#f8f4ef;border:1px solid #d7c3c4;box-shadow:0 25px 90px #4020350d}
+.nyxi-rebuild .nyxi-chapter-nav{display:flex;flex-direction:column;gap:0;padding:0;border:0;background:#271420;position:relative}
+.nyxi-nav-top,.nyxi-nav-footer{padding:30px 26px;color:#d1adbc;font-size:10px;font-weight:700;letter-spacing:.17em;display:flex;justify-content:space-between}
+.nyxi-nav-top{border-bottom:1px solid #ffffff25}
+.nyxi-nav-footer{margin-top:auto;border-top:1px solid #ffffff25;font-size:8px;opacity:.8;line-height:1.6}
+.nyxi-rebuild .nyxi-chapter-nav button,.nyxi-rebuild .nyxi-chapter-nav button.active{
+  width:100%;flex:none;min-height:126px;display:grid;grid-template-columns:30px minmax(0,1fr) 24px;
+  grid-template-rows:auto auto;align-content:center;gap:10px;padding:19px clamp(14px,2vw,28px);
+  border:0;border-bottom:1px solid #ffffff22!important;border-radius:0;
+  background:transparent;color:#ecdbe1;box-shadow:none;text-align:left;
+  transition:background .25s ease,box-shadow .25s ease
+}
+.nyxi-rebuild .nyxi-chapter-nav button:hover,.nyxi-rebuild .nyxi-chapter-nav button.active{background:#4c283f;transform:none}
+.nyxi-rebuild .nyxi-chapter-nav button.active{box-shadow:inset 4px 0 #e4b8b0}
+.nyxi-rebuild .nyxi-chapter-nav button small,.nyxi-rebuild .nyxi-chapter-nav button.active small{grid-area:1/1/3/2;align-self:start;color:#d5a5b8;font-size:11px;letter-spacing:.07em}
+.nyxi-rebuild .nyxi-chapter-nav button span:nth-child(2),.nyxi-rebuild .nyxi-chapter-nav button.active span:nth-child(2){
+ grid-area:1/2/2/3;color:#fff6ef;font-family:"Iowan Old Style","Baskerville",Georgia,serif;
+ font-size:clamp(25px,2.1vw,32px);line-height:1.03;font-weight:400;letter-spacing:-.055em
+}
+.nyxi-rebuild .nyxi-chapter-nav .tab-description,.nyxi-rebuild .nyxi-chapter-nav button.active .tab-description{grid-area:2/2/3/3;font-family:inherit;line-height:1.55;font-size:11px;color:#dbb6c6;max-width:220px}
+.nyxi-rebuild .nyxi-chapter-nav .tab-arrow,.nyxi-rebuild .nyxi-chapter-nav button.active .tab-arrow{grid-area:1/3/2/4;position:static;color:#f2c9cf;font-size:20px;font-weight:400;justify-self:end}
+.nyxi-workspace-content{min-width:0;padding:0 clamp(24px,4vw,70px) clamp(48px,6vw,90px);position:relative;background:#f8f4ef}
+.nyxi-workspace-topline{padding:28px 0 17px;border-bottom:1px solid #d8c9c5;display:flex;gap:15px;justify-content:space-between;color:#986a7a;letter-spacing:.17em;font-size:9px;font-weight:800}
+.nyxi-workspace-content .panel{padding:52px 0 0;min-height:auto}
+.nyxi-workspace-content .panel h2{font-family:"Iowan Old Style","Baskerville","Palatino Linotype",Georgia,serif;font-weight:400;font-size:clamp(39px,4.7vw,76px);line-height:1.06;letter-spacing:-.075em;color:#291923;margin:16px 0 18px}
+.nyxi-workspace-content .panel h2 em{font-weight:400;color:#a55275}
+.nyxi-workspace-content .panel .overline{font-size:10px;letter-spacing:.17em;font-weight:800;color:#a25977}
+.nyxi-workspace-content .panel .muted{color:#776773;line-height:1.7;font-size:clamp(13px,1.15vw,16px)}
+.nyxi-rebuild .privacy-label{background:#e9d6db;border:0;color:#6e374e;border-radius:0;font-size:10px;letter-spacing:.04em}
+.nyxi-rebuild .section-heading{align-items:end;margin-bottom:38px;gap:22px}
+.nyxi-rebuild .section-heading .muted{max-width:580px}
+.nyxi-rebuild .studio-grid{grid-template-columns:minmax(0,1fr) minmax(310px,.8fr);gap:18px;align-items:stretch}
+.nyxi-rebuild .upload-area,.nyxi-rebuild .color-output{padding:clamp(17px,2.3vw,31px);border:1px solid #dfd3d4;border-radius:0;box-shadow:none;min-width:0;background:#fffdfb}
+.nyxi-rebuild .upload-area{display:flex;flex-direction:column;min-height:580px}
+.nyxi-rebuild .upload-trigger{min-height:116px;padding:20px;border:1px dashed #b6879b;border-radius:0;background:#f1e4e7;transition:background .2s}
+.nyxi-rebuild .upload-trigger:hover{background:#ead0db}
+.nyxi-rebuild .upload-icon{width:36px;height:36px;background:#6d334e;color:#fff;border-radius:50%}
+.nyxi-rebuild .upload-trigger strong{font-weight:750;font-size:15px;color:#5f2a46}
+.nyxi-rebuild .photo-stage{flex:1;min-height:315px;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 65% 25%,#cf8fac33,transparent 50%),#271323;border-radius:0;overflow:hidden;color:white}
+.nyxi-rebuild .photo-canvas{max-height:min(610px,75vh);object-fit:contain}
+.nyxi-rebuild .photo-placeholder{padding:38px 20px;color:#ecd5df}
+.nyxi-rebuild .photo-placeholder .placeholder-polish{display:block;font-size:110px;color:#ddabc1}
+.nyxi-rebuild .photo-placeholder p{font:italic clamp(24px,3vw,44px)/1.12 Georgia,serif;color:#f0d0de;max-width:310px;margin:auto}
+.nyxi-rebuild .color-output{background:#f3ede8}
+.nyxi-rebuild .output-header{font-size:10px}
+.nyxi-rebuild .sample-preview{height:clamp(180px,24vw,300px);border-radius:0;position:relative;box-shadow:inset 0 0 30px #fff5;margin:26px 0 22px;transition:background .4s}
+.nyxi-rebuild .sample-preview::after{content:"";position:absolute;inset:12px;border:1px solid #ffffff65;pointer-events:none}
+.nyxi-rebuild .sample-preview span{background:transparent;color:#463042;letter-spacing:.2em;font-size:10px}
+.nyxi-rebuild .sample-code strong{font:normal clamp(30px,3vw,52px)/1.1 Georgia,serif;letter-spacing:-.04em;color:#43253b}
+.nyxi-rebuild .sample-code .outline-button{border-radius:0;min-height:42px}
+.nyxi-rebuild .shade-list{gap:0}
+.nyxi-rebuild .shade-item{background:transparent;border:0;border-top:1px solid #d9c9cc;border-radius:0;padding:14px 4px}
+.nyxi-rebuild .shade-chip{border-radius:50%;width:45px;height:45px;box-shadow:0 0 0 2px #ffffff90}
+.nyxi-rebuild .suggestions h3{font-family:Georgia,serif;font-weight:400;font-size:24px;color:#4c2940}
+.nyxi-rebuild .color-disclaimer,.nyxi-rebuild .microcopy{line-height:1.7}
+.nyxi-rebuild .journey-card{padding:clamp(25px,4.5vw,58px);border-radius:0;background:#fffdfb;border:1px solid #e0d2d1;box-shadow:none;min-height:430px}
+.nyxi-rebuild .journey-top{align-items:end}
+.nyxi-rebuild .journey-card h3{font-family:"Iowan Old Style","Baskerville",Georgia,serif;font-weight:400;font-size:clamp(30px,3.5vw,49px);line-height:1.07;letter-spacing:-.055em}
+.nyxi-rebuild .concern-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0;border-top:1px solid #d9c9ce;border-left:1px solid #d9c9ce}
+.nyxi-rebuild .concern-option{min-height:132px;display:grid;grid-template-columns:43px 1fr;grid-template-rows:auto auto;align-content:center;column-gap:13px;row-gap:6px;border:0;border-right:1px solid #d9c9ce;border-bottom:1px solid #d9c9ce;border-radius:0;background:transparent;padding:18px}
+.nyxi-rebuild .concern-symbol{grid-area:1/1/3/2;width:42px;height:42px;background:#eddae2;color:#813b5a;font-size:23px}
+.nyxi-rebuild .concern-option strong{font-family:Georgia,serif;font-size:clamp(16px,1.6vw,21px);font-weight:400;color:#47293b}
+.nyxi-rebuild .concern-option small{font-size:11px;line-height:1.4}
+.nyxi-rebuild .concern-option.picked,.nyxi-rebuild .context-option.picked,.nyxi-rebuild .warning-choices .picked{background:#f1dde3;box-shadow:inset 0 0 0 1px #a75579}
+.nyxi-rebuild .context-list{gap:0;grid-template-columns:repeat(2,minmax(0,1fr));border-left:1px solid #decdd2;border-top:1px solid #decdd2}
+.nyxi-rebuild .context-option{border:0;border-right:1px solid #decdd2;border-bottom:1px solid #decdd2;border-radius:0;min-height:116px;background:#fffbf9}
+.nyxi-rebuild .context-option strong{font:normal clamp(17px,1.6vw,22px)/1.3 Georgia,serif}
+.nyxi-rebuild .primary-action{border-radius:0;min-height:53px;background:#4e233a}
+.nyxi-rebuild .primary-action:hover:not(:disabled){background:#733551}
+.nyxi-rebuild .journey-actions{gap:14px}
+.nyxi-rebuild .warning-choices button,.nyxi-rebuild .routine-step{border-radius:0}
+.nyxi-rebuild .atelier-grid{grid-template-columns:minmax(0,1.25fr) minmax(290px,.75fr);gap:16px}
+.nyxi-rebuild .manicure-preview{background:radial-gradient(ellipse at 33% 21%,#e8c5d7 0%,#b1809d 45%,#462139 100%);border-radius:0;min-height:660px;box-shadow:0 24px 50px #38172b20;color:#3c2331}
+.nyxi-rebuild .preview-topline{color:#ffede9}
+.nyxi-rebuild .preview-word{font-family:Georgia,serif;font-style:italic;color:#fff1ed}
+.nyxi-rebuild .atelier-controls{background:#fffdfa;border:1px solid #e1d2d4;border-radius:0;box-shadow:none;padding:clamp(16px,2vw,29px)}
+.nyxi-rebuild .atelier-realism-modes,.nyxi-rebuild .atelier-view-modes{gap:0}
+.nyxi-rebuild .atelier-realism-modes button,.nyxi-rebuild .atelier-view-modes button{border-radius:0;min-height:48px;background:transparent;border:1px solid #d8c7cd;color:#653c4e}
+.nyxi-rebuild .atelier-realism-modes button.selected,.nyxi-rebuild .atelier-view-modes button.selected{background:#55253e;color:#fff;border-color:#55253e}
+.nyxi-rebuild .control-group{border-bottom:1px solid #e4d6db}
+.nyxi-rebuild .control-heading h3{font-family:Georgia,serif;font-weight:400;letter-spacing:-.035em}
+.nyxi-rebuild .shape-option,.nyxi-rebuild .finish-grid button,.nyxi-rebuild .brand-polish-controls,.nyxi-rebuild .brand-polish-controls select{border-radius:0}
+.nyxi-rebuild .palette-choice{min-height:36px}
+.nyxi-rebuild .nyxi-knowledge-panel .research-holding{border:1px solid #ead1db;border-radius:0;background:#fffdfb;max-width:850px}
+.nyxi-rebuild .nyxi-knowledge-panel .searchform input,.nyxi-rebuild .nyxi-knowledge-panel .searchform button{border-radius:0}
+.nyxi-rebuild .nyxi-source-atlas{border-radius:0}
+.nyxi-endnote{background:#301626;color:#f4dedf;display:flex;align-items:end;justify-content:space-between;gap:25px;margin-top:clamp(75px,10vw,155px);padding:clamp(27px,5vw,70px);min-height:350px}
+.nyxi-endnote>span{font-size:10px;letter-spacing:.22em;align-self:flex-start}
+.nyxi-endnote p{font:normal clamp(48px,6.9vw,105px)/.97 Georgia,serif;letter-spacing:-.065em;margin:0;flex:1;text-align:center}
+.nyxi-endnote p em{color:#da9db4}
+.nyxi-endnote a{font-size:10px;letter-spacing:.16em;white-space:nowrap;text-decoration:none;border-bottom:1px solid #e1b6c9;padding-bottom:9px}
+.nyxi-rebuild .nyxi-footer{margin-top:0;min-height:240px;align-items:center;padding:50px 0}
+.nyxi-rebuild .nyxi-footer .footer-brand{font-size:33px}
+.nyxi-rebuild .footer-signoff{font-size:30px}
+@media(max-width:1190px){
+ .nyxi-workspace{grid-template-columns:minmax(185px,238px) minmax(0,1fr)}
+ .nyxi-workspace-content{padding-inline:24px}
+ .nyxi-rebuild .studio-grid,.nyxi-rebuild .atelier-grid{grid-template-columns:minmax(0,1fr)}
+ .nyxi-rebuild .manicure-preview{position:relative;top:auto;min-height:570px}
+ .nyxi-rebuild .atelier-controls{min-height:0}
+}
+@media(max-width:900px){
+ .nyxi-main-header{grid-template-columns:1fr auto}.nyxi-head-manifesto{display:none}
+ .nyxi-rebuild .nyxi-cover{min-height:650px}
+ .nyxi-experience-intro-bottom{align-items:start;flex-direction:column;gap:22px}
+ .nyxi-experience-intro-bottom h2{font-size:clamp(54px,9vw,93px)}
+ .nyxi-workspace{grid-template-columns:1fr}
+ .nyxi-rebuild .nyxi-chapter-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0}
+ .nyxi-nav-top,.nyxi-nav-footer{display:none}
+ .nyxi-rebuild .nyxi-chapter-nav button,.nyxi-rebuild .nyxi-chapter-nav button.active{
+  min-height:115px;padding:14px 9px;display:flex;flex-direction:column;gap:10px;align-items:flex-start;justify-content:center;border:0!important;border-right:1px solid #ffffff35!important
+ }
+ .nyxi-rebuild .nyxi-chapter-nav button.active{box-shadow:inset 0 -4px #e4b8b0}
+ .nyxi-rebuild .nyxi-chapter-nav button small{font-size:9px}
+ .nyxi-rebuild .nyxi-chapter-nav button span:nth-child(2),.nyxi-rebuild .nyxi-chapter-nav button.active span:nth-child(2){font-size:clamp(17px,2.8vw,26px)}
+ .nyxi-rebuild .nyxi-chapter-nav .tab-description,.nyxi-rebuild .nyxi-chapter-nav .tab-arrow{display:none}
+ .nyxi-workspace-content{padding-inline:clamp(20px,4vw,45px)}
+ .nyxi-rebuild .studio-grid,.nyxi-rebuild .atelier-grid{grid-template-columns:1fr}
+ .nyxi-rebuild .upload-area{min-height:520px}
+}
+@media(max-width:650px){
+ .nyxi-rebuild{padding-inline:14px!important}
+ .nyxi-main-header{padding:20px 0!important}
+ .nyxi-main-header .logo{font-size:38px}
+ .nyxi-main-header .header-link{display:inline!important;text-decoration:none;font-size:9px;letter-spacing:.05em}
+ .nyxi-main-header .header-right{gap:10px}
+ .nyxi-rebuild .nyxi-cover{min-height:min(790px,calc(100svh - 88px));}
+ .nyxi-rebuild .nyxi-cover h1{font-size:clamp(54px,12vw,78px)}
+ .nyxi-rebuild .nyxi-cover-copy{max-width:100%}
+ .nyxi-rebuild .nyxi-cover-film{background:linear-gradient(0deg,#1c0b1cf7 0%,#230f1fe0 40%,#26112239 86%)}
+ .nyxi-editorial-ticker{gap:7px;padding:17px 4px;font-size:8px;letter-spacing:.04em}
+ .nyxi-editorial-ticker span:nth-child(even){font-size:12px}
+ .nyxi-experience-intro{padding:65px 2px 36px}
+ .nyxi-experience-intro-bottom h2{font-size:clamp(52px,11vw,75px)}
+ .nyxi-experience-intro-bottom p{font-size:14px;max-width:360px}
+ .nyxi-workspace-content{padding-inline:16px;padding-bottom:40px}
+ .nyxi-workspace-topline{font-size:8px;letter-spacing:.1em;padding:19px 0 10px}
+ .nyxi-rebuild .nyxi-chapter-nav{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .nyxi-rebuild .nyxi-chapter-nav button,.nyxi-rebuild .nyxi-chapter-nav button.active{min-height:87px;gap:5px;padding:14px 15px;border-bottom:1px solid #ffffff28!important;}
+ .nyxi-rebuild .nyxi-chapter-nav button span:nth-child(2),.nyxi-rebuild .nyxi-chapter-nav button.active span:nth-child(2){font-size:clamp(21px,5vw,26px)}
+ .nyxi-rebuild .nyxi-chapter-nav button.active{box-shadow:inset 3px 0 #e4b8b0}
+ .nyxi-workspace-content .panel{padding-top:32px}
+ .nyxi-workspace-content .panel h2{font-size:clamp(38px,9vw,52px)}
+ .nyxi-rebuild .section-heading{flex-direction:column;align-items:start;gap:12px;margin-bottom:24px}
+ .nyxi-rebuild .privacy-label{font-size:9px;padding:8px 11px}
+ .nyxi-rebuild .upload-area{min-height:0}
+ .nyxi-rebuild .photo-stage{min-height:350px}
+ .nyxi-rebuild .photo-placeholder p{font-size:29px}
+ .nyxi-rebuild .color-output{padding:18px}
+ .nyxi-rebuild .sample-preview{height:220px}
+ .nyxi-rebuild .journey-top{flex-direction:column;align-items:start;gap:18px}
+ .nyxi-rebuild .journey-meter{width:100%;max-width:330px}
+ .nyxi-rebuild .journey-card{padding:21px 16px;min-height:0}
+ .nyxi-rebuild .concern-grid{grid-template-columns:1fr}
+ .nyxi-rebuild .concern-option{min-height:88px;grid-template-columns:43px 1fr;padding:13px 12px}
+ .nyxi-rebuild .context-list{grid-template-columns:1fr}
+ .nyxi-rebuild .context-option{min-height:80px}
+ .nyxi-rebuild .atelier-realism-modes,.nyxi-rebuild .atelier-view-modes{grid-template-columns:1fr 1fr}
+ .nyxi-rebuild .atelier-view-modes{display:flex;flex-wrap:wrap;gap:0}
+ .nyxi-rebuild .atelier-view-modes button{flex:1 1 40%;font-size:11px;padding:10px}
+ .nyxi-rebuild .manicure-preview{min-height:500px;padding:19px 13px}
+ .nyxi-rebuild .hand-art{transform:rotate(-8deg) scale(.85);height:360px;max-width:100%}
+ .nyxi-rebuild .atelier-controls{padding:18px}
+ .nyxi-endnote{margin-top:70px;min-height:340px;padding:28px 22px;flex-direction:column;align-items:start;gap:32px}
+ .nyxi-endnote p{font-size:clamp(53px,12vw,80px);text-align:left;flex:none}
+ .nyxi-rebuild .nyxi-footer{margin-top:0;padding:42px 0;gap:20px;align-items:start}
+}
+@media(max-width:390px){
+ .nyxi-rebuild{padding-inline:10px!important}
+ .nyxi-rebuild .nyxi-cover h1{font-size:51px}
+ .nyxi-workspace-content{padding-inline:12px}
+ .nyxi-rebuild .nyxi-chapter-nav button{padding-inline:10px}
+ .nyxi-rebuild .nyxi-chapter-nav button span:nth-child(2){font-size:21px}
+ .nyxi-rebuild .hand-art{transform:rotate(-8deg) scale(.72)}
+}
+@media(prefers-reduced-motion:reduce){
+ .nyxi-rebuild *, .nyxi-rebuild *::before,.nyxi-rebuild *::after{animation-duration:.01ms!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
+}
