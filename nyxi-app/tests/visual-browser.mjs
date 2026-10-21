@@ -37,12 +37,22 @@ try {
       width: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
       navItems: document.querySelectorAll(".nyxi-chapter-nav button").length,
-      heroHeight: Math.round(document.querySelector(".nyxi-cover")?.getBoundingClientRect().height || 0)
+      heroHeight: Math.round(document.querySelector(".nyxi-theatre")?.getBoundingClientRect().height || 0)
     }));
     console.log(JSON.stringify({ viewport: viewport.name, ...measure }));
     assert.equal(measure.navItems, 4, "All studio chapters must render");
     assert.ok(measure.scrollWidth <= measure.width + 2, "Horizontal overflow on " + viewport.name);
     assert.ok(measure.heroHeight >= 400, "Editorial hero missing");
+    const palette = page.locator(".nyxi-palette-choice").nth(3);
+    await palette.click();
+    assert.equal(await palette.getAttribute("aria-pressed"), "true");
+    await page.getByText("IRIS HAZE").waitFor({ state: "visible" });
+    await page.screenshot({ path: "visual-evidence/" + viewport.name + "-live-color.png", animations: "disabled" });
+    await page.getByRole("button", { name: /Δοκίμασε αυτή την απόχρωση στο Atelier/ }).click();
+    await page.locator("#style-title").waitFor({ state: "visible" });
+    await page.waitForFunction(() => getComputedStyle(document.querySelector(".nail-polish")).backgroundColor === "rgb(153, 134, 192)");
+    console.log(JSON.stringify({ viewport: viewport.name, interaction: "palette changes real nail try-on color", shade: "IRIS HAZE" }));
+
     await page.locator(".nyxi-chapter-nav button").nth(1).click();
     await page.locator("#journey-title").waitFor({ state: "visible" });
     const firstAnswer = page.locator(".concern-option").first();
