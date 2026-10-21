@@ -79,7 +79,14 @@ export default function Home() {
         </nav>
         <div className={"nyxi-workspace-content nyxi-space-" + tab}>
           <div className="nyxi-workspace-topline"><span>NOW EXPLORING — {selected.number}</span><span>{selected.label.toUpperCase()}</span></div>
-          <div hidden={tab !== "color"}><PhotoColorStudio onColorPick={setSampledShade} /></div>
+          <div hidden={tab !== "color"}>
+            <PhotoColorStudio onColorPick={setSampledShade} />
+            {sampledShade && <div className="nyxi-color-handoff" role="status">
+              <span className="nyxi-handoff-swatch" style={{ background: sampledShade }} aria-hidden="true" />
+              <div><span className="nyxi-handoff-eyebrow">YOUR SHADE IS READY</span><strong>{sampledShade}</strong><p>Πήγαινε ένα βήμα πιο πέρα: δοκίμασε αυτή την απόχρωση στο Nail Atelier.</p></div>
+              <button type="button" onClick={() => setTab("style")}>Δοκίμασε το χρώμα <span aria-hidden="true">↗</span></button>
+            </div>}
+          </div>
           <div hidden={tab !== "style"}><NailStyleStudio sampledShade={sampledShade} active={tab === "style"} /></div>
           <div hidden={tab !== "care"}><GuidedCare /></div>
           <div hidden={tab !== "search"}><section className="panel nyxi-knowledge-panel" aria-labelledby="search-title">
