@@ -58,6 +58,10 @@ body:has(.nyxi-rebuild){background:#f2ebe7;background-image:none}
 }
 .nyxi-rebuild .nyxi-chapter-nav .tab-description,.nyxi-rebuild .nyxi-chapter-nav button.active .tab-description{grid-area:2/2/3/3;font-family:inherit;line-height:1.55;font-size:11px;color:#dbb6c6;max-width:220px}
 .nyxi-rebuild .nyxi-chapter-nav .tab-arrow,.nyxi-rebuild .nyxi-chapter-nav button.active .tab-arrow{grid-area:1/3/2/4;position:static;color:#f2c9cf;font-size:20px;font-weight:400;justify-self:end}
+.nyxi-space-color{background:radial-gradient(circle at 93% 7%,#eacfd84a,transparent 35%),#f8f4ef}
+.nyxi-space-care{background:radial-gradient(circle at 95% 2%,#f1ddca68,transparent 35%),#f8f4ef}
+.nyxi-space-style{background:radial-gradient(circle at 93% 4%,#e9b8d151,transparent 38%),#f8f4ef}
+.nyxi-space-search{background:radial-gradient(circle at 93% 4%,#d8c0c752,transparent 35%),#f8f4ef}
 .nyxi-workspace-content{min-width:0;padding:0 clamp(24px,4vw,70px) clamp(48px,6vw,90px);position:relative;background:#f8f4ef}
 .nyxi-workspace-topline{padding:28px 0 17px;border-bottom:1px solid #d8c9c5;display:flex;gap:15px;justify-content:space-between;color:#986a7a;letter-spacing:.17em;font-size:9px;font-weight:800}
 .nyxi-workspace-content .panel{padding:52px 0 0;min-height:auto}
