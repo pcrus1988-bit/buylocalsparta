@@ -5,16 +5,17 @@ import PhotoColorStudio from "./photo-color-studio";
 import GuidedCare from "./guided-care";
 import NailStyleStudio from "./nail-style-studio";
 import PublicSourceAtlas from "./public-source-atlas";
+import PremiumHero from "./premium-hero";
 
 type Result = { id: string; type: string; excerpt: string; citation_url: string; authority: string | null; category: string | null };
 type SearchReply = { status?: string; results?: Result[]; error?: string };
 type Tab = "color" | "care" | "style" | "search";
 
-const tabLabels: { value: Tab; number: string; label: string }[] = [
-  { value: "color", number: "01", label: "Color Studio" },
-  { value: "care", number: "02", label: "Nail Problem Solver" },
-  { value: "style", number: "03", label: "Nail Atelier" },
-  { value: "search", number: "04", label: "Γνώση & πηγές" }
+const tabLabels: { value: Tab; number: string; label: string; description: string }[] = [
+  { value: "color", number: "01", label: "Color Studio", description: "Ανακάλυψε την απόχρωσή σου" },
+  { value: "care", number: "02", label: "Nail Care", description: "Μια πιο προσωπική ρουτίνα" },
+  { value: "style", number: "03", label: "Nail Atelier", description: "Σχεδίασε το επόμενο look" },
+  { value: "search", number: "04", label: "Γνώση & πηγές", description: "Η γνώση πίσω από την ομορφιά" }
 ];
 
 export default function Home() {
@@ -44,25 +45,21 @@ export default function Home() {
   return <main className="shell">
     <header className="header">
       <a className="logo" href="/" aria-label="NYXI — Αρχική">NYXI<span className="dot">.</span></a>
-      <div className="header-right"><span className="tag">NAIL INTELLIGENCE</span><span className="beta-label">BETA</span></div>
+      <div className="header-right"><a className="header-link" href="#nyxi-tools">Ανακάλυψε το studio <span aria-hidden="true">↗</span></a><span className="tag">NAIL INTELLIGENCE</span><span className="beta-label">BETA</span></div>
     </header>
 
-    <section className="hero" aria-labelledby="hero-title">
-      <div className="hero-copy">
-        <span className="eyebrow"><span className="eyebrow-mark" aria-hidden="true">✳</span> THE NAIL EXPERIENCE</span>
-        <h1 id="hero-title">Η ομορφιά<br />έχει <em>απόχρωση.</em></h1>
-        <p>Βρες το χρώμα σου, σχεδίασε το επόμενο μανικιούρ και φρόντισε τα νύχια σου με ήπιες, πρακτικές συμβουλές. Μια προσωπική εμπειρία ομορφιάς με τη γνώση στο πλευρό σου.</p>
-        <button type="button" className="hero-cta" onClick={() => { setTab("color"); document.getElementById("nyxi-tools")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Ξεκίνα με το χρώμα <span aria-hidden="true">↗</span></button>
-      </div>
-      <div className="hero-art" aria-hidden="true"><div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" /><div className="art-orbit orbit-three" /><span className="art-word">color is personal.</span><div className="art-caption">NYXI / YOUR SHADE</div></div>
-    </section>
+    <PremiumHero onOpen={destination => {
+      setTab(destination);
+      document.getElementById("nyxi-tools")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }} />
 
-    <div className="intro-line"><span>COLOR · CARE · CREATE · LEARN</span><span>Το δικό σου nail ritual</span></div>
+    <div className="intro-line"><span>COLOR · CARE · CREATE · LEARN</span><span>MADE TO FEEL PERSONAL — NYXI STUDIO</span></div>
 
     <section id="nyxi-tools" className="tools" aria-label="Εργαλεία NYXI">
+      <div className="studio-intro"><div><span className="overline">A STUDIO FOR EVERY NAIL STORY</span><h2>Διάλεξε το δικό σου <em>ritual.</em></h2></div><p>Τέσσερις διαφορετικοί τρόποι να εξερευνήσεις το χρώμα, τη φροντίδα και τη δημιουργία.</p></div>
       <nav className="tabs" aria-label="Επιλογή εργαλείου">
         {tabLabels.map((item) => <button key={item.value} type="button" className={tab === item.value ? "active" : ""} aria-pressed={tab === item.value} onClick={() => setTab(item.value)}>
-          <small>{item.number}</small><span>{item.label}</span><span className="tab-arrow" aria-hidden="true">↗</span>
+          <small>{item.number}</small><span>{item.label}</span><span className="tab-description">{item.description}</span><span className="tab-arrow" aria-hidden="true">↗</span>
         </button>)}
       </nav>
 
@@ -96,6 +93,6 @@ export default function Home() {
 
     </section>
 
-    <footer><div><a className="footer-brand" href="/">NYXI<span className="dot">.</span></a><p>Η δική σου εμπειρία νυχιών.</p></div><div className="footer-meta"><span>Ερευνητική έκδοση · BETA</span><span>Οι πληροφορίες δεν αντικαθιστούν επαγγελματική συμβουλή.</span></div></footer>
+    <footer className="nyxi-footer"><div><a className="footer-brand" href="/">NYXI<span className="dot">.</span></a><p className="footer-signoff">Color is a little personal.</p><p>Η δική σου εμπειρία νυχιών.</p></div><div className="footer-meta"><span>Ερευνητική έκδοση · BETA</span><span>Οι πληροφορίες δεν αντικαθιστούν επαγγελματική συμβουλή.</span></div></footer>
   </main>;
 }
