@@ -215,3 +215,13 @@ body:has(.nyxi-rebuild){background:#f2ebe7;background-image:none}
 @media(prefers-reduced-motion:reduce){
  .nyxi-rebuild *, .nyxi-rebuild *::before,.nyxi-rebuild *::after{animation-duration:.01ms!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
 }
+
+/* A real continuation between discovery and try-on, rather than a disconnected screen. */
+.nyxi-color-handoff{display:grid;grid-template-columns:92px minmax(0,1fr) auto;gap:22px;align-items:center;margin-top:18px;border:1px solid #c6a8b5;padding:22px;background:#eadddf}
+.nyxi-handoff-swatch{width:90px;height:90px;box-shadow:inset 0 0 0 6px #fff6;border:1px solid #ffffff75}
+.nyxi-handoff-eyebrow{display:block;font-size:10px;letter-spacing:.18em;font-weight:800;color:#985570;margin-bottom:7px}
+.nyxi-color-handoff strong{font:normal 30px/1 Georgia,serif;color:#321b29}
+.nyxi-color-handoff p{margin:9px 0 0;color:#715464;font-size:13px;line-height:1.5;max-width:370px}
+.nyxi-color-handoff button{border:0;background:#4b253c;color:white;min-height:49px;padding:13px 18px;font-weight:750;font-size:12px;text-align:left;display:flex;justify-content:space-between;gap:20px}
+.nyxi-color-handoff button:hover{background:#79405d}
+@media(max-width:740px){.nyxi-color-handoff{grid-template-columns:60px minmax(0,1fr);padding:16px;gap:14px}.nyxi-handoff-swatch{width:60px;height:60px}.nyxi-color-handoff button{grid-column:1/-1;width:100%}}
