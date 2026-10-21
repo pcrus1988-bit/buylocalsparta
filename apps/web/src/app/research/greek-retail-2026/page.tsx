@@ -7,7 +7,7 @@ import Link from "next/link";
 import styles from "../../../components/ResearchObservatory.module.css";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 import { publicResearchStudy } from "../../../lib/research-observatory-runtime";
-import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../lib/postgres-runtime";
+import { getPublicSurveyPostgresRuntime, productionDatabaseConfigured } from "../../../lib/postgres-runtime";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,7 @@ export function generateMetadata(): Promise<Metadata> {
 async function readFallbackProgress(): Promise<{ started: number; completed: number } | undefined> {
   if (!productionDatabaseConfigured()) return undefined;
   try {
-    const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    const result = await getPublicSurveyPostgresRuntime().sqlPool.query<SqlRow>(`
       SELECT
         (SELECT count(*) FROM research_responses r
          JOIN research_invites ri ON ri.id=r.invite_id
@@ -46,7 +46,12 @@ async function readFallbackProgress(): Promise<{ started: number; completed: num
     const completed = Number(row.completed);
     if (!Number.isFinite(started) || !Number.isFinite(completed)) return undefined;
     return { started, completed };
-  } catch {
+  } catch (error) {
+    // Never expose SQL text, connection strings or participant data in public responses.
+    const code = error && typeof error === "object" && "code" in error
+      ? String(error.code)
+      : "unavailable";
+    console.warn("research.public_study_fallback_progress_unavailable", { code });
     return undefined;
   }
 }
