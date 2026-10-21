@@ -354,16 +354,12 @@ export async function adminMailWorkspace(
     OFFSET $${offsetParam}
   `, listParams);
 
-  let messages = list.rows.map(projectSummary);
+  const messages = list.rows.map(projectSummary);
   const selectedId = input.selectedId && messages.some((message) => message.id === input.selectedId)
     ? input.selectedId
     : messages[0]?.id;
-  const selectedSummary = messages.find((message) => message.id === selectedId);
-  const selectedUnread = Boolean(selectedSummary && selectedSummary.direction === "incoming" && !selectedSummary.isRead);
-  if (selectedSummary && selectedUnread) {
-    await markAdminMailRead(principal, selectedSummary.id, true);
-    messages = messages.map((message) => message.id === selectedSummary.id ? { ...message, isRead: true } : message);
-  }
+  // A GET that previews mail must never silently mutate read state.
+  // The UI's CSRF-protected read/unread actions handle explicit changes.
   let thread: readonly AdminMailThreadMessage[] = [];
   if (selectedId) {
     const selected = await pool.query<{ thread_key: string }>("SELECT thread_key FROM admin_mail_messages WHERE public_id=$1 LIMIT 1", [selectedId]);
@@ -406,7 +402,7 @@ export async function adminMailWorkspace(
     },
     metrics: {
       inbox: Number(metric.inbox || 0),
-      unread: Math.max(0, Number(metric.unread || 0) - (selectedUnread && !selectedSummary?.archived && !selectedSummary?.deleted ? 1 : 0)),
+      unread: Number(metric.unread || 0),
       sent: Number(metric.sent || 0),
       starred: Number(metric.starred || 0),
       archived: Number(metric.archived || 0),
