@@ -1,0 +1,166 @@
+/* NYXI / COLOR THEATRE IV.
+   The first viewport is an instrument, not marketing furniture.
+   Scoped to the public NYXI cover: reviewer pages and internal tools stay isolated. */
+.nyxi-rebuild .nyxi-theatre {
+  --mood-color:#8c173b;--mood-tint:#9d3e58;
+  position:relative;isolation:isolate;overflow:hidden;
+  color:#fff0e8;background:#26141f;
+  min-height:min(890px,calc(100svh - 94px));
+  padding:clamp(21px,2.5vw,38px) clamp(22px,3.8vw,64px) 28px;
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+.nyxi-theatre-photo,.nyxi-theatre-photo picture,.nyxi-theatre-grade{
+  position:absolute;inset:0;z-index:-2;display:block;pointer-events:none;
+}
+.nyxi-theatre-photo img{width:100%;height:100%;object-fit:cover;object-position:53% 43%;filter:brightness(.82) saturate(.69) contrast(1.16);}
+.nyxi-theatre-grade{z-index:-1;background:
+  radial-gradient(circle at 78% 47%,color-mix(in srgb,var(--mood-color) 48%,transparent),transparent 36%),
+  linear-gradient(90deg,#160a15ec 0%,#271221ca 40%,#27122172 77%,#160b16b8 100%),
+  linear-gradient(0deg,#140913e8 0%,transparent 36%);
+  transition:background-color .35s ease;
+}
+.nyxi-theatre-meta,.nyxi-theatre-bottomline{display:flex;justify-content:space-between;gap:15px;align-items:center;font-size:10px;font-weight:750;letter-spacing:.19em;color:#f5d7e6de;}
+.nyxi-theatre-meta span span{padding:0 8px;color:#edb8ce;font-size:15px}
+.nyxi-theatre-main{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.7fr);gap:clamp(28px,4.2vw,75px);align-items:center;padding:30px 0 35px;}
+.nyxi-theatre-story{max-width:800px;min-width:0;}
+.nyxi-theatre-kicker{font-size:10px;font-weight:700;letter-spacing:.22em;color:#ffddda;display:flex;align-items:center;gap:14px;}
+.nyxi-theatre-kicker span{font-size:23px;color:#dfb4cb;font-weight:300}
+.nyxi-theatre-story h1{
+  font-family:"Iowan Old Style","Baskerville","Palatino Linotype",Georgia,serif;
+  font-size:clamp(63px,7.3vw,133px);
+  font-weight:400;letter-spacing:-.078em;line-height:.97;
+  margin:29px 0 26px;text-wrap:balance;color:#fff7f3;
+}
+.nyxi-theatre-story h1 em{font-weight:400;font-style:italic;color:#f6bfce;white-space:nowrap;letter-spacing:-.075em}
+.nyxi-theatre-description{font-size:clamp(14px,1.2vw,18px);line-height:1.75;color:#fae8e7e8;max-width:490px;margin:0}
+.nyxi-theatre-story-actions{display:flex;align-items:center;gap:23px;flex-wrap:wrap;margin-top:32px}
+.nyxi-theatre-photo-cta,.nyxi-instrument-cta{
+  display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:53px;
+  background:#f5ded8;color:#361728;border:1px solid #f5ded8;padding:13px 21px;
+  font-size:12px;font-weight:770;letter-spacing:.013em;border-radius:0;
+  transition:background .22s ease,transform .22s ease;
+}
+.nyxi-theatre-photo-cta:hover,.nyxi-instrument-cta:hover{background:white;transform:translateY(-2px)}
+.nyxi-theatre-photo-cta span,.nyxi-instrument-cta span{font-size:20px;font-weight:350}
+.nyxi-theatre-care-link{color:#f4d5df;border:0;border-bottom:1px solid #f5cedbbb;background:transparent;border-radius:0;padding:12px 0 8px;font-size:12px}
+.nyxi-theatre-care-link span{margin-left:6px;font-size:18px}
+.nyxi-theatre-care-link:hover{color:white;border-color:white}
+.nyxi-theatre-footnote{margin-top:50px;font-size:9px;letter-spacing:.17em;color:#d9b9c8}
+.nyxi-theatre-instrument{
+  align-self:center;min-width:0;width:100%;max-width:520px;
+  background:#180d18c9;border:1px solid #f4d7e75e;
+  box-shadow:0 32px 78px #1008107d,inset 0 0 0 1px #ffffff12;
+  backdrop-filter:blur(28px) saturate(1.3);
+  -webkit-backdrop-filter:blur(28px) saturate(1.3);
+  padding:clamp(18px,2vw,29px);
+  position:relative;
+}
+.nyxi-instrument-topline{display:flex;justify-content:space-between;align-items:center;font-size:9px;letter-spacing:.21em;font-weight:800;color:#eecbd9;}
+.nyxi-instrument-art{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:center;height:clamp(255px,26vw,350px);overflow:hidden;margin:12px 0 6px;}
+.nyxi-instrument-art::before,.nyxi-instrument-art::after{content:"";position:absolute;pointer-events:none;z-index:-1;border-radius:50%;width:85%;aspect-ratio:1;background:radial-gradient(circle,#ffffff1b 0%,#ffffff08 40%,transparent 69%);border:1px solid #ffffff19}
+.nyxi-instrument-art::after{width:62%;border:1px dashed #ffffff25;background:transparent;transform:rotate(-19deg)}
+.nyxi-instrument-halo{position:absolute;z-index:-1;width:66%;aspect-ratio:1;border-radius:50%;background:var(--mood-tint);opacity:.4;filter:blur(75px);transition:background-color .42s ease;}
+.nyxi-lacquer-sculpture{
+  width:clamp(104px,11vw,162px);height:clamp(210px,21vw,310px);
+  position:relative;overflow:hidden;transform:rotate(-17deg) skew(-4deg) perspective(650px) rotateY(-18deg);
+  border-radius:53% 53% 33% 33% / 31% 31% 18% 18%;
+  background:
+    linear-gradient(100deg,#ffffffbe 0%,#ffffff4d 8%,transparent 27%,#00000013 66%,#210d1a75 100%),
+    linear-gradient(0deg,#1009124d,transparent 37%),
+    var(--mood-color);
+  border:2px solid #ffffff55;
+  box-shadow:inset 10px 0 15px #ffffff55,inset -17px 0 26px #1c071b60,
+    17px 30px 28px #0e041450,0 0 35px color-mix(in srgb,var(--mood-color) 70%,transparent);
+  transition:background-color .4s ease,box-shadow .4s ease,transform .6s cubic-bezier(.17,.7,.2,1);
+}
+.nyxi-lacquer-sculpture:hover{transform:rotate(-12deg) skew(-4deg) perspective(650px) rotateY(-5deg) translateY(-6px)}
+.nyxi-lacquer-highlight{position:absolute;left:18%;top:6%;width:14%;height:68%;transform:rotate(-6deg);border-radius:60%;background:linear-gradient(#ffffffb8,#ffffff19);filter:blur(3px)}
+.nyxi-lacquer-edge{position:absolute;right:13%;top:7%;width:9%;height:80%;border-radius:60%;background:linear-gradient(#fff4,transparent)}
+.nyxi-instrument-mark{position:absolute;left:3%;top:14%;font:italic 43px/1 Georgia,serif;color:#eec2d475}
+.nyxi-instrument-sidenote{position:absolute;right:0;bottom:13%;font-size:8px;line-height:1.6;letter-spacing:.08em;text-align:right;color:#e1bfd3a8}
+.nyxi-instrument-info{display:flex;justify-content:space-between;align-items:end;border-top:1px solid #ffffff40;gap:13px;padding-top:16px;}
+.nyxi-instrument-info>div{display:flex;flex-direction:column;gap:5px;min-width:0}
+.nyxi-instrument-caption{font-size:8px;letter-spacing:.18em;font-weight:800;color:#dcb8c9}
+.nyxi-instrument-info strong{font:normal clamp(27px,3.1vw,42px)/1.04 Georgia,serif;letter-spacing:-.045em;color:white}
+.nyxi-instrument-mood{font-size:11px;color:#e6bacb;font-style:italic}
+.nyxi-instrument-hex{font-size:11px;letter-spacing:.08em;color:#e4ced4;white-space:nowrap}
+.nyxi-instrument-palettes{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin:19px 0 16px}
+.nyxi-palette-choice{
+  border:1px solid transparent;background:transparent;padding:6px 4px;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;
+  min-height:66px;border-radius:0;color:#dab8c6;
+  transition:border-color .15s ease,transform .15s ease;
+}
+.nyxi-palette-choice:hover{transform:translateY(-3px)}
+.nyxi-palette-choice.selected{border-color:#fbe6e4b0}
+.nyxi-palette-dot{height:clamp(27px,3.1vw,42px);width:clamp(27px,3.1vw,42px);border-radius:50%;box-shadow:inset -7px -7px 10px #1607144d,inset 4px 4px 8px #ffffff70,0 3px 14px #0005;border:1px solid #ffffff65}
+.nyxi-palette-caption{font-size:8px;letter-spacing:.12em}
+.nyxi-instrument-cta{width:100%;background:#e8afc3;border-color:#e8afc3;color:#270d1c;text-align:left;min-height:48px;font-size:11px;}
+.nyxi-theatre-bottomline{border-top:1px solid #ffffff3a;padding-top:20px;padding-right:clamp(0px,15vw,160px);font-size:9px}
+.nyxi-theatre-photo-credit{position:absolute;bottom:8px;right:20px;font-size:7px;color:#ffe2e57a;text-decoration:none;letter-spacing:.01em;}
+.nyxi-theatre-photo-credit:hover{color:white;text-decoration:underline}
+@media(max-width:1150px){
+ .nyxi-theatre-main{grid-template-columns:minmax(0,1fr) minmax(300px,.87fr);gap:24px}
+ .nyxi-theatre-story h1{font-size:clamp(56px,6.9vw,95px)}
+ .nyxi-theatre-footnote{margin-top:34px}
+ .nyxi-theatre-instrument{padding:16px}
+}
+@media(max-width:780px){
+ .nyxi-rebuild .nyxi-theatre{min-height:0;padding:18px 20px 24px;gap:0}
+ .nyxi-theatre-photo img{object-position:55% 25%}
+ .nyxi-theatre-grade{background:linear-gradient(0deg,#170917 0%,#241020d9 47%,#27102075 83%,#1b0b16a8 100%),
+  radial-gradient(circle at 65% 48%,var(--mood-color),transparent 55%)}
+ .nyxi-theatre-main{grid-template-columns:1fr;gap:24px;padding:34px 0 15px;}
+ .nyxi-theatre-story h1{font-size:clamp(57px,10.7vw,80px);max-width:670px;margin:17px 0}
+ .nyxi-theatre-story{max-width:none}
+ .nyxi-theatre-description{font-size:13px;max-width:560px}
+ .nyxi-theatre-story-actions{margin-top:23px;gap:12px}
+ .nyxi-theatre-footnote{display:none}
+ .nyxi-theatre-instrument{max-width:650px;background:#1a0c18ed}
+ .nyxi-instrument-art{height:255px}
+ .nyxi-lacquer-sculpture{width:135px;height:240px}
+ .nyxi-theatre-bottomline{font-size:8px;padding-right:0}
+ .nyxi-theatre-photo-credit{bottom:5px;right:9px;font-size:6px}
+}
+@media(max-width:520px){
+ .nyxi-rebuild .nyxi-theatre{padding:15px 15px 20px}
+ .nyxi-theatre-meta{font-size:8px;letter-spacing:.09em}
+ .nyxi-theatre-meta span:last-child{font-size:7px}
+ .nyxi-theatre-main{padding:26px 0 16px;gap:22px}
+ .nyxi-theatre-kicker{font-size:8px;letter-spacing:.1em}
+ .nyxi-theatre-kicker span{font-size:17px}
+ .nyxi-theatre-story h1{font-size:clamp(48px,11.7vw,65px);margin:11px 0 16px;line-height:.96}
+ .nyxi-theatre-story h1 em{white-space:normal}
+ .nyxi-theatre-description{font-size:12px;line-height:1.55}
+ .nyxi-theatre-story-actions{margin-top:17px;gap:10px}
+ .nyxi-theatre-photo-cta{min-height:44px;font-size:11px;padding:9px 12px}
+ .nyxi-theatre-photo-cta span{font-size:17px}
+ .nyxi-theatre-care-link{font-size:11px;padding:8px 0 6px}
+ .nyxi-theatre-instrument{padding:14px;max-width:none}
+ .nyxi-instrument-topline{font-size:8px}
+ .nyxi-instrument-art{height:210px;margin:3px 0}
+ .nyxi-lacquer-sculpture{width:106px;height:187px}
+ .nyxi-instrument-mark{font-size:29px}
+ .nyxi-instrument-sidenote{font-size:6px}
+ .nyxi-instrument-info{padding-top:12px}
+ .nyxi-instrument-info strong{font-size:28px}
+ .nyxi-instrument-caption{font-size:7px}
+ .nyxi-instrument-hex{font-size:9px}
+ .nyxi-instrument-palettes{margin:9px 0;gap:4px}
+ .nyxi-palette-choice{min-height:51px;gap:4px;padding:4px}
+ .nyxi-palette-dot{width:31px;height:31px}
+ .nyxi-palette-caption{font-size:7px}
+ .nyxi-instrument-cta{min-height:45px;padding:10px 13px}
+ .nyxi-theatre-bottomline{font-size:7px;letter-spacing:.01em;gap:8px}
+ .nyxi-theatre-bottomline span:nth-child(2){display:none}
+ .nyxi-theatre-photo-credit{bottom:2px}
+}
+@media(max-width:355px){
+ .nyxi-theatre-story h1{font-size:45px}
+ .nyxi-theatre-meta span:last-child{display:none}
+ .nyxi-theatre-care-link{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+ .nyxi-theatre-grade,.nyxi-lacquer-sculpture,.nyxi-instrument-halo,.nyxi-palette-choice,.nyxi-theatre-photo-cta,.nyxi-instrument-cta{transition:none!important}
+ .nyxi-lacquer-sculpture:hover,.nyxi-palette-choice:hover,.nyxi-theatre-photo-cta:hover,.nyxi-instrument-cta:hover{transform:none}
+}

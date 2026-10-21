@@ -2,6 +2,7 @@ import './globals.css';
 import './premium.css';
 import './editorial-v2.css';
 import './experience.css';
+import './color-theatre.css';
 import type { ReactNode } from 'react';
 import type { Viewport } from 'next';
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#271420' };
