@@ -53,10 +53,10 @@ export default function Home() {
       document.getElementById("nyxi-tools")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }} />
 
-    <div className="intro-line"><span>COLOR · CARE · CREATE · LEARN</span><span>MADE TO FEEL PERSONAL — NYXI STUDIO</span></div>
+    <div className="intro-line"><span>THE NAIL EXPERIENCE · NYXI</span><span>COLOR / CARE / CREATE / LEARN</span></div>
 
     <section id="nyxi-tools" className="tools" aria-label="Εργαλεία NYXI">
-      <div className="studio-intro"><div><span className="overline">A STUDIO FOR EVERY NAIL STORY</span><h2>Διάλεξε το δικό σου <em>ritual.</em></h2></div><p>Τέσσερις διαφορετικοί τρόποι να εξερευνήσεις το χρώμα, τη φροντίδα και τη δημιουργία.</p></div>
+      <div className="studio-intro"><div><span className="overline">THE NYXI EXPERIENCE / 01—04</span><h2>Κάθε σου διάθεση.<br /><em>Ένας νέος κόσμος.</em></h2></div><p>Εξερεύνησε τα τέσσερα δημιουργικά εργαλεία του προσωπικού σου nail studio.</p></div>
       <nav className="tabs" aria-label="Επιλογή εργαλείου">
         {tabLabels.map((item) => <button key={item.value} type="button" className={tab === item.value ? "active" : ""} aria-pressed={tab === item.value} onClick={() => setTab(item.value)}>
           <small>{item.number}</small><span>{item.label}</span><span className="tab-description">{item.description}</span><span className="tab-arrow" aria-hidden="true">↗</span>
