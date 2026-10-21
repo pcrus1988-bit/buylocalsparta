@@ -1,0 +1,48 @@
+name: NYXI Real Browser Visual Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "nyxi-app/**"
+      - ".github/workflows/nyxi-visual-acceptance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "nyxi-app/**"
+      - ".github/workflows/nyxi-visual-acceptance.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nyxi-visual-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-mobile-and-desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    defaults:
+      run:
+        working-directory: nyxi-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install NYXI dependencies
+        run: npm install --no-package-lock --no-audit --no-fund --ignore-scripts
+      - name: Build real production frontend
+        run: npm run build
+      - name: Install browser automation
+        run: |
+          npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Verify desktop and two mobile viewports with real browser
+        run: node tests/visual-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nyxi-real-browser-screenshots
+          path: nyxi-app/visual-evidence/*.png
+          if-no-files-found: ignore
