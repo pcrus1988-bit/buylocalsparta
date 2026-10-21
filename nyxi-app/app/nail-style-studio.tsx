@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import NailArTryOn from "./nail-ar-try-on";
 import type { ArLook, NailShape, NailFinish, NailLength, NailCorrection } from "./nail-ar-geometry";
 import { AVAILABLE_BRANDS, AVAILABLE_POLISHES, findBrandPolish } from "./brand-polishes";
@@ -34,6 +34,12 @@ export default function NailStyleStudio({ sampledShade, active = true }: { sampl
   const [selectedPolishId, setSelectedPolishId] = useState("opi-nl-bubble-bath");
   const [shade, setShade] = useState("#B52C4E");
   const [hasPickedCustom, setHasPickedCustom] = useState(false);
+  // A color sampled in Color Studio becomes the starting look, not a disconnected suggestion.
+  useEffect(() => {
+    if (!sampledShade || !/^#[a-f0-9]{6}$/i.test(sampledShade)) return;
+    setPolishMode("creative");
+    setHasPickedCustom(true);
+  }, [sampledShade]);
   const [shape, setShape] = useState<Shape>("oval");
   const [finish, setFinish] = useState<Finish>("gloss");
   const [length, setLength] = useState<NailLength>("medium");
