@@ -7,7 +7,6 @@ import { getAdminSession } from "../../../lib/admin-session";
 import {
   adminMailConfiguration,
   adminMailWorkspace,
-  syncAdminInboundMail,
   type AdminMailThreadMessage,
   type AdminMailWorkspace
 } from "../../../lib/admin-mail-runtime";
@@ -196,18 +195,9 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
   const configuration = adminMailConfiguration();
   const requestedMailbox = one(params.mailbox).trim().toLowerCase();
   const mailbox = configuration.fromAddresses.includes(requestedMailbox) ? requestedMailbox : "all";
-  let syncNotice = "";
-  if (configuration.configured) {
-    try {
-      const sync = await syncAdminInboundMail({ maxNew: 25 });
-      const notices: string[] = [];
-      if (sync.indexed > 0) notices.push(`${sync.indexed} new message${sync.indexed === 1 ? "" : "s"} indexed from S3.`);
-      if (sync.failed > 0) notices.push(`${sync.failed} inbound object${sync.failed === 1 ? "" : "s"} quarantined for review; later S3 mail will continue syncing.`);
-      syncNotice = notices.join(" ");
-    } catch (error) {
-      syncNotice = error instanceof Error ? error.message : "Inbound S3 sync failed.";
-    }
-  }
+  // Loading the inbox must be read-only. S3 ingestion is explicit via the CSRF-protected Sync inbox action.
+  // Doing network I/O plus database writes on every GET amplified failures during pooler contention.
+  let mailboxLoadFailed = false;
 
   let workspace: AdminMailWorkspace;
   try {
@@ -223,8 +213,10 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
           requestedPageSize
         );
   } catch (error) {
+    mailboxLoadFailed = true;
+    console.error(JSON.stringify({ level: "error", event: "admin_mail.workspace_load_failed", message: error instanceof Error ? error.message : String(error) }));
     workspace = emptyWorkspace(
-      error instanceof Error ? `Mailbox data is not ready: ${error.message}` : "Mailbox data is not ready.",
+      "The database connection timed out or could not complete the request. Mailbox settings remain intact; retry shortly.",
       configuration.fromAddresses,
       mailbox,
       folder === "sent" || folder === "starred" || folder === "archive" || folder === "trash" || folder === "all" ? folder : "inbox",
@@ -293,13 +285,12 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
 
     {error ? <section className="shell admin-mail-banner admin-mail-banner-error" role="alert"><strong>Mail action failed</strong><span>{error}</span></section> : null}
     {sent ? <section className="shell admin-mail-banner admin-mail-banner-success" role="status"><strong>Sent through SES</strong><span>The message is now in Sent.</span></section> : null}
-    {syncNotice ? <section className="shell admin-mail-banner" role="status"><strong>Inbound sync</strong><span>{syncNotice}</span></section> : null}
-    {!workspace.configured ? <section className="shell admin-mail-banner admin-mail-banner-error"><strong>Mailbox not ready</strong><span>{workspace.configurationMessage}</span></section> : null}
+    {!workspace.configured ? <section className="shell admin-mail-banner admin-mail-banner-error" role="alert"><strong>{mailboxLoadFailed ? "Mailbox temporarily unavailable" : "Mailbox configuration incomplete"}</strong><span>{workspace.configurationMessage}</span></section> : null}
 
     <section className="shell admin-mail-status-row">
-      <span className={workspace.configured ? "admin-mail-dot is-ready" : "admin-mail-dot"} aria-hidden="true" />
-      <strong>{workspace.configured ? "SES + S3 connected" : "SES + S3 configuration required"}</strong>
-      <span>{workspace.configurationMessage}</span>
+      <span className={configuration.configured ? "admin-mail-dot is-ready" : "admin-mail-dot"} aria-hidden="true" />
+      <strong>{configuration.configured ? "SES + S3 configured" : "SES + S3 configuration required"}</strong>
+      <span>{mailboxLoadFailed ? "Mailbox database request failed; configuration is not the cause." : workspace.configurationMessage}</span>
       {workspace.lastInboundAt ? <span>Last inbound: {fmtDate(workspace.lastInboundAt)}</span> : null}
     </section>
 
