@@ -55,7 +55,7 @@ export default function Home() {
     <PremiumHero onOpen={destination => {
       setTab(destination);
       document.getElementById("nyxi-tools")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }} />
+    }} onPalettePick={setSampledShade} />
 
     <div className="nyxi-editorial-ticker" aria-label="NYXI philosophy">
       <span>01 — DISCOVER</span><span aria-hidden="true">✦</span><span>02 — CARE</span><span aria-hidden="true">✦</span><span>03 — CREATE</span><span aria-hidden="true">✦</span><span>04 — LEARN</span>
