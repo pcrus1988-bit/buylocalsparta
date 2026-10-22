@@ -73,7 +73,7 @@ export default async function FiscalReleaseReadinessPage(){
     </article>
     <article className="fiscal-card">
      <small>Προστασία δεδομένων · RLS</small>
-     <div className="fiscal-stat">{live.verified?`${live.fiscalTables} / ${live.unprotectedTables} εκκρεμούν`:"ΑΓΝΩΣΤΟ"}</div>
+     <div className="fiscal-stat">{live.verified?`${live.unprotectedTables} χωρίς RLS`:"ΑΓΝΩΣΤΟ"}</div>
      <p>Σύνολο πινάκων FISCAL και αριθμός χωρίς RLS. Ο έλεγχος δεν πιστοποιεί όλους τους ρόλους.</p>
     </article>
     <article className="fiscal-card">
