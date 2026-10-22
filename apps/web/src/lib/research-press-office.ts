@@ -9,7 +9,7 @@ import { combinePressContacts, contactsFromLanguages, parsePressCsv, validatePre
   MAX_PRESS_CSV_BYTES, type PressCsvContact, type PressLanguage } from "./research-press-csv";
 
 const MAX_RECIPIENTS = 500;
-const BATCH_SIZE = 8;
+export const PRESS_BATCH_SIZE = 100;
 const MAX_ATTACHMENT = 3 * 1024 * 1024;
 const FROM = "research@kontamou.site";
 const ADDRESSES = /^[A-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?)+$/i;
@@ -320,7 +320,7 @@ export async function sendPressTest(
   return sent.publicId;
 }
 
-/** Each recipient is claimed immediately before attempting SES, never 8 at once.
+/** Each recipient is claimed immediately before attempting SES, never the whole batch at once.
  * Unknown provider outcomes remain held for manual investigation; no automatic resend. */
 export async function dispatchPressBatch(principal:SessionPrincipal,id:string,confirmedProbation=false):Promise<{
   attempted:number;sent:number;failed:number;remaining:number;
@@ -351,7 +351,7 @@ export async function dispatchPressBatch(principal:SessionPrincipal,id:string,co
   await db.query("UPDATE public.research_press_releases SET status='sending',updated_at=now() WHERE id=$1 AND status='prepared'",[id]);
 
   let attempted=0,sent=0,failed=0;
-  for(let i=0;i<BATCH_SIZE;i++){
+  for(let i=0;i<PRESS_BATCH_SIZE;i++){
     // Atomic one-row claim; other pending recipients remain safely available if this request crashes.
     const claim=await db.query<{recipient:string;language:PressLanguage}>(`WITH next AS (
       SELECT recipient FROM public.research_press_deliveries

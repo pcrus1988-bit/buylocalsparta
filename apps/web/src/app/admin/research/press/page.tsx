@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
-import { pressWorkspace } from "../../../../lib/research-press-office";
+import { PRESS_BATCH_SIZE, pressWorkspace } from "../../../../lib/research-press-office";
 import { getSesAccountSendingStatus,sesMailConfigFromEnv,type SesAccountSendingStatus } from "../../../../lib/admin-mail-ses";
 import { PressEditorFields } from "./PressEditorFields";
 import {
@@ -15,6 +15,7 @@ import "./press.css";
 
 export const metadata: Metadata = { title: "Research · Press Releases · KONTA MOY", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 type SearchParams = Promise<Record<string,string | string[] | undefined>>;
 const one = (v: string | string[] | undefined) => Array.isArray(v)?v[0]||"":v||"";
 const date = (v: string | Date | null | undefined) => v
@@ -94,7 +95,7 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
     </section>}
     {deliveryReady&&!probation&&<section className="shell press-alert" role="status">
       <strong>Press distribution available · AWS SES verified.</strong>{" "}
-      Each batch sends at most eight recipients after your explicit confirmation.
+      Each batch sends at most {PRESS_BATCH_SIZE} recipients after your explicit confirmation.
       No press messages are sent automatically.
     </section>}
 
@@ -176,7 +177,7 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
 
         {current&&current.status!=="draft"&&<section className="press-card press-delivery">
           <div className="press-report-shortcut"><Link href={"/admin/research/press/reports?id="+current.id} className="button button-secondary">View delivery, bounce & spam reports →</Link></div>
-          <div className="press-panel-head"><div><strong>03 · Delivery queue</strong><small>Messages are sent individually; eight recipient addresses per confirmed batch.</small></div><span className={"press-status press-status-"+current.status}>{current.status}</span></div>
+          <div className="press-panel-head"><div><strong>03 · Delivery queue</strong><small>Messages are sent individually; {PRESS_BATCH_SIZE} recipient addresses per confirmed batch.</small></div><span className={"press-status press-status-"+current.status}>{current.status}</span></div>
           <div className="press-delivery-metrics">
             <div><span>Pending</span><strong>{pending}</strong></div>
             <div><span>Sent</span><strong>{sent}</strong></div>
@@ -191,9 +192,9 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
               I reviewed the recipient addresses, their contact basis, the attachment and the final content.</label>
             {probation&&<label className="press-check"><input type="checkbox" name="confirmProbation" value="yes" required disabled={!editable||!deliveryReady}/>
               I understand AWS SES has placed this account on probation. I am sending only to eligible press contacts, respecting opt-outs, and accept that complaints may affect the account.</label>}
-            <label htmlFor="press-send-confirm">Type SEND to dispatch the next batch of up to 8 emails</label>
+            <label htmlFor="press-send-confirm">Type SEND to dispatch the next batch of up to {PRESS_BATCH_SIZE} emails</label>
             <input id="press-send-confirm" name="confirmation" placeholder="SEND" required autoComplete="off" disabled={!editable||!deliveryReady}/>
-            <button type="submit" className="button" disabled={!editable||!deliveryReady}>Send next batch · max 8 recipients</button>
+            <button type="submit" className="button" disabled={!editable||!deliveryReady}>Send next batch · max {PRESS_BATCH_SIZE} recipients</button>
           </form>}
           {(failed>0||held>0)&&<p className="press-alert press-alert-warning" role="status">
             Failed or held sends are never automatically retried. Inspect the SES mailbox/outbox before deciding on a new campaign.
