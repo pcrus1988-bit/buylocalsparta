@@ -73,6 +73,8 @@ jobs:
           CI: "true"
           FISCAL_HISTORY_TEST_MODE: "synthetic"
         run: node scripts/fiscal-0014-provenance-db-smoke.mjs
+      - name: Check M50 read-only Management API backup inventory policy
+        run: node --test scripts/fiscal-backup-inventory.test.mjs
       - name: Verify M47 synthetic-only restore-target protection
         run: node --test scripts/fiscal-disposable-restore-drill.test.mjs
       - name: Verify M47 PG17 custom backup restores data, schema and RLS into separate disposable database
