@@ -109,7 +109,7 @@ export default async function GreekRetailResearchPage() {
           </article>
         </div>
         <div className={styles.sectionActions}>
-          <Link className={[styles.actionButton, styles.primaryButton].join(" ")} prefetch={false} href="/research/greek-retail-2026">Ανανέωση προόδου</Link>
+          <a className={[styles.actionButton, styles.primaryButton].join(" ")} href="/research/greek-retail-2026">Ανανέωση προόδου</a>
           <Link className={styles.actionButton} href="/research">Παρατηρητήριο · όλες οι μετρήσεις</Link>
         </div>
       </section> : <section className={styles.section}>
