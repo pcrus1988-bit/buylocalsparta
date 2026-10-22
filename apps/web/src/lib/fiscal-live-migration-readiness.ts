@@ -1,7 +1,7 @@
 import {fiscalDatabaseConfigured,fiscalPool} from "./fiscal-runtime";
 import type {PoolClient} from "pg";
 import {MARKERS,FK_INDEXES,UNKNOWN,classifyFiscalLiveReadiness} from "./fiscal-live-migration-policy";
-import type {FiscalLiveReadiness} from "./fiscal-live-migration-policy";
+import type {FiscalLiveReadiness,ProbeRow} from "./fiscal-live-migration-policy";
 export type {FiscalLiveReadiness} from "./fiscal-live-migration-policy";
 const SQL=`SELECT
  (SELECT count(*)::int FROM public.fiscal_schema_migrations) AS total_migrations,
