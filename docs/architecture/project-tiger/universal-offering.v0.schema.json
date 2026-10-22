@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kontamou.site/schemas/tiger/universal-offering-v0.json",
+  "title": "Project TIGER Universal Offering v0 (proposal)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "schema_version",
+    "offering_type",
+    "provider_id",
+    "market_id",
+    "publication_status",
+    "source_ref",
+    "pricing_model",
+    "currency",
+    "fulfilment_modes",
+    "policy_version"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "offering_type": {
+      "enum": [
+        "physical_product",
+        "bookable_service",
+        "quote_based_service",
+        "reservation",
+        "rental",
+        "digital_product"
+      ]
+    },
+    "provider_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "market_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "location_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "publication_status": {
+      "enum": [
+        "draft",
+        "review",
+        "published",
+        "suspended",
+        "archived"
+      ]
+    },
+    "source_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "canonical_variant",
+            "service_definition",
+            "reservation_inventory",
+            "rental_asset",
+            "digital_licence"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "pricing_model": {
+      "enum": [
+        "fixed",
+        "from_price",
+        "time_based",
+        "dynamic",
+        "quote_required",
+        "free"
+      ]
+    },
+    "currency": {
+      "const": "EUR"
+    },
+    "fulfilment_modes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "shipping",
+          "pickup",
+          "on_site",
+          "at_provider",
+          "digital",
+          "none"
+        ]
+      }
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "capability_hints": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "inventory",
+          "availability",
+          "booking",
+          "quotations",
+          "payments",
+          "fiscal",
+          "fulfilment",
+          "identity",
+          "eligibility"
+        ]
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "offering_type": {
+            "const": "physical_product"
+          }
+        },
+        "required": [
+          "offering_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "source_ref": {
+            "properties": {
+              "kind": {
+                "const": "canonical_variant"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
