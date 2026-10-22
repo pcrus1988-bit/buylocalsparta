@@ -30,8 +30,8 @@ export default async function Members({searchParams}:{searchParams:Promise<{noti
  <div className="form-grid"><div><label htmlFor="location">Πόλη / περιοχή</label><input id="location" name="location" required minLength={2} maxLength={120}/></div><div><label htmlFor="sector">Κλάδος δραστηριότητας</label><input id="sector" name="sector" required minLength={2} maxLength={100}/></div></div>
  <label htmlFor="registry_number">Αριθμός ΓΕΜΗ (προαιρετικός)</label><input id="registry_number" name="registry_number" maxLength={35}/>
  <label htmlFor="description">Περιγραφή επιχείρησης</label><textarea id="description" name="description" required minLength={20} maxLength={1800} rows={5} placeholder="Τι κάνετε, σε ποια αγορά δραστηριοποιείστε και τι ελπίζετε από το ΜΑΖΙ;"/>
- <label className="checkbox-line"><input type="checkbox" name="accept_privacy" required/> <span>Συμφωνώ να χρησιμοποιηθούν τα στοιχεία αυτής της αίτησης για την αξιολόγηση συμμετοχής μου στο ΜΑΖΙ. Γνωρίζω ότι αυτή δεν είναι συναίνεση για εμπορικά email ούτε δέσμευση πληρωμής.</span></label>
+ <label className="checkbox-line"><input type="checkbox" name="accept_privacy" required/> <span>Έχω διαβάσει την ενημέρωση προσωπικών δεδομένων και ζητώ την αξιολόγηση της συμμετοχής μου στο ΜΑΖΙ. Γνωρίζω ότι αυτή δεν είναι συναίνεση για εμπορικά email ούτε δέσμευση πληρωμής.</span></label>
  <button type="submit" className="button dark">Υποβολή αίτησης ενδιαφέροντος ↗</button>
- </form><p className="legal-hint">Για αιτήματα πρόσβασης, διόρθωσης ή διαγραφής προσωπικών δεδομένων επικοινώνησε μέσω της <a href="https://kontamou.site/privacy">πολιτικής απορρήτου του ΚΟΝΤΑ ΜΟΥ</a>. Η οριστική ειδική ενημέρωση του ΜΑΖΙ πρέπει να εγκριθεί πριν τη μαζική λειτουργία.</p></div>}
+ </form><p className="legal-hint">Για αιτήματα πρόσβασης, διόρθωσης ή διαγραφής προσωπικών δεδομένων επικοινώνησε μέσω της <a href="/privacy">ειδικής ενημέρωσης του ΜΑΖΙ</a>, όπου αναφέρονται ο υπεύθυνος επεξεργασίας και τα δικαιώματά σου.</p></div>}
  </section></main>;
 }

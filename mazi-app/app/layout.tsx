@@ -27,7 +27,7 @@ export default function RootLayout({children}: Readonly<{children: React.ReactNo
       <footer className="site-footer">
         <div className="shell footer-grid">
           <div><span className="footer-logo">ΜΑΖΙ<span>.</span></span><p>Για να μη χρειάζεται καμία μικρή επιχείρηση να τα καταφέρνει μόνη της.</p></div>
-          <div><strong>Γνώρισε το ΜΑΖΙ</strong><Link href="/fund">Το Ταμείο Ανάπτυξης</Link><Link href="/charter">Αρχές & διακυβέρνηση</Link><Link href="/join">Σύνδεση επιχειρήσεων</Link></div>
+          <div><strong>Γνώρισε το ΜΑΖΙ</strong><Link href="/fund">Το Ταμείο Ανάπτυξης</Link><Link href="/charter">Αρχές & διακυβέρνηση</Link><Link href="/privacy">Προσωπικά δεδομένα</Link><Link href="/join">Σύνδεση επιχειρήσεων</Link></div>
           <div><strong>Μια πρωτοβουλία</strong><a href="https://kontamou.site" rel="noopener noreferrer">ΚΟΝΤΑ ΜΟΥ ↗</a><small>Σε φάση σχεδιασμού — δεν γίνονται εγγραφές, πληρωμές, πραγματικές ψηφοφορίες ή εκταμιεύσεις.</small></div>
         </div>
         <div className="shell footer-bottom"><span>© 2026 ΜΑΖΙ · ΚΟΝΤΑ ΜΟΥ</span><span>Από τη Σπάρτη, για όλη την Ελλάδα.</span></div>
