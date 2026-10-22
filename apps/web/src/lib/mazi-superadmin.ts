@@ -38,7 +38,11 @@ export type MaziAdminApplication = {
 export type MaziAdminProposal = {
  id:string;title:string;category:string;details:string;amount_cents:string;created_at:Date;
 };
-export type MaziAdminMember = {user_id:string;status:string;voting_eligible:boolean;admitted_at:Date};
+export type MaziAdminMember = {
+ user_id:string;status:string;voting_eligible:boolean;admitted_at:Date;
+ gemi_number:string|null;identity_verified_at:Date|null;
+ business_name:string;representative_name:string;requested_gemi:string|null;
+};
 export type MaziAdminCycle = {id:string;title:string;status:string;finance_activated:boolean;funding_budget_cents:string};
 export type MaziAdminSnapshot = {
  applications:MaziAdminApplication[]; proposals:MaziAdminProposal[];
@@ -58,8 +62,12 @@ export async function maziAdminSnapshot(principal: SessionPrincipal): Promise<Ma
     order by created_at asc limit 75
    `),
    db().query<MaziAdminMember>(`
-    select user_id::text,status,voting_eligible,admitted_at
-    from public.mazi_members order by admitted_at desc limit 75
+    select m.user_id::text,m.status,m.voting_eligible,m.admitted_at,
+      m.gemi_number,m.identity_verified_at,a.business_name,a.representative_name,
+      a.registry_number as requested_gemi
+    from public.mazi_members m
+    join public.mazi_membership_applications a on a.id=m.application_id
+    order by m.admitted_at desc limit 75
    `),
    db().query<MaziAdminCycle>(`
     select id::text,title,status,finance_activated,funding_budget_cents::text
