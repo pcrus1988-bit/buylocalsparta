@@ -30,7 +30,7 @@ export default async function VenueCheckoutReadinessPage({params}:{
    <p><Link href={`/drinkStock/dashboard/${partnerId}/venues/${venueId}`}>← Trading Floor</Link></p>
    <span className={styles.eyebrow}>DRINKSTOCK / CHECKOUT</span>
    <h1>Payment activation · {status.venueName}</h1>
-   <p>Each hospitality venue requires its own verified legal seller, merchant settlement, provider-authenticated payments and certified Greek receipts. The administrator's approval is only the first gate.</p>
+   <p>This POS-unavailable fallback uses KONTA MOY's existing Mollie and AADE infrastructure. The correct legal seller, venue settlement arrangement and certified Greek retail-receipt issuer still require verification. The administrator's entitlement alone cannot authorize a charge.</p>
    <div role="status" style={{padding:18,margin:"20px 0",borderRadius:15,border:"1px solid #ffba83",background:"#2b1d20"}}>
     <strong style={{color:"#ffdc93"}}>Guest checkout is not activated</strong>
     <p style={{marginBottom:0}}>Readiness: {status.readyCount} of {status.totalCount} checks satisfied.
@@ -43,12 +43,11 @@ export default async function VenueCheckoutReadinessPage({params}:{
     <strong>Fiscal exception: {status.paidOrdersAwaitingFiscalResolution} verified paid orders awaiting a legal receipt</strong>
     <p>These orders have not been released to bar preparation. Inspect the merchant's fiscal issuer and resolve the receipt or refund through an authorized workflow. Do not mark them served manually.</p>
    </div>}
-   <h2>Provider connections</h2>
-   <p>Merchant-owned Mollie payment and settlement capability:
-    <strong> {status.merchantConnectionVerified?"Verified within 7 days":"Not currently verified"}</strong>.
-    Retail fiscal issuer connection: <strong>{status.merchantFiscalConnectionRecorded?
-      "Recorded as verified (receipt adapter still required)":"Not verified"}</strong>.
-    The KONTA MOY marketplace merchant is never substituted for this venue.</p>
+   <h2>Shared KONTA MOY provider connections</h2>
+   <p>The existing KONTA MOY Mollie collection and AADE/myDATA infrastructure serves the fallback.
+    Venue owners do not create independent provider accounts or submit tax credentials.
+    Receipt issuer liability and settlement remain separately subject to verified legal authorization.</p>
+   <p><Link href={`/drinkStock/dashboard/${partnerId}/payments`}>View shared Mollie &amp; AADE status ↗</Link></p>
    <h2>Verified readiness</h2>
    <div style={{display:"grid",gap:10}}>
     {good.map(check=><div key={check.code} style={{border:"1px solid #355d53",borderRadius:12,padding:14}}>
@@ -68,7 +67,7 @@ export default async function VenueCheckoutReadinessPage({params}:{
    </Link></p>}
    {status.canReviewVat&&<p><Link href={`/drinkStock/dashboard/${partnerId}/payments`}
     style={{display:"inline-block",padding:"12px 16px",borderRadius:11,background:"#b9e9ff",color:"#142132",fontWeight:800,textDecoration:"none"}}>
-    Connect merchant Mollie & AADE ↗
+    KONTA MOY fallback Mollie & AADE status ↗
    </Link></p>}
    <p><Link href={`/drinkStock/dashboard/${partnerId}/venues/${venueId}/integrations`}>View POS integration options ↗</Link></p>
    <p style={{fontSize:13,opacity:.8}}>No payment credentials, bank payout details or fiscal provider secrets are displayed here. Operational adapter checks cannot be approved by the venue or switched on through this page.</p>

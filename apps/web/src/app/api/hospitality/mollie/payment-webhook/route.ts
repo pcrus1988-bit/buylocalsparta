@@ -1,9 +1,9 @@
 import {readDrinkStockMollieWebhook,reconcileDrinkStockMollieWebhook,DrinkStockPaymentVerifyError} from "../../../../../lib/drinkstock-mollie-payment-reconciliation";
-import {MerchantConnectionError} from "../../../../../lib/drinkstock-merchant-connections";
+import {PlatformFallbackError} from "../../../../../lib/drinkstock-platform-fallback-provider";
 export const runtime="nodejs";export const dynamic="force-dynamic";
 const headers={"cache-control":"no-store","x-robots-tag":"noindex, nofollow"};
 /** Mollie's webhook body only supplies an untrusted payment ID; the payment is
- * retrieved again via this hospitality partner's OWN OAuth connection.
+ * retrieved again using KONTA MOY's existing Mollie API credentials.
  * Never reuse the marketplace Mollie webhook/order state.
  */
 export async function POST(request:Request){
@@ -20,7 +20,7 @@ export async function POST(request:Request){
   // Mollie notifies us for failed, expired, canceled and still-pending
   // payments too. A non-paid response from server-side verification does not
   // authorize processing and must not cause an infinite webhook retry loop.
-  if(e instanceof MerchantConnectionError&&e.code==="MOLLIE_PAYMENT_NOT_VERIFIED")
+  if(e instanceof PlatformFallbackError&&e.code==="PLATFORM_MOLLIE_PAYMENT_MISMATCH")
    return Response.json({ok:true,verifiedPaid:false},{headers});
   if(e instanceof DrinkStockPaymentVerifyError)
    return Response.json({error:e.code},{status:e.status,headers});

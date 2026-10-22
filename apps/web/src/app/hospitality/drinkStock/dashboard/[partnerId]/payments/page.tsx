@@ -2,53 +2,57 @@ import type {Metadata} from "next";
 import Link from "next/link";
 import {notFound,redirect} from "next/navigation";
 import {hospitalityIdentity} from "../../../../../../lib/hospitality-partner-access";
-import {merchantConnectionsStatus,MerchantConnectionError} from "../../../../../../lib/drinkstock-merchant-connections";
-import {DrinkStockAadeConnectForm} from "../../../../../../components/DrinkStockAadeConnectForm";
+import {PlatformFallbackError,platformFallbackDiagnostics} from "../../../../../../lib/drinkstock-platform-fallback-provider";
 import styles from "../../../../hospitality.module.css";
 export const dynamic="force-dynamic";
-export const metadata:Metadata={title:"DrinkStock · Mollie & AADE",robots:{index:false,follow:false}};
-export default async function MerchantPaymentSettings({params}:{params:Promise<{partnerId:string}>}){
- const principal=await hospitalityIdentity();if(!principal)redirect("/drinkStock/login");
+export const metadata:Metadata={title:"DrinkStock · KONTA MOY Checkout Fallback",robots:{index:false,follow:false}};
+
+export default async function SharedFallbackPaymentsPage({params}:{params:Promise<{partnerId:string}>}){
+ const principal=await hospitalityIdentity();
+ if(!principal)redirect("/drinkStock/login");
  const {partnerId}=await params;
  let info;
- try{info=await merchantConnectionsStatus(principal.userId,partnerId);}
- catch(e){if(e instanceof MerchantConnectionError&&[403,404].includes(e.status))notFound();
-  return <main className={styles.main}><h1>Merchant connections unavailable</h1><p>No checkout payments have been enabled.</p></main>;}
- return <main className={styles.main}><section className={styles.authPane} style={{maxWidth:900}}>
-  <p><Link href={`/drinkStock/dashboard/${partnerId}`}>← Partner dashboard</Link></p>
-  <span className={styles.eyebrow}>DRINKSTOCK / MERCHANT PROVIDERS</span>
-  <h1>Mollie payments & AADE myDATA</h1>
-  <p>Merchant-of-record payments and Greek fiscal reporting must belong to this hospitality business.
-   KONTA MOY's marketplace PSP and AADE identity are not reused.</p>
-  <div role="status" style={{padding:17,border:"1px solid #d9aa72",borderRadius:12,marginBottom:18}}>
-   <strong>Guest payments are not active.</strong>
-   <p>Connecting a provider is one stage of activation. Certified retail receipt issuance, refunds and
-     atomically verified checkout must still be approved and tested.</p>
-  </div>
-  <h2>Mollie Connect · merchant settlement</h2>
-  <p>Connected: {info.mollie.connected?"Yes":"No"}.
-   Payments capability: {info.mollie.paymentsCapability}.
-   Settlements capability: {info.mollie.settlementsCapability}.
-   Profile selected: {info.mollie.profileSelected?"Yes":"No"}.</p>
-  {info.mollie.organizationId&&<p>Verified Mollie organization: {info.mollie.organizationId}</p>}
-  {info.mollie.appConfigured?
-   <p><Link href={`/api/hospitality/partners/${partnerId}/mollie/connect`}
-    style={{display:"inline-block",borderRadius:10,background:"#d9ff57",color:"#152026",padding:"12px 18px",fontWeight:850,textDecoration:"none"}}>
-     {info.mollie.connected?"Reconnect merchant Mollie account":"Connect with Mollie"} ↗
-   </Link></p>:
-   <p role="status">Mollie Connect app credentials have not yet been configured on this deployment.
-    The platform's shared Mollie API key is not automatically a hospitality merchant connection.</p>}
-  <p style={{fontSize:13}}>Mollie authorization uses a time-limited, one-use state; refresh credentials are
-    kept in encrypted Supabase Vault. The merchant must pass payment and settlement capability checks.</p>
-  <h2 style={{marginTop:30}}>AADE myDATA · merchant reporting</h2>
-  <p>Configured: {info.aade.connected?"Yes":"No"}.
-   Connectivity: {info.aade.connectivityState}.
-   Environment: {info.aade.environment??"—"}.</p>
-  {info.aade.issuerVatNumber&&<p>Merchant AFM: {info.aade.issuerVatNumber}</p>}
-  <p>Statutory receipt route: {info.aade.fiscalIssuanceRoute.replaceAll("_"," ")}.
-   Certified receipt issuer verified: {info.aade.receiptIssuanceVerified?"Yes":"No"}.</p>
-  <DrinkStockAadeConnectForm partnerId={partnerId} csrfToken={principal.csrfToken}/>
-  <p style={{fontSize:12,opacity:.8}}>MyDATA transmission and FHM/eSEND or licensed-provider receipt issuance are
-   separate obligations. These connections cannot override DrinkStock's financial safety gates.</p>
- </section></main>;
+ try{info=await platformFallbackDiagnostics(principal.userId,partnerId);}
+ catch(e){
+  if(e instanceof PlatformFallbackError&&[403,404].includes(e.status))notFound();
+  return <main className={styles.main}><section className={styles.authPane}>
+   <h1>Checkout status unavailable</h1><p>Guest payments remain disabled. No funds were collected.</p>
+  </section></main>;
+ }
+ return <main className={styles.main}>
+  <section className={styles.authPane} style={{maxWidth:920}}>
+   <p><Link href={`/drinkStock/dashboard/${partnerId}`}>← Partner dashboard</Link></p>
+   <span className={styles.eyebrow}>DRINKSTOCK / POS FALLBACK</span>
+   <h1>KONTA MOY Checkout · {info.partnerName}</h1>
+   <p>No separate Mollie account or AADE credentials are required from this hospitality partner.
+    DrinkStock's POS fallback is designed to use KONTA MOY's existing payment and AADE connectivity.</p>
+   <div role="status" style={{borderRadius:14,border:"1px solid #f8bd8a",background:"#2f222b",padding:18,margin:"18px 0"}}>
+    <strong>Guest payment collection not yet enabled</strong>
+    <p>Administrative fallback approval: {info.adminApproved?"Granted":"Not granted"}.
+     The platform must verify the legal seller, settlement model and certified receipt issuer
+     before charging a table guest.</p>
+   </div>
+   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:14}}>
+    <section style={{border:"1px solid #667f92",borderRadius:13,padding:16}}>
+     <h2>💳 Mollie</h2>
+     <p>Account: <strong>{info.mollie.account}</strong></p>
+     <p>Existing integration: {info.mollie.configured?"Configured":"Unavailable"}.</p>
+     <p>Live provider connectivity: {info.mollie.liveReady?"Verified":"Not verified"}.</p>
+     <small>No partner Mollie Connect authorization needed for this fallback.</small>
+    </section>
+    <section style={{border:"1px solid #667f92",borderRadius:13,padding:16}}>
+     <h2>🧾 AADE / myDATA</h2>
+     <p>Integration: <strong>{info.aade.account}</strong></p>
+     <p>Existing credentials: {info.aade.configured?"Configured":"Unavailable"}.</p>
+     <p>Direct ERP readiness: {info.aade.directErpReady?"Ready":"Not verified"}.</p>
+     <p>Certified retail receipts: {info.aade.retailReceiptIssuerVerified?"Verified":"Pending"}.</p>
+    </section>
+   </div>
+   <h2 style={{marginTop:28}}>Remaining operational checks</h2>
+   <ul>{info.remaining.map(item=><li key={item} style={{marginBottom:12}}>{item}</li>)}</ul>
+   <p style={{fontSize:13,opacity:.8}}>KONTA MOY's AADE tax identity may issue only transactions for which it is the authorized legal issuer.
+    Technical access alone does not make it the seller of the bar's drinks. No owner-issued
+    certificate or unverified market simulation may bypass this rule.</p>
+  </section>
+ </main>;
 }
