@@ -109,7 +109,10 @@ async function processResearchSesEvent(
   const client = await runtime.sqlPool.connect();
   try {
     await client.query("BEGIN");
-    const attemptResult = await client.query<SqlRow>(`
+    // Both lookups are unique indexed equalities. Combining provider_message_id with
+    // m.id::text via OR caused a full-table scan / sort under large SES webhook volume.
+    // Prefer the SES provider ID, and use the research_attempt UUID tag only if needed.
+    const messageProjection = `
       SELECT
         ri.id AS invite_id,
         ri.study_id,
@@ -121,14 +124,19 @@ async function processResearchSesEvent(
       FROM research_invite_messages m
       JOIN research_invites ri ON ri.id=m.invite_id
       LEFT JOIN research_contact_points cp ON cp.id=ri.contact_point_id
+    `;
+    const byProvider = await client.query<SqlRow>(`${messageProjection}
       WHERE m.provider_message_id=$1
-         OR ($2::text<>'' AND m.id::text=$2)
-      ORDER BY m.created_at DESC,m.id DESC
-      LIMIT 1
       FOR UPDATE OF m,ri
-    `, [providerMessageId, attemptTag]);
-
-    let invite = attemptResult.rows[0];
+    `, [providerMessageId]);
+    let invite = byProvider.rows[0];
+    if (!invite && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(attemptTag)) {
+      const byAttempt = await client.query<SqlRow>(`${messageProjection}
+        WHERE m.id=$1::uuid
+        FOR UPDATE OF m,ri
+      `, [attemptTag]);
+      invite = byAttempt.rows[0];
+    }
     if (!invite) {
       const inviteResult = await client.query<SqlRow>(`
         SELECT
