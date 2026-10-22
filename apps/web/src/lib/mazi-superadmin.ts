@@ -132,6 +132,21 @@ export async function executeMaziSuperAdminAction(principal:SessionPrincipal, in
  const client=await db().connect();
  try {
   await client.query("begin");
+  // All cycle-closing and vote-exclusion actions share the same transaction
+  // advisory lock as mazi_validate_ballot() in PostgreSQL. This ensures no
+  // ballot can commit between taking the final tally and closing the round.
+  if(["cycle","conflict","invalidation"].includes(input.kind)){
+    const lockCycle=await client.query<{id:string}>(`
+      select id::text from public.mazi_cycles
+      where slug='founding-needs-2026' and kind='needs_assessment'
+        and funding_budget_cents=0 and finance_activated=false
+    `);
+    if(!lockCycle.rows[0])throw new Error("MAZI_FOUNDING_CYCLE_NOT_FOUND");
+    await client.query(`
+      select pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended($1::text,24731))
+    `,[lockCycle.rows[0].id]);
+  }
   let entityType="",entityId="",action="";
   if(input.kind==="application"){
     const row=await client.query<{id:string;applicant_user_id:string;business_name:string}>(`
@@ -157,7 +172,10 @@ export async function executeMaziSuperAdminAction(principal:SessionPrincipal, in
     const r=await client.query<{id:string}>(`
       update public.mazi_proposals set status=$2,reviewed_at=now(),
         reviewed_by=$3::uuid,review_reason=$4
-      where id=$1::uuid and status='submitted' returning id::text
+      where id=$1::uuid and status='submitted'
+        and exists(select 1 from public.mazi_cycles c
+          where c.id=mazi_proposals.cycle_id and c.status='review')
+      returning id::text
     `,[input.id,input.approve?"approved":"rejected",actorId,input.reason.trim()]);
     if(!r.rows[0])throw new Error("MAZI_PROPOSAL_NOT_PENDING");
     entityType="proposal";entityId=input.id;action=input.approve?"approved":"rejected";
@@ -206,7 +224,7 @@ export async function executeMaziSuperAdminAction(principal:SessionPrincipal, in
       where v.cycle_id=$1::uuid and v.voter_id=$2::uuid and v.proposal_id=$3::uuid
       on conflict(vote_id) do nothing
     `,[c.rows[0].id,input.voterId,input.proposalId,
-      "Καταγεγραμμένη σύγκρουση συμφερόντων: "+input.reason.trim(),actorId]);
+      input.reason.trim(),actorId]);
     entityType="vote_conflict";entityId=x.rows[0].id;action="recusal_recorded";
   }else if(input.kind==="invalidation"){
     const c=await client.query<{id:string;status:string}>(`
@@ -251,6 +269,11 @@ export async function executeMaziSuperAdminAction(principal:SessionPrincipal, in
         where cycle_id=$1::uuid and status='approved'
       `,[c.id]);
       if(Number(n.rows[0]?.n||0)===0) throw new Error("MAZI_NO_APPROVED_PROPOSALS");
+      const pending=await client.query<{n:string}>(`
+        select count(*)::text as n from public.mazi_proposals
+        where cycle_id=$1::uuid and status='submitted'
+      `,[c.id]);
+      if(Number(pending.rows[0]?.n||0)>0)throw new Error("MAZI_PROPOSALS_PENDING_REVIEW");
     }
     if(input.stage==="closed"){
       const counts=await client.query<{total:string;invalidated:string;valid:string}>(`
