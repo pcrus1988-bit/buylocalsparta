@@ -4,6 +4,7 @@ import { SiteFooter } from "../../../components/SiteFooter";
 import type { Metadata } from "next";
 import type { SqlRow } from "@buy-local-sparta/core";
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import styles from "../../../components/ResearchObservatory.module.css";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 import { publicResearchStudy } from "../../../lib/research-observatory-runtime";
@@ -22,9 +23,8 @@ export function generateMetadata(): Promise<Metadata> {
 // The full public snapshot also scans invitation events and geography. If that
 // aggregate query times out, do not replace a live study with an empty hero.
 // This read deliberately uses only main-fieldwork response counts, never answers.
-async function readFallbackProgress(): Promise<{ started: number; completed: number } | undefined> {
-  if (!productionDatabaseConfigured()) return undefined;
-  try {
+const cachedFallbackProgress = unstable_cache(
+  async (): Promise<{ started: number; completed: number; verifiedAt: string } | null> => {
     const result = await getPublicSurveyPostgresRuntime().sqlPool.query<SqlRow>(`
       SELECT
         (SELECT count(*) FROM research_responses r
@@ -41,11 +41,24 @@ async function readFallbackProgress(): Promise<{ started: number; completed: num
       LIMIT 1
     `);
     const row = result.rows[0];
-    if (!row) return undefined;
+    // Confirmed absence (including archival) invalidates previously cached counts.
+    if (!row) return null;
     const started = Number(row.started);
     const completed = Number(row.completed);
-    if (!Number.isFinite(started) || !Number.isFinite(completed)) return undefined;
-    return { started, completed };
+    if (!Number.isSafeInteger(started) || !Number.isSafeInteger(completed)
+      || completed < 0 || started < completed) throw new Error("research_progress_invalid");
+    return { started, completed, verifiedAt: new Date().toISOString() };
+  },
+  ["research-greek-retail-main-progress-v1"],
+  { revalidate: 30 }
+);
+
+async function readFallbackProgress() {
+  if (!productionDatabaseConfigured()) return undefined;
+  try {
+    // A failed background refresh must throw inside unstable_cache so Next keeps
+    // serving the last verified aggregate instead of caching an empty result.
+    return await cachedFallbackProgress();
   } catch (error) {
     // Never expose SQL text, connection strings or participant data in public responses.
     const code = error && typeof error === "object" && "code" in error
@@ -57,13 +70,16 @@ async function readFallbackProgress(): Promise<{ started: number; completed: num
 }
 
 export default async function GreekRetailResearchPage() {
-  const study = await publicResearchStudy("greek-retail-2026");
+  // Start the small count query before the full invitation/geography aggregate.
+  const [fallbackProgress, study] = await Promise.all([
+    readFallbackProgress(),
+    publicResearchStudy("greek-retail-2026")
+  ]);
   if (study) return <>
     <ResearchStudyDashboard study={study} compactIntro />
     <SiteFooter />
   </>;
 
-  const fallbackProgress = await readFallbackProgress();
   return <>
     <main className={styles.shell}>
     <div className={styles.frame}>
@@ -79,8 +95,8 @@ export default async function GreekRetailResearchPage() {
       </header>
       {fallbackProgress ? <section className={styles.section} aria-label="Πρόοδος μελέτης">
         <div className={styles.sectionHead}>
-          <div><div className={styles.eyebrow}>Ζωντανή εικόνα συμμετοχής</div><h2>Πρόοδος Ελληνικού Λιανεμπορίου 2026</h2></div>
-          <p>Εμφανίζονται επαληθευμένα συγκεντρωτικά στοιχεία κύριας συλλογής. Οι αναλυτικές μετρήσεις ενημερώνονται προσωρινά.</p>
+          <div><div className={styles.eyebrow}>Επαληθευμένη εικόνα συμμετοχής</div><h2>Πρόοδος Ελληνικού Λιανεμπορίου 2026</h2></div>
+          <p>Εμφανίζονται επαληθευμένα συγκεντρωτικά στοιχεία κύριας συλλογής. Οι αναλυτικές μετρήσεις ενημερώνονται προσωρινά. Τελευταία επιβεβαίωση: {new Date(fallbackProgress.verifiedAt).toLocaleString("el-GR", { timeZone: "Europe/Athens" })} (ώρα Αθήνας).</p>
         </div>
         <div className={styles.metrics}>
           <article className={styles.metric}>
@@ -94,7 +110,7 @@ export default async function GreekRetailResearchPage() {
           </article>
         </div>
         <div className={styles.sectionActions}>
-          <Link className={[styles.actionButton, styles.primaryButton].join(" ")} href="/research/greek-retail-2026">Ανανέωση προόδου</Link>
+          <a className={[styles.actionButton, styles.primaryButton].join(" ")} href="/research/greek-retail-2026">Ανανέωση προόδου</a>
           <Link className={styles.actionButton} href="/research">Παρατηρητήριο · όλες οι μετρήσεις</Link>
         </div>
       </section> : <section className={styles.section}>
