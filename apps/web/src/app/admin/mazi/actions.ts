@@ -17,6 +17,8 @@ export async function maziSuperAdminCommand(form:FormData) {
  let op:MaziOperation;
  if(kind==="application"&&validUuid(id)&&["approve","reject"].includes(value)&&reason.length>=20&&reason.length<=1000)
    op={kind:"application",id,approve:value==="approve",reason};
+ else if(kind==="followup"&&validUuid(id)&&reason.length>=20&&reason.length<=1000)
+   op={kind:"followup",id,question:reason};
  else if(kind==="proposal"&&validUuid(id)&&["approve","reject"].includes(value)&&reason.length>=20&&reason.length<=1000)
    op={kind:"proposal",id,approve:value==="approve",reason};
  else if(kind==="voting"&&validUuid(id)&&["yes","no"].includes(value))

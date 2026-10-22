@@ -74,3 +74,14 @@ export async function supportProposal(form:FormData) {
   redirect("/proposals?notice=vote_cast");
 }
 
+
+export async function answerMaziFollowup(form:FormData){
+ await authenticated();
+ const followup_id=asText(form.get("followup_id"));
+ const answer=asText(form.get("answer"));
+ if(!/^[a-f0-9-]{36}$/i.test(followup_id)||answer.length<20||answer.length>2000)
+   urlMessage("/members","invalid_followup_answer");
+ const result=await maziMemberRequest("answer_followup",{followup_id,answer});
+ if(!result.ok)urlMessage("/members","followup_not_available");
+ redirect("/members?notice=followup_answered");
+}

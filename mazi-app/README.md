@@ -35,3 +35,11 @@ SQL: `sql/003_marketplace_superadmin_only.sql`. No payment operations are active
 
 ## Financial safety
 No real financial service, pooled payments, crowdfunding or grant distributions are active; these require legal review, entity governance, segregated fund custody, tax/VAT handling and independent financial approvals before enabling. This is *not* a funding simulator; the app runs actual member and proposal intake but currently operates a zero-euro founding needs-assessment cycle.
+
+## 2026-10-22 · real applicant follow-ups
+- Super Admin may send one pending information request at a time to an actual applicant from `/admin/mazi`.
+- Requests and owner-only answers live in `public.mazi_application_followups`; the dedicated `mazi-member-api` Edge gateway validates the caller's Supabase JWT before looking up the account's application.
+- Reply values are insert-once: PostgreSQL prevents edits to a submitted answer or review prompt. The requester and applicant actions are written to the MAZI audit ledger (reply content itself is not duplicated into the audit).
+- The Super Admin may review an application only when there are no open information requests; identity verification still requires official ΓΕΜΗ review.
+- The member API is granted only SELECT and column-scoped UPDATE(answer, answered_at) on the follow-up table, not Super Admin approval rights.
+- No background mail or automations are activated, no fake applicants or dummy transactions, and no funding activation.

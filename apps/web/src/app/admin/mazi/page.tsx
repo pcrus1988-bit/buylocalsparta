@@ -38,7 +38,7 @@ export default async function MaziSuperAdminPage({searchParams}:{searchParams:Pr
  let workspace:Awaited<ReturnType<typeof maziAdminSnapshot>>|undefined;
  try{workspace=await maziAdminSnapshot(p);}catch{}
  if(!workspace)return <main className={s.stage}><div className={s.shell}><h1>ΜΑΖΙ</h1><p>Το ασφαλές περιβάλλον διακυβέρνησης δεν είναι προσωρινά διαθέσιμο. Δεν πραγματοποιήθηκε καμία ενέργεια.</p><Link href="/admin">Επιστροφή στην κεντρική διαχείριση</Link></div></main>;
- const {applications,proposals,members,cycle,approvedProposals,ballots,result,proposalResults}=workspace;
+ const {applications,proposals,members,cycle,approvedProposals,ballots,result,proposalResults,followups,stats}=workspace;
  const params=await searchParams;
  return <main className={s.stage}><div className={s.shell}>
  <div className={s.breadcrumb}><Link href="/admin">ΚΟΝΤΑ ΜΟΥ / ADMIN</Link><span>↗</span><span>ΜΑΖΙ</span></div>
@@ -49,13 +49,47 @@ export default async function MaziSuperAdminPage({searchParams}:{searchParams:Pr
  {params.notice==="updated"&&<div className={s.notice} role="status">Η ενέργεια αποθηκεύτηκε και καταγράφηκε στο μητρώο ελέγχου.</div>}
  {params.notice==="duplicate_entity"&&<div className={s.notice} role="alert">Ο αριθμός ΓΕΜΗ ανήκει σε ήδη επαληθευμένη νομική οντότητα. Δεν δημιουργήθηκε δεύτερη συμμετοχή ή ψήφος.</div>}
  <div className={s.stats}>
-  <div><small>01 / ΝΕΕΣ ΑΙΤΗΣΕΙΣ</small><strong>{applications.length}</strong><span>Προς επαλήθευση</span></div>
+  <div><small>01 / ΝΕΕΣ ΑΙΤΗΣΕΙΣ</small><strong>{stats.applications_pending}</strong><span>Προς επαλήθευση · συνολικά {stats.applications_total} · {stats.awaiting_reply} αναμονή απάντησης</span></div>
   <div><small>02 / ΑΝΟΙΧΤΑ ΑΙΤΗΜΑΤΑ</small><strong>{proposals.length}</strong><span>Προς αξιολόγηση</span></div>
-  <div><small>03 / ΜΕΛΗ</small><strong>{members.length}</strong><span>Επαληθευμένα / πιο πρόσφατα 75</span></div>
+  <div><small>03 / ΜΕΛΗ</small><strong>{stats.kyb_verified}</strong><span>Επαληθεύσεις ΓΕΜΗ · {stats.voting_eligible} δικαιώματα ψήφου</span></div>
   <div className={s.fund}><small>04 / ΕΝΕΡΓΟ ΤΑΜΕΙΟ</small><strong>€0</strong><span>Η συλλογή χρημάτων παραμένει κλειστή</span></div>
  </div>
  <section className={s.section}><div className={s.sectionTop}><div><p>01 / BUSINESS ONBOARDING</p><h2>Αιτήσεις επιχειρήσεων</h2></div><span>Μόνο ο Super Admin εγκρίνει νέες επιχειρήσεις</span></div>
- {applications.length===0?<div className={s.empty}>Δεν υπάρχουν εκκρεμείς αιτήσεις.</div>:<div className={s.stack}>{applications.map(a=><article className={s.card} key={a.id}><div><span className={s.tag}>ΑΙΤΗΣΗ · {new Date(a.created_at).toLocaleDateString("el-GR")}</span><h3>{a.business_name}</h3><p className={s.meta}>{a.representative_name} · {a.location} · {a.sector}</p><p className={s.body}>{a.description}</p><p className={s.meta}>Αριθμός ΓΕΜΗ: {a.registry_number||"Δεν δόθηκε"}</p></div><ReviewDecision csrf={p.csrfToken} kind="application" id={a.id}/></article>)}</div>}</section>
+ {applications.length===0?<div className={s.empty}>Δεν υπάρχουν εκκρεμείς αιτήσεις.</div>:<div className={s.stack}>{applications.map(a=>{
+ const history=followups.filter(f=>f.application_id===a.id);
+ const pending=history.some(f=>!f.answered_at);
+ return <article className={s.card} key={a.id}>
+  <div style={{flex:1}}>
+   <span className={s.tag}>ΑΙΤΗΣΗ · {new Date(a.created_at).toLocaleDateString("el-GR")}</span>
+   <h3>{a.business_name}</h3>
+   <p className={s.meta}>{a.representative_name} · {a.location} · {a.sector}</p>
+   <p className={s.body}>{a.description}</p>
+   <p className={s.meta}>Αριθμός ΓΕΜΗ: {a.registry_number||"Δεν δόθηκε"}</p>
+   {history.length>0?<div style={{marginTop:22,display:"grid",gap:10}}>
+    <strong>Διευκρινίσεις ({history.length})</strong>
+    {history.map(f=><div key={f.id} style={{padding:15,background:"#ecf1e7"}}>
+     <p className={s.body}><strong>Ερώτημα:</strong> {f.question}</p>
+     {f.answered_at?<p className={s.body}><strong>Απάντηση επιχείρησης:</strong> {f.answer}</p>
+       :<p className={s.meta}>Αναμένεται απάντηση της επιχείρησης.</p>}
+    </div>)}
+   </div>:null}
+  </div>
+  <div style={{display:"grid",gap:22,alignContent:"start"}}>
+   {pending?<p className={s.tag}>ΕΚΚΡΕΜΕΙ ΑΠΑΝΤΗΣΗ — ΔΕΝ ΕΠΙΤΡΕΠΕΤΑΙ ΑΠΟΦΑΣΗ</p>
+     :<ReviewDecision csrf={p.csrfToken} kind="application" id={a.id}/>}
+   {!pending?<form action={maziSuperAdminCommand} className={s.action}
+     style={{display:"flex",flexDirection:"column",gap:10,minWidth:260,maxWidth:370}}>
+     <input type="hidden" name="csrf" value={p.csrfToken}/>
+     <input type="hidden" name="kind" value="followup"/>
+     <input type="hidden" name="id" value={a.id}/>
+     <label className={s.tag} htmlFor={`question-${a.id}`}>ΖΗΤΗΣΕ ΠΡΟΣΘΕΤΑ ΣΤΟΙΧΕΙΑ</label>
+     <textarea id={`question-${a.id}`} name="reason" required minLength={20} maxLength={1000}
+      rows={4} style={{padding:12,border:"1px solid #aec0af",font:"inherit"}}
+      placeholder="Τι χρειάζεσαι για να αξιολογήσεις την αίτηση;"/>
+     <button type="submit" className={s.secondary}>Αίτημα διευκρινίσεων ↗</button>
+   </form>:null}
+  </div>
+ </article>})}</div>}</section>
  <section className={s.section}><div className={s.sectionTop}><div><p>02 / PROJECT GOVERNANCE</p><h2>Προτάσεις προς αξιολόγηση</h2></div><span>Χωρίς αυτοματοποιημένες εγκρίσεις χρηματοδότησης</span></div>
  {proposals.length===0?<div className={s.empty}>Δεν υπάρχουν προτάσεις σε αναμονή.</div>:<div className={s.stack}>{proposals.map(a=><article className={s.card} key={a.id}><div><span className={s.tag}>{a.category.toUpperCase()} · {new Date(a.created_at).toLocaleDateString("el-GR")}</span><h3>{a.title}</h3><p className={s.body}>{a.details}</p><p className={s.requested}>Αιτούμενο ποσό (όχι εκταμίευση): {money(a.amount_cents)}</p></div><ReviewDecision csrf={p.csrfToken} kind="proposal" id={a.id}/></article>)}</div>}</section>
  <section className={s.section}>
