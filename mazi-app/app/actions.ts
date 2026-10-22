@@ -2,6 +2,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "../lib/supabase/server";
 import { asText, validEmail, validateApplication, validateProposal } from "../lib/validation";
+import {maziMemberRequest} from "../lib/mazi-api";
 
 const DESTINATION = "https://mazi.kontamou.site/auth/callback";
 function urlMessage(path:string,reason:string): never { redirect(path+"?notice="+encodeURIComponent(reason)); }
@@ -31,7 +32,7 @@ export async function signOut(){
 }
 
 export async function applyForMembership(form:FormData) {
-  const {db,user}=await authenticated();
+  await authenticated();
   if (form.get("accept_privacy") !== "on") urlMessage("/members","privacy_required");
   const input={
     business_name:asText(form.get("business_name")),
@@ -42,20 +43,13 @@ export async function applyForMembership(form:FormData) {
     description:asText(form.get("description"))
   };
   if(validateApplication(input)) urlMessage("/members","invalid_application");
-  const {error}=await db.from("mazi_membership_applications").insert({
-    ...input,applicant_user_id:user.id,consent_version:"mazi-interest-v1"
-  });
-  if(error) urlMessage("/members",error.code==="23505"?"already_applied":"application_failed");
+  const outcome=await maziMemberRequest("apply",{...input,accept_privacy:true});
+  if(!outcome.ok)urlMessage("/members",outcome.error==="already_applied"?"already_applied":"application_failed");
   redirect("/members?notice=application_received");
 }
 
 export async function submitProposal(form:FormData) {
-  const {db,user}=await authenticated();
-  const {data:member}=await db.from("mazi_members").select("status").eq("user_id",user.id).maybeSingle();
-  if(member?.status!=="verified") urlMessage("/members","not_verified");
-  const {data:cycle}=await db.from("mazi_cycles").select("id,status,starts_at,ends_at")
-    .eq("slug","founding-needs-2026").maybeSingle();
-  if(!cycle||cycle.status!=="submissions"||new Date(cycle.starts_at)>new Date()||new Date(cycle.ends_at)<=new Date()) urlMessage("/proposals","cycle_closed");
+  await authenticated();
   const euros=Number(asText(form.get("amount_eur")));
   const input={
     title:asText(form.get("title")),
@@ -64,21 +58,19 @@ export async function submitProposal(form:FormData) {
     details:asText(form.get("details"))
   };
   if(validateProposal(input)) urlMessage("/proposals","invalid_proposal");
-  const {error}=await db.from("mazi_proposals").insert({
-    ...input,cycle_id:cycle.id,created_by:user.id,status:"submitted"
-  });
-  if(error) urlMessage("/proposals",error.code==="23505"?"already_submitted":"proposal_failed");
+  const outcome=await maziMemberRequest("propose",input);
+  if(!outcome.ok)urlMessage("/proposals",
+    ["cycle_closed","not_verified","already_submitted","invalid_proposal"].includes(outcome.error)?outcome.error:"proposal_failed");
   redirect("/proposals?notice=proposal_received");
 }
 
 export async function supportProposal(form:FormData) {
-  const {db,user}=await authenticated();
+  await authenticated();
   const id=asText(form.get("proposal_id"));
   if(!/^[0-9a-f-]{36}$/i.test(id)) urlMessage("/proposals","invalid_vote");
-  const {data:proposal}=await db.from("mazi_proposals").select("id,cycle_id").eq("id",id).maybeSingle();
-  if(!proposal) urlMessage("/proposals","invalid_vote");
-  const {error}=await db.from("mazi_votes").insert({proposal_id:proposal.id,cycle_id:proposal.cycle_id,voter_id:user.id});
-  if(error) urlMessage("/proposals",error.code==="23505"?"already_voted":"vote_not_allowed");
+  const outcome=await maziMemberRequest("vote",{proposal_id:id});
+  if(!outcome.ok)urlMessage("/proposals",
+    ["already_voted","vote_not_allowed","invalid_vote"].includes(outcome.error)?outcome.error:"vote_not_allowed");
   redirect("/proposals?notice=vote_cast");
 }
 

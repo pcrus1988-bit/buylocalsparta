@@ -3,6 +3,7 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {createClient} from "../../lib/supabase/server";
 import {applyForMembership,signOut} from "../actions";
+import {maziMemberRequest,type MaziState} from "../../lib/mazi-api";
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"Ο χώρος μου",robots:{index:false,follow:false}};
 const messages:Record<string,string>={application_received:"Η αίτηση καταχωρίστηκε με επιτυχία και αναμένει πραγματικό έλεγχο.",invalid_application:"Έλεγξε όλα τα πεδία πριν από την υποβολή.",privacy_required:"Για την υποβολή απαιτείται αποδοχή της ενημέρωσης επεξεργασίας δεδομένων.",already_applied:"Έχεις ήδη υποβάλει αίτηση.",application_failed:"Η αίτηση δεν καταχωρίστηκε. Δοκίμασε ξανά αργότερα.",not_verified:"Η επιχείρηση πρέπει πρώτα να επαληθευτεί."};
@@ -11,10 +12,12 @@ export default async function Members({searchParams}:{searchParams:Promise<{noti
  const db=await createClient();
  const {data:{user}}=await db.auth.getUser();
  if(!user)redirect("/join");
- const [{data:application},{data:member}]=await Promise.all([
-   db.from("mazi_membership_applications").select("id,business_name,status,created_at").eq("applicant_user_id",user.id).maybeSingle(),
-   db.from("mazi_members").select("status,voting_eligible,admitted_at,identity_verified_at").eq("user_id",user.id).maybeSingle()
- ]);
+ const snapshot=await maziMemberRequest<MaziState>("state");
+ if(!snapshot.ok)return <main id="content"><section className="section shell">
+  <h1>Ο χώρος μελών δεν είναι διαθέσιμος αυτή τη στιγμή.</h1>
+  <p>Δεν υποβάλαμε καμία αίτηση. Δοκίμασε ξανά αφού ανανεώσεις τη σελίδα.</p>
+ </section></main>;
+ const {application,member}=snapshot;
  const {notice}=await searchParams;
  return <main id="content"><section className="subhero member-hero"><div className="shell"><span className="eyebrow light">ΜΑΖΙ / ΧΩΡΟΣ ΕΠΙΧΕΙΡΗΣΗΣ</span><h1>Ένας χώρος<br/><em>για την επιχείρησή σου.</em></h1><p>Αίτηση, επαλήθευση, συμμετοχή σε πραγματικές διαδικασίες και παρακολούθηση των αιτημάτων σου.</p></div></section>
  <section className="section shell portal-section"><div className="portal-heading"><div><span className="eyebrow">ΠΡΟΣΩΠΙΚΟΣ ΧΩΡΟΣ</span><h2>{application?.business_name||"Η επιχείρησή σου"}</h2><p className="small-muted">Συνδέθηκες ως {user.email}</p></div><form action={signOut}><button className="reset-button" type="submit">Αποσύνδεση ↗</button></form></div>

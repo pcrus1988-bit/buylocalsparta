@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {createClient} from "../../lib/supabase/server";
+import {maziPublicCycle} from "../../lib/mazi-api";
 export const dynamic="force-dynamic";
 export const metadata: Metadata = {title:"Ταμείο Συλλογικής Ανάπτυξης",description:"Πώς σχεδιάζεται η υποβολή προτάσεων, η αξιολόγηση και η συλλογική χρηματοδότηση στο ΜΑΖΙ."};
 const steps=[
@@ -10,8 +10,7 @@ const steps=[
   ["04","Υποστηρίζονται πολλά έργα","Ο προϋπολογισμός κατανέμεται σε περισσότερα έργα, με όρια ανά αίτηση και ελάχιστο χρήσιμο ποσό χρηματοδότησης."],
   ["05","Αποδεικνύουμε το αποτέλεσμα","Μελλοντικές εκταμιεύσεις μόνο μετά από νομική ενεργοποίηση, έναντι παραστατικών, με αναφορά προόδου και ελεγκτικό ίχνος."]];
 export default async function FundPage(){
-const db=await createClient();
-const {data:cycle}=await db.from("mazi_cycles").select("status,starts_at,ends_at").eq("slug","founding-needs-2026").maybeSingle();
+const cycle=await maziPublicCycle();
 const open=cycle?.status==="submissions"&&Date.parse(cycle.starts_at)<=Date.now()&&Date.parse(cycle.ends_at)>Date.now();
 const stageLabel=!cycle?"Η ΚΑΤΑΣΤΑΣΗ ΤΟΥ ΚΥΚΛΟΥ ΔΕΝ ΕΙΝΑΙ ΔΙΑΘΕΣΙΜΗ":open?"ΑΝΟΙΧΤΗ ΚΑΤΑΓΡΑΦΗ ΑΝΑΓΚΩΝ":"ΔΕΝ ΓΙΝΟΝΤΑΙ ΑΥΤΗ ΤΗ ΣΤΙΓΜΗ ΝΕΕΣ ΥΠΟΒΟΛΕΣ ΑΝΑΓΚΩΝ";
 return <main id="content"><section className="subhero"><div className="shell"><span className="eyebrow light">ΤΟ ΤΑΜΕΙΟ · Ο ΠΥΡΗΝΑΣ ΤΟΥ ΜΑΖΙ</span><h1>Όχι τύχη.<br/><em>Πραγματικές ευκαιρίες.</em></h1><p>Ένα συλλογικό ταμείο για πραγματικές επιχειρηματικές ανάγκες. Τα μέλη προτείνουν, συζητούν και αποφασίζουν. Στόχος μας είναι, όταν ενεργοποιηθεί νόμιμα το Ταμείο, να στηρίζονται πολλά τεκμηριωμένα έργα και όχι τυχαίοι νικητές.</p></div></section>
