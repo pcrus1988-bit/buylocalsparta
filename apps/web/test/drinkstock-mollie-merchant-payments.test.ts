@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {merchantPaymentPayload,validatePaidMerchantMolliePayment,createMerchantMolliePayment,
  retrieveMerchantMolliePayment} from "../src/lib/drinkstock-mollie-merchant-payments.ts";
-import {MerchantConnectionError} from "../src/lib/drinkstock-merchant-connections.ts";
+import {MerchantConnectionError} from "../src/lib/drinkstock-merchant-connection-error.ts";
 const orderId="11111111-1111-4111-8111-111111111111",requestKey="22222222-2222-4222-8222-222222222222";
 const base={orderId,requestKey,merchantProfileId:"pfl_Merchant123",grossCents:587,
  redirectUrl:"https://hospitality.kontamou.site/drinkStock/checkout/return",
@@ -41,3 +41,25 @@ test("provider status is always fetched, never inferred from callback body",asyn
  assert.equal(paid.status,"open");
  assert.equal(seen,"https://api.mollie.com/v2/payments/tr_ABC123");
 });
+test("payment creation only returns a live, matching, usable Mollie checkout",async()=>{
+ const previous=process.env.DRINKSTOCK_COMMERCIAL_PAYMENTS_ENABLED;
+ process.env.DRINKSTOCK_COMMERCIAL_PAYMENTS_ENABLED="true";
+ try{
+  const payment={id:"tr_ABC123",status:"open",mode:"live",profileId:base.merchantProfileId,
+   amount:{currency:"EUR",value:"5.87"},metadata:{drinkstockOrderId:orderId},
+   _links:{checkout:{href:"https://www.mollie.com/checkout/ABC123"}}};
+  const release={receiptIssuerCertified:true,commercialOrderPersisted:true,releasedForProduction:true};
+  const run=(p:unknown)=>createMerchantMolliePayment(base,"access_TestKey",release,
+   (async()=>Response.json(p)) as typeof fetch);
+  assert.deepEqual(await run(payment),{paymentId:"tr_ABC123",checkoutUrl:payment._links.checkout.href});
+  for(const wrong of [null,{...payment,mode:"test"},{...payment,status:"expired"},
+   {...payment,amount:{currency:"EUR",value:"5.88"}},
+   {...payment,_links:{checkout:{href:"https://www.mollie.com:444/checkout/ABC123"}}},
+   {...payment,_links:{checkout:{href:"https://mollie.com.evil.example/pay"}}}])
+   await assert.rejects(()=>run(wrong));
+ }finally{
+  if(previous===undefined)delete process.env.DRINKSTOCK_COMMERCIAL_PAYMENTS_ENABLED;
+  else process.env.DRINKSTOCK_COMMERCIAL_PAYMENTS_ENABLED=previous;
+ }
+});
+

@@ -4,7 +4,8 @@ import {resolveGreekBeverageVat,splitGreekBeverageGross,type BeverageVatClass,
 import {type GuestCartLine,type GuestPricePreview,validateGuestCart} from "./drinkstock-guest-quote";
 
 export class CheckoutPreparationError extends Error {
- constructor(public readonly code:string){super(code);}
+ readonly code:string;
+ constructor(code:string){super(code);this.code=code;}
 }
 export type TrustedCheckoutDrink = Readonly<{
  id:string;partnerId:string;venueId:string;name:string;
@@ -97,3 +98,4 @@ export function prepareDrinkStockCheckoutIntent(input:Readonly<{
   quotedAt:trustedQuote.quotedAt,currency:"EUR",mode,lines,
   totalGrossCents,totalNetCents,totalVatCents};
 }
+
