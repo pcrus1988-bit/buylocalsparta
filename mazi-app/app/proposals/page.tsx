@@ -3,6 +3,7 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {createClient} from "../../lib/supabase/server";
 import {submitProposal,supportProposal} from "../actions";
+import {maziMemberRequest,type MaziState} from "../../lib/mazi-api";
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"Προτάσεις επιχειρήσεων",robots:{index:false,follow:false}};
 const euro=(cents:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format(cents/100);
@@ -10,11 +11,14 @@ const states:Record<string,string>={submitted:"Αναμένει αξιολόγη
 const notices:Record<string,string>={proposal_received:"Η πραγματική πρότασή σου καταχωρίστηκε και αναμένει έλεγχο.",invalid_proposal:"Έλεγξε τον τίτλο, το ποσό και την περιγραφή.",already_submitted:"Υπάρχει ήδη αίτημα από την επιχείρησή σου στον τρέχοντα κύκλο.",proposal_failed:"Δεν ήταν δυνατή η καταχώριση.",vote_cast:"Η υποστήριξή σου καταχωρίστηκε και προστέθηκε στο ίχνος ελέγχου.",already_voted:"Έχεις ήδη υποστηρίξει αυτή την πρόταση.",vote_not_allowed:"Η ψηφοφορία δεν είναι ανοιχτή ή δεν έχεις δικαίωμα ψήφου.",cycle_closed:"Η περίοδος υποβολής δεν είναι ανοιχτή.",invalid_vote:"Μη έγκυρη πρόταση."};
 export default async function Proposals({searchParams}:{searchParams:Promise<{notice?:string}>}){
  const db=await createClient();const {data:{user}}=await db.auth.getUser();if(!user)redirect("/join");
- const {data:member}=await db.from("mazi_members").select("status,voting_eligible").eq("user_id",user.id).maybeSingle();if(member?.status!=="verified")redirect("/members");
- const {data:cycle}=await db.from("mazi_cycles").select("id,title,kind,status,starts_at,ends_at,funding_budget_cents,finance_activated").eq("slug","founding-needs-2026").maybeSingle();
+ const snapshot=await maziMemberRequest<MaziState>("state");
+ if(!snapshot.ok)return <main id="content"><section className="section shell">
+  <h1>Οι προτάσεις δεν είναι διαθέσιμες αυτή τη στιγμή.</h1>
+  <p>Δεν καταχωρίστηκε καμία ενέργεια. Δοκίμασε ξανά αργότερα.</p>
+ </section></main>;
+ const {member,cycle,proposals,votes}=snapshot;
+ if(member?.status!=="verified"||!member.identity_verified_at)redirect("/members");
  const {notice}=await searchParams;
- const {data:proposals}=cycle?await db.from("mazi_proposals").select("id,title,details,category,amount_cents,status,created_by,created_at").eq("cycle_id",cycle.id).order("created_at",{ascending:false}).limit(100):{data:[]};
- const {data:votes}=cycle?await db.from("mazi_votes").select("proposal_id").eq("cycle_id",cycle.id).eq("voter_id",user.id):{data:[]};
  const myVotes=new Set((votes||[]).map(x=>x.proposal_id));
  const myProposal=(proposals||[]).some(x=>x.created_by===user.id);
  const canSubmit=cycle?.status==="submissions"&&new Date(cycle.starts_at)<=new Date()&&new Date(cycle.ends_at)>new Date()&&!myProposal;

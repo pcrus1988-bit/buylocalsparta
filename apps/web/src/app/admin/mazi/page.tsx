@@ -32,6 +32,7 @@ export default async function MaziSuperAdminPage({searchParams}:{searchParams:Pr
  <p className={s.subtitle}>Πραγματικά μέλη, πραγματικές ανάγκες, καταγεγραμμένες αποφάσεις. Μόνο ο υφιστάμενος ΚΟΝΤΑ ΜΟΥ Super Admin έχει δικαίωμα έγκρισης ή διαχείρισης.</p>
  </div><div className={s.lock}><strong>SUPER ADMIN ONLY</strong><span>Ξεχωριστή διαχείριση ΜΑΖΙ: απενεργοποιημένη</span><a href="https://mazi.kontamou.site" target="_blank" rel="noreferrer">Άνοιγμα ΜΑΖΙ ↗</a></div></header>
  {params.notice==="updated"&&<div className={s.notice} role="status">Η ενέργεια αποθηκεύτηκε και καταγράφηκε στο μητρώο ελέγχου.</div>}
+ {params.notice==="duplicate_entity"&&<div className={s.notice} role="alert">Ο αριθμός ΓΕΜΗ ανήκει σε ήδη επαληθευμένη νομική οντότητα. Δεν δημιουργήθηκε δεύτερη συμμετοχή ή ψήφος.</div>}
  <div className={s.stats}>
   <div><small>01 / ΝΕΕΣ ΑΙΤΗΣΕΙΣ</small><strong>{applications.length}</strong><span>Προς επαλήθευση</span></div>
   <div><small>02 / ΑΝΟΙΧΤΑ ΑΙΤΗΜΑΤΑ</small><strong>{proposals.length}</strong><span>Προς αξιολόγηση</span></div>
@@ -42,8 +43,30 @@ export default async function MaziSuperAdminPage({searchParams}:{searchParams:Pr
  {applications.length===0?<div className={s.empty}>Δεν υπάρχουν εκκρεμείς αιτήσεις.</div>:<div className={s.stack}>{applications.map(a=><article className={s.card} key={a.id}><div><span className={s.tag}>ΑΙΤΗΣΗ · {new Date(a.created_at).toLocaleDateString("el-GR")}</span><h3>{a.business_name}</h3><p className={s.meta}>{a.representative_name} · {a.location} · {a.sector}</p><p className={s.body}>{a.description}</p><p className={s.meta}>Αριθμός ΓΕΜΗ: {a.registry_number||"Δεν δόθηκε"}</p></div><div className={s.buttons}><Action csrf={p.csrfToken} kind="application" id={a.id} value="approve" label="Έγκριση"/><Action csrf={p.csrfToken} kind="application" id={a.id} value="reject" label="Απόρριψη" quiet/></div></article>)}</div>}</section>
  <section className={s.section}><div className={s.sectionTop}><div><p>02 / PROJECT GOVERNANCE</p><h2>Προτάσεις προς αξιολόγηση</h2></div><span>Χωρίς αυτοματοποιημένες εγκρίσεις χρηματοδότησης</span></div>
  {proposals.length===0?<div className={s.empty}>Δεν υπάρχουν προτάσεις σε αναμονή.</div>:<div className={s.stack}>{proposals.map(a=><article className={s.card} key={a.id}><div><span className={s.tag}>{a.category.toUpperCase()} · {new Date(a.created_at).toLocaleDateString("el-GR")}</span><h3>{a.title}</h3><p className={s.body}>{a.details}</p><p className={s.requested}>Αιτούμενο ποσό (όχι εκταμίευση): {money(a.amount_cents)}</p></div><div className={s.buttons}><Action csrf={p.csrfToken} kind="proposal" id={a.id} value="approve" label="Επιλεξιμότητα ✓"/><Action csrf={p.csrfToken} kind="proposal" id={a.id} value="reject" label="Απόρριψη" quiet/></div></article>)}</div>}</section>
- <section className={s.section}><div className={s.sectionTop}><div><p>03 / MEMBER RIGHTS</p><h2>Επαληθευμένα μέλη</h2></div><span>Δικαίωμα ψήφου ≠ πρόσβαση στη διαχείριση</span></div>
- {members.length===0?<div className={s.empty}>Δεν υπάρχουν εγκεκριμένα μέλη.</div>:<div className={s.stack}>{members.map(m=><div className={s.member} key={m.user_id}><div><strong>{m.user_id}</strong><span>Κατάσταση: {m.status} · Ψήφος: {m.voting_eligible?"Ενεργή":"Ανενεργή"}</span></div><Action csrf={p.csrfToken} kind="voting" id={m.user_id} value={m.voting_eligible?"no":"yes"} label={m.voting_eligible?"Απενεργοποίηση ψήφου":"Ενεργοποίηση ψήφου"} quiet/></div>)}</div>}</section>
+ <section className={s.section}>
+ <div className={s.sectionTop}><div><p>03 / KYB & VOTING RIGHTS</p><h2>Επαλήθευση επιχειρήσεων</h2></div><span>Μία νόμιμη επιχείρηση · μία ψήφος</span></div>
+ <p className={s.disclaimer}>Έλεγξε τη νόμιμη κατάσταση ΓΕΜΗ, την ταυτοποίηση του εκπροσώπου και τις συνδεδεμένες επιχειρήσεις στην <a href="https://publicity.businessportal.gr/" target="_blank" rel="noopener noreferrer" style={{textDecoration:"underline"}}>επίσημη Δημοσιότητα ΓΕΜΗ ↗</a>. Η επαλήθευση εδώ καταγράφει χειροκίνητο έλεγχο, όχι αυτόματη επιβεβαίωση από κρατικό API.</p>
+ {members.length===0?<div className={s.empty}>Δεν υπάρχουν εγκεκριμένα μέλη.</div>:<div className={s.stack}>
+ {members.map(m=><article className={s.card} key={m.user_id}>
+ <div style={{flex:1}}>
+  <span className={s.tag}>{m.identity_verified_at?"ΓΕΜΗ ΕΠΙΒΕΒΑΙΩΜΕΝΟ":"ΑΝΑΜΟΝΗ ΕΠΑΛΗΘΕΥΣΗΣ"}</span>
+  <h3>{m.business_name}</h3>
+  <p className={s.meta}>Εκπρόσωπος: {m.representative_name}</p>
+  <p className={s.meta}>Δήλωση ΓΕΜΗ: {m.requested_gemi||"Δεν δηλώθηκε"} · Επαληθευμένο: {m.gemi_number||"Όχι"}</p>
+  <p className={s.meta}>Κατάσταση: {m.status} · Δικαίωμα ψήφου: {m.voting_eligible?"Ενεργό":"Ανενεργό"}</p>
+  {!m.identity_verified_at&&m.status==="verified"?<form action={maziSuperAdminCommand} className={s.action} style={{display:"grid",gap:12,maxWidth:560,marginTop:24}}>
+   <input type="hidden" name="csrf" value={p.csrfToken}/><input type="hidden" name="kind" value="identity"/><input type="hidden" name="id" value={m.user_id}/><input type="hidden" name="value" value="confirm"/>
+   <label htmlFor={`gemi-${m.user_id}`}>12ψήφιος αριθμός ΓΕΜΗ</label>
+   <input style={{padding:14,border:"1px solid #abbcaf",font:"inherit"}} id={`gemi-${m.user_id}`} name="gemi" defaultValue={m.requested_gemi||""} inputMode="numeric" pattern="[0-9]{12}" minLength={12} maxLength={12} required/>
+   <label htmlFor={`evidence-${m.user_id}`}>Τεκμηρίωση ελέγχου (20–1.000 χαρακτήρες)</label>
+   <textarea style={{padding:14,border:"1px solid #abbcaf",font:"inherit"}} id={`evidence-${m.user_id}`} name="evidence" minLength={20} maxLength={1000} rows={3} required placeholder="Έλεγχος δημόσιας μερίδας ΓΕΜΗ, ενεργής κατάστασης και εκπροσώπησης"/>
+   <button type="submit" className={s.primary}>Καταχώριση πραγματικής επαλήθευσης ΓΕΜΗ</button>
+  </form>:null}
+ </div>
+ <div className={s.buttons}>{m.identity_verified_at?<Action csrf={p.csrfToken} kind="voting" id={m.user_id} value={m.voting_eligible?"no":"yes"} label={m.voting_eligible?"Απενεργοποίηση ψήφου":"Ενεργοποίηση ψήφου"} quiet/>:<span className={s.tag}>ΠΡΩΤΑ ΕΠΑΛΗΘΕΥΣΗ</span>}</div>
+ </article>)}
+ </div>}
+ </section>
  <section className={s.section}><div className={s.sectionTop}><div><p>04 / CYCLE CONTROL</p><h2>Ιδρυτικός κύκλος αναγκών</h2></div><span>Αποκλειστικά μη χρηματοδοτικός</span></div>
  <div className={s.cycle}><div><strong>{cycle?.title||"Δεν υπάρχει κύκλος"}</strong><p>Στάδιο: {cycle?.status||"—"} · Χρηματοδοτικός προϋπολογισμός: €0 · Ενεργοποίηση χρημάτων: Όχι</p></div>{cycle&&<div className={s.buttons}>{cycle.status==="preparing"&&<Action csrf={p.csrfToken} kind="cycle" value="submissions" label="Έναρξη υποβολών"/>}{cycle.status==="submissions"&&<Action csrf={p.csrfToken} kind="cycle" value="review" label="Έναρξη ελέγχου"/>}{cycle.status==="review"&&<><Action csrf={p.csrfToken} kind="cycle" value="submissions" label="Επανέναρξη υποβολών" quiet/><Action csrf={p.csrfToken} kind="cycle" value="voting" label="Άνοιγμα ψήφων"/></>}{cycle.status==="voting"&&<Action csrf={p.csrfToken} kind="cycle" value="closed" label="Κλείσιμο κύκλου"/>}</div>}</div></section>
  <p className={s.disclaimer}>Οι ενέργειες καταγράφονται με το εσωτερικό αναγνωριστικό του ΚΟΝΤΑ ΜΟΥ Super Admin. Δεν παρέχεται πρόσβαση μέσω Supabase administrator ή ξεχωριστού λογαριασμού ΜΑΖΙ.</p>

@@ -13,7 +13,7 @@ export function validateApplication(input: ApplicationInput): string | null {
   if (input.representative_name.length < 3 || input.representative_name.length > 120) return "Ελέγξτε το ονοματεπώνυμο.";
   if (input.location.length < 2 || input.location.length > 120) return "Ελέγξτε την περιοχή.";
   if (input.sector.length < 2 || input.sector.length > 100) return "Ελέγξτε τον κλάδο.";
-  if (input.registry_number !== null && input.registry_number.length > 35) return "Ο αριθμός μητρώου είναι πολύ μεγάλος.";
+  if (input.registry_number !== null && !/^[0-9]{12}$/.test(input.registry_number)) return "Αν συμπληρώσεις αριθμό ΓΕΜΗ, πρέπει να είναι 12 ψηφία.";
   if (input.description.length < 20 || input.description.length > 1800) return "Περιγράψτε την επιχείρησή σας με 20–1.800 χαρακτήρες.";
   return null;
 }
