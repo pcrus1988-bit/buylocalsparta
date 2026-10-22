@@ -14,7 +14,7 @@ The existing Fiscal Foundation CI:
 3. Runs `node --test scripts/fiscal-disposable-restore-drill.test.mjs` to reject production, remote, shared or misidentified database targets.
 4. Runs `node scripts/fiscal-disposable-restore-drill.mjs` under `CI=true` and `FISCAL_RESTORE_DRILL_MODE=synthetic`.
 5. Inserts one **synthetic, nonidentifying** test record into the disposable source's existing auth-rate-limit table. Then uses the matching `postgres:17` image's `pg_dump -Fc` client to create a custom archive in a temporary runner-only directory. Nothing is uploaded as an artifact.
-6. Uses `pg_restore --list` to confirm archive readability. Creates a new empty `fiscal_restore_ci` database on the same ephemeral local service, and restores the archive with `--exit-on-error --no-owner --no-acl`.
+6. Uses `pg_restore --list` to confirm archive readability. Creates a new empty `fiscal_restore_ci` database on the same ephemeral local service, and restores the archive with `--exit-on-error --clean --if-exists --no-owner --no-acl` **only inside that freshly created disposable restore database**. Cleaning the default `public` schema is necessary because the archive also owns its definition; this never runs on the source database.
 7. Confirms **every exact migration filename/checksum** is preserved, verifies the synthetic row and timestamp, and checks all restored FISCAL tables retain RLS. The temporary dump is deleted even on errors.
 8. Continues with existing Fiscal security, tenancy, schema, Next.js build and HTTP acceptance.
 
