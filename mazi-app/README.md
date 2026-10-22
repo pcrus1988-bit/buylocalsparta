@@ -43,3 +43,10 @@ No real financial service, pooled payments, crowdfunding or grant distributions 
 - The Super Admin may review an application only when there are no open information requests; identity verification still requires official ΓΕΜΗ review.
 - The member API is granted only SELECT and column-scoped UPDATE(answer, answered_at) on the follow-up table, not Super Admin approval rights.
 - No background mail or automations are activated, no fake applicants or dummy transactions, and no funding activation.
+
+## 2026-10-22 · Data API grant hardening (migration 012)
+- All 13 existing public.mazi_* tables deny direct Data API access for the `authenticated` browser role. The `anon` role retains only SELECT on the narrowly RLS-filtered zero-budget founding-cycle row in `mazi_cycles`.
+- Real applications, proposals, ballot reads/writes and applicant answers continue **only** through the JWT-verifying `mazi-member-api` gateway. The marketplace Super Admin retains its separate direct PostgreSQL server connection; no member-facing admin identity is introduced.
+- Existing scoped `service_role` privileges, including the follow-up answer column grants, remain intact. The Edge service still has **no access** to the financial ledger.
+- Supabase migration `012_lock_down_client_role_grants.sql` applied and checked against live Postgres on 2026-10-22; neither member records nor financial balances were altered.
+- `npm test` includes a static grant contract. This is not an end-to-end verification of email OTP or Super Admin sessions. Exercise those with a real consenting applicant before declaring onboarding fully validated.
