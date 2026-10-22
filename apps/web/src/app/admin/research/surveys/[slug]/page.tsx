@@ -7,6 +7,7 @@ import { AdminWorkspaceHeader } from "../../../../../components/AdminWorkspaceHe
 import { RESEARCH_SURVEY_ADMIN_SECTIONS, ResearchSurveyAdminNav } from "../../../../../components/ResearchSurveyAdminNav";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../../lib/admin-runtime";
+import { formatResearchAthensDateTime } from "../../../../../lib/research-survey-timestamps.ts";
 import { getAdminSession } from "../../../../../lib/admin-session";
 import { GREEK_RETAIL_2026_SLUG, researchSurveyAdminCohortOverview, researchSurveyAdminFastOverview } from "../../../../../lib/research-survey-runtime";
 
@@ -147,11 +148,11 @@ async function ResearchSurveyLiveOverview({ principal, slug }: {
         </div>
         <div className="workspace-action-bar">
           <span>Pilot</span>
-          <strong>{study.pilotStartedAt ? new Date(study.pilotStartedAt).toLocaleString("el-GR") : "Not started"} → {study.pilotEndedAt ? new Date(study.pilotEndedAt).toLocaleString("el-GR") : study.status === "pilot" ? "open" : "—"}</strong>
+          <strong>{study.pilotStartedAt ? formatResearchAthensDateTime(study.pilotStartedAt) : "Not started"} → {study.pilotEndedAt ? formatResearchAthensDateTime(study.pilotEndedAt) : study.status === "pilot" ? "open" : "—"}</strong>
         </div>
         <div className="workspace-action-bar">
           <span>Main fieldwork</span>
-          <strong>{study.fieldworkStartsAt ? new Date(study.fieldworkStartsAt).toLocaleString("el-GR") : "Not started"} → {study.fieldworkEndsAt ? new Date(study.fieldworkEndsAt).toLocaleString("el-GR") : study.fieldworkStartsAt ? "open" : "—"}</strong>
+          <strong>{study.fieldworkStartsAt ? formatResearchAthensDateTime(study.fieldworkStartsAt) : "Not started"} → {study.fieldworkEndsAt ? formatResearchAthensDateTime(study.fieldworkEndsAt) : study.fieldworkStartsAt ? "open" : "—"}</strong>
         </div>
       </div>
       {study.failedJobs > 0 && <div className="workspace-inline-note form-error">
