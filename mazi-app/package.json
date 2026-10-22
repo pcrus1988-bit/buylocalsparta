@@ -1,0 +1,25 @@
+{
+  "name": "mazi-collective",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "@supabase/supabase-js": "2.118.0",
+    "@supabase/ssr": "0.12.7"
+  },
+  "devDependencies": {
+    "@types/node": "24.8.1",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}
