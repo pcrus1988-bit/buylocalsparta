@@ -21,7 +21,7 @@ export async function maziSuperAdminCommand(form:FormData) {
  else if(kind==="voting"&&validUuid(id)&&["yes","no"].includes(value))
    op={kind:"voting",id,enabled:value==="yes"};
  else if(kind==="cycle"&&["submissions","review","voting","closed"].includes(value))
-   op={kind:"cycle",stage:value as MaziOperation & never};
+   op={kind:"cycle",stage:value as "submissions"|"review"|"voting"|"closed"};
  else throw new Error("MAZI_COMMAND_INVALID");
  await executeMaziSuperAdminAction(principal,op);
  revalidatePath("/admin/mazi");
