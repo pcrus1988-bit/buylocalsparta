@@ -20,7 +20,8 @@ const errors:Record<string,string>={
 export function DrinkStockVatReviewPanel({products,partnerId,venueId,csrfToken,sessionActive}:{
  products:MarketProduct[];partnerId:string;venueId:string;csrfToken:string;sessionActive:boolean
 }){
- const pending=products.filter(p=>!p.vatReviewed||p.vatClass==="review_required").length;
+ const [reviews,setReviews]=useState<Record<string,boolean>>({});
+ const pending=products.filter(p=>!(reviews[p.id]??(p.vatReviewed&&p.vatClass!=="review_required"))).length;
  return <section aria-label="Merchant VAT product review" style={{display:"grid",gap:16}}>
   <div role="status" style={{padding:16,border:"1px solid #ffc177",borderRadius:12}}>
    <strong>{pending} of {products.length} drinks need a verified VAT classification</strong>
@@ -30,11 +31,11 @@ export function DrinkStockVatReviewPanel({products,partnerId,venueId,csrfToken,s
    {sessionActive&&<p style={{color:"#ffbf8c"}}>VAT edits are locked while a trading session is active. End the session first.</p>}
   </div>
   {products.map(p=><DrinkVatLine key={p.id} product={p} partnerId={partnerId} venueId={venueId}
-   csrfToken={csrfToken} sessionActive={sessionActive}/>)}
+   csrfToken={csrfToken} sessionActive={sessionActive} onSaved={reviewed=>setReviews(current=>({...current,[p.id]:reviewed}))}/>)}
  </section>;
 }
-function DrinkVatLine({product,partnerId,venueId,csrfToken,sessionActive}:{
- product:MarketProduct;partnerId:string;venueId:string;csrfToken:string;sessionActive:boolean
+function DrinkVatLine({product,partnerId,venueId,csrfToken,sessionActive,onSaved}:{
+ product:MarketProduct;partnerId:string;venueId:string;csrfToken:string;sessionActive:boolean;onSaved:(reviewed:boolean)=>void
 }){
  const [saved,setSaved]=useState({vatClass:product.vatClass,reviewed:product.vatReviewed});
  const [vatClass,setVatClass]=useState<BeverageVatClass>(product.vatClass);
@@ -60,6 +61,7 @@ function DrinkVatLine({product,partnerId,venueId,csrfToken,sessionActive}:{
    if(!response.ok)throw new Error(data.error??"VAT_REVIEW_UNAVAILABLE");
    if(!data.vatClass||typeof data.reviewed!=="boolean")throw new Error("VAT_REVIEW_UNAVAILABLE");
    setSaved({vatClass:data.vatClass,reviewed:data.reviewed});
+   onSaved(data.reviewed&&data.vatClass!=="review_required");
    setConfirmed(false);setReviewBasis("");
    setMessage("VAT decision recorded and audited. Refresh checkout readiness to see updated totals.");
   }catch(e){

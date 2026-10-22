@@ -31,14 +31,17 @@ export function centsFromEuros(value:unknown):number {
      Math.abs(value*100-Math.round(value*100))>0.000001)throw new Error("INVALID_BASE_PRICE");
   return Math.round(value*100);
 }
-export function validateNewDrink(value:unknown):Readonly<{name:string;category:DrinkStockCategory;baseCents:number}> {
+export function validateNewDrink(value:unknown):Readonly<{name:string;category:DrinkStockCategory;baseCents:number;vatClass?:"alcoholic"|"non_alcoholic"|"water"|"review_required"}> {
   if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("INVALID_PRODUCT");
   const v=value as Record<string,unknown>;
   const name=typeof v.name==="string"?v.name.trim().replace(/\s+/g," "):"";
   if(name.length<2||name.length>80)throw new Error("INVALID_PRODUCT_NAME");
   if(typeof v.category!=="string" || !DRINKSTOCK_CATEGORIES.some(c=>c===v.category))
     throw new Error("INVALID_CATEGORY");
-  return {name,category:v.category as DrinkStockCategory,baseCents:centsFromEuros(v.basePriceEuros)};
+  if(v.vatClass!==undefined&&(typeof v.vatClass!=="string"||!["alcoholic","non_alcoholic","water","review_required"].includes(v.vatClass)))
+    throw new Error("INVALID_VAT_CLASS");
+  return {name,category:v.category as DrinkStockCategory,baseCents:centsFromEuros(v.basePriceEuros),
+    ...(v.vatClass===undefined?{}:{vatClass:v.vatClass as "alcoholic"|"non_alcoholic"|"water"|"review_required"})};
 }
 /**
  * A buy increases its drink's quote, while drinks not bought lose relative
