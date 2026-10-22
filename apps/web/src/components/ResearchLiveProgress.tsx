@@ -36,7 +36,8 @@ function formatUpdated(value?: string): string {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
+    timeZone: "Europe/Athens"
   });
 }
 
@@ -47,23 +48,31 @@ function safeRatio(numerator: number, denominator: number): number {
 
 export function ResearchLiveProgress({ initialStudy, showHeatmap = true }: { initialStudy: PublicResearchStudySummary; showHeatmap?: boolean }) {
   const [study, setStudy] = useState(initialStudy);
-  const [lastRefresh, setLastRefresh] = useState(() => new Date().toISOString());
+  const [lastRefresh, setLastRefresh] = useState(() => initialStudy.summaryRefreshedAt ?? "");
+  const [refreshFailed, setRefreshFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     async function refresh() {
       try {
         const response = await fetch("/api/research/observatory", { cache: "no-store" });
-        if (!response.ok) return;
+        if (!response.ok) {
+          if (!cancelled) setRefreshFailed(true);
+          return;
+        }
         const snapshot = await response.json() as PublicResearchObservatorySnapshot;
         const next = snapshot.studies.find((item) => item.waveSlug === initialStudy.waveSlug)
           ?? snapshot.studies.find((item) => item.slug === initialStudy.slug && item.isCurrentWave);
         if (!cancelled && next) {
           setStudy(next);
           setLastRefresh(snapshot.generatedAt);
+          setRefreshFailed(false);
+        } else if (!cancelled) {
+          setRefreshFailed(true);
         }
       } catch {
-        // Keep the last successful public data visible.
+        // Keep the last verified public data visible, but surface the refresh failure.
+        if (!cancelled) setRefreshFailed(true);
       }
     }
 
@@ -117,9 +126,10 @@ export function ResearchLiveProgress({ initialStudy, showHeatmap = true }: { ini
         </div>
       </div>
       <div className={styles.liveNote}>
-        {isLive ? "Αυτόματη ανανέωση ανά 30″" : "Τελευταία ενημέρωση"}
+        {isLive ? "Στοιχεία έως · έλεγχος ανά 30″" : "Τελευταία επαλήθευση στοιχείων"}
         <br />
-        <strong>{formatUpdated(study.updatedAt ?? lastRefresh)}</strong>
+        <strong>{formatUpdated(study.summaryRefreshedAt ?? lastRefresh)} (ώρα Αθήνας)</strong>
+        {refreshFailed && <small role="status"> Η ανανέωση δεν ήταν διαθέσιμη. Εμφανίζονται τα τελευταία επαληθευμένα στοιχεία.</small>}
       </div>
     </div>
 
