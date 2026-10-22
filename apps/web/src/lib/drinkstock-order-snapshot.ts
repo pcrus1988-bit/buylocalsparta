@@ -8,7 +8,7 @@ export class DrinkStockOrderSnapshotError extends Error {
  constructor(code:string,status=409){super(code);this.code=code;this.status=status;}
 }
 export type SnapshotClient={
- query<T extends Record<string,unknown>>(sql:string,values?:unknown[]):Promise<{rows:T[]}>;
+ query<T extends Record<string,unknown>>(sql:string,values?:unknown[]):Promise<{rows:readonly T[]}>;
  release():void;
 };
 export type SnapshotPool={connect():Promise<SnapshotClient>};
