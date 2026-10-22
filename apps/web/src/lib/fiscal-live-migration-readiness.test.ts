@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {classifyFiscalLiveReadiness} from "./fiscal-live-migration-readiness.ts";
+import {classifyFiscalLiveReadiness} from "./fiscal-live-migration-policy.ts";
 const base=()=>({
  total_migrations:17,
  present_markers:null,
