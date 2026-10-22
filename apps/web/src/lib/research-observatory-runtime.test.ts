@@ -19,7 +19,7 @@ test("cohort A and B counts are consumed from the precomputed combined summary",
   assert.match(publicQuery, /selected: numberValue\(row\.selected\)/);
   assert.match(publicQuery, /targetCompletes: numberValue\(row\.target_completes\)|const targetCompletes = numberValue\(row\.target_completes\)/);
   assert.match(publicQuery, /started: numberValue\(row\.started\)/);
-  assert.match(publicQuery, /completed: numberValue\(row\.completed\)/);
+  assert.match(publicQuery, /const completed = numberValue\(row\.completed\)/);
 });
 
 test("main-fieldwork geography and official response counts come from bounded read models", () => {
