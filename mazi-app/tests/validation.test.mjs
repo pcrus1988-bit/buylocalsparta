@@ -7,3 +7,10 @@ test("invalid application rejected",()=>assert.ok(validateApplication({...applic
 test("valid proposal accepted",()=>assert.equal(validateProposal({title:"Αντικατάσταση εξοπλισμού",category:"growth",amount_cents:680000,details:"Η επιχείρηση χρειάζεται νέο εξοπλισμό επειδή ο τωρινός έχει υποστεί βλάβη. Η επένδυση θα διατηρήσει την παραγωγή."}),null));
 test("out-of-range proposed amount rejected",()=>assert.ok(validateProposal({title:"Αντικατάσταση εξοπλισμού",category:"growth",amount_cents:Infinity,details:"Η επιχείρηση χρειάζεται νέο εξοπλισμό επειδή ο τωρινός έχει υποστεί βλάβη. Η επένδυση θα διατηρήσει την παραγωγή."})));
 test("email validation",()=>{assert.equal(validEmail("owner@example.gr"),true);assert.equal(validEmail("bad@"),false);});
+
+test("optional GEMI can be omitted while wrong or partial identifiers cannot be submitted",()=>{
+ assert.equal(validateApplication(application),null);
+ assert.equal(validateApplication({...application,registry_number:"1234"}),"Αν συμπληρώσεις αριθμό ΓΕΜΗ, πρέπει να είναι 12 ψηφία.");
+ assert.equal(validateApplication({...application,registry_number:"123456789012"}),null);
+ assert.ok(validateApplication({...application,registry_number:"123-567-89012"}));
+});

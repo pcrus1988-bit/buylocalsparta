@@ -38,7 +38,7 @@ export async function applyForMembership(form:FormData) {
     representative_name:asText(form.get("representative_name")),
     location:asText(form.get("location")),
     sector:asText(form.get("sector")),
-    registry_number:asText(form.get("registry_number"))||null,
+    registry_number:asText(form.get("registry_number")).replace(/\s/g,"")||null,
     description:asText(form.get("description"))
   };
   if(validateApplication(input)) urlMessage("/members","invalid_application");

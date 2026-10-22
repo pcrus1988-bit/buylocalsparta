@@ -72,6 +72,7 @@ export type MaziOperation =
  | {kind:"application";id:string;approve:boolean}
  | {kind:"proposal";id:string;approve:boolean}
  | {kind:"voting";id:string;enabled:boolean}
+ | {kind:"identity";id:string;gemiNumber:string;evidence:string}
  | {kind:"cycle";stage:"submissions"|"review"|"voting"|"closed"};
 export async function executeMaziSuperAdminAction(principal:SessionPrincipal, input:MaziOperation):Promise<void>{
  const actorId=await marketplaceMaziActor(principal);
@@ -105,10 +106,26 @@ export async function executeMaziSuperAdminAction(principal:SessionPrincipal, in
     `,[input.id,input.approve?"approved":"rejected"]);
     if(!r.rows[0])throw new Error("MAZI_PROPOSAL_NOT_PENDING");
     entityType="proposal";entityId=input.id;action=input.approve?"approved":"rejected";
+  }else if(input.kind==="identity"){
+    if(!/^[0-9]{12}$/.test(input.gemiNumber) || input.evidence.trim().length<20 || input.evidence.length>1000)
+      throw new Error("MAZI_GEMI_EVIDENCE_INVALID");
+    const identity=await client.query<{user_id:string}>(`
+      update public.mazi_members m
+      set gemi_number=$2,identity_verified_at=now(),
+          identity_verified_by=$3::uuid,identity_verification_note=$4,updated_at=now()
+      where m.user_id=$1::uuid and m.status='verified'
+        and m.identity_verified_at is null
+        and exists(select 1 from public.mazi_membership_applications a
+          where a.id=m.application_id and a.status='approved')
+      returning m.user_id::text
+    `,[input.id,input.gemiNumber,actorId,input.evidence.trim()]);
+    if(!identity.rows[0])throw new Error("MAZI_BUSINESS_NOT_VERIFIABLE");
+    entityType="member";entityId=input.id;action="gemi_identity_verified";
   }else if(input.kind==="voting"){
     const r=await client.query<{user_id:string}>(`
       update public.mazi_members set voting_eligible=$2,updated_at=now()
       where user_id=$1::uuid and status='verified'
+      and identity_verified_at is not null and gemi_number is not null
       and exists(select 1 from public.mazi_membership_applications a
         where a.id=mazi_members.application_id and a.status='approved')
       returning user_id::text
