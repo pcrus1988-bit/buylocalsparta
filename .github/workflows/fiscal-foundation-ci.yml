@@ -56,6 +56,10 @@ jobs:
         run: psql "$FISCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE marketplace_ci"
       - name: Migrate only the dedicated fiscal database
         run: node scripts/fiscal-migrate.mjs
+      - name: Verify M46 read-only migration planning, drift and database isolation
+        run: node --test scripts/fiscal-migration-readiness.test.mjs
+      - name: Verify independent FISCAL schema matches all checked-in migration checksums
+        run: node scripts/fiscal-migration-readiness.mjs --require-current
       - name: Verify schema and forbidden fiscal transitions
         run: node scripts/fiscal-db-smoke.mjs
       - name: Verify merchant KYB ownership and tenant isolation in disposable DB
