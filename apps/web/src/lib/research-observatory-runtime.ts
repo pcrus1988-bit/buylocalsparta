@@ -72,6 +72,8 @@ export type PublicResearchStudySummary = Readonly<{
   releasePublishedAt?: string;
   publicResultsUrl?: string;
   updatedAt?: string;
+  /** Database materialized summary's actual refresh, not last study activity. */
+  summaryRefreshedAt?: string;
 }>;
 
 export type PublicResearchObservatorySnapshot = Readonly<{
@@ -125,125 +127,14 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
   if (!productionDatabaseConfigured()) return emptySnapshot();
 
   try {
+    // Read the bounded, precomputed public projection instead of scanning invitation
+    // events on each public request. The DB refreshes this summary every five minutes.
     const rows = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
-      SELECT
-        p.slug AS programme_slug,
-        p.title AS programme_title,
-        p.description AS programme_description,
-        s.id,
-        s.slug,
-        s.study_code,
-        s.title,
-        s.subtitle,
-        s.population_definition,
-        s.methodology_summary,
-        w.id AS wave_id,
-        w.slug AS wave_slug,
-        w.code AS wave_code,
-        w.title AS wave_title,
-        w.ordinal AS wave_ordinal,
-        w.status AS wave_status,
-        w.is_current,
-        w.fieldwork_starts_at,
-        w.fieldwork_ends_at,
-        COALESCE(sample_counts.selected,0)::int AS selected,
-        COALESCE(sample_counts.target_completes,0)::int AS target_completes,
-        COALESCE(invite_counts.invites,0)::int AS invites,
-        COALESCE(invite_counts.sent,0)::int AS sent,
-        COALESCE(invite_counts.delivered,0)::int AS delivered,
-        COALESCE(invite_counts.opened,0)::int AS opened,
-        COALESCE(response_counts.started,0)::int AS started,
-        COALESCE(response_counts.completed,0)::int AS completed,
-        COALESCE(response_counts.admin_finalized,0)::int AS admin_finalized,
-        latest_release.release_version,
-        latest_release.published_at AS release_published_at,
-        COALESCE(latest_release.public_url,s.public_results_url) AS public_results_url,
-        GREATEST(
-          s.updated_at,
-          w.updated_at,
-          COALESCE(sample_counts.last_activity_at,s.updated_at),
-          COALESCE(invite_counts.last_activity_at,s.updated_at),
-          COALESCE(response_counts.last_activity_at,s.updated_at),
-          COALESCE(latest_release.published_at,s.updated_at)
-        ) AS updated_at
-      FROM research_studies s
-      JOIN research_programmes p ON p.id=s.programme_id
-      JOIN research_waves w ON w.study_id=s.id
-      -- The public observatory is MAIN-fieldwork only. The pilot is an
-      -- internal workflow test, never a denominator or a publishable response.
-      -- Sum all active main draws: cohort A and cohort B can have separate draws.
-      LEFT JOIN LATERAL (
-        SELECT
-          COALESCE(SUM((
-            SELECT count(*) FROM research_sample_units su
-            WHERE su.sample_draw_id=d.id
-          )),0)::int AS selected,
-          COALESCE(SUM(COALESCE(sd.desired_complete_n,0)),0)::int AS target_completes,
-          max(d.created_at) AS last_activity_at
-        FROM research_sample_draws d
-        LEFT JOIN LATERAL (
-          SELECT rsd.desired_complete_n
-          FROM research_sample_designs rsd
-          WHERE rsd.sample_draw_id=d.id
-          ORDER BY rsd.created_at DESC
-          LIMIT 1
-        ) sd ON true
-        WHERE d.study_id=s.id
-          AND d.wave_id=w.id
-          AND d.fieldwork_phase='main'
-          AND d.status IN ('locked','fielded')
-      ) sample_counts ON true
-      LEFT JOIN LATERAL (
-        SELECT
-          count(*)::int AS invites,
-          count(*) FILTER (WHERE ri.sent_at IS NOT NULL)::int AS sent,
-          count(*) FILTER (
-            WHERE EXISTS (
-              SELECT 1 FROM research_invite_events rie
-              WHERE rie.invite_id=ri.id AND rie.event_type='delivered'
-            )
-          )::int AS delivered,
-          count(*) FILTER (
-            WHERE EXISTS (
-              SELECT 1 FROM research_invite_events rie
-              WHERE rie.invite_id=ri.id AND rie.event_type='opened'
-            )
-          )::int AS opened,
-          max(COALESCE(ri.first_opened_at,ri.sent_at,ri.created_at)) AS last_activity_at
-        FROM research_invites ri
-        WHERE ri.study_id=s.id
-          AND ri.wave_id=w.id
-          AND ri.fieldwork_phase='main'
-      ) invite_counts ON true
-      LEFT JOIN LATERAL (
-        SELECT
-          count(*)::int AS started,
-          count(*) FILTER (WHERE rr.status='completed')::int AS completed,
-          count(*) FILTER (WHERE rr.status='completed' AND EXISTS (
-            SELECT 1 FROM research_invite_events event
-            WHERE event.invite_id=rr.invite_id AND event.event_type='completed'
-              AND event.metadata->>'source'='admin_content_recovery'
-          ))::int AS admin_finalized,
-          max(COALESCE(rr.completed_at,rr.started_at)) AS last_activity_at
-        FROM research_responses rr
-        JOIN research_invites ri ON ri.id=rr.invite_id
-        WHERE rr.study_id=s.id
-          AND rr.wave_id=w.id
-          AND ri.fieldwork_phase='main'
-      ) response_counts ON true
-      LEFT JOIN LATERAL (
-        SELECT rs.release_version,rs.published_at,rs.public_url
-        FROM research_release_snapshots rs
-        WHERE rs.study_id=s.id
-          AND rs.wave_id=w.id
-          AND rs.published_at IS NOT NULL
-        ORDER BY rs.published_at DESC,rs.created_at DESC
-        LIMIT 1
-      ) latest_release ON true
-      WHERE p.status='active'
-        AND s.status<>'archived'
-        AND w.status<>'archived'
-      ORDER BY w.is_current DESC,w.ordinal DESC,s.created_at DESC
+      SELECT *
+      FROM bls_private.research_progress_public
+      WHERE wave_status <> 'archived'
+      ORDER BY is_current DESC, wave_ordinal DESC
+      LIMIT 100
     `);
 
     // Read-only recovery inventory. Saved answers are not participant submissions.
@@ -322,16 +213,8 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
     const geographyByWave = new Map<string, NonNullable<PublicResearchStudySummary["participationGeography"]>>();
     try {
       const geography = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
-        SELECT rr.study_id,rr.wave_id,
-               COALESCE(fu.sampling_attributes->>'prefecture','') AS prefecture,
-               COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,
-               count(*)::int AS started
-        FROM research_responses rr
-        JOIN research_invites ri ON ri.id=rr.invite_id
-        LEFT JOIN research_sample_units su ON su.id=ri.sample_unit_id
-        LEFT JOIN research_frame_units fu ON fu.id=su.frame_unit_id
-        WHERE ri.fieldwork_phase='main'
-        GROUP BY rr.study_id,rr.wave_id,fu.sampling_attributes->>'prefecture',fu.sampling_attributes->>'postcode'
+        SELECT study_id, wave_id, prefecture, postcode, started
+        FROM bls_private.research_progress_geography
       `);
       const grouped = new Map<string, { prefecture: string; postcode: string; started: number; respondents: number; answered: number; selected: number }[]>();
       for (const row of geography.rows) {
@@ -400,13 +283,15 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
         releaseVersion: optionalText(row.release_version),
         releasePublishedAt: isoDate(row.release_published_at),
         publicResultsUrl: canonicalResearchResultsUrl(text(row.wave_slug)),
-        updatedAt: isoDate(row.updated_at)
+        updatedAt: isoDate(row.updated_at),
+        summaryRefreshedAt: isoDate(row.summary_refreshed_at)
       };
     });
 
     return {
       databaseConfigured: true,
-      generatedAt: new Date().toISOString(),
+      // Expose when the public read model was actually refreshed.
+      generatedAt: isoDate(rows.rows[0]?.summary_refreshed_at) ?? new Date().toISOString(),
       studies
     };
   } catch {
