@@ -80,3 +80,13 @@ test("invalid bounds, non-integer percentages, and fabricated actions are reject
     assert.throws(()=>validateMarketAction({action:"set_bounds",requestKey:key,bounds}));
   }
 });
+
+ test("custom drinks accept explicit VAT classification without implying merchant sign-off",()=>{
+  for(const vatClass of ["alcoholic","non_alcoholic","water","review_required"]){
+   assert.equal(validateNewDrink({name:"House drink",category:"cocktail",basePriceEuros:5,vatClass}).vatClass,vatClass);
+  }
+  assert.equal(validateNewDrink({name:"Mocktail",category:"cocktail",basePriceEuros:5,vatClass:"non_alcoholic"}).vatClass,"non_alcoholic");
+  for(const vatClass of ["24%","beer",true,{},null,["water"]]){
+   assert.throws(()=>validateNewDrink({name:"House drink",category:"beer",basePriceEuros:5,vatClass}),/INVALID_VAT_CLASS/);
+  }
+ });

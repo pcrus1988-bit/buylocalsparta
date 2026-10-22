@@ -1,9 +1,11 @@
 "use client";
+import Link from "next/link";
 import { useEffect,useState,type FormEvent } from "react";
 import type {MarketSnapshot} from "../lib/drinkstock-market-service";
 import type {DrinkStockCategory} from "../lib/drinkstock-market-pricing";
 import {recordedRehearsalPriceSeries,priceSparklinePoints} from "../lib/drinkstock-market-trends";
 import {DrinkStockStarterCataloguePicker} from "./DrinkStockStarterCataloguePicker";
+import type {BeverageVatClass} from "../lib/drinkstock-greek-vat";
 import {resolveGreekBeverageVat} from "../lib/drinkstock-greek-vat";
 import styles from "../app/hospitality/drinkStock/market.module.css";
 
@@ -19,6 +21,9 @@ const errorText:Record<string,string>={
  PRODUCT_LIMIT_REACHED:"Έφτασες το όριο των 60 ποτών.",
  MARKET_ROLE_FORBIDDEN:"Δεν έχεις δικαίωμα αλλαγών για αυτόν τον χώρο.",
  MARKET_NOT_FOUND:"Δεν έχεις εξουσιοδότηση για τον συγκεκριμένο χώρο.",
+ AUTH_REQUIRED:"Your session expired. Sign in again.",
+ INVALID_ACTION_PAYLOAD:"Check the drink name, category, VAT classification and price (€1–€2,000, up to two decimals).",
+ MARKET_UNAVAILABLE:"The catalogue could not be saved. Refresh to check whether the drink was created before retrying.",
  INVALID_CSRF:"Η συνεδρία χρειάζεται ανανέωση. Κάνε νέα σύνδεση.",
  BOUNDS_LOCKED_DURING_SESSION:"Για αλλαγή ορίων, σταμάτησε πρώτα τη συνεδρία.",
  INVALID_PRICE_BOUNDS:"Επιτρεπτό εύρος: κατώτατο 50–100%, ανώτατο 100–200%.",
@@ -26,7 +31,7 @@ const errorText:Record<string,string>={
  REHEARSAL_DISABLED_DURING_SESSION:"Η χειροκίνητη ζήτηση είναι απενεργοποιημένη κατά τη διάρκεια της ενεργής συνεδρίας. Οι οθόνες αναπαράγουν ξεχωριστό επίδειγμα αγορών."
 };
 type Action="add_product"|"demand"|"pause"|"resume"|"reset"|"set_bounds";
-type ActionBody={action:Action;requestKey:string;productId?:string;units?:number;product?:{name:string;category:DrinkStockCategory;basePriceEuros:number};bounds?:{floorPercent:number;ceilingPercent:number}};
+type ActionBody={action:Action;requestKey:string;productId?:string;units?:number;product?:{name:string;category:DrinkStockCategory;basePriceEuros:number;vatClass:BeverageVatClass};bounds?:{floorPercent:number;ceilingPercent:number}};
 export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
   initial:MarketSnapshot;partnerId:string;venueId:string;csrfToken:string
 }){
@@ -36,6 +41,7 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
  const [success,setSuccess]=useState("");
  const [name,setName]=useState("");
  const [category,setCategory]=useState<DrinkStockCategory>("beer");
+ const [vatClass,setVatClass]=useState<BeverageVatClass>("review_required");
  const [price,setPrice]=useState("5.00");
  const [demandUnits,setDemandUnits]=useState(1);
  const [display,setDisplay]=useState(false);
@@ -75,7 +81,7 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
    e.preventDefault();
    const euros=Number(price);
    if(!Number.isFinite(euros))return;
-   void act({action:"add_product",product:{name,category,basePriceEuros:euros}});
+   void act({action:"add_product",product:{name,category,basePriceEuros:euros,vatClass}});
  }
  function submitBounds(e:FormEvent<HTMLFormElement>){
    e.preventDefault();
@@ -90,6 +96,9 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
  const active=market.venue.rehearsalEnabled;
  const boundsLocked=active||market.venue.activeSession;
  const operationsActive=market.venue.activeSession;
+ const venuePath=`/drinkstock/dashboard/${partnerId}/venues/${venueId}`;
+ const pendingVat=market.products.filter(p=>!p.vatReviewed||p.vatClass==="review_required").length;
+ const catalogueBlocked=operationsActive?"End the operational session using Session controls above before adding drinks.":active?"Pause rehearsal to unlock product creation and catalogue import.":market.products.length>=60?"The venue has reached its limit of 60 active drinks.":"";
  const total=market.products.length;
  const moved=market.products.filter(d=>d.priceCents!==d.baseCents).length;
  return <main className={styles.stage}>
@@ -124,6 +133,14 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
      {market.canManage&&<button type="button" disabled={Boolean(busy)||total===0||operationsActive} onClick={()=>{if(window.confirm("Επαναφορά όλων των τιμών καταλόγου αυτού του χώρου;"))void act({action:"reset"});}}>↺ RESET PRICES</button>}
    </div>
   </div>
+  {!display&&market.canManage&&<section className={styles.editor} aria-label="Catalogue setup" style={{margin:"20px 0"}}>
+   <h2>Set up your drinks</h2>
+   <p>Add drinks or import the library → owner reviews VAT → complete checkout activation → start a trading session.</p>
+   <p>VAT review and payment activation do not prevent you from creating the catalogue.</p>
+   {pendingVat>0&&<p>{pendingVat} drinks await the venue owner's VAT sign-off. {market.venue.role==="owner"?<Link href={`${venuePath}/checkout/vat-review`}>Review VAT classifications ↗</Link>:"Ask the registered venue owner to complete VAT review."}</p>}
+   {catalogueBlocked&&<p role="status">🔒 {catalogueBlocked} {active&&!operationsActive&&<button type="button" disabled={Boolean(busy)} onClick={()=>void act({action:"pause"})}>Pause rehearsal and unlock catalogue</button>}</p>}
+   {!catalogueBlocked&&<a href="#add-drink">+ Add a drink ↓</a>}
+  </section>}
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {success&&<p role="status" className={styles.success}>{success}</p>}
   {!total?<div className={styles.empty}><span>📈</span><h2>No drinks on the board yet.</h2><p>Πρόσθεσε το πρώτο ποτό παρακάτω. Θα εμφανιστεί αμέσως στον πίνακα δοκιμών.</p></div>:
@@ -140,7 +157,8 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
           {drink.vatClass==="review_required"?"⚠ VAT category must be classified":
             `VAT guidance · dine-in ${resolveGreekBeverageVat({vatClass:drink.vatClass,mode:"dine_in"}).rateBasisPoints/100}%
             · takeaway ${resolveGreekBeverageVat({vatClass:drink.vatClass,mode:"takeaway"}).rateBasisPoints/100}%`}
-          {!drink.vatReviewed&&" · merchant review pending"}
+          {!drink.vatReviewed&&" · owner VAT sign-off pending"}
+          {(!drink.vatReviewed||drink.vatClass==="review_required")&&market.venue.role==="owner"&&<> · <Link href={`${venuePath}/checkout/vat-review`}>Classify / review VAT ↗</Link></>}
          </p>
          <div className={styles.quote}>{money(drink.priceCents)}</div>
          <div className={styles.movements}><span className={delta>0?styles.up:delta<0?styles.down:styles.flat}>{delta>0?"▲":delta<0?"▼":"↔"} {pct>0?"+":""}{pct}%</span><span>BASE {money(drink.baseCents)}</span></div>
@@ -172,13 +190,19 @@ export function DrinkStockVenueMarket({initial,partnerId,venueId,csrfToken}:{
   </section>}
   {!display&&<DrinkStockStarterCataloguePicker market={market} partnerId={partnerId} venueId={venueId} csrfToken={csrfToken} onImported={setMarket}/>}
   {!display&&<div className={styles.lower}>
-    <section className={styles.editor}>
+    <section id="add-drink" className={styles.editor}>
       <div className={styles.heading}><span>01 / BUILD THE BOARD</span><h2>+ Add a drink</h2></div>
       {market.canManage?<form onSubmit={onAdd} className={styles.form}>
        <label>Drink name<input maxLength={80} minLength={2} required value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Moscow Mule"/></label>
        <label>Category<select value={category} onChange={e=>setCategory(e.target.value as DrinkStockCategory)}>{Object.entries(categoryNames).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
+       <label>VAT product classification<select value={vatClass} onChange={e=>setVatClass(e.target.value as BeverageVatClass)}>
+        <option value="review_required">Choose classification / review later</option>
+        <option value="alcoholic">Alcoholic drink</option><option value="non_alcoholic">Non-alcoholic drink</option><option value="water">Water</option>
+       </select></label>
+       <small>Menu category and VAT classification are separate: a cocktail may be alcohol-free. The owner signs off VAT after saving.</small>
        <label>Base price (€)<input type="number" min="1" max="2000" step=".01" required value={price} onChange={e=>setPrice(e.target.value)}/></label>
        <button type="submit" disabled={Boolean(busy)||total>=60||boundsLocked}>LIST DRINK ↗</button>
+       {catalogueBlocked&&<p role="status">{catalogueBlocked}</p>}
        <small>Current venue band: {market.venue.bounds.floorPercent}–{market.venue.bounds.ceilingPercent}% of base. Up to 60 entries per venue. Add drinks only before a trading session begins or after it ends, with rehearsal paused.</small>
       </form>:<p>Μόνο ιδιοκτήτες και διαχειριστές μπορούν να επεξεργαστούν τον κατάλογο.</p>}
     </section>
