@@ -103,6 +103,10 @@ async function processResearchSesEvent(
   const providerMessageId = text(event.mail?.messageId).trim();
   const eventType = text(event.eventType || event.notificationType).trim();
   const attemptTag = text(event.mail?.tags?.research_attempt?.[0]).trim();
+  // SES tags are untrusted text. Validate before casting to the indexed UUID key.
+  const attemptMessageId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(attemptTag)
+    ? attemptTag
+    : null;
   if (!providerMessageId || !eventType) return { ignored: "missing_provider_message_or_type" };
 
   const runtime = getProductionPostgresRuntime();
@@ -122,11 +126,11 @@ async function processResearchSesEvent(
       JOIN research_invites ri ON ri.id=m.invite_id
       LEFT JOIN research_contact_points cp ON cp.id=ri.contact_point_id
       WHERE m.provider_message_id=$1
-         OR ($2::text<>'' AND m.id::text=$2)
+         OR m.id=$2::uuid
       ORDER BY m.created_at DESC,m.id DESC
       LIMIT 1
       FOR UPDATE OF m,ri
-    `, [providerMessageId, attemptTag]);
+    `, [providerMessageId, attemptMessageId]);
 
     let invite = attemptResult.rows[0];
     if (!invite) {
