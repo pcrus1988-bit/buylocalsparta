@@ -89,7 +89,7 @@ async function main(){
   dockerPg("pg_restore",["--list","/backup/fiscal.dump"],target,tmp);
   // A separate, empty DB is created only inside the disposable localhost PG17.
   dockerPg("createdb",[RESTORE_DB],new URL("/postgres",source).toString());
-  dockerPg("pg_restore",["--exit-on-error","--no-owner","--no-acl",
+  dockerPg("pg_restore",["--exit-on-error","--clean","--if-exists","--no-owner","--no-acl",
    "--dbname="+RESTORE_DB,"/backup/fiscal.dump"],target,tmp);
   const restored=new pg.Client({connectionString:target,connectionTimeoutMillis:5000});
   try{
