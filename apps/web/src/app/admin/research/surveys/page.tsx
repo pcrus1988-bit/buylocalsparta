@@ -6,6 +6,7 @@ import { WorkspaceEmptyState, WorkspaceSectionHeading, WorkspaceStatusBadge } fr
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { researchSurveyAdminIndexOverview } from "../../../../lib/research-survey-runtime";
+import { formatResearchAthensDateTime } from "../../../../lib/research-survey-timestamps.ts";
 
 export const metadata: Metadata = {
   title: "Admin · Surveys",
@@ -15,14 +16,8 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 function deadlineLabel(value?: string): string {
-  if (!value) return "No deadline set";
-  const deadline = new Date(value);
-  if (!Number.isFinite(deadline.getTime())) return "No deadline set";
-  return "Deadline " + deadline.toLocaleString("el-GR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Europe/Athens"
-  });
+  const formatted = formatResearchAthensDateTime(value);
+  return formatted ? "Deadline " + formatted : "No deadline set";
 }
 
 export default async function ResearchSurveysAdminPage() {

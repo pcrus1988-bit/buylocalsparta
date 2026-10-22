@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { optionalResearchText } from "./research-survey-timestamps.ts";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, hasAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { getAdminPostgresRuntime, getAdminResearchOverviewPostgresRuntime, getProductionPostgresRuntime, getPublicSurveyPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -18,10 +19,7 @@ import {
 export const GREEK_RETAIL_2026_SLUG = "greek-retail-2026";
 
 function text(value: unknown): string { return typeof value === "string" ? value : String(value ?? ""); }
-function optionalText(value: unknown): string | undefined {
-  const valueText = typeof value === "string" ? value.trim() : "";
-  return valueText || undefined;
-}
+const optionalText = optionalResearchText;
 function numberValue(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
