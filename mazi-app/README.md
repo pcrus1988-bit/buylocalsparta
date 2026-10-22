@@ -22,12 +22,13 @@ Migration: `sql/001_collective_foundation.sql`. Data API access is restricted by
 ## Auth activation prerequisite
 Confirm Supabase Authentication URL Configuration lists `https://mazi.kontamou.site/auth/callback` as an allowed redirect. After that, send a login email from /join and complete the callback.
 
-## Administrator bootstrap (requires an explicitly trusted, known auth UUID)
-Do not give the first visitor admin rights. Once the trusted founder signs up, use audited privileged SQL:
-```sql
-insert into public.mazi_administrators (user_id) values ('<confirmed-auth-user-uuid>');
-```
-Only an authorized operator should perform this. The member administration UI lives at /admin.
+## Sole administration — inherited from ΚΟΝΤΑ ΜΟΥ
+
+ΜΑΖΙ has no independent administrator credential, role or account. Its administrative workspace is hosted exclusively at `https://kontamou.site/admin/mazi`, protected by the existing marketplace Super Admin session. The `/admin` route on `mazi.kontamou.site` redirects to that workspace. All privileged writes verify both the logged-in Super Admin and the persisted active marketplace `super_admin` role, and require the existing marketplace admin CSRF token. They append an audit event with the marketplace actor ID.
+
+The former `mazi_administrators` lookup always returns false and is no longer an authorization source; member and employee accounts cannot elevate themselves. The existing Super Admin is the single administrative authority; member voting and project proposal permissions are separate.
+
+SQL: `sql/003_marketplace_superadmin_only.sql`. No payment operations are active.
 
 ## Start
 `npm install`, `npm test`, `npm run build`.
