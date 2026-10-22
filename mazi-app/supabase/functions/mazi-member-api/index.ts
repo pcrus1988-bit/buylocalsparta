@@ -80,6 +80,14 @@ Deno.serve(async(req:Request)=>{
    ]);
    if(aErr||mErr)return out({error:"data_unavailable"},503);
    const isVerified=Boolean(member?.status==="verified"&&member?.identity_verified_at&&application?.status==="approved");
+   let followups:Json[]=[];
+   if(application){
+    const {data:questions,error:fErr}=await admin.from("mazi_application_followups")
+      .select("id,question,requested_at,answer,answered_at")
+      .eq("application_id",application.id).order("requested_at",{ascending:true}).limit(100);
+    if(fErr)return out({error:"data_unavailable"},503);
+    followups=(questions||[]) as Json[];
+   }
    let proposals:Json[]=[], votes:Json[]=[];
    let proposal_review:Json|null=null;
    let recused_proposals:string[]=[];
@@ -118,7 +126,7 @@ Deno.serve(async(req:Request)=>{
       }
     }
    }
-   return out({ok:true,application,member,cycle,proposals,votes,proposal_review,recused_proposals,tally,tallies});
+   return out({ok:true,application,member,cycle,proposals,votes,proposal_review,recused_proposals,tally,tallies,followups});
   }
   if(operation==="apply"){
    if(input.accept_privacy!==true)return out({error:"privacy_required"},400);
@@ -136,6 +144,21 @@ Deno.serve(async(req:Request)=>{
      ...v,applicant_user_id:user.id,status:"pending",consent_version:"mazi-interest-v1"
    });
    if(error)return out({error:error.code==="23505"?"already_applied":"application_failed"},error.code==="23505"?409:503);
+   return out({ok:true});
+  }
+  if(operation==="answer_followup"){
+   const followupId=text(input.followup_id),answer=text(input.answer);
+   if(!uuid(followupId)||answer.length<20||answer.length>2000)
+     return out({error:"invalid_followup_answer"},400);
+   const {data:ownApp,error:appError}=await admin.from("mazi_membership_applications")
+     .select("id,status").eq("applicant_user_id",user.id).maybeSingle();
+   if(appError||!ownApp||ownApp.status!=="pending")
+     return out({error:"followup_not_available"},403);
+   const {data:updated,error:answerError}=await admin.from("mazi_application_followups")
+     .update({answer,answered_at:new Date().toISOString()})
+     .eq("id",followupId).eq("application_id",ownApp.id).is("answered_at",null)
+     .select("id").maybeSingle();
+   if(answerError||!updated)return out({error:"followup_not_available"},409);
    return out({ok:true});
   }
   if(operation==="propose"){

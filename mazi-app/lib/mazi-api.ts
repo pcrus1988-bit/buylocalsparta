@@ -15,7 +15,11 @@ export type MaziProposal={
  id:string;title:string;details:string;category:string;amount_cents:number;
  status:string;created_by:string;created_at:string
 };
+export type MaziFollowup={
+ id:string;question:string;requested_at:string;answer:string|null;answered_at:string|null;
+};
 export type MaziState={
+ followups:MaziFollowup[];
  application:MaziApplication|null;member:MaziMember|null;cycle:MaziCycle|null;
  proposals:MaziProposal[];votes:{proposal_id:string}[];
  proposal_review:{id:string;review_reason:string|null}|null;

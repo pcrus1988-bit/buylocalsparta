@@ -53,7 +53,16 @@ export type MaziCycleResult = {
 };
 export type MaziProposalResult = {proposal_id:string;title:string;supporting_ballots:string};
 export type MaziAdminCycle = {id:string;title:string;status:string;finance_activated:boolean;funding_budget_cents:string};
+export type MaziAdminFollowup={
+ id:string;application_id:string;question:string;requested_at:Date;
+ answer:string|null;answered_at:Date|null
+};
+export type MaziAdminStats={
+ applications_total:string;applications_pending:string;applications_approved:string;
+ applications_rejected:string;kyb_verified:string;voting_eligible:string;awaiting_reply:string;
+};
 export type MaziAdminSnapshot = {
+ followups:MaziAdminFollowup[];stats:MaziAdminStats;
  applications:MaziAdminApplication[]; proposals:MaziAdminProposal[];
  members:MaziAdminMember[]; cycle:MaziAdminCycle|null;
  approvedProposals:MaziApprovedProposal[];ballots:MaziBallot[];
@@ -61,7 +70,7 @@ export type MaziAdminSnapshot = {
 };
 export async function maziAdminSnapshot(principal: SessionPrincipal): Promise<MaziAdminSnapshot> {
  await marketplaceMaziActor(principal);
- const [a,p,m,c,approved,ballots,result,counts] = await Promise.all([
+ const [a,p,m,c,approved,ballots,result,counts,followups,stats] = await Promise.all([
    db().query<MaziAdminApplication>(`
     select id::text,business_name,representative_name,location,sector,registry_number,description,created_at
     from public.mazi_membership_applications where status='pending'
@@ -109,14 +118,33 @@ export async function maziAdminSnapshot(principal: SessionPrincipal): Promise<Ma
     from public.mazi_proposal_results r join public.mazi_proposals p on p.id=r.proposal_id
     join public.mazi_cycles c on c.id=r.cycle_id where c.slug='founding-needs-2026'
     order by r.supporting_ballots desc,p.created_at asc limit 75
+   `),
+   db().query<MaziAdminFollowup>(`
+    select f.id::text,f.application_id::text,f.question,f.requested_at,f.answer,f.answered_at
+    from public.mazi_application_followups f
+    join public.mazi_membership_applications a on a.id=f.application_id
+    where a.status='pending' order by f.requested_at desc limit 500
+   `),
+   db().query<MaziAdminStats>(`
+    select
+      (select count(*)::text from public.mazi_membership_applications) as applications_total,
+      (select count(*)::text from public.mazi_membership_applications where status='pending') as applications_pending,
+      (select count(*)::text from public.mazi_membership_applications where status='approved') as applications_approved,
+      (select count(*)::text from public.mazi_membership_applications where status='rejected') as applications_rejected,
+      (select count(*)::text from public.mazi_members where identity_verified_at is not null) as kyb_verified,
+      (select count(*)::text from public.mazi_members where voting_eligible) as voting_eligible,
+      (select count(*)::text from public.mazi_application_followups f
+        join public.mazi_membership_applications a on a.id=f.application_id
+        where a.status='pending' and f.answered_at is null) as awaiting_reply
    `)
  ]);
  return {applications:a.rows,proposals:p.rows,members:m.rows,cycle:c.rows[0]||null,
   approvedProposals:approved.rows,ballots:ballots.rows,result:result.rows[0]||null,
-  proposalResults:counts.rows};
+  proposalResults:counts.rows,followups:followups.rows,stats:stats.rows[0]};
 }
 export type MaziOperation =
  | {kind:"application";id:string;approve:boolean;reason:string}
+ | {kind:"followup";id:string;question:string}
  | {kind:"proposal";id:string;approve:boolean;reason:string}
  | {kind:"voting";id:string;enabled:boolean}
  | {kind:"identity";id:string;gemiNumber:string;evidence:string}
@@ -155,6 +183,11 @@ export async function executeMaziSuperAdminAction(principal:SessionPrincipal, in
     `,[input.id]);
     if(!row.rows[0])throw new Error("MAZI_APPLICATION_NOT_PENDING");
     const app=row.rows[0];
+    const unanswered=await client.query<{id:string}>(`
+      select id::text from public.mazi_application_followups
+      where application_id=$1::uuid and answered_at is null for update
+    `,[input.id]);
+    if(unanswered.rows.length)throw new Error("MAZI_APPLICATION_NEEDS_REPLY");
     await client.query(`
       update public.mazi_membership_applications
       set status=$2,reviewed_at=now(),reviewed_by=$3::uuid,review_reason=$4
@@ -168,6 +201,24 @@ export async function executeMaziSuperAdminAction(principal:SessionPrincipal, in
       `,[app.applicant_user_id,input.id]);
     }
     entityType="membership_application";entityId=input.id;action=input.approve?"approved":"rejected";
+  }else if(input.kind==="followup"){
+    if(input.question.trim().length<20||input.question.trim().length>1000)
+      throw new Error("MAZI_FOLLOWUP_QUESTION_INVALID");
+    const app=await client.query<{id:string}>(`
+      select id::text from public.mazi_membership_applications
+      where id=$1::uuid and status='pending' for update
+    `,[input.id]);
+    if(!app.rows[0])throw new Error("MAZI_APPLICATION_NOT_PENDING");
+    const pending=await client.query<{id:string}>(`
+      select id::text from public.mazi_application_followups
+      where application_id=$1::uuid and answered_at is null
+    `,[input.id]);
+    if(pending.rows.length)throw new Error("MAZI_FOLLOWUP_ALREADY_OPEN");
+    const created=await client.query<{id:string}>(`
+      insert into public.mazi_application_followups(application_id,question,requested_by)
+      values($1::uuid,$2,$3::uuid) returning id::text
+    `,[input.id,input.question.trim(),actorId]);
+    entityType="application_followup";entityId=created.rows[0].id;action="information_requested";
   }else if(input.kind==="proposal"){
     const r=await client.query<{id:string}>(`
       update public.mazi_proposals set status=$2,reviewed_at=now(),
