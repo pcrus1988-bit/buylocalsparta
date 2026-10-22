@@ -1,9 +1,8 @@
 import {createHash,randomBytes} from "node:crypto";
 import {AadeMyDataClient} from "@buy-local-sparta/aade-mydata";
 import {getProductionPostgresRuntime,productionDatabaseConfigured} from "./postgres-runtime";
-export class MerchantConnectionError extends Error{
- constructor(public readonly code:string,public readonly status=400){super(code);}
-}
+import {MerchantConnectionError} from "./drinkstock-merchant-connection-error";
+export {MerchantConnectionError} from "./drinkstock-merchant-connection-error";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const MOLLIE_CONNECT_SCOPES="organizations.read profiles.read onboarding.read payments.read payments.write refunds.read refunds.write";
 function pool(){if(!productionDatabaseConfigured())throw new MerchantConnectionError("DATABASE_UNAVAILABLE",503);return getProductionPostgresRuntime().sqlPool;}
@@ -209,3 +208,4 @@ export async function merchantMollieServerToken(partnerId:string){
   return {accessToken:refreshed.access_token,organizationId:live.organizationId,profileId:live.profileId};
  }catch(e){if(!done)try{await c.query("ROLLBACK");}catch{}throw e;}finally{c.release();}
 }
+
