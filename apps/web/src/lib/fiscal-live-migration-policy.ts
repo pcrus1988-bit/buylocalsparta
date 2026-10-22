@@ -12,7 +12,7 @@ export const FK_INDEXES=[
  "fiscal_organizations_reviewed_by_idx","fiscal_sandbox_journals_created_by_idx",
  "fiscal_tax_rule_candidates_source_code_idx"
 ] as const;
-type ProbeRow=Readonly<{
+export type ProbeRow=Readonly<{
  total_migrations:number;present_markers:string[]|null;existing_fk_indexes:string[]|null;
  active_superadmin_factors:number;fiscal_tables:number;unprotected_tables:number;
 }>;
