@@ -38,7 +38,7 @@ export default function HomePage() {
       <div className="pillars">{pillars.map(([n,title,desc,arrow])=><article className="pillar" key={n}><span className="pillar-index">{n}</span><div className="pillar-content"><h3>{title}</h3><p>{desc}</p></div><span aria-hidden="true" className="pillar-arrow">{arrow}</span></article>)}</div>
     </div></section>
     <section className="section fund-feature shell">
-      <div className="feature-lead"><span className="eyebrow">03 / ΤΑΜΕΙΟ ΣΥΛΛΟΓΙΚΗΣ ΑΝΑΠΤΥΞΗΣ</span><h2>Έχεις μια ανάγκη.<br/><em>Έχουμε μια δύναμη.</em></h2><p>Κάθε ενεργό μέλος θα μπορεί να υποβάλει μία τεκμηριωμένη πρόταση κάθε μήνα. Τα μέλη θα αξιολογούν και θα ψηφίζουν, ώστε να υποστηρίζονται πολλαπλά έργα με σαφείς κανόνες και διαφάνεια.</p><Link className="button dark" href="/fund">Πώς θα λειτουργεί <span aria-hidden="true">↗</span></Link></div>
+      <div className="feature-lead"><span className="eyebrow">03 / ΤΑΜΕΙΟ ΣΥΛΛΟΓΙΚΗΣ ΑΝΑΠΤΥΞΗΣ</span><h2>Έχεις μια ανάγκη.<br/><em>Έχουμε μια δύναμη.</em></h2><p>Κάθε επαληθευμένη επιχείρηση μπορεί να καταθέτει μία τεκμηριωμένη πρόταση ανά ανοιχτό κύκλο. Τα μέλη θα αξιολογούν και θα ψηφίζουν, ώστε να υποστηρίζονται πολλαπλά έργα με σαφείς κανόνες και διαφάνεια.</p><Link className="button dark" href="/fund">Πώς θα λειτουργεί <span aria-hidden="true">↗</span></Link></div>
       <div className="proposal-display operational-panel">
         <div className="proposal-label">ΠΡΑΓΜΑΤΙΚΗ ΑΙΤΗΣΗ ΕΝΔΙΑΦΕΡΟΝΤΟΣ</div>
         <span className="proposal-quote">Πρώτα γνωριζόμαστε. Έπειτα οργανώνουμε συλλογικά τις ανάγκες μας.</span>
