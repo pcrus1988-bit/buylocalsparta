@@ -38,7 +38,7 @@ export default async function MaziSuperAdminPage({searchParams}:{searchParams:Pr
  let workspace:Awaited<ReturnType<typeof maziAdminSnapshot>>|undefined;
  try{workspace=await maziAdminSnapshot(p);}catch{}
  if(!workspace)return <main className={s.stage}><div className={s.shell}><h1>ΜΑΖΙ</h1><p>Το ασφαλές περιβάλλον διακυβέρνησης δεν είναι προσωρινά διαθέσιμο. Δεν πραγματοποιήθηκε καμία ενέργεια.</p><Link href="/admin">Επιστροφή στην κεντρική διαχείριση</Link></div></main>;
- const {applications,proposals,members,cycle}=workspace;
+ const {applications,proposals,members,cycle,approvedProposals,ballots,result,proposalResults}=workspace;
  const params=await searchParams;
  return <main className={s.stage}><div className={s.shell}>
  <div className={s.breadcrumb}><Link href="/admin">ΚΟΝΤΑ ΜΟΥ / ADMIN</Link><span>↗</span><span>ΜΑΖΙ</span></div>
@@ -82,7 +82,58 @@ export default async function MaziSuperAdminPage({searchParams}:{searchParams:Pr
  </article>)}
  </div>}
  </section>
- <section className={s.section}><div className={s.sectionTop}><div><p>04 / CYCLE CONTROL</p><h2>Ιδρυτικός κύκλος αναγκών</h2></div><span>Αποκλειστικά μη χρηματοδοτικός</span></div>
+ <section className={s.section}>
+ <div className={s.sectionTop}><div><p>04 / TRUST & CONFLICTS</p><h2>Συγκρούσεις συμφερόντων</h2></div>
+ <span>Αποκλειστικά ο ΚΟΝΤΑ ΜΟΥ Super Admin</span></div>
+ <p className={s.disclaimer}>Καταχώριση πραγματικής σχέσης ή σύγκρουσης συμφερόντων. Μία επιχείρηση διαθέτει μία μόνο ψήφο ανά κύκλο, δεν ψηφίζει τη δική της πρόταση και δεν μπορεί να ψηφίσει συνδεδεμένη πρόταση. Η απόφαση απαιτεί αιτιολογία και καταγράφεται αμετάβλητα.</p>
+ {cycle&&["review","voting"].includes(cycle.status)&&approvedProposals.length&&members.length?
+ <form action={maziSuperAdminCommand} className={s.card} style={{display:"flex",flexDirection:"column",gap:14}}>
+  <input type="hidden" name="csrf" value={p.csrfToken}/><input type="hidden" name="kind" value="conflict"/>
+  <label htmlFor="conflict-voter">Επιχείρηση που έχει σύγκρουση</label>
+  <select id="conflict-voter" name="voter_id" required style={{padding:12,border:"1px solid #9daea0"}}>
+   <option value="">Επίλεξε επαληθευμένο μέλος</option>
+   {members.filter(m=>m.status==="verified"&&Boolean(m.identity_verified_at)).map(m=><option key={m.user_id} value={m.user_id}>{m.business_name} ({m.gemi_number})</option>)}
+  </select>
+  <label htmlFor="conflict-proposal">Συνδεδεμένη πρόταση</label>
+  <select id="conflict-proposal" name="proposal_id" required style={{padding:12,border:"1px solid #9daea0"}}>
+   <option value="">Επίλεξε πρόταση</option>
+   {approvedProposals.map(q=><option key={q.id} value={q.id}>{q.title}</option>)}
+  </select>
+  <label htmlFor="conflict-reason">Τεκμηρίωση σύγκρουσης (20–1.000 χαρακτήρες)</label>
+  <textarea id="conflict-reason" name="reason" required minLength={20} maxLength={1000} rows={3}
+    placeholder="Έλεγχος κοινής ιδιοκτησίας ή συμφέροντος και τεκμηριωμένη αιτιολογία"
+    style={{padding:12,border:"1px solid #9daea0",font:"inherit"}}/>
+  <button type="submit" className={s.primary}>Αποκλεισμός ψήφου για συνδεδεμένη πρόταση</button>
+ </form>:
+ <div className={s.empty}>Οι αποκλεισμοί καταχωρίζονται στον στάδιο ελέγχου ή ψηφοφορίας, εφόσον υπάρχουν πραγματικά επαληθευμένα μέλη και εγκεκριμένες προτάσεις.</div>}
+ </section>
+ <section className={s.section}>
+ <div className={s.sectionTop}><div><p>05 / BALLOT INTEGRITY</p><h2>Ψηφοδέλτια και αποκλεισμοί</h2></div>
+ <span>Μόνο πραγματικές, καταγεγραμμένες ψήφοι</span></div>
+ {ballots.length?ballots.map(v=><div className={s.member} key={v.id}>
+   <div><strong>Ψήφος {v.id}</strong><span>Μέλος {v.voter_id} · Πρόταση {v.proposal_id}</span>
+    {v.invalidation_reason?<span>Ακυρωμένη: {v.invalidation_reason}</span>:<span>Ενεργό ψηφοδέλτιο · {new Date(v.created_at).toLocaleDateString("el-GR")}</span>}
+   </div>
+   {cycle?.status==="voting"&&!v.invalidation_reason?
+    <form action={maziSuperAdminCommand} className={s.action} style={{display:"flex",flexDirection:"column",gap:10,maxWidth:320}}>
+     <input type="hidden" name="csrf" value={p.csrfToken}/><input type="hidden" name="kind" value="invalidation"/><input type="hidden" name="id" value={v.id}/>
+     <label htmlFor={`invalidate-${v.id}`}>Αιτιολογία ακύρωσης</label>
+     <textarea id={`invalidate-${v.id}`} name="reason" required minLength={20} maxLength={1000} rows={3}
+      style={{padding:12,border:"1px solid #9daea0",font:"inherit"}}/>
+     <button type="submit" className={s.secondary}>Καταχώριση ακύρωσης (χωρίς διαγραφή)</button>
+    </form>:null}
+  </div>):<div className={s.empty}>Δεν υπάρχουν ακόμη πραγματικές ψήφοι.</div>}
+ </section>
+ <section className={s.section}>
+ <div className={s.sectionTop}><div><p>06 / FINALIZED OUTCOMES</p><h2>Αποτελέσματα καταγραφής</h2></div>
+ <span>Αποτελέσματα προτεραιοτήτων · όχι χρηματοδοτήσεις</span></div>
+ {result?<div className={s.card} style={{display:"block"}}>
+  <p>Οριστικοποίηση: {new Date(result.finalized_at).toLocaleDateString("el-GR")} · Ψήφοι: {result.total_ballots} · Έγκυρες: {result.valid_ballots} · Ακυρωμένες: {result.invalidated_ballots}</p>
+  <p>Προτάσεις: {result.proposals_considered} · Διατεθέν κεφάλαιο: €0</p>
+  {proposalResults.map(v=><div className={s.member} key={v.proposal_id}><strong>{v.title}</strong><span>{v.supporting_ballots} έγκυρες ψήφοι</span></div>)}
+ </div>:<div className={s.empty}>Δεν υπάρχουν αποτελέσματα προς παρουσίαση πριν από την πραγματική ολοκλήρωση του κύκλου.</div>}
+ </section>
+ <section className={s.section}><div className={s.sectionTop}><div><p>07 / CYCLE CONTROL</p><h2>Ιδρυτικός κύκλος αναγκών</h2></div><span>Αποκλειστικά μη χρηματοδοτικός</span></div>
  <div className={s.cycle}><div><strong>{cycle?.title||"Δεν υπάρχει κύκλος"}</strong><p>Στάδιο: {cycle?.status||"—"} · Χρηματοδοτικός προϋπολογισμός: €0 · Ενεργοποίηση χρημάτων: Όχι</p></div>{cycle&&<div className={s.buttons}>{cycle.status==="preparing"&&<Action csrf={p.csrfToken} kind="cycle" value="submissions" label="Έναρξη υποβολών"/>}{cycle.status==="submissions"&&<Action csrf={p.csrfToken} kind="cycle" value="review" label="Έναρξη ελέγχου"/>}{cycle.status==="review"&&<><Action csrf={p.csrfToken} kind="cycle" value="submissions" label="Επανέναρξη υποβολών" quiet/><Action csrf={p.csrfToken} kind="cycle" value="voting" label="Άνοιγμα ψήφων"/></>}{cycle.status==="voting"&&<Action csrf={p.csrfToken} kind="cycle" value="closed" label="Κλείσιμο κύκλου"/>}</div>}</div></section>
  <p className={s.disclaimer}>Οι ενέργειες καταγράφονται με το εσωτερικό αναγνωριστικό του ΚΟΝΤΑ ΜΟΥ Super Admin. Δεν παρέχεται πρόσβαση μέσω Supabase administrator ή ξεχωριστού λογαριασμού ΜΑΖΙ.</p>
  </div></main>;

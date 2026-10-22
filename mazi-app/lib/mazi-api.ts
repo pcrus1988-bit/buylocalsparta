@@ -17,7 +17,11 @@ export type MaziProposal={
 };
 export type MaziState={
  application:MaziApplication|null;member:MaziMember|null;cycle:MaziCycle|null;
- proposals:MaziProposal[];votes:{proposal_id:string}[];proposal_review:{id:string;review_reason:string|null}|null
+ proposals:MaziProposal[];votes:{proposal_id:string}[];
+ proposal_review:{id:string;review_reason:string|null}|null;
+ recused_proposals:string[];
+ tally:({total_ballots:number;invalidated_ballots:number;valid_ballots:number;proposals_considered:number;finalized_at:string}|{finalized_at:string;suppressed:true})|null;
+ tallies:{proposal_id:string;supporting_ballots:number}[]
 };
 type Result<T extends object>=({ok:true}&T)|{ok:false;error:string};
 const fail={ok:false as const,error:"service_unavailable"};

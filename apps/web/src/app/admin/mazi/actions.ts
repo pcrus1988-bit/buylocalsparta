@@ -21,6 +21,11 @@ export async function maziSuperAdminCommand(form:FormData) {
    op={kind:"proposal",id,approve:value==="approve",reason};
  else if(kind==="voting"&&validUuid(id)&&["yes","no"].includes(value))
    op={kind:"voting",id,enabled:value==="yes"};
+ else if(kind==="conflict"&&validUuid(only(form,"voter_id"))&&validUuid(only(form,"proposal_id"))
+      &&reason.length>=20&&reason.length<=1000)
+   op={kind:"conflict",voterId:only(form,"voter_id"),proposalId:only(form,"proposal_id"),reason};
+ else if(kind==="invalidation"&&validUuid(id)&&reason.length>=20&&reason.length<=1000)
+   op={kind:"invalidation",voteId:id,reason};
  else if(kind==="identity"&&validUuid(id)) {
    const gemi=only(form,"gemi").trim();
    const evidence=only(form,"evidence").trim();

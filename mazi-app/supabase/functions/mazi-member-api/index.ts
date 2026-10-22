@@ -82,19 +82,43 @@ Deno.serve(async(req:Request)=>{
    const isVerified=Boolean(member?.status==="verified"&&member?.identity_verified_at&&application?.status==="approved");
    let proposals:Json[]=[], votes:Json[]=[];
    let proposal_review:Json|null=null;
+   let recused_proposals:string[]=[];
+   let tally:Json|null=null;
+   let tallies:Json[]=[];
    if(isVerified&&cycle) {
-    const [{data:rows,error:pErr},{data:voted,error:vErr},{data:ownReview,error:rErr}]=await Promise.all([
+    const [{data:rows,error:pErr},{data:voted,error:vErr},{data:ownReview,error:rErr},{data:conflicts,error:cErr}]=await Promise.all([
      admin.from("mazi_proposals").select("id,title,details,category,amount_cents,status,created_by,created_at")
        .eq("cycle_id",cycle.id).or(`status.eq.approved,created_by.eq.${user.id}`).order("created_at",{ascending:false}).limit(100),
      admin.from("mazi_votes").select("proposal_id").eq("cycle_id",cycle.id).eq("voter_id",user.id).limit(200),
      admin.from("mazi_proposals").select("id,review_reason").eq("cycle_id",cycle.id)
-       .eq("created_by",user.id).maybeSingle()
+       .eq("created_by",user.id).maybeSingle(),
+     admin.from("mazi_vote_conflicts").select("proposal_id").eq("cycle_id",cycle.id)
+       .eq("voter_id",user.id).limit(200)
     ]);
-    if(pErr||vErr||rErr)return out({error:"data_unavailable"},503);
+    if(pErr||vErr||rErr||cErr)return out({error:"data_unavailable"},503);
     proposals=(rows||[]) as Json[];votes=(voted||[]) as Json[];
     proposal_review=ownReview as Json|null;
+    recused_proposals=(conflicts||[]).map(v=>v.proposal_id);
+    // Finalized aggregate support is only released when >=5 valid ballots
+    // to avoid identifying a sole supporter in a tiny constituency.
+    if(cycle.status==="closed") {
+      const {data:summary,error:sumError}=await admin.from("mazi_cycle_results")
+        .select("total_ballots,invalidated_ballots,valid_ballots,proposals_considered,finalized_at")
+        .eq("cycle_id",cycle.id).maybeSingle();
+      if(sumError)return out({error:"data_unavailable"},503);
+      if(summary) {
+        const enough=Number(summary.valid_ballots)>=5;
+        tally=enough?summary:{finalized_at:summary.finalized_at,suppressed:true};
+        if(enough) {
+          const {data:counts,error:countsError}=await admin.from("mazi_proposal_results")
+           .select("proposal_id,supporting_ballots").eq("cycle_id",cycle.id).limit(150);
+          if(countsError)return out({error:"data_unavailable"},503);
+          tallies=(counts||[]) as Json[];
+        }
+      }
+    }
    }
-   return out({ok:true,application,member,cycle,proposals,votes,proposal_review});
+   return out({ok:true,application,member,cycle,proposals,votes,proposal_review,recused_proposals,tally,tallies});
   }
   if(operation==="apply"){
    if(input.accept_privacy!==true)return out({error:"privacy_required"},400);
@@ -141,10 +165,14 @@ Deno.serve(async(req:Request)=>{
      .select("id,created_by,status,cycle_id").eq("id",proposalId).maybeSingle();
    if(lookupError||!proposal||proposal.cycle_id!==cycle.id||proposal.status!=="approved"||proposal.created_by===user.id)
      return out({error:"vote_not_allowed"},403);
+   const {data:recusal}=await admin.from("mazi_vote_conflicts")
+     .select("id").eq("cycle_id",cycle.id).eq("voter_id",user.id)
+     .eq("proposal_id",proposalId).maybeSingle();
+   if(recusal)return out({error:"conflict_of_interest"},403);
    const {error}=await admin.from("mazi_votes").insert({
      cycle_id:cycle.id,proposal_id:proposal.id,voter_id:user.id
    });
-   if(error)return out({error:error.code==="23505"?"already_voted":"vote_not_allowed"},error.code==="23505"?409:503);
+   if(error)return out({error:error.code==="23505"?"already_voted":"vote_not_allowed"},error.code==="23505"?409:403);
    return out({ok:true});
   }
   return out({error:"operation_not_supported"},400);
