@@ -2,6 +2,7 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {fiscalAdminActor} from "../../../lib/fiscal-auth";
 import {getFiscalOperationalReleaseSummary} from "../../../lib/fiscal-release-probe";
+import {getFiscalLiveMigrationReadiness} from "../../../lib/fiscal-live-migration-readiness";
 
 export const dynamic="force-dynamic";
 
@@ -15,6 +16,7 @@ export default async function FiscalReleaseReadinessPage(){
  const actor=await fiscalAdminActor();
  if(!actor)redirect("/timologio-admin/login");
  const summary=await getFiscalOperationalReleaseSummary();
+ const live=await getFiscalLiveMigrationReadiness();
  const safeCount=summary.gates.filter(g=>g.state==="safe").length;
  const pendingCount=summary.gates.filter(g=>g.state==="pending").length;
  const blockedCount=summary.gates.filter(g=>g.state==="blocked").length;
@@ -53,6 +55,37 @@ export default async function FiscalReleaseReadinessPage(){
      <p>Δεν υπάρχει εσωτερική εντολή έκδοσης ή παράκαμψη ελέγχων.</p>
     </article>
    </div>
+  </section>
+  <section className="fiscal-panel fiscal-section" style={{marginTop:20}}>
+   <div className="fiscal-kicker">M48 · Live production evidence · Read-only</div>
+   <h2>Ετοιμότητα βάσης &amp; ανάκτησης</h2>
+   <p className="fiscal-muted">Τα στοιχεία προέρχονται από την πραγματική ανεξάρτητη βάση FISCAL και τους καταλόγους PostgreSQL κατά την προβολή. Δεν περιλαμβάνουν προσωπικά δεδομένα, παραστατικά ή μυστικά. Δεν εκτελείται καμία αλλαγή.</p>
+   <div className="fiscal-grid">
+    <article className="fiscal-card">
+     <small>Καταχωρημένες εκδόσεις βάσης</small>
+     <div className="fiscal-stat">{live.migrationCount??"—"}</div>
+     <p>{live.verified?`Εκκρεμείς γνωστές εγγραφές: ${live.missingKnownMigrations.length}`:"Δεν επαληθεύτηκε η κατάσταση. Η μεταφορά παραμένει αποκλεισμένη."}</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Διαφορά ιστορικού και πραγματικού σχήματος</small>
+     <div className="fiscal-stat">{!live.verified?"ΑΓΝΩΣΤΟ":live.fkIndexDrift?"ΑΣΥΜΦΩΝΙΑ":"—"}</div>
+     <p>{live.fkIndexDrift?"Υπάρχουν δείκτες χωρίς αντίστοιχη εσωτερική εγγραφή. Απαιτείται ελεγχόμενη συμφωνία.":"Η απουσία γνωστής διαφοράς δεν πιστοποιεί όλα τα αρχεία migration."}</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Προστασία δεδομένων · RLS</small>
+     <div className="fiscal-stat">{live.verified?`${live.unprotectedTables} χωρίς RLS`:"ΑΓΝΩΣΤΟ"}</div>
+     <p>Σύνολο πινάκων FISCAL και αριθμός χωρίς RLS. Ο έλεγχος δεν πιστοποιεί όλους τους ρόλους.</p>
+    </article>
+    <article className="fiscal-card">
+     <small>Ενεργοί παράγοντες MFA υπερδιαχειριστών</small>
+     <div className="fiscal-stat">{live.activeSuperAdminFactors??"—"}</div>
+     <p>Για την προτεινόμενη ανάκτηση χρειάζονται δύο άλλοι ανεξάρτητοι εξουσιοδοτημένοι εγκρίνοντες. Ο αριθμός παραγόντων δεν αποδεικνύει διαφορετικά φυσικά πρόσωπα.</p>
+    </article>
+   </div>
+   {live.verified&&live.missingKnownMigrations.length>0&&<p className="fiscal-alert" style={{marginTop:16}}>
+    <strong>Ελλείπουσες εγγραφές:</strong> {live.missingKnownMigrations.join(" · ")}. Δεν σημαίνει ότι κάθε αλλαγή λείπει από το πραγματικό σχήμα, ούτε επιτρέπεται αυτόματη επανεκτέλεση.
+   </p>}
+   <p className="fiscal-alert" style={{marginTop:16}}><strong>Ανάκτηση από αντίγραφο παραγωγής: ΜΗ ΕΠΑΛΗΘΕΥΜΕΝΗ.</strong> Η επιτυχής αποκατάσταση σε απομονωμένη βάση δοκιμών (M47) δεν αποδεικνύει ότι το τρέχον αντίγραφο παραγωγής μπορεί να αποκατασταθεί. Ελέγξτε το πραγματικό αντίγραφο στον <Link href="https://supabase.com/dashboard/project/kcpwxplxqtqdsfwlfsaa/database/backups/scheduled">ιδιωτικό πίνακα αντιγράφων FISCAL</Link> και καταχωρίστε την απόδειξη σε εγκεκριμένο ασφαλές σύστημα. Η φορολογική έκδοση παραμένει απενεργοποιημένη.</p>
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:20}}>
    <h2>Αναλυτικοί έλεγχοι</h2>
