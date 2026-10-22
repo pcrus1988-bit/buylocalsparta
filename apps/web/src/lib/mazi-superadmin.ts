@@ -77,13 +77,16 @@ export async function maziAdminSnapshot(principal: SessionPrincipal): Promise<Ma
  return {applications:a.rows,proposals:p.rows,members:m.rows,cycle:c.rows[0]||null};
 }
 export type MaziOperation =
- | {kind:"application";id:string;approve:boolean}
- | {kind:"proposal";id:string;approve:boolean}
+ | {kind:"application";id:string;approve:boolean;reason:string}
+ | {kind:"proposal";id:string;approve:boolean;reason:string}
  | {kind:"voting";id:string;enabled:boolean}
  | {kind:"identity";id:string;gemiNumber:string;evidence:string}
  | {kind:"cycle";stage:"submissions"|"review"|"voting"|"closed"};
 export async function executeMaziSuperAdminAction(principal:SessionPrincipal, input:MaziOperation):Promise<void>{
  const actorId=await marketplaceMaziActor(principal);
+ if ((input.kind==="application" || input.kind==="proposal") &&
+     (input.reason.trim().length<20 || input.reason.length>1000))
+   throw new Error("MAZI_REVIEW_REASON_REQUIRED");
  const client=await db().connect();
  try {
   await client.query("begin");
@@ -97,8 +100,9 @@ export async function executeMaziSuperAdminAction(principal:SessionPrincipal, in
     const app=row.rows[0];
     await client.query(`
       update public.mazi_membership_applications
-      set status=$2,reviewed_at=now() where id=$1::uuid
-    `,[input.id,input.approve?"approved":"rejected"]);
+      set status=$2,reviewed_at=now(),reviewed_by=$3::uuid,review_reason=$4
+      where id=$1::uuid
+    `,[input.id,input.approve?"approved":"rejected",actorId,input.reason.trim()]);
     if(input.approve){
       await client.query(`
         insert into public.mazi_members(user_id,application_id,status,voting_eligible)
@@ -109,9 +113,10 @@ export async function executeMaziSuperAdminAction(principal:SessionPrincipal, in
     entityType="membership_application";entityId=input.id;action=input.approve?"approved":"rejected";
   }else if(input.kind==="proposal"){
     const r=await client.query<{id:string}>(`
-      update public.mazi_proposals set status=$2,reviewed_at=now()
+      update public.mazi_proposals set status=$2,reviewed_at=now(),
+        reviewed_by=$3::uuid,review_reason=$4
       where id=$1::uuid and status='submitted' returning id::text
-    `,[input.id,input.approve?"approved":"rejected"]);
+    `,[input.id,input.approve?"approved":"rejected",actorId,input.reason.trim()]);
     if(!r.rows[0])throw new Error("MAZI_PROPOSAL_NOT_PENDING");
     entityType="proposal";entityId=input.id;action=input.approve?"approved":"rejected";
   }else if(input.kind==="identity"){
@@ -157,8 +162,12 @@ export async function executeMaziSuperAdminAction(principal:SessionPrincipal, in
   await client.query(`
    insert into public.mazi_audit_events
       (marketplace_actor_user_id,entity_type,entity_id,action,evidence)
-   values($1::uuid,$2,$3::uuid,$4,jsonb_build_object('authority','konta_moy_super_admin','source','marketplace_server_session'))
-  `,[actorId,entityType,entityId,action]);
+   values($1::uuid,$2,$3::uuid,$4,
+     jsonb_build_object('authority','konta_moy_super_admin',
+       'source','marketplace_server_session',
+       'review_reason',$5::text))
+  `,[actorId,entityType,entityId,action,
+       (input.kind==="application"||input.kind==="proposal")?input.reason.trim():null]);
   await client.query("commit");
  }catch(err){await client.query("rollback").catch(()=>{});throw err;}
  finally{client.release();}

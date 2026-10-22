@@ -15,6 +15,21 @@ function Action({csrf,kind,id,value,label,quiet=false}:{csrf:string;kind:string;
    <button type="submit" className={quiet?s.secondary:s.primary}>{label}</button>
  </form>;
 }
+function ReviewDecision({csrf,kind,id}:{csrf:string;kind:"application"|"proposal";id:string}) {
+ return <form action={maziSuperAdminCommand} className={s.action}
+   style={{display:"flex",flexDirection:"column",gap:12,minWidth:250,maxWidth:370}}>
+  <input type="hidden" name="csrf" value={csrf}/>
+  <input type="hidden" name="kind" value={kind}/>
+  <input type="hidden" name="id" value={id}/>
+  <label htmlFor={`reason-${kind}-${id}`} className={s.tag}>ΑΙΤΙΟΛΟΓΙΑ · 20–1.000 ΧΑΡΑΚΤΗΡΕΣ</label>
+  <textarea id={`reason-${kind}-${id}`} name="reason" required minLength={20} maxLength={1000} rows={4}
+   style={{padding:12,border:"1px solid #aec0af",font:"inherit"}} placeholder="Συγκεκριμένοι λόγοι έγκρισης ή απόρριψης"/>
+  <div className={s.buttons}>
+    <button type="submit" name="value" value="approve" className={s.primary}>Έγκριση με αιτιολογία</button>
+    <button type="submit" name="value" value="reject" className={s.secondary}>Απόρριψη με αιτιολογία</button>
+  </div>
+ </form>;
+}
 const money=(cents:string)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format(Number(cents)/100);
 export default async function MaziSuperAdminPage({searchParams}:{searchParams:Promise<{notice?:string}>}){
  const p=await getAdminSession();
@@ -40,9 +55,9 @@ export default async function MaziSuperAdminPage({searchParams}:{searchParams:Pr
   <div className={s.fund}><small>04 / ΕΝΕΡΓΟ ΤΑΜΕΙΟ</small><strong>€0</strong><span>Η συλλογή χρημάτων παραμένει κλειστή</span></div>
  </div>
  <section className={s.section}><div className={s.sectionTop}><div><p>01 / BUSINESS ONBOARDING</p><h2>Αιτήσεις επιχειρήσεων</h2></div><span>Μόνο ο Super Admin εγκρίνει νέες επιχειρήσεις</span></div>
- {applications.length===0?<div className={s.empty}>Δεν υπάρχουν εκκρεμείς αιτήσεις.</div>:<div className={s.stack}>{applications.map(a=><article className={s.card} key={a.id}><div><span className={s.tag}>ΑΙΤΗΣΗ · {new Date(a.created_at).toLocaleDateString("el-GR")}</span><h3>{a.business_name}</h3><p className={s.meta}>{a.representative_name} · {a.location} · {a.sector}</p><p className={s.body}>{a.description}</p><p className={s.meta}>Αριθμός ΓΕΜΗ: {a.registry_number||"Δεν δόθηκε"}</p></div><div className={s.buttons}><Action csrf={p.csrfToken} kind="application" id={a.id} value="approve" label="Έγκριση"/><Action csrf={p.csrfToken} kind="application" id={a.id} value="reject" label="Απόρριψη" quiet/></div></article>)}</div>}</section>
+ {applications.length===0?<div className={s.empty}>Δεν υπάρχουν εκκρεμείς αιτήσεις.</div>:<div className={s.stack}>{applications.map(a=><article className={s.card} key={a.id}><div><span className={s.tag}>ΑΙΤΗΣΗ · {new Date(a.created_at).toLocaleDateString("el-GR")}</span><h3>{a.business_name}</h3><p className={s.meta}>{a.representative_name} · {a.location} · {a.sector}</p><p className={s.body}>{a.description}</p><p className={s.meta}>Αριθμός ΓΕΜΗ: {a.registry_number||"Δεν δόθηκε"}</p></div><ReviewDecision csrf={p.csrfToken} kind="application" id={a.id}/></article>)}</div>}</section>
  <section className={s.section}><div className={s.sectionTop}><div><p>02 / PROJECT GOVERNANCE</p><h2>Προτάσεις προς αξιολόγηση</h2></div><span>Χωρίς αυτοματοποιημένες εγκρίσεις χρηματοδότησης</span></div>
- {proposals.length===0?<div className={s.empty}>Δεν υπάρχουν προτάσεις σε αναμονή.</div>:<div className={s.stack}>{proposals.map(a=><article className={s.card} key={a.id}><div><span className={s.tag}>{a.category.toUpperCase()} · {new Date(a.created_at).toLocaleDateString("el-GR")}</span><h3>{a.title}</h3><p className={s.body}>{a.details}</p><p className={s.requested}>Αιτούμενο ποσό (όχι εκταμίευση): {money(a.amount_cents)}</p></div><div className={s.buttons}><Action csrf={p.csrfToken} kind="proposal" id={a.id} value="approve" label="Επιλεξιμότητα ✓"/><Action csrf={p.csrfToken} kind="proposal" id={a.id} value="reject" label="Απόρριψη" quiet/></div></article>)}</div>}</section>
+ {proposals.length===0?<div className={s.empty}>Δεν υπάρχουν προτάσεις σε αναμονή.</div>:<div className={s.stack}>{proposals.map(a=><article className={s.card} key={a.id}><div><span className={s.tag}>{a.category.toUpperCase()} · {new Date(a.created_at).toLocaleDateString("el-GR")}</span><h3>{a.title}</h3><p className={s.body}>{a.details}</p><p className={s.requested}>Αιτούμενο ποσό (όχι εκταμίευση): {money(a.amount_cents)}</p></div><ReviewDecision csrf={p.csrfToken} kind="proposal" id={a.id}/></article>)}</div>}</section>
  <section className={s.section}>
  <div className={s.sectionTop}><div><p>03 / KYB & VOTING RIGHTS</p><h2>Επαλήθευση επιχειρήσεων</h2></div><span>Μία νόμιμη επιχείρηση · μία ψήφος</span></div>
  <p className={s.disclaimer}>Έλεγξε τη νόμιμη κατάσταση ΓΕΜΗ, την ταυτοποίηση του εκπροσώπου και τις συνδεδεμένες επιχειρήσεις στην <a href="https://publicity.businessportal.gr/" target="_blank" rel="noopener noreferrer" style={{textDecoration:"underline"}}>επίσημη Δημοσιότητα ΓΕΜΗ ↗</a>. Η επαλήθευση εδώ καταγράφει χειροκίνητο έλεγχο, όχι αυτόματη επιβεβαίωση από κρατικό API.</p>

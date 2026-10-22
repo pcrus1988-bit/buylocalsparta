@@ -7,7 +7,7 @@ export type MaziCycle={
  id:string;title:string;status:string;kind:string;starts_at:string;ends_at:string;
  funding_budget_cents:number;finance_activated:boolean
 };
-export type MaziApplication={id:string;business_name:string;status:string;created_at:string};
+export type MaziApplication={id:string;business_name:string;status:string;created_at:string;review_reason:string|null};
 export type MaziMember={
  user_id:string;status:string;voting_eligible:boolean;identity_verified_at:string|null;admitted_at:string
 };
@@ -17,7 +17,7 @@ export type MaziProposal={
 };
 export type MaziState={
  application:MaziApplication|null;member:MaziMember|null;cycle:MaziCycle|null;
- proposals:MaziProposal[];votes:{proposal_id:string}[]
+ proposals:MaziProposal[];votes:{proposal_id:string}[];proposal_review:{id:string;review_reason:string|null}|null
 };
 type Result<T extends object>=({ok:true}&T)|{ok:false;error:string};
 const fail={ok:false as const,error:"service_unavailable"};

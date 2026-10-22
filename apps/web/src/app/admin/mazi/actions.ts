@@ -13,11 +13,12 @@ export async function maziSuperAdminCommand(form:FormData) {
  requireMarketplaceSuperAdminRole(principal);
  assertAdminCsrf(principal,only(form,"csrf"));
  const kind=only(form,"kind"),id=only(form,"id"),value=only(form,"value");
+ const reason=only(form,"reason").trim();
  let op:MaziOperation;
- if(kind==="application"&&validUuid(id)&&["approve","reject"].includes(value))
-   op={kind:"application",id,approve:value==="approve"};
- else if(kind==="proposal"&&validUuid(id)&&["approve","reject"].includes(value))
-   op={kind:"proposal",id,approve:value==="approve"};
+ if(kind==="application"&&validUuid(id)&&["approve","reject"].includes(value)&&reason.length>=20&&reason.length<=1000)
+   op={kind:"application",id,approve:value==="approve",reason};
+ else if(kind==="proposal"&&validUuid(id)&&["approve","reject"].includes(value)&&reason.length>=20&&reason.length<=1000)
+   op={kind:"proposal",id,approve:value==="approve",reason};
  else if(kind==="voting"&&validUuid(id)&&["yes","no"].includes(value))
    op={kind:"voting",id,enabled:value==="yes"};
  else if(kind==="identity"&&validUuid(id)) {
