@@ -4,7 +4,7 @@ import { createClient } from "../lib/supabase/server";
 import { asText, validEmail, validateApplication, validateProposal } from "../lib/validation";
 
 const DESTINATION = "https://mazi.kontamou.site/auth/callback";
-const urlMessage=(path:string,reason:string)=>redirect(path+"?notice="+encodeURIComponent(reason));
+function urlMessage(path:string,reason:string): never { redirect(path+"?notice="+encodeURIComponent(reason)); }
 
 async function authenticated() {
   const db=await createClient();
