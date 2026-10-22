@@ -14,7 +14,8 @@
   },
   "separate_connector_program": {
     "title": "TIGER — Connector Hub",
-    "project_url": null,
+    "source_owner_project_id": "E16",
+    "project_board_policy": "TRACK_UNDER_E16_WITH_CROSS_LINKS",
     "repository_target": "tiger-connectors",
     "initial_location": "docs/architecture/project-tiger/connectors",
     "creation_status": "planned"
@@ -654,5 +655,6 @@
       "bootstrap_issue_state": "open"
     }
   ],
-  "bootstrap_issues_status": "20_CANONICAL_ISSUES_CREATED"
+  "bootstrap_issues_status": "20_CANONICAL_ISSUES_CREATED",
+  "master_tracking_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1738"
 }
