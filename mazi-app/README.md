@@ -1,32 +1,36 @@
-# ΜΑΖΙ — ΚΟΝΤΑ ΜΟΥ Collective
+# ΜΑΖΙ — operational foundation
 
-Standalone Next.js application for the proposed member-owned economic solidarity and development initiative.
+**Production domain**: https://mazi.kontamou.site  
+**Vercel root directory**: mazi-app  
+**Source**: pcrus1988-bit/buylocalsparta, independent of the marketplace's web workspace
 
-**Intended host:** https://mazi.kontamou.site  
-**Repository location:** `mazi-app/` (outside the marketplace npm workspace)  
-**Vercel:** Separate project with Root Directory `mazi-app`; no production marketplace deployment changes required.
+## Delivered
+- Actual Supabase email-link authentication with server cookie refresh and verified user sessions (subject to Auth redirect allowlist setting).
+- Persistent business membership applications, one per verified identity, with explicit processing notice.
+- Restricted administrator review and verified membership admission; no automatic administrator bootstrap.
+- Persistent member proposals per real non-financial founding needs-assessment cycle.
+- Real eligibility-controlled one-member-one-proposal support voting, limited to actual reviewed proposals in a voting-stage cycle.
+- Append-only audit events for admission and votes, row-level security on every MAZI table.
+- Dedicated fund ledger schema with **zero financial operations enabled**.
+- No fictional businesses, fake votes, seeded grant balances or simulations. Previous /demo now redirects to real registration.
 
-## Phase 0 — Safe foundation
+## Supabase project
+Currently uses existing `supabase-beige-apple` project (ref: `eemihhfreggbigxejjhj`) with new `public.mazi_*` tables only. No original table changes. A dedicated independent Supabase project should be considered after the first real intake cycle to isolate resource demand.
 
-- Premium Greek-language public site.
-- Funding principles, proposed founding charter and non-commercial informational disclosures.
-- Interactive member-flow simulation with draft proposals, support choices and a membership-budget preview.
-- Simulation only: no network persistence, no financial collection, no user accounts, no membership registration or actual grant allocation.
-- No survey contact imports; researcher-to-marketer consent boundaries stay intact.
-- Client demo data is explicitly fictional, with no claims of active membership or awards.
+Migration: `sql/001_collective_foundation.sql`. Data API access is restricted by ownership/roles and RLS. Backend keys use public publishable key only; **never put service-role keys in browser**.
 
-## Setup
+## Auth activation prerequisite
+Confirm Supabase Authentication URL Configuration lists `https://mazi.kontamou.site/auth/callback` as an allowed redirect. After that, send a login email from /join and complete the callback.
 
-From `mazi-app/`: `npm install`, `npm test`, `npm run build`, `npm run dev`.
+## Administrator bootstrap (requires an explicitly trusted, known auth UUID)
+Do not give the first visitor admin rights. Once the trusted founder signs up, use audited privileged SQL:
+```sql
+insert into public.mazi_administrators (user_id) values ('<confirmed-auth-user-uuid>');
+```
+Only an authorized operator should perform this. The member administration UI lives at /admin.
 
-## Gated next phases (not yet implemented)
+## Start
+`npm install`, `npm test`, `npm run build`.
 
-1. Greek legal/tax review of the Collective's entity, subscription treatment, pooled grants, governance and disbursement contract.
-2. Member verification, identity/RLS isolation, consent ledger and business ownership checks.
-3. Atomic budget/escrow or segregated fund ledger with idempotency, two-person approval and immutable audit events.
-4. Proposal intake with documents in private storage, eligibility screening and conflict-of-interest declarations.
-5. Snapshot-frozen one-member-one-vote eligibility with linked-entity safeguards, anti-sybil controls and public rules.
-6. Allocations, staged payouts based on invoices, receipts, recusal and appeal process.
-7. Actual email opt-in limited to lawful outreach, with no reuse of research survey contact information without valid marketing consent.
-
-**Safety:** No live payment, vote, pledge, grant or crowdfunding functionality should be switched on until regulatory, bank/accounting, security and governance readiness has been formally approved.
+## Financial safety
+No real financial service, pooled payments, crowdfunding or grant distributions are active; these require legal review, entity governance, segregated fund custody, tax/VAT handling and independent financial approvals before enabling. This is *not* a funding simulator; the app runs actual member and proposal intake but currently operates a zero-euro founding needs-assessment cycle.
