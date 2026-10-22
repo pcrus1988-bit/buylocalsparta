@@ -66,6 +66,13 @@ jobs:
         env:
           CI: "true"
         run: node scripts/fiscal-migration-preflight-db-smoke.mjs
+      - name: Verify M49 historical FK DDL provenance and tampering refusals
+        run: node --test scripts/fiscal-0014-provenance.test.mjs
+      - name: Verify M49 provenance against synthetic Supabase-style SQL history in disposable PG17
+        env:
+          CI: "true"
+          FISCAL_HISTORY_TEST_MODE: "synthetic"
+        run: node scripts/fiscal-0014-provenance-db-smoke.mjs
       - name: Verify M47 synthetic-only restore-target protection
         run: node --test scripts/fiscal-disposable-restore-drill.test.mjs
       - name: Verify M47 PG17 custom backup restores data, schema and RLS into separate disposable database
