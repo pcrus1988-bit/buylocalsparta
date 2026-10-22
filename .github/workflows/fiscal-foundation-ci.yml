@@ -54,12 +54,18 @@ jobs:
         run: node scripts/fiscal-security-audit.mjs
       - name: Create separate marketplace database for isolation validation
         run: psql "$FISCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE marketplace_ci"
+      - name: Check M48 fail-closed migration preflight pure regressions
+        run: node --test scripts/fiscal-migration-preflight.test.mjs
       - name: Migrate only the dedicated fiscal database
         run: node scripts/fiscal-migrate.mjs
       - name: Verify M46 read-only migration planning, drift and database isolation
         run: node --test scripts/fiscal-migration-readiness.test.mjs
       - name: Verify independent FISCAL schema matches all checked-in migration checksums
         run: node scripts/fiscal-migration-readiness.mjs --require-current
+      - name: Check M48 dual-ledger drift refusal in disposable PostgreSQL
+        env:
+          CI: "true"
+        run: node scripts/fiscal-migration-preflight-db-smoke.mjs
       - name: Verify M47 synthetic-only restore-target protection
         run: node --test scripts/fiscal-disposable-restore-drill.test.mjs
       - name: Verify M47 PG17 custom backup restores data, schema and RLS into separate disposable database
