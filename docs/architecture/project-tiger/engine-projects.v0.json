@@ -6,7 +6,7 @@
   "status": "PROVISIONING_BLUEPRINT_ONLY",
   "owner": "pcrus1988-bit",
   "desired_github_project_count": 21,
-  "project_create_status": "NOT_CREATED",
+  "project_create_status": "NOT_CREATED_REQUIRES_GITHUB_PROJECTS_V2_ACCESS",
   "portfolio": {
     "title": "TIGER — KONTA MOY 2.0 Portfolio",
     "type": "github_projects_v2",
@@ -98,7 +98,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1714",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E02",
@@ -125,7 +127,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1715",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E03",
@@ -152,7 +156,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1716",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E04",
@@ -179,7 +185,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1717",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E05",
@@ -206,7 +214,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1718",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E06",
@@ -233,7 +243,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1719",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E07",
@@ -260,7 +272,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1720",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E08",
@@ -287,7 +301,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1732",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E09",
@@ -314,7 +330,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1721",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E10",
@@ -341,7 +359,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1722",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E11",
@@ -368,7 +388,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1723",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E12",
@@ -395,7 +417,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1724",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E13",
@@ -422,7 +446,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1725",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E14",
@@ -449,7 +475,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1726",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E15",
@@ -476,7 +504,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1727",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E16",
@@ -503,7 +533,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1728",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E17",
@@ -530,7 +562,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1729",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E18",
@@ -557,7 +591,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1730",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E19",
@@ -584,7 +620,9 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1731",
+      "bootstrap_issue_state": "open"
     },
     {
       "id": "E20",
@@ -611,7 +649,10 @@
         "Production activation evidence",
         "Connector inventory"
       ],
-      "status": "BLUEPRINT"
+      "status": "BLUEPRINT",
+      "bootstrap_issue_url": "https://github.com/pcrus1988-bit/buylocalsparta/issues/1737",
+      "bootstrap_issue_state": "open"
     }
-  ]
+  ],
+  "bootstrap_issues_status": "20_CANONICAL_ISSUES_CREATED"
 }
