@@ -24,7 +24,7 @@ export function generateMetadata(): Promise<Metadata> {
 // aggregate query times out, do not replace a live study with an empty hero.
 // This read deliberately uses only main-fieldwork response counts, never answers.
 const cachedFallbackProgress = unstable_cache(
-  async (): Promise<{ started: number; completed: number; verifiedAt: string }> => {
+  async (): Promise<{ started: number; completed: number; verifiedAt: string } | null> => {
     const result = await getPublicSurveyPostgresRuntime().sqlPool.query<SqlRow>(`
       SELECT
         (SELECT count(*) FROM research_responses r
@@ -41,7 +41,8 @@ const cachedFallbackProgress = unstable_cache(
       LIMIT 1
     `);
     const row = result.rows[0];
-    if (!row) throw new Error("research_progress_missing");
+    // Confirmed absence (including archival) invalidates previously cached counts.
+    if (!row) return null;
     const started = Number(row.started);
     const completed = Number(row.completed);
     if (!Number.isSafeInteger(started) || !Number.isSafeInteger(completed)
