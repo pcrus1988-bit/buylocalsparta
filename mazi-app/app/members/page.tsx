@@ -11,10 +11,9 @@ export default async function Members({searchParams}:{searchParams:Promise<{noti
  const db=await createClient();
  const {data:{user}}=await db.auth.getUser();
  if(!user)redirect("/join");
- const [{data:application},{data:member},{data:administrator}]=await Promise.all([
+ const [{data:application},{data:member}]=await Promise.all([
    db.from("mazi_membership_applications").select("id,business_name,status,created_at").eq("applicant_user_id",user.id).maybeSingle(),
-   db.from("mazi_members").select("status,voting_eligible,admitted_at").eq("user_id",user.id).maybeSingle(),
-   db.from("mazi_administrators").select("user_id").eq("user_id",user.id).maybeSingle()
+   db.from("mazi_members").select("status,voting_eligible,admitted_at").eq("user_id",user.id).maybeSingle()
  ]);
  const {notice}=await searchParams;
  return <main id="content"><section className="subhero member-hero"><div className="shell"><span className="eyebrow light">ΜΑΖΙ / ΧΩΡΟΣ ΕΠΙΧΕΙΡΗΣΗΣ</span><h1>Ένας χώρος<br/><em>για την επιχείρησή σου.</em></h1><p>Αίτηση, επαλήθευση, συμμετοχή σε πραγματικές διαδικασίες και παρακολούθηση των αιτημάτων σου.</p></div></section>
@@ -23,7 +22,7 @@ export default async function Members({searchParams}:{searchParams:Promise<{noti
  {application?<div className="member-status"><span className="eyebrow">ΚΑΤΑΣΤΑΣΗ ΑΙΤΗΣΗΣ</span><h3>{statuses[application.status]||application.status}</h3><p>Καταχώριση: {new Date(application.created_at).toLocaleDateString("el-GR")}. Η έγκριση δεν σημαίνει αυτόματη οικονομική συμμετοχή ή δικαίωμα λήψης χρηματοδότησης.</p>
  {member?.status==="verified"?<div className="member-actions"><span className="status-chip">Επαληθευμένη επιχείρηση</span><Link href="/proposals" className="button dark">Διαχείριση προτάσεων ↗</Link></div>:<p className="legal-hint">Η δυνατότητα υποβολής προτάσεων ενεργοποιείται μετά από πραγματικό έλεγχο της αίτησης.</p>}
  {member?.voting_eligible?<p className="small-muted">Τα δικαιώματα συμμετοχής σε ψηφοφορία έχουν ενεργοποιηθεί με έλεγχο επιλεξιμότητας.</p>:null}
- {administrator?<p><Link className="text-link" href="/admin">Πίνακας διακυβέρνησης →</Link></p>:null}
+ 
  </div>:<div className="form-panel application-form"><span className="eyebrow">ΑΙΤΗΣΗ ΕΠΙΧΕΙΡΗΣΗΣ</span><h2>Πες μας ποιοι είστε.</h2><p className="paragraph">Συλλέγουμε τα απαραίτητα στοιχεία για να αξιολογήσουμε μια πραγματική αίτηση ενδιαφέροντος. Δεν υπάρχει σήμερα ενεργή συνδρομή ή δικαίωμα χρηματοδότησης.</p>
  <form action={applyForMembership} className="stack-form">
  <div className="form-grid"><div><label htmlFor="business_name">Επωνυμία επιχείρησης</label><input id="business_name" name="business_name" required minLength={3} maxLength={160}/></div><div><label htmlFor="representative_name">Ονοματεπώνυμο εκπροσώπου</label><input id="representative_name" name="representative_name" required minLength={3} maxLength={120}/></div></div>
