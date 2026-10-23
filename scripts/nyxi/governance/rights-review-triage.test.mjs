@@ -197,3 +197,41 @@ test('large batch of separate authorized captures preserves retention triage',()
   assert.ok(q.entries[0].blockers.includes('retention_deadline_precedes_capture'));
   assert.equal(q.publication_authorized,false);
 });
+
+test('same digest across different source approvals is flagged for separate rights scope',()=> {
+  const x=make();
+  const source2={id:uuid('1'),canonical_url:'https://other.gov/nail'};
+  const approval2={...structuredClone(x.approvals[0]),id:uuid('2'),source_id:source2.id,
+    asset_url:source2.canonical_url,approved_final_url:source2.canonical_url};
+  const snapshot2={...structuredClone(x.snapshots[0]),id:uuid('3'),source_id:source2.id,
+    final_url:source2.canonical_url,
+    storage_path:source2.id+'/'+x.snapshots[0].sha256+'/original.html',
+    provenance:{asset_approval_id:approval2.id}};
+  x.sources.push(source2);x.approvals.push(approval2);x.snapshots.push(snapshot2);
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.snapshot_count,2);
+  assert.equal(q.entries.length,2);
+  for (const entry of q.entries) {
+    assert.ok(entry.blockers.includes('shared_content_hash_across_sources_scope_review_required'));
+    assert.equal(entry.publication_authorized,false);
+  }
+  assert.ok(!JSON.stringify(q).includes('other.gov'));
+});
+test('same content digest with contradictory recorded byte lengths fails closed',()=> {
+  const x=make();
+  const duplicate=structuredClone(x.snapshots[0]);
+  duplicate.id=uuid('1');
+  duplicate.byte_length=121;
+  x.snapshots.push(duplicate);
+  assert.throws(()=>buildRightsReviewQueue(x),/conflicting_content_hash_byte_length/);
+});
+test('same-source repeated digest preserves separate snapshots without cross-source rights flag',()=> {
+  const x=make();
+  const second=structuredClone(x.snapshots[0]);
+  second.id=uuid('1');
+  x.snapshots.push(second);
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.snapshot_count,2);
+  assert.ok(!q.entries[0].blockers.includes('shared_content_hash_across_sources_scope_review_required'));
+  assert.equal(q.publication_authorized,false);
+});
