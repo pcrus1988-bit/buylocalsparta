@@ -27,6 +27,7 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     throw Error('review_queue_limit_exceeded');
 
   const sourceMap = new Map(), approvalMap = new Map(), grouped = new Map(), globalSnapshotIds = new Map();
+  const capturesBeyondRetention = new Set();
   for (const source of sources) {
     if (!UUID.test(source?.id || '') || sourceMap.has(source.id))
       throw Error('invalid_or_duplicate_source');
@@ -48,6 +49,9 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     // as the original-byte verification bridge. No Storage fetch occurs.
     const event = observe({ source, approval, snapshot, observedAt });
     const items = grouped.get(approvalId);
+    if (validDate(approval.retention_until) &&
+        Date.parse(snapshot.fetched_at) > Date.parse(approval.retention_until))
+      capturesBeyondRetention.add(approvalId);
     const identity = [event.source_id, event.approval_id, event.snapshot_sha256,
       event.byte_length, event.fetched_at, snapshot.storage_bucket,
       snapshot.storage_path, snapshot.final_url].join('|');
@@ -80,9 +84,18 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     if (!validDate(approval.retention_until)) reasons.push('retention_deadline_missing');
     else if (Date.parse(observedAt) >= Date.parse(approval.retention_until))
       reasons.push('retention_deadline_expired');
-    if (validDate(approval.retention_until) && items.length && snapshots.some(s => s.provenance?.asset_approval_id === approval.id &&
-      Date.parse(s.fetched_at) > Date.parse(approval.retention_until)))
+    if (capturesBeyondRetention.has(approval.id))
       reasons.push('retention_deadline_precedes_capture');
+    // Review cadence and acquisition expiry are separate from the legal
+    // publication-rights decision. Flag them for humans; never auto-renew.
+    if (!validDate(approval.review_due_at))
+      reasons.push('rights_review_due_date_missing_or_invalid');
+    else if (Date.parse(observedAt) >= Date.parse(approval.review_due_at))
+      reasons.push('rights_review_overdue');
+    if (!validDate(approval.expires_at))
+      reasons.push('acquisition_expiry_missing_or_invalid');
+    else if (Date.parse(observedAt) >= Date.parse(approval.expires_at))
+      reasons.push('acquisition_authorization_expired_for_new_captures');
     if (!SHA.test(approval.metadata?.rights_policy_sha256 || ''))
       reasons.push('documentary_rights_anchor_missing_or_invalid');
     // These cannot be satisfied by caller-supplied JSON flags.
