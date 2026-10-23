@@ -9,23 +9,25 @@ const publicQuery = source.slice(
   source.indexOf("export async function publicResearchStudy")
 );
 
-test("public observatory never falls back to a pilot draw when the main phase opens", () => {
-  assert.match(publicQuery, /d\.fieldwork_phase='main'/);
-  assert.doesNotMatch(publicQuery, /active_draw\.id|d\.fieldwork_phase='pilot'/);
-  assert.match(publicQuery, /d\.status IN \('locked','fielded'\)/);
+test("public observatory reads the existing main-fieldwork projection instead of scanning live draws", () => {
+  assert.match(publicQuery, /FROM bls_private\.research_progress_public/);
+  assert.match(publicQuery, /WHERE wave_status <> 'archived'/);
+  assert.doesNotMatch(publicQuery, /FROM research_sample_draws d|active_draw\.id/);
 });
 
-test("cohort A and B are counted together rather than taking the newest draw only", () => {
-  assert.match(publicQuery, /SUM\(\(/);
-  assert.match(publicQuery, /SUM\(COALESCE\(sd\.desired_complete_n,0\)\)/);
-  assert.match(publicQuery, /d\.wave_id=w\.id/);
+test("cohort A and B counts are consumed from the precomputed combined summary", () => {
+  assert.match(publicQuery, /selected: numberValue\(row\.selected\)/);
+  assert.match(publicQuery, /targetCompletes: numberValue\(row\.target_completes\)|const targetCompletes = numberValue\(row\.target_completes\)/);
+  assert.match(publicQuery, /started: numberValue\(row\.started\)/);
+  assert.match(publicQuery, /const completed = numberValue\(row\.completed\)/);
 });
 
-test("invitation, delivery, open and response counts are all main-only", () => {
-  assert.ok((publicQuery.match(/ri\.fieldwork_phase='main'/g) || []).length >= 2);
-  assert.match(publicQuery, /ri\.wave_id=w\.id/);
-  assert.match(publicQuery, /rr\.wave_id=w\.id/);
-  assert.match(publicQuery, /rr\.status='completed'/);
+test("main-fieldwork geography and official response counts come from bounded read models", () => {
+  assert.match(publicQuery, /FROM bls_private\.research_progress_geography/);
+  assert.match(publicQuery, /adminFinalized = numberValue\(row\.admin_finalized\)/);
+  assert.match(publicQuery, /participantConfirmed: completed - adminFinalized/);
+  assert.match(publicQuery, /summaryRefreshedAt: isoDate\(row\.summary_refreshed_at\)/);
+  assert.doesNotMatch(publicQuery, /FROM research_invite_events rie/);
 });
 
 test("shared public counters are not recomputed for every visitor", () => {
@@ -59,4 +61,6 @@ test("the landing progress updates from the main-only public endpoint without du
   assert.match(liveProgressSource, /window\.setInterval\(refresh, 30_000\)/);
   assert.match(liveProgressSource, /showHeatmap = true/);
   assert.match(liveProgressSource, /showHeatmap && study\.slug === "greek-retail-2026"/);
+  assert.match(liveProgressSource, /study\.summaryRefreshedAt \?\? lastRefresh/);
+  assert.match(liveProgressSource, /setRefreshFailed\(true\)/);
 });
