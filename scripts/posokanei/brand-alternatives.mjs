@@ -218,6 +218,12 @@ export function isAutomaticBrandEquivalent(source,candidate) {
     normalize(source.category)!==normalize(candidate.category))return false;
   const a=referenceQuantity(source),b=referenceQuantity(candidate);
   if(!a||!b||a.unit!==b.unit)return false;
+  // "10 ΦΑΚ. X 1,5ΓΡ" and "10 ΦΑΚ. X 2ΓΡ" can normalize to the
+  // same generic token family. Tea sachets must ONLY be compared through
+  // a separately validated review group, never this title-only fallback.
+  if(["τσαι","αφεψηματα"].includes(normalize(source.category))&&
+     (/φακ|sachet|teabag|tea bag/u.test(normalize(source.name))||
+      /φακ|sachet|teabag|tea bag/u.test(normalize(candidate.name))))return false;
   // Never infer a cross-brand match from a multi-pack label unless both
   // published total quantities corroborate that label and inner size.
   if(hasMultipackLabel(source)||hasMultipackLabel(candidate)){
