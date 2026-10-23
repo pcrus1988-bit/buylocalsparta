@@ -30,7 +30,7 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
   const capturesBeyondRetention = new Set();
   // One SHA-256 digest describes one byte stream. Distinct byte lengths under
   // that digest are contradictory metadata even across separate snapshot IDs.
-  const hashByteLengths = new Map(), hashSourceIds = new Map();
+  const hashByteLengths = new Map(), hashSourceIds = new Map(), hashApprovalIds = new Map();
   for (const source of sources) {
     if (!UUID.test(source?.id || '') || sourceMap.has(source.id))
       throw Error('invalid_or_duplicate_source');
@@ -75,6 +75,8 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     hashByteLengths.set(event.snapshot_sha256, event.byte_length);
     if (!hashSourceIds.has(event.snapshot_sha256)) hashSourceIds.set(event.snapshot_sha256, new Set());
     hashSourceIds.get(event.snapshot_sha256).add(event.source_id);
+    if (!hashApprovalIds.has(event.snapshot_sha256)) hashApprovalIds.set(event.snapshot_sha256, new Set());
+    hashApprovalIds.get(event.snapshot_sha256).add(event.approval_id);
     items.set(event.snapshot_id, {
       identity,
       item: Object.freeze({
@@ -89,12 +91,18 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
   // Preserve both snapshot identities, but require separate scope review.
   const sharedAcrossSources = new Set([...hashSourceIds]
     .filter(([, sourceIds]) => sourceIds.size > 1).map(([hash]) => hash));
+  // Even one publisher can authorize distinct assets under different terms.
+  // Equal bytes under different approvals must not silently share rights scope.
+  const sharedAcrossApprovals = new Set([...hashApprovalIds]
+    .filter(([, approvalIds]) => approvalIds.size > 1).map(([hash]) => hash));
   const queue = stable([...approvalMap.values()].map(approval => {
     const items = [...grouped.get(approval.id).values()]
       .map(x => x.item).sort((a, b) => a.snapshot_id.localeCompare(b.snapshot_id));
     const reasons = [];
     if (items.some(item => sharedAcrossSources.has(item.snapshot_sha256)))
       reasons.push('shared_content_hash_across_sources_scope_review_required');
+    if (items.some(item => sharedAcrossApprovals.has(item.snapshot_sha256)))
+      reasons.push('shared_content_hash_across_approvals_scope_review_required');
     if (approval.acquisition_authorized !== true) reasons.push('acquisition_not_authorized');
     if (!safeHttps(approval.rights_policy_url))
       reasons.push('missing_or_invalid_policy_url');
