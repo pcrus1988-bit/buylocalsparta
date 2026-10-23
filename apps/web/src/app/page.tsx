@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { unstable_cache } from "next/cache";
 import { getHomepageCatalogCards } from "../lib/home-catalog";
+import { unstable_cache } from "next/cache";
 import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
 import { HomeQuickSearch } from "../components/HomeQuickSearch";
@@ -15,10 +15,10 @@ import { SiteHeader } from "../components/SiteHeader";
 import styles from "./home-premium.module.css";
 import { governedStaticSeoMetadata } from "../lib/seo-metadata";
 import { getCrawlerHomepageCatalogCards } from "../lib/crawler-catalog";
-import { isReadOnlyPublicCrawlerRequest } from "../lib/request-audience";
 
 const FEATURED_PRODUCT_LIMIT = 8;
-const HOMEPAGE_REVALIDATE_SECONDS = 900; // Keep crawl-critical homepage projections warm during catalogue DB pressure.
+const HOMEPAGE_REVALIDATE_SECONDS = 900; // Shared read-only discovery avoids visitor-specific database fan-out.
+const PERSONALIZED_HOMEPAGE_DISCOVERY_ENABLED = process.env.HOMEPAGE_PERSONALIZED_DISCOVERY_ENABLED === "true";
 
 const FAQ_ITEMS = [
   {
@@ -121,27 +121,30 @@ function selectEditorialVendors(vendors: readonly PublicVendorDirectoryEntry[], 
 }
 
 export default async function Home() {
-  const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
-  const visitorKey = readOnlyCrawler ? "" : await homepageSectionOrFallback("visitor-key", () => getVisitorKey(), "");
+  // Discovery is a read-only shop window, not a checkout reservation. Avoid
+  // running stock, capacity and fairness SQL on *every* homepage request.
+  // Keep the existing personalized projection available as an explicit opt-in
+  // for a future capacity-tested rollout, never as the default crawl path.
+  // Product detail and checkout still validate live stock, price and vendors.
+  const visitorKey = await homepageSectionOrFallback("visitor-key", () => getVisitorKey(), "");
 
   const [featuredProducts, heroSlides, visibleCategories, vendorDirectory] = await Promise.all([
-    homepageSectionOrFallback(
-      "featured-products",
-      async () => {
-        if (readOnlyCrawler) return getCachedCrawlerHomepageCards();
+    homepageSectionOrFallback("featured-products", async () => {
+      const publicCards = await getCachedCrawlerHomepageCards();
+      if (!PERSONALIZED_HOMEPAGE_DISCOVERY_ENABLED || !visitorKey) return publicCards;
 
+      // Optional customer-specific editorial discovery. Do not make this a
+      // prerequisite of the public homepage: on failure use the shared cards.
+      try {
         const localCards = await getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT);
         if (localCards.length >= FEATURED_PRODUCT_LIMIT) return localCards;
-
-        const publicCards = await getCachedCrawlerHomepageCards();
         const seen = new Set(localCards.map((product) => product.id));
-        return [
-          ...localCards,
-          ...publicCards.filter((product) => !seen.has(product.id))
-        ].slice(0, FEATURED_PRODUCT_LIMIT);
-      },
-      []
-    ),
+        return [...localCards, ...publicCards.filter((product) => !seen.has(product.id))].slice(0, FEATURED_PRODUCT_LIMIT);
+      } catch (error) {
+        console.error("[homepage] personalized-discovery degraded; using public cards", error);
+        return publicCards;
+      }
+    }, []),
     homepageSectionOrFallback("hero-slides", getCachedHomepageHeroSlides, []),
     homepageSectionOrFallback("visible-categories", getCachedHomepageCategories, []),
     homepageSectionOrFallback("vendor-directory", getCachedHomepageVendors, [])

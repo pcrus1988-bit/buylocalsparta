@@ -208,7 +208,9 @@ if (!productKeywords.includes("Nike Air Max 90") || !productKeywords.includes("N
 for (const source of [category, product, vendor]) requireText(source, "keywords:", "Dynamic public entity metadata must provide entity-specific keyword context");
 requireText(rootLayout, "robots: settings.indexingEnabled", "Root metadata must publish the emergency global noindex signal");
 requireText(homepage, 'governedStaticSeoMetadata("/"', "Homepage must publish governed self-canonical metadata");
-if (!homepage.includes("isReadOnlyPublicCrawlerRequest") || !homepage.includes("getCrawlerHomepageCatalogCards")) failures.push("Homepage crawler rendering must bypass customer fairness assignment");
+if (!homepage.includes("getCrawlerHomepageCatalogCards") || !homepage.includes("getCachedCrawlerHomepageCards()")) failures.push("Homepage must render the cached read-only public catalogue projection");
+if (!homepage.includes("PERSONALIZED_HOMEPAGE_DISCOVERY_ENABLED") || !homepage.includes("!PERSONALIZED_HOMEPAGE_DISCOVERY_ENABLED || !visitorKey")) failures.push("Optional customer fairness assignment must be disabled on the default public homepage");
+if (homepage.includes("isReadOnlyPublicCrawlerRequest") && !homepage.includes("getCachedCrawlerHomepageCards()")) failures.push("Homepage crawler rendering must avoid per-visitor fairness assignment");
 requireText(homepage, 'getAvailableStorefrontCategories("23100")', "Homepage must derive category links from currently available catalogue inventory");
 requireText(homepage, "visibleCategories.map", "Homepage must link every available category independently of rotating featured products");
 if (!category.includes("buildGovernedSeoMetadata") || !category.includes('canonicalPath: `/category/${category.slug}`')) failures.push("Category pages must publish governed self-canonical metadata");
