@@ -263,3 +263,34 @@ test('repeated byte-identical captures under one approval do not invent a cross-
   assert.ok(!entry.blockers.includes('shared_content_hash_across_approvals_scope_review_required'));
   assert.equal(entry.publication_authorized,false);
 });
+
+test('registered sources lacking acquisition approvals are explicitly held without URL disclosure',()=> {
+  const x=make();
+  const unapproved={id:uuid('1'),canonical_url:'https://private.example.invalid/unapproved'};
+  x.sources.push(unapproved);
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.source_count,2);
+  assert.equal(q.approval_count,1);
+  assert.equal(q.sources_without_authorized_acquisition_count,1);
+  assert.deepEqual(q.sources_without_authorized_acquisition_ids,[unapproved.id]);
+  assert.ok(Object.isFrozen(q.sources_without_authorized_acquisition_ids));
+  assert.equal(q.publication_authorized,false);
+  assert.ok(!JSON.stringify(q).includes('private.example.invalid'));
+});
+test('a registered source with an explicitly unauthorized approval remains on acquisition hold',()=> {
+  const x=make();
+  x.snapshots=[];
+  x.approvals[0].acquisition_authorized=false;
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.sources_without_authorized_acquisition_count,1);
+  assert.deepEqual(q.sources_without_authorized_acquisition_ids,[x.sources[0].id]);
+  assert.ok(q.entries[0].blockers.includes('acquisition_not_authorized'));
+  assert.equal(q.publication_authorized,false);
+});
+test('authorized sources do not enter the missing-authorization queue',()=> {
+  const q=buildRightsReviewQueue(make());
+  assert.equal(q.source_count,1);
+  assert.equal(q.sources_without_authorized_acquisition_count,0);
+  assert.deepEqual(q.sources_without_authorized_acquisition_ids,[]);
+  assert.equal(q.publication_authorized,false);
+});
