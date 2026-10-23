@@ -4,6 +4,8 @@ on:
     paths:
       - 'scripts/nyxi/governance/attestation-ledger.mjs'
       - 'scripts/nyxi/governance/attestation-ledger.test.mjs'
+      - 'scripts/nyxi/governance/witness-checkpoint.mjs'
+      - 'scripts/nyxi/governance/witness-checkpoint.test.mjs'
       - '.github/workflows/nyxi-agent1-provenance-ledger.yml'
   workflow_dispatch:
 permissions:
@@ -17,4 +19,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test scripts/nyxi/governance/attestation-ledger.test.mjs
+      - run: node --test scripts/nyxi/governance/attestation-ledger.test.mjs scripts/nyxi/governance/witness-checkpoint.test.mjs
