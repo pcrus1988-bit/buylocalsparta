@@ -16,13 +16,14 @@ async function authenticated() {
 
 export async function emailSignIn(form:FormData) {
   const email=asText(form.get("email")).toLowerCase();
-  if (!validEmail(email)) urlMessage("/join","invalid_email");
+  if (!validEmail(email)) urlMessage("/member-login","invalid_email");
   const db=await createClient();
   const {error}=await db.auth.signInWithOtp({
-    email,options:{emailRedirectTo:DESTINATION,shouldCreateUser:true}
+    email,options:{emailRedirectTo:DESTINATION,shouldCreateUser:false}
   });
-  if(error) urlMessage("/join","email_unavailable");
-  redirect("/join?sent=1");
+  // The response is identical whether the email belongs to an invited user.
+  if(error) redirect("/member-login?sent=1");
+  redirect("/member-login?sent=1");
 }
 
 export async function signOut(){
