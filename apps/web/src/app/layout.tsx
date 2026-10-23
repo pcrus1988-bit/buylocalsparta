@@ -123,7 +123,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         about: { "@id": serviceId }
       },
       {
-        "@type": "OnlineStore",
+        "@type": ["Organization", "OnlineStore"],
         "@id": organizationId,
         name: settings.siteName,
         alternateName: ["ΚΟΝΤΑ ΜΟΥ", "KONTA MOU", KONTA_MOY_EMAIL_COMPANY.descriptor],
