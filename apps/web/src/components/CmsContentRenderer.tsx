@@ -148,9 +148,24 @@ function RenderBlock({ block, locale }: { block: ContentBlock; locale: ContentLo
   return <GenericTrustBlock block={block} />;
 }
 
-export function CmsContentRenderer({ translation, locale }: { translation: ContentTranslation; locale: ContentLocale }) {
+export function CmsContentRenderer({ translation, locale, dates }: {
+  translation: ContentTranslation;
+  locale: ContentLocale;
+  dates?: Readonly<{ datePublished?: string; dateModified?: string }>;
+}) {
+  const formatDate = (value: string) => new Intl.DateTimeFormat(locale === "el" ? "el-GR" : "en-GB", {
+    day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Athens"
+  }).format(new Date(value));
+  const published = dates?.datePublished;
+  const modified = dates?.dateModified;
+  const showModified = Boolean(modified && (!published || formatDate(modified) !== formatDate(published)));
   return <main>
     <SiteHeader />
+    {(published || showModified) ? <div className="shell" aria-label={locale === "el" ? "Ημερομηνίες σελίδας" : "Page dates"}
+      style={{ paddingTop: 14, paddingBottom: 10, fontSize: "0.82rem", opacity: 0.78, display: "flex", flexWrap: "wrap", gap: "8px 20px" }}>
+      {published ? <span>{locale === "el" ? "Δημοσιεύτηκε" : "Published"}: <time dateTime={published}>{formatDate(published)}</time></span> : null}
+      {showModified && modified ? <span>{locale === "el" ? "Τελευταία ενημέρωση" : "Updated"}: <time dateTime={modified}>{formatDate(modified)}</time></span> : null}
+    </div> : null}
     {translation.blocks.length === 0
       ? <section className="shell content-section"><div className="content-heading"><div><div className="eyebrow">ΚΟΝΤΑ ΜΟΥ Sparta</div><h1>{translation.title}</h1></div></div></section>
       : translation.blocks.map((block) => <RenderBlock block={block} locale={locale} key={block.id} />)}
