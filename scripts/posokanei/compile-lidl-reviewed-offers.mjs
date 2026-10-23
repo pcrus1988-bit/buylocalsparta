@@ -20,7 +20,8 @@ export function compileLidlReview({products,batch,mappings,permission,generatedA
       typeof m.source_product_hash!=='string'||!isDateTime(m.reviewed_at)||
       typeof m.reviewed_by!=='string'||!m.reviewed_by.trim()||
       m.identity_verified!==true||m.packaging_verified!==true||
-      m.promotional_terms_verified!==true||m.no_membership_required_verified!==true)fail('unreviewed mapping');
+      m.promotional_terms_verified!==true||m.membership_terms_verified!==true||
+      !['requires_lidl_plus','no_membership_required'].includes(m.membership_requirement))fail('unreviewed mapping');
     if(bySku.has(m.retailer_product_id))fail('duplicate Lidl SKU mapping');
     const p=byId.get(m.source_product_id);
     if(!p||productIdentityHash(p)!==m.source_product_hash)fail('PosoKanei product fingerprint mismatch');
@@ -40,7 +41,7 @@ export function compileLidlReview({products,batch,mappings,permission,generatedA
       store_name:c.retailer_store_key,valid_from:c.valid_from,valid_to:c.valid_to,
       observed_at:c.observed_at,reviewed_at:mapping.reviewed_at,reviewed_by:mapping.reviewed_by,
       identity_verified:true,packaging_verified:true,promotional_terms_verified:true,
-      no_membership_required_verified:true,currency:'EUR',price_cents:c.price_cents,
+      membership_terms_verified:true,membership_requirement:mapping.membership_requirement,currency:'EUR',price_cents:c.price_cents,
       reference_price_cents:c.reference_price_cents??null});
   }
   const artifact={schema_version:1,source:'lidl_plus_public_offers',generated_at:generatedAt,
