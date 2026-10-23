@@ -57,3 +57,10 @@ No real financial service, pooled payments, crowdfunding or grant distributions 
 - Invalid, expired and malformed credential fragments return to `/join`; completed server-side callback redirects include an explicit empty fragment so tokens cannot be inherited by ordinary pages.
 - No Supabase project-wide authentication template or redirect allowlist settings have been changed. Verify the real Supabase email template and the production redirect allowlist, then complete a real opt-in business login before marking end-to-end email sign-in verified.
 - Unit tests cover the fallback fragment parsing, invalid links, same-origin redirects and redaction order. These tests do not send emails or create fictional member records.
+
+## 2026-10-23 · invite-only product direction
+- The approved direction is **open business interest by AFM and authorized GEMI lookup**, followed by **marketplace Super Admin approval and individual invitation**. The current public-OTP application flow is still live; its replacement is not yet operational and must be released atomically after real acceptance testing.
+- Specification: [docs/INVITE_ONLY_PRODUCT_CONTRACT.md](docs/INVITE_ONLY_PRODUCT_CONTRACT.md).
+- Added pure AFM checksum and fail-closed invitation eligibility checks with tests, without touching existing users, invitations, subscription plans, ledger balances or finance.
+- Commercial proposal: KONTA MOY supplies HUB PRO plus 250 EUR equivalent of marketing services. Existing vendor plan mapping and token/fiscal rules must be verified before issuing benefits.
+- Growth Fund intent is support without ordinary repayment. Do not label it a binding loan absent legal review; fund balance remains zero and finance disabled.
