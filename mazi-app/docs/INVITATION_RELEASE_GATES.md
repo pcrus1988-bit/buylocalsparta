@@ -3,6 +3,15 @@
 **Candidate:** PR #1760, SQL migration 016. The source is not production-active merely because it is committed.
 The existing founding needs-assessment round stays zero-funded. Membership invoicing, fund custody, marketing credits, award payout and automatic voting eligibility remain disabled.
 
+## Live activation record — 23 October 2026
+- **COMPLETE:** Migration 016 applied to existing shared Supabase project `eemihhfreggbigxejjhj`; migration history `20261023100625` (`mazi_verified_single_use_member_invitations`).
+- **COMPLETE:** RLS and direct-role privileges verified: no anon/authenticated table access; RPC executable by service_role only.
+- **COMPLETE:** MAZI Edge gateway **v7** deployed, keeping JWT `getUser` authentication for every member operation; the legacy open `apply` returns 403.
+- **COMPLETE:** Dedicated MAZI GitHub CI and monorepo Production CI passed at `7b260117`. A preview from this exact commit is **READY**: `https://mazi-fba95qwvv-sp-business-lab.vercel.app`, protected by Vercel SSO.
+- **PENDING:** A newer, indexed invite-lookup change has been committed after the v7 deployment; its CI and rollout must be checked separately. The preview above does not include this later optimization.
+- **PENDING:** Marketplace and MAZI public-domain release, Supabase Auth redirect/SMTP confirmation, legal review, and real consenting-member end-to-end acceptance.
+- **GUARD:** No mock accounts were created; live interest applications, invitations, acceptances, verified members, ledger rows and award offers remain zero at the activation check; funding remains disabled.
+
 ## Chain of trust
 1. A business sends the real AFM/GEMI interest request. Nothing is registered in Supabase Auth.
 2. The marketplace Super Admin independently verifies representation, contact-email control and active GEMI status, then approves `approved_pending_invite`.
@@ -15,8 +24,8 @@ The existing founding needs-assessment round stays zero-funded. Membership invoi
 ## Production prerequisites (do not skip)
 - Run CI `MAZI Invite-only Admission Acceptance` to completion, including npm tests, Next typecheck and build. Run the marketplace build on the same commit.
 - Legal review of terms, GDPR notices, controller role, retention and funding structure before any external onboarding campaign.
-- In authorized Supabase `eemihhfreggbigxejjhj` apply migration `016_verified_single_use_invitations.sql` once. Verify the two tables, RLS, no direct anon/authenticated grants, and RPC EXECUTE restricted to service_role. Do not alter existing membership or grants.
-- Deploy matching `mazi-member-api` Edge function with JWT validation *before* deploying the frontend and admin UI. Verify its new `invitation_state` and `accept_invitation` operations and that legacy `apply` returns 403.
+- Migration already applied: in authorized Supabase `eemihhfreggbigxejjhj`, verify migration `016_verified_single_use_invitations.sql` once. Verify the two tables, RLS, no direct anon/authenticated grants, and RPC EXECUTE restricted to service_role. Do not alter existing membership or grants.
+- The matched `mazi-member-api` v7 is now deployed ahead of frontend and admin UI; deploy only later source changes after CI. Verify its new `invitation_state` and `accept_invitation` operations and that legacy `apply` returns 403.
 - Verify marketplace server's `SUPABASE_URL` resolves to exactly `https://eemihhfreggbigxejjhj.supabase.co` and its server-only `SUPABASE_SERVICE_ROLE_KEY` belongs to that project. Optional dedicated `MAZI_SUPABASE_URL`/`MAZI_SUPABASE_SERVICE_ROLE_KEY` may override. Never expose admin keys via `NEXT_PUBLIC_`.
 - Confirm Supabase Auth email templates and SMTP sending are authorized for non-team businesses, and exact `https://mazi.kontamou.site/auth/callback` redirect is allowlisted. A successful provider API response means accepted for sending, not proven inbox delivery.
 - Validate marketplace `/api/mazi-interest` against real official GEMI adapter, CORS and server-side abuse protection.
