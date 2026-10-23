@@ -37,3 +37,36 @@ test('private fragment text rejected from event schema',()=>assert.throws(()=>ap
 test('publication true rejected',()=>assert.throws(()=>append([],{...observe(f()),publication_authorized:true}),/invalid_event_fields/));
 test('metadata event excludes Storage path and original text',()=>{const e=observe({...f(),originalBytes:original});assert.ok(!JSON.stringify(e).includes('original.html'));assert.ok(!JSON.stringify(e).includes('synthetic private original'))});
 test('deterministic chain root',()=>{const e=observe(f());assert.equal(root(append([],e)),root(append([],e)))});
+
+test('append rejects a tampered existing event even if last hash has correct format',()=>{
+  const chain=append([],observe(f()));
+  const changed=structuredClone(chain);
+  changed[0].event.snapshot_sha256='f'.repeat(64);
+  assert.throws(()=>append(changed,observe(f())),/invalid_existing_chain/);
+});
+test('append rejects a broken predecessor hash and sequence',()=>{
+  let chain=append([],observe(f()));
+  chain=append(chain,observe({...f(),holdReason:'missing_retention'}));
+  const changed=structuredClone(chain);
+  changed[1].previous_hash='f'.repeat(64);
+  assert.throws(()=>append(changed,observe(f())),/invalid_existing_chain/);
+  const sequence=structuredClone(chain);
+  sequence[1].sequence=3;
+  assert.throws(()=>append(sequence,observe(f())),/invalid_existing_chain/);
+});
+test('root rejects a tampered or truncated row instead of exporting false assurance',()=>{
+  const chain=append([],observe(f()));
+  const changed=structuredClone(chain);
+  changed[0].event.byte_length++;
+  assert.throws(()=>root(changed),/invalid_existing_chain/);
+  const missing=structuredClone(chain);
+  delete missing[0].entry_hash;
+  assert.throws(()=>root(missing),/invalid_existing_chain/);
+});
+test('valid multi-event chain remains appendable and root-verifiable',()=>{
+  let chain=append([],observe(f()));
+  chain=append(chain,observe({...f(),holdReason:'undecidable_scope'}));
+  chain=append(chain,observe({...f(),originalBytes:original}));
+  assert.equal(verify(chain,root(chain)),true);
+  assert.equal(chain.length,3);
+});
