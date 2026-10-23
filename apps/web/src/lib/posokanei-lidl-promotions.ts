@@ -5,7 +5,7 @@ import type {PublishedReferenceSnapshot} from "./posokanei-public-runtime";
 /** Optional source-owned, reviewed retailer promotions, distinct from government pricing. */
 type LidlBadge={retailerId:string;retailerName:string;storeKey:string;storeName:string;
   offerPriceEur:number;previousPriceEur:number|null;validFrom:string;validTo:string;
-  observedAt:string;offerId:string;scope:"specific_store";basketEligible:false};
+  observedAt:string;offerId:string;scope:"specific_store";membershipRequirement:"requires_lidl_plus"|"no_membership_required";basketEligible:false};
 let cache:{value:unknown;expires:number}|null=null;
 let pending:Promise<unknown>|null=null;
 const isSafeHost=(host:string)=>host==="raw.githubusercontent.com"||
