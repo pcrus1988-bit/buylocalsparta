@@ -92,6 +92,12 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       url: "/"
     },
+    twitter: {
+      card: settings.defaultOpenGraphImage ? "summary_large_image" : "summary",
+      title: settings.defaultOpenGraphTitle,
+      description: settings.defaultOpenGraphDescription,
+      images: settings.defaultOpenGraphImage ? [settings.defaultOpenGraphImage] : undefined
+    },
     verification: settings.googleSiteVerification ? { google: settings.googleSiteVerification } : undefined,
     robots: settings.indexingEnabled ? undefined : { index: false, follow: false, noarchive: true, nosnippet: true }
   };
