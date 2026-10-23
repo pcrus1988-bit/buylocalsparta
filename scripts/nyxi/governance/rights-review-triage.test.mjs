@@ -114,3 +114,34 @@ test('same snapshot ID cannot silently substitute another private object path',(
   x.snapshots.push(other);
   assert.throws(()=>buildRightsReviewQueue(x),/conflicting_snapshot_identity/);
 });
+
+test('same snapshot UUID cannot be rebound under a second approval',()=>{
+  const x=make(), a2=structuredClone(x.approvals[0]), s2=structuredClone(x.snapshots[0]);
+  a2.id=uuid('1');
+  s2.provenance.asset_approval_id=a2.id;
+  x.approvals.push(a2); x.snapshots.push(s2);
+  assert.throws(()=>buildRightsReviewQueue(x),/conflicting_snapshot_identity/);
+});
+test('policy URL with credentials is not acceptable documentary evidence',()=>{
+  const x=make();
+  x.approvals[0].rights_policy_url='https://user:secret@agency.gov/rights';
+  assert.ok(buildRightsReviewQueue(x).entries[0].blockers.includes('missing_or_invalid_policy_url'));
+});
+test('policy URL with fragment is not an exact rights-policy reference',()=>{
+  const x=make();
+  x.approvals[0].rights_policy_url='https://agency.gov/rights#section';
+  assert.ok(buildRightsReviewQueue(x).entries[0].blockers.includes('missing_or_invalid_policy_url'));
+});
+test('expired retention is separately flagged even if valid at capture',()=>{
+  const x=make();
+  x.approvals[0].retention_until='2026-10-22T00:00:00Z';
+  const q=buildRightsReviewQueue(x);
+  assert.ok(q.entries[0].blockers.includes('retention_deadline_expired'));
+  assert.ok(!q.entries[0].blockers.includes('retention_deadline_precedes_capture'));
+  assert.equal(q.entries[0].publication_authorized,false);
+});
+test('future retention deadline is not marked expired',()=>{
+  const x=make();
+  x.approvals[0].retention_until='2026-12-01T00:00:00Z';
+  assert.ok(!buildRightsReviewQueue(x).entries[0].blockers.includes('retention_deadline_expired'));
+});
