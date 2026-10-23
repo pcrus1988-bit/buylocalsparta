@@ -432,7 +432,7 @@ export function PosoKaneiPublicClient(){
         </div>}
       </section>
       <div className={styles.disclaimer} role="note">Οι τιμές είναι ενδεικτικές. <details><summary>Τι πρέπει να γνωρίζω;</summary>Οι τιμές και η διαθεσιμότητα μπορεί να διαφέρουν ανά κατάστημα. Δεν πραγματοποιούνται αγορές από αυτή τη σελίδα.</details></div>
-      <LidlStandaloneOffers onAdd={addLidlOffer} onAddGov={addGovById}/>
+      <LidlStandaloneOffers onAdd={addLidlOffer} onAddGov={addGovById} searchQuery={q}/>
       {listing.status!=="ready"&&!loading?<section className={styles.pending} role="status">
         <h2>Η σύγκριση τιμών ετοιμάζεται.</h2>
         <p>Ο ανεξάρτητος κατάλογος θα ενεργοποιηθεί μόλις ολοκληρωθεί η επαλήθευση της πηγής και η δημοσίευση των ενημερωμένων δεδομένων. Δεν εμφανίζουμε δοκιμαστικές τιμές ως πραγματικές.</p>
@@ -560,6 +560,8 @@ export function PosoKaneiPublicClient(){
             <h3>🏷️ Lidl · αγορές ανά κατάστημα</h3>
             <p>Οι προσφορές επανελέγχονται από την πηγή, ανεξάρτητα από τις τιμές PosoKanei.</p>
             {lidlQuote?.stores.map(store=><p key={store.storeKey}><strong>{store.storeName}</strong> · {store.lines} είδη · {money(store.subtotalEur)}</p>)}
+            {plan?.complete&&lidlQuote&&plan.storeCount+lidlQuote.stores.length>storeLimit&&
+              <p role="note">⚠ Οι επιλεγμένες φυσικές επισκέψεις, μαζί με Lidl, υπερβαίνουν το όριο {storeLimit} καταστημάτων. Οι προσφορές Lidl δεν συμμετέχουν ακόμη στην ίδια βελτιστοποίηση.</p>}
             {lidlQuote&&!lidlQuote.complete&&<p role="alert">Κάποιες προσφορές έληξαν ή δεν βρέθηκαν· δεν περιλαμβάνονται στο ενδεικτικό υποσύνολο.</p>}
             {lidlQuoteWorking&&<p role="status">Έλεγχος προσφορών…</p>}
             <button type="button" className={styles.secondary} disabled={!lidlQuote?.items.some(i=>i.status==="current")} onClick={()=>{void copyPlan()}}>Αντιγραφή λίστας ανά κατάστημα</button>
