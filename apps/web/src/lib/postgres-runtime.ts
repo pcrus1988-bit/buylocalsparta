@@ -12,7 +12,7 @@ const WEB_DB_POOL_MAX = "2";
 const WEB_DB_CONNECT_TIMEOUT_MS = "15000";
 const WEB_DB_IDLE_TIMEOUT_MS = "5000";
 const ADMIN_DB_CONNECT_TIMEOUT_MS = "8000";
-const ADMIN_DB_IDLE_TIMEOUT_MS = "120000";
+const ADMIN_DB_IDLE_TIMEOUT_MS = "10000";
 
 export function resolveDatabaseUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const explicit = env.DATABASE_URL?.trim();
@@ -182,7 +182,7 @@ export function getAdminResearchOverviewPostgresRuntime(): ProductionPostgresRun
     BLS_DB_APPLICATION_NAME: "buy-local-sparta-web-research-overview",
     BLS_DB_POOL_MAX: "1",
     BLS_DB_CONNECT_TIMEOUT_MS: "1800",
-    BLS_DB_IDLE_TIMEOUT_MS: "60000"
+    BLS_DB_IDLE_TIMEOUT_MS: "10000"
   };
   return (researchOverviewGlobals[researchOverviewGlobalKey] = createPostgresRuntimeFromEnv({
     env,
