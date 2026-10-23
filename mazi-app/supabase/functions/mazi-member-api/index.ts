@@ -88,11 +88,25 @@ Deno.serve(async(req:Request)=>{
     if(fErr)return out({error:"data_unavailable"},503);
     followups=(questions||[]) as Json[];
    }
-   let proposals:Json[]=[], votes:Json[]=[];
+   let proposals:Json[]=[], votes:Json[]=[], grant_offers:Json[]=[], grant_acknowledgements:Json[]=[];
    let proposal_review:Json|null=null;
    let recused_proposals:string[]=[];
    let tally:Json|null=null;
    let tallies:Json[]=[];
+   if(isVerified) {
+     const [{data:offers,error:oErr},{data:ack,error:kErr}]=await Promise.all([
+       admin.from("mazi_grant_award_offers")
+         .select("id,proposal_id,recipient_gemi_number,requested_amount_cents,assigned_amount_cents,additional_months,reapplication_after_months,monthly_membership_fee_cents,policy_version,agreement_body,agreement_sha256,expires_at,offered_at")
+         .eq("recipient_user_id",user.id).gt("expires_at",new Date().toISOString())
+         .order("offered_at",{ascending:false}).limit(25),
+       admin.from("mazi_grant_award_acknowledgements")
+         .select("offer_id,acknowledged_at,accepted_document_sha256")
+         .eq("recipient_user_id",user.id).limit(50)
+     ]);
+     if(oErr||kErr)return out({error:"data_unavailable"},503);
+     grant_offers=(offers||[]) as Json[];
+     grant_acknowledgements=(ack||[]) as Json[];
+   }
    if(isVerified&&cycle) {
     const [{data:rows,error:pErr},{data:voted,error:vErr},{data:ownReview,error:rErr},{data:conflicts,error:cErr}]=await Promise.all([
      admin.from("mazi_proposals").select("id,title,details,category,amount_cents,status,created_by,created_at,first_time_support_request")
@@ -126,7 +140,35 @@ Deno.serve(async(req:Request)=>{
       }
     }
    }
-   return out({ok:true,application,member,cycle,proposals,votes,proposal_review,recused_proposals,tally,tallies,followups});
+   return out({ok:true,application,member,cycle,proposals,votes,proposal_review,recused_proposals,tally,tallies,followups,grant_offers,grant_acknowledgements});
+  }
+  if(operation==="acknowledge_grant_offer"){
+   // No offer can exist in the current needs-assessment cycle.
+   // An acknowledgement never authorizes disbursement or bills a member.
+   const member=await verifiedMember(user.id);
+   if(!member)return out({error:"not_verified"},403);
+   const offer_id=text(input.offer_id);
+   const sha=text(input.agreement_sha256);
+   if(!uuid(offer_id)|| !/^[a-f0-9]{64}$/.test(sha)
+     ||input.affirmatively_accepted!==true
+     ||input.understand_requested_amount_basis!==true
+     ||input.understand_separate_disbursement!==true
+     ||input.policy_version!=="mazi-grant-retention-v1")
+      return out({error:"award_acknowledgement_invalid"},400);
+   const {data:record,error:insertError}=await admin.from("mazi_grant_award_acknowledgements")
+     .insert({
+       offer_id,recipient_user_id:user.id,
+       accepted_policy_version:"mazi-grant-retention-v1",
+       accepted_document_sha256:sha,
+       affirmatively_accepted:true
+     }).select("offer_id").maybeSingle();
+   if(insertError){
+     if(insertError.code==="23505")
+       return out({error:"award_already_acknowledged"},409);
+     return out({error:"award_not_eligible"},403);
+   }
+   if(!record)return out({error:"award_not_eligible"},403);
+   return out({ok:true});
   }
   if(operation==="apply"){
    if(input.accept_privacy!==true)return out({error:"privacy_required"},400);
