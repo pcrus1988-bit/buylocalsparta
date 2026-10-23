@@ -31,3 +31,10 @@ test("marketplace canonical does not inherit preview or alternate-host APP_URL",
   assert.match(settings, /canonicalOrigin: PRODUCTION_PUBLIC_ORIGIN/);
   assert.match(settings, /process\.env\.NODE_ENV === "production" && url\.origin !== PRODUCTION_PUBLIC_ORIGIN/);
 });
+
+test("alternate production hostname redirects permanently to the SEO authority", () => {
+  const config = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
+  assert.match(config, /"skroutz\.site"/);
+  assert.match(config, /destination: "https:\/\/kontamou\.site\/:path\*"/);
+  assert.match(config, /permanent: true/);
+});
