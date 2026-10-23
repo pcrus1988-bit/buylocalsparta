@@ -74,7 +74,8 @@ export function append(chain,event) {
   if (!Array.isArray(chain)) throw Error('invalid_chain');
   checkEvent(event);
   const previous_hash = chain.length ? chain[chain.length - 1]?.entry_hash : '0'.repeat(64);
-  if (!sha(previous_hash)) throw Error('invalid_previous_hash');
+  if (!sha(previous_hash) || (chain.length && !verify(chain, previous_hash)))
+    throw Error('invalid_existing_chain');
   const row = {sequence:chain.length + 1,previous_hash,event:structuredClone(event)};
   return [...chain,{...row,entry_hash:digest('NYXI_AGENT1_LEDGER_V1\n' + canonical(row))}];
 }
@@ -97,5 +98,9 @@ export function verify(chain,independentlyPinnedRoot) {
 }
 export function root(chain) {
   if (!Array.isArray(chain) || !chain.length) throw Error('empty_chain');
-  return chain[chain.length - 1].entry_hash;
+  const candidate = chain[chain.length - 1]?.entry_hash;
+  // This validates internal consistency only. Publication or independent
+  // provenance claims still require an externally pinned root.
+  if (!sha(candidate) || !verify(chain, candidate)) throw Error('invalid_existing_chain');
+  return candidate;
 }
