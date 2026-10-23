@@ -36,11 +36,20 @@ for(const [family,members] of createBrandIndex(products)){
  grouped.set(key,obj);
 }
 const categories=[...grouped.values()].sort((a,b)=>b.products-a.products||b.families-a.families);
+const teaEvidenceExamples=products.filter(p=>
+ /^(?:Τσάι|Αφεψήματα)$/u.test(p.category)&&
+ /(?:ΠΡΑΣΙΝΟ\s+ΤΣΑ|ΧΑΜΟΜΗΛΙ)/iu.test(p.name))
+ .slice(0,14).map(p=>({
+   name:p.name,brand:p.brand,unit:p.unit,unitQuantity:p.unit_quantity,
+   numericMassBasis:referenceQuantity(p)
+ }));
+
 console.log(JSON.stringify({
  snapshotProducts:products.length,manualGroups:manual.length,autoGroups:auto.length,expandedGroups:expanded.length,expandedMembers:expanded.reduce((n,g)=>n+g.memberIds.length,0),eggGroups:eggs.length,eggMembers:eggs.reduce((n,g)=>n+g.memberIds.length,0),
  teaSachetGroups:tea.length,teaSachetMembers:tea.reduce((n,g)=>n+g.memberIds.length,0),
  totalCrossBrandUnapprovedGroups:categories.reduce((n,x)=>n+x.families,0),
  totalCrossBrandUnapprovedMembers:categories.reduce((n,x)=>n+x.products,0),
  categoryCount:categories.length,
+ teaEvidenceExamples,
  categories:(process.argv.includes("--examples")?categories.slice(0,85):categories.slice(0,60).map(({category,unit,families,products})=>({category,unit,families,products})))
 },null,2));
