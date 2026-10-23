@@ -31,9 +31,9 @@ The existing founding needs-assessment round stays zero-funded. Membership invoi
 - Validate marketplace `/api/mazi-interest` against real official GEMI adapter, CORS and server-side abuse protection.
 - Run one consenting business through actual AFM → Super Admin review → invite email → confirmed Auth session → member acceptance. Never insert fictional production applicants.
 - Check login and access for existing real members, duplicate legal entities, expired/repeated invitations, mismatched email, declined application, missing checkbox and already consumed invitation. Check no membership payment, ledger entry, award or voting privilege appears.
-- An undelivered invitation records `delivery_failed` and requires manual reconciliation with Supabase Auth before retry; an expired `email_sent` invitation likewise needs an authorized revocation/reissue policy. Do **not** resend automatically when the provider state is ambiguous.
+- An undelivered invitation records `delivery_failed`. The Super Admin UI now requires documented manual provider reconciliation before retry. Active or expired `email_sent` invitations require a logged, explicit revocation with written reason before a new individual invitation can be issued; a revoked link cannot create MAZI membership even if Supabase Auth continues to recognize the old email link. No automatic retry, bulk mail or automatic revocation.
 
 ## Current implementation limits
-- This code has no scheduled delivery retries, bulk invites, direct browser invitation registration, payments or e-signature service.
+- This code has no scheduled delivery retries, bulk invites, direct browser invitation registration, payments or e-signature service. Manual revocation/reissue is audited and never assumes provider delivery.
 - Existing verified Supabase Auth email ownership is necessary but not enough for MAZI membership. Admin review and explicit acceptance are independently required.
 - The v1 terms concern nonfinancial admission only; they do not execute the commercial €250 membership agreement or a binding grant agreement.
