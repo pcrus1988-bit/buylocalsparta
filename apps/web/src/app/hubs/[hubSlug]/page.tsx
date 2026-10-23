@@ -31,7 +31,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description,
     alternates: { canonical },
     robots: { index: hasListings, follow: true },
-    openGraph: { title: "KONTA MOY HUB " + hub.nameEl, description, url: canonical, type: "website" }
+    openGraph: {
+      title: "ΚΟΝΤΑ ΜΟΥ HUB " + hub.nameEl,
+      description,
+      url: canonical,
+      type: "website",
+      images: ["/brand/kontamou-sparta-logo.webp"]
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "ΚΟΝΤΑ ΜΟΥ HUB " + hub.nameEl,
+      description,
+      images: ["/brand/kontamou-sparta-logo.webp"]
+    }
   };
 }
 
