@@ -51,12 +51,6 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     // Reuse the same exact historical authorization and private-path validation
     // as the original-byte verification bridge. No Storage fetch occurs.
     const event = observe({ source, approval, snapshot, observedAt });
-    const recordedLength = hashByteLengths.get(event.snapshot_sha256);
-    if (recordedLength !== undefined && recordedLength !== event.byte_length)
-      throw Error('conflicting_content_hash_byte_length');
-    hashByteLengths.set(event.snapshot_sha256, event.byte_length);
-    if (!hashSourceIds.has(event.snapshot_sha256)) hashSourceIds.set(event.snapshot_sha256, new Set());
-    hashSourceIds.get(event.snapshot_sha256).add(event.source_id);
     const items = grouped.get(approvalId);
     if (validDate(approval.retention_until) &&
         Date.parse(snapshot.fetched_at) > Date.parse(approval.retention_until))
@@ -73,6 +67,14 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     const previous = items.get(event.snapshot_id);
     if (previous && previous.identity !== identity)
       throw Error('conflicting_snapshot_identity');
+    // Preserve the more specific immutable-UUID error before evaluating
+    // cross-snapshot content consistency.
+    const recordedLength = hashByteLengths.get(event.snapshot_sha256);
+    if (recordedLength !== undefined && recordedLength !== event.byte_length)
+      throw Error('conflicting_content_hash_byte_length');
+    hashByteLengths.set(event.snapshot_sha256, event.byte_length);
+    if (!hashSourceIds.has(event.snapshot_sha256)) hashSourceIds.set(event.snapshot_sha256, new Set());
+    hashSourceIds.get(event.snapshot_sha256).add(event.source_id);
     items.set(event.snapshot_id, {
       identity,
       item: Object.freeze({
