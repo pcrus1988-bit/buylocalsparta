@@ -145,3 +145,55 @@ test('future retention deadline is not marked expired',()=>{
   x.approvals[0].retention_until='2026-12-01T00:00:00Z';
   assert.ok(!buildRightsReviewQueue(x).entries[0].blockers.includes('retention_deadline_expired'));
 });
+
+test('overdue independent rights review is explicitly triaged',()=>{
+  const x=make();
+  x.approvals[0].review_due_at='2026-10-22T00:00:00Z';
+  const entry=buildRightsReviewQueue(x).entries[0];
+  assert.ok(entry.blockers.includes('rights_review_overdue'));
+  assert.equal(entry.publication_authorized,false);
+});
+test('future rights review deadline is not marked overdue',()=>{
+  const x=make();
+  x.approvals[0].review_due_at='2026-10-24T00:00:00Z';
+  assert.ok(!buildRightsReviewQueue(x).entries[0].blockers.includes('rights_review_overdue'));
+});
+test('missing or malformed rights review date is not silently accepted',()=>{
+  const x=make();
+  x.approvals[0].review_due_at='not-a-date';
+  assert.ok(buildRightsReviewQueue(x).entries[0].blockers.includes('rights_review_due_date_missing_or_invalid'));
+  delete x.approvals[0].review_due_at;
+  assert.ok(buildRightsReviewQueue(x).entries[0].blockers.includes('rights_review_due_date_missing_or_invalid'));
+});
+test('expired acquisition approval triggers renewal review without retroactively invalidating capture',()=>{
+  const x=make();
+  x.approvals[0].expires_at='2026-10-21T00:00:00Z';
+  const entry=buildRightsReviewQueue(x).entries[0];
+  assert.ok(entry.blockers.includes('acquisition_authorization_expired_for_new_captures'));
+  assert.equal(entry.snapshot_count,1);
+  assert.equal(entry.publication_authorized,false);
+});
+test('future acquisition expiry is not flagged as expired',()=>{
+  const x=make();
+  assert.ok(!buildRightsReviewQueue(x).entries[0].blockers.includes('acquisition_authorization_expired_for_new_captures'));
+});
+test('uncaptured approval without expiry remains on hold for human review',()=>{
+  const x=make();
+  x.snapshots=[];
+  x.approvals[0].expires_at=null;
+  const entry=buildRightsReviewQueue(x).entries[0];
+  assert.ok(entry.blockers.includes('acquisition_expiry_missing_or_invalid'));
+  assert.equal(entry.publication_authorized,false);
+});
+test('large batch of separate authorized captures preserves retention triage',()=>{
+  const x=make();
+  x.approvals[0].retention_until='2026-10-19T00:00:00Z';
+  x.snapshots=Array.from({length:300},(_,i)=>({
+    ...structuredClone(x.snapshots[0]),
+    id: i.toString(16).padStart(8,'0')+'-dddd-dddd-dddd-dddddddddddd'
+  }));
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.snapshot_count,300);
+  assert.ok(q.entries[0].blockers.includes('retention_deadline_precedes_capture'));
+  assert.equal(q.publication_authorized,false);
+});
