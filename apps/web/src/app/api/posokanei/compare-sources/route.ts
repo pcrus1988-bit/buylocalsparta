@@ -1,7 +1,7 @@
 import {NextResponse} from "next/server";
 import {loadPublishedReference,pricedCatalog} from "../../../lib/posokanei-public-runtime";
 import {lidlPublicEnabled,readLidlOffers} from "../../../lib/posokanei-lidl-source";
-import {discoverSourceNeutralCandidates} from "../../../../../../scripts/posokanei/source-neutral-comparisons.mjs";
+import {discoverSourceNeutralCandidates} from "../../../../../../../scripts/posokanei/source-neutral-comparisons.mjs";
 export const dynamic="force-dynamic";
 export const runtime="nodejs";
 const headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
