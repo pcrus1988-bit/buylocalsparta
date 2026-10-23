@@ -72,6 +72,20 @@ Deno.serve(async(req:Request)=>{
   const operation=text(input.operation);
   // The email used here comes from Supabase Auth getUser(jwt), not a browser
   // submitted identity or user_metadata. Membership is NOT created by login.
+  if(operation==="admission_status"){
+   // Minimal, JWT-scoped admission guard: do not load the expensive
+   // member dashboard (cycle, grants, proposals, ballots) during enrollment.
+   const [{data:application,error:applicationError},{data:member,error:memberError}]=
+     await Promise.all([
+      admin.from("mazi_membership_applications")
+       .select("id").eq("applicant_user_id",user.id).limit(1).maybeSingle(),
+      admin.from("mazi_members")
+       .select("user_id").eq("user_id",user.id).limit(1).maybeSingle()
+     ]);
+   if(applicationError||memberError)return out({error:"data_unavailable"},503);
+   return out({ok:true,has_existing_application:Boolean(application),
+      already_member:Boolean(member)});
+  }
   if(operation==="invitation_state"){
    // Use the indexed, immutable invite recipient address rather than an
    // unindexed and possibly mixed-case expression-of-interest email.
