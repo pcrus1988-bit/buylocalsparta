@@ -432,7 +432,7 @@ export function PosoKaneiPublicClient(){
         </div>}
       </section>
       <div className={styles.disclaimer} role="note">Οι τιμές είναι ενδεικτικές. <details><summary>Τι πρέπει να γνωρίζω;</summary>Οι τιμές και η διαθεσιμότητα μπορεί να διαφέρουν ανά κατάστημα. Δεν πραγματοποιούνται αγορές από αυτή τη σελίδα.</details></div>
-      <LidlStandaloneOffers onAdd={addLidlOffer} onAddGov={addGovById} searchQuery={q}/>
+      <LidlStandaloneOffers onAdd={addLidlOffer} onAddGov={candidate=>addGovById(candidate.id,candidate.name)} searchQuery={q}/>
       {listing.status!=="ready"&&!loading?<section className={styles.pending} role="status">
         <h2>Η σύγκριση τιμών ετοιμάζεται.</h2>
         <p>Ο ανεξάρτητος κατάλογος θα ενεργοποιηθεί μόλις ολοκληρωθεί η επαλήθευση της πηγής και η δημοσίευση των ενημερωμένων δεδομένων. Δεν εμφανίζουμε δοκιμαστικές τιμές ως πραγματικές.</p>
