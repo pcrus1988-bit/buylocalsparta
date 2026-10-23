@@ -303,6 +303,10 @@ function accepted(p){
   // Exact cross-brand family matching is necessary, but not sufficient.
   if(["πουλερικα","πατατες"].includes(category)&&
      /πανε|παναρισ|marinat|μαριναρ|seasoned|καρυκευ|μπαχαρ|spiced|προτηγαν|prefried|pre-fried|προψημεν|breaded|battered|wedge|σφην|sticks|τηγανιτ|προετοιμασμεν/u.test(title))return false;
+  // "Επιτραπέζιο" sits inside the source's broader mineral-water category.
+  // Nothing here approves carbonated, flavoured or vitamin-enriched variants.
+  if(category==="φυσικο μεταλλικο νερο"&&/επιτραπεζιο/u.test(title)&&
+     /ανθρακουχ|μεs+γευση|αρωματ|λεμον|πορτοκαλ|βιταμιν|sparkling|carbonated|flavou|flavor/u.test(title))return false;
   // Dried beans are not ready meals, canned beans or cooked pulses.
   // Source "Φασόλια" contains multiple preparations; matching the type words
   // alone must never override contradictory processing indicators.
