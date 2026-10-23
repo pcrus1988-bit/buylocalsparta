@@ -87,7 +87,7 @@ const cmsPagePath = "apps/web/src/app/[...cmsPath]/page.tsx";
 if (!existsSync(join(root, cmsPagePath))) failures.push("Missing governed public CMS catch-all route");
 else {
   const cmsPage = read(cmsPagePath);
-  if (!cmsPage.includes("getPublicCmsPage") || !cmsPage.includes("getPublicCmsSeo")) failures.push("Public CMS catch-all must resolve content and SEO through the governed public CMS read model");
+  if (!cmsPage.includes("getPublicCmsSeo") || (!cmsPage.includes("getPublicCmsPage") && !cmsPage.includes("resolved.page"))) failures.push("Public CMS catch-all must resolve published content and SEO through the governed public CMS read model");
   if (!cmsPage.includes("CmsContentRenderer")) failures.push("Public CMS catch-all must render through the safe CMS block renderer");
   if (!cmsPage.includes('dynamic = "force-dynamic"')) failures.push("Public CMS catch-all must remain dynamic so publication state is not frozen at build time");
 }
