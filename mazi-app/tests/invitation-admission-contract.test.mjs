@@ -75,3 +75,15 @@ test("public privacy notice discloses AFM/GEMI verification, invite records and 
  assert.match(notice,/διεύθυνση IP/);
  assert.match(notice,/δεν αποτελεί συγκατάθεση για άλλους σκοπούς/);
 });
+
+test("ambiguous invite delivery never silently retries and revocation is documented",()=>{
+ assert.match(admin,/MAZI_INVITATION_PROVIDER_RECONCILIATION_REQUIRED/);
+ assert.match(admin,/export async function revokeMaziInvitation/);
+ assert.match(admin,/MAZI_INVITATION_NOT_REVOCABLE/);
+ assert.match(admin,/UPDATE public\.mazi_invitations SET status='revoked'/);
+ assert.match(action,/form\.get\("provider_reconciled"\)==="on"/);
+ assert.match(action,/form\.get\("confirm_revocation"\)!=="on"/);
+ assert.match(review,/name="reconciliation_reason"/);
+ assert.match(review,/name="revocation_reason"/);
+ assert.match(sql,/OLD\.status='email_sent' AND NEW\.status IN \('consumed','revoked'\)/);
+});
