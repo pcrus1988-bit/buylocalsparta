@@ -37,6 +37,7 @@ export default async function Onboarding({searchParams}:{searchParams:Promise<{n
      <p>Η ένταξη αφορά το μη οικονομικό στάδιο λειτουργίας του ΜΑΖΙ. Δεν υπάρχει συνδρομή, τιμολόγηση, αυτόματη ψήφος ή υποχρέωση πληρωμής.</p>
      <p>Η μελλοντική συνδρομή €250/μήνα, τυχόν υπηρεσίες marketing και οποιαδήποτε αναπτυξιακή ενίσχυση απαιτούν χωριστούς όρους και ανεξάρτητη αποδοχή.</p>
      <p>Το ΜΑΖΙ διατηρεί τον έλεγχο επιλεξιμότητας, σύγκρουσης συμφερόντων και εταιρικής ταυτότητας.</p>
+     <p><Link className="text-link" href="/invitation-terms" target="_blank">Πλήρεις όροι προσωπικής πρόσκλησης (v1) ↗</Link></p>
      <p><Link className="text-link" href="/charter" target="_blank">Αρχές διακυβέρνησης ↗</Link> · <Link className="text-link" href="/privacy" target="_blank">Ενημέρωση δεδομένων ↗</Link></p>
     </div>
     {notice==="invitation_not_eligible"?<p role="alert" className="form-message error">Η πρόσκληση δεν είναι πλέον επιλέξιμη ή έχει ήδη καταναλωθεί. Δεν δημιουργήθηκε συμμετοχή.</p>:null}
@@ -44,7 +45,7 @@ export default async function Onboarding({searchParams}:{searchParams:Promise<{n
       <input type="hidden" name="invitation_id" value={invitation.id}/>
       <input type="hidden" name="terms_version" value={invitation.terms_version}/>
       <label className="checkbox-line"><input type="checkbox" name="accept_charter" required/>
-       <span>Διάβασα και αποδέχομαι τους όρους της προσωπικής πρόσκλησης και τις αρχές του ΜΑΖΙ. Κατανοώ ότι δεν ενεργοποιείται επί πληρωμή συμμετοχή.</span></label>
+       <span>Διάβασα τους πλήρεις όρους προσωπικής πρόσκλησης (mazi-invitation-terms-v1) και αποδέχομαι και τις αρχές του ΜΑΖΙ. Κατανοώ ότι δεν ενεργοποιείται επί πληρωμή συμμετοχή.</span></label>
       <label className="checkbox-line"><input type="checkbox" name="accept_processing" required/>
        <span>Έλαβα την ενημέρωση επεξεργασίας προσωπικών δεδομένων για την ένταξη και επιβεβαιώνω ότι εκπροσωπώ την επιχείρηση.</span></label>
       <button type="submit" className="button dark">Αποδοχή προσωπικής πρόσκλησης ↗</button>
