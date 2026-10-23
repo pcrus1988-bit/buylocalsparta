@@ -70,3 +70,10 @@ No real financial service, pooled payments, crowdfunding or grant distributions 
 - Formula: additional months = ceiling(requested grant cents / 10,000 cents). Reapplication after 80% of additional months, rounded up. Existing commitments stack and cannot overlap; ordinary members can cancel with ten calendar days' notice before month end.
 - First-ever financial support requests should be flagged and queued before repeat applicants, **excluding** the nonfinancial founding needs assessment from prior-grant application counts; precedence does not replace democratic voting.
 - New migration 013 and matched Edge/UI changes require prospective **disclosure-only** consent at every member Need submission. Binding award acceptance and disbursement are separate **unimplemented** workflows. Never enable financial operations without legal/tax review.
+
+## 2026-10-23 · recipient-specific grant acceptance foundation (migration 014)
+- [Full technical/operational acceptance contract](docs/INDIVIDUAL_AWARD_CONSENT.md).
+- First-time support priority is now computed from **verified ΓΕΜΗ legal entity**, never just the account UUID. The new two-table offer/acknowledgment design prevents duplicate accepted agreements and unauthorized browser access.
+- Real, *finance-activated*, concluded funding rounds are prerequisite for any offer; the current founding needs assessment cannot create one. Future offers must include the assigned and requested amounts, mathematically validated commitment months, legal-review evidence and hashed full agreement text.
+- Verified recipients may review a real future award at `/awards` and provide a separate, explicit immutable acknowledgment via the MAZI JWT-verifying gateway. No payout, checkout, renewals, revocations or signature integration are activated. No offer records are seeded.
+- This consent does not itself constitute a complete legally executed agreement. Counsel signoff, award operator/offer issuance, a separate genuine signature or other approved contract execution, tax review, and independent disbursement authorization remain prerequisites for funding.

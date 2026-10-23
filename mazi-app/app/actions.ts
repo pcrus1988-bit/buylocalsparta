@@ -82,6 +82,31 @@ export async function supportProposal(form:FormData) {
 }
 
 
+export async function acknowledgeGrantOffer(form:FormData){
+  await authenticated();
+  const offer_id=asText(form.get("offer_id"));
+  const agreement_sha256=asText(form.get("agreement_sha256"));
+  const version=asText(form.get("policy_version"));
+  if(!/^[a-f0-9-]{36}$/i.test(offer_id)||
+     !/^[a-f0-9]{64}$/.test(agreement_sha256)||
+     version!=="mazi-grant-retention-v1"||
+     form.get("affirmatively_accepted")!=="on"||
+     form.get("understand_requested_amount_basis")!=="on"||
+     form.get("understand_separate_disbursement")!=="on")
+    urlMessage("/awards","invalid_acknowledgement");
+  const outcome=await maziMemberRequest("acknowledge_grant_offer",{
+    offer_id,agreement_sha256,policy_version:version,
+    affirmatively_accepted:true,
+    understand_requested_amount_basis:true,
+    understand_separate_disbursement:true
+  });
+  if(!outcome.ok)urlMessage("/awards",
+    outcome.error==="award_already_acknowledged"?"already_acknowledged":
+    outcome.error==="award_not_eligible"?"award_not_eligible":"acceptance_failed");
+  redirect("/awards?notice=acknowledged");
+}
+
+
 export async function answerMaziFollowup(form:FormData){
  await authenticated();
  const followup_id=asText(form.get("followup_id"));
