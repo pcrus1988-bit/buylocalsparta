@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#103b30">
+  <meta name="description" content="Το απλό καλάθι αγορών ΚΟΝΤΑ ΜΟΥ × PosoKanei: βρες προϊόντα και σύγκρινε καταγεγραμμένες τιμές σούπερ μάρκετ.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <title>Το καλάθι μου · ΚΟΝΤΑ ΜΟΥ × PosoKanei</title>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="https://kontamou.site/posokanei" aria-label="ΚΟΝΤΑ ΜΟΥ, πλήρης υπηρεσία">
+      <span class="brand-mark" aria-hidden="true">♥</span>
+      <span class="brand-letters">ΚΟΝΤΑ ΜΟΥ <small>× PosoKanei</small></span>
+    </a>
+    <span class="top-pill">Η έξυπνη λίστα σου</span>
+  </header>
+  <main class="container">
+    <section class="intro">
+      <span class="eyebrow">ΛΙΓΟΤΕΡΑ ΕΞΟΔΑ · ΠΙΟ ΑΠΛΑ ΨΩΝΙΑ</span>
+      <h1>Ψώνισε έξυπνα.<br><em>Ξόδεψε λιγότερα.</em></h1>
+      <p>Βάλε προϊόντα στη λίστα σου και δες πώς συμφέρει να τα μοιράσεις σε έως 5 σούπερ μάρκετ.</p>
+      <div id="source-status" class="source" role="status" aria-live="polite"><span class="status-dot"></span> Έλεγχος τιμών αναφοράς…</div>
+    </section>
+
+    <div class="app-grid">
+      <section class="panel find-panel" aria-labelledby="find-title">
+        <div class="panel-head"><span class="step">01</span><div><h2 id="find-title">Τι χρειάζεσαι;</h2><p>Αναζήτησε καταγεγραμμένα προϊόντα.</p></div></div>
+        <label class="search-wrap" for="search"><span class="search-symbol" aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="π.χ. γάλα, ρύζι, μακαρόνια" aria-label="Αναζήτηση προϊόντων"></label>
+        <div id="search-message" class="search-message" role="status" aria-live="polite"></div>
+        <div id="products" class="products" aria-live="polite"></div>
+        <form id="manual-form" class="manual-form">
+          <label for="manual-name">Δεν βρίσκεις αυτό που θέλεις;</label>
+          <div class="input-combo"><input id="manual-name" maxlength="100" placeholder="Πρόσθεσε δικό σου είδος" required><button type="submit" class="btn-secondary">+ Προσθήκη</button></div>
+          <small>Τα χειροκίνητα είδη μπαίνουν στη λίστα, αλλά δεν έχουν καταγεγραμμένη τιμή.</small>
+        </form>
+      </section>
+
+      <div class="right-col">
+        <section class="panel basket-panel" aria-labelledby="basket-title">
+          <div class="panel-head"><span class="step">02</span><div><h2 id="basket-title">Το καλάθι μου <span id="basket-count" class="count">0</span></h2><p>Έως 20 είδη, με ποσότητες.</p></div></div>
+          <div id="basket" class="basket" aria-live="polite"><div class="empty"><span>🧺</span><b>Η λίστα σου είναι άδεια.</b><small>Πρόσθεσε το πρώτο προϊόν.</small></div></div>
+          <div class="settings">
+            <button id="stores-toggle" class="settings-toggle" type="button" aria-expanded="false" aria-controls="stores-panel">Επιλογή σούπερ μάρκετ <span>⌄</span></button>
+            <div id="stores-panel" class="stores-panel" hidden>
+              <label class="select-label" for="store-limit">Σε πόσα σούπερ μάρκετ να μοιραστεί;</label>
+              <select id="store-limit"><option value="1">Μόνο σε 1</option><option value="2" selected>Έως 2</option><option value="3">Έως 3</option><option value="4">Έως 4</option><option value="5">Έως 5</option></select>
+              <div id="retailers" class="retailers"><p class="muted">Οι διαθέσιμες αλυσίδες θα εμφανιστούν με την ενεργοποίηση των τιμών.</p></div>
+            </div>
+          </div>
+          <button id="compare" class="btn-primary" type="button" disabled>Βρες το οικονομικότερο καλάθι <span aria-hidden="true">→</span></button>
+          <button id="brand-check" class="text-action" type="button" hidden>Έλεγχος για φθηνότερες μάρκες</button>
+          <div id="brand-results"></div>
+          <p id="basket-note" class="basket-note">Μόνο πραγματικές δημοσιευμένες καταγραφές τιμών.</p>
+        </section>
+        <section class="panel plan-panel" id="plan-section" aria-labelledby="plan-title" hidden>
+          <div class="panel-head"><span class="step">03</span><div><h2 id="plan-title">Το πλάνο αγορών</h2><p>Ομαδοποιημένο ανά σούπερ μάρκετ.</p></div></div>
+          <div id="plan"></div>
+          <button id="copy-plan" type="button" class="btn-secondary wide">Αντιγραφή λίστας</button>
+        </section>
+      </div>
+    </div>
+    <footer class="footer">
+      <p><strong>ΚΟΝΤΑ ΜΟΥ × PosoKanei</strong> · Ανεξάρτητη υπηρεσία αναφοράς τιμών.</p>
+      <p>Οι τιμές είναι ενδεικτικές, ενδέχεται να διαφέρουν ανά κατάστημα και δεν αποτελούν επιβεβαίωση αποθέματος. Δεν γίνονται αγορές μέσα από την εφαρμογή. Τα μη καταγεγραμμένα προϊόντα δεν συμπεριλαμβάνονται σε υπολογισμούς.</p>
+      <a href="https://kontamou.site/posokanei">Πλήρης υπηρεσία & αποθήκευση στον λογαριασμό →</a>
+    </footer>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
