@@ -1,0 +1,51 @@
+name: MAZI Invite-only Admission Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "mazi-app/**"
+      - "apps/web/src/lib/mazi-*"
+      - "apps/web/src/app/admin/mazi/**"
+      - ".github/workflows/mazi-invitation-acceptance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "mazi-app/**"
+      - "apps/web/src/lib/mazi-*"
+      - "apps/web/src/app/admin/mazi/**"
+      - ".github/workflows/mazi-invitation-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mazi-invitation-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract-and-build:
+    name: Invitation security contracts and MAZI Next.js build
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: mazi-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install pinned MAZI dependencies
+        run: npm install --no-package-lock --no-audit --no-fund --ignore-scripts
+      - name: Nonfinancial onboarding, RLS and invitation contract tests
+        run: npm test
+      - name: Generate Next.js route types
+        run: npx next typegen
+      - name: Typecheck standalone app
+        run: npx tsc --noEmit
+      - name: Build standalone app (no production env or secrets)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: public-ci-not-a-credential
+        run: npm run build
