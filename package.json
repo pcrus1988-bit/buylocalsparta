@@ -84,6 +84,7 @@
     "check:seo": "node --experimental-strip-types scripts/verify-next-seo.ts && node --experimental-strip-types scripts/verify-seo-opportunity-signals.ts && node --experimental-strip-types scripts/verify-shop-semantic-links.ts && node --experimental-strip-types scripts/verify-public-seo-dates.ts",
     "test:seo-shop-links": "node --experimental-strip-types scripts/verify-shop-semantic-links.ts",
     "test:seo-opportunities": "node --experimental-strip-types scripts/verify-seo-opportunity-signals.ts",
+    "audit:seo-links": "node --experimental-strip-types scripts/audit-public-seo-links.ts",
     "check:advice": "node --experimental-strip-types scripts/verify-advice-hub.ts",
     "check:ask-local": "node --experimental-strip-types scripts/verify-ask-local.ts",
     "check:ask-local-history": "node --experimental-strip-types scripts/verify-ask-local-clarification-history.ts",
