@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
-import { getHomepageCatalogCards } from "../lib/home-catalog";
 import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
 import { HomeQuickSearch } from "../components/HomeQuickSearch";
@@ -15,10 +14,9 @@ import { SiteHeader } from "../components/SiteHeader";
 import styles from "./home-premium.module.css";
 import { governedStaticSeoMetadata } from "../lib/seo-metadata";
 import { getCrawlerHomepageCatalogCards } from "../lib/crawler-catalog";
-import { isReadOnlyPublicCrawlerRequest } from "../lib/request-audience";
 
 const FEATURED_PRODUCT_LIMIT = 8;
-const HOMEPAGE_REVALIDATE_SECONDS = 900; // Keep crawl-critical homepage projections warm during catalogue DB pressure.
+const HOMEPAGE_REVALIDATE_SECONDS = 900; // Share bounded read-only discovery across visitors; checkout always validates live availability.
 
 const FAQ_ITEMS = [
   {
@@ -121,27 +119,16 @@ function selectEditorialVendors(vendors: readonly PublicVendorDirectoryEntry[], 
 }
 
 export default async function Home() {
-  const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
-  const visitorKey = readOnlyCrawler ? "" : await homepageSectionOrFallback("visitor-key", () => getVisitorKey(), "");
+  // Discovery is a read-only shop window, not a checkout reservation. The old
+  // per-visitor path queried stock, capacity, fairness and individual cards on
+  // every homepage request, amplifying pool contention and crawler TTFB.
+  // Use the same bounded, 15-minute cached projection for humans and bots;
+  // actual product pages and checkout still revalidate current sellability,
+  // price and the authoritative vendor assignment.
+  const visitorKey = await homepageSectionOrFallback("visitor-key", () => getVisitorKey(), "");
 
   const [featuredProducts, heroSlides, visibleCategories, vendorDirectory] = await Promise.all([
-    homepageSectionOrFallback(
-      "featured-products",
-      async () => {
-        if (readOnlyCrawler) return getCachedCrawlerHomepageCards();
-
-        const localCards = await getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT);
-        if (localCards.length >= FEATURED_PRODUCT_LIMIT) return localCards;
-
-        const publicCards = await getCachedCrawlerHomepageCards();
-        const seen = new Set(localCards.map((product) => product.id));
-        return [
-          ...localCards,
-          ...publicCards.filter((product) => !seen.has(product.id))
-        ].slice(0, FEATURED_PRODUCT_LIMIT);
-      },
-      []
-    ),
+    homepageSectionOrFallback("featured-products", getCachedCrawlerHomepageCards, []),
     homepageSectionOrFallback("hero-slides", getCachedHomepageHeroSlides, []),
     homepageSectionOrFallback("visible-categories", getCachedHomepageCategories, []),
     homepageSectionOrFallback("vendor-directory", getCachedHomepageVendors, [])
