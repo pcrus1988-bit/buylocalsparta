@@ -1,0 +1,20 @@
+.root{margin:0 0 28px;padding:22px;border:1px solid #d3dfd4;border-radius:22px;background:linear-gradient(140deg,#f0f6ec,#fffdf7);color:#193e2d;box-shadow:0 10px 30px #173e2d0b}
+.head{display:flex;justify-content:space-between;align-items:start;gap:18px}.head h2{font:500 clamp(23px,3vw,34px)/1.1 Georgia,serif;margin:6px 0 12px}.head p{font-size:13px;line-height:1.6;max-width:630px;margin:0;color:#617469}
+.kicker{font:800 11px/1.5 Arial,sans-serif!important;letter-spacing:.14em;color:#537456!important}
+.label,.smallTag{border-radius:30px;border:1px solid #b8cbbb;color:#245639;padding:7px 10px;font-size:11px;white-space:nowrap}
+.controls{display:grid;grid-template-columns:1.1fr 1fr .7fr;gap:12px;margin:25px 0 16px}
+.controls label{display:flex;flex-direction:column;gap:8px;color:#385e4a;font-weight:700;font-size:12px}
+.controls input,.controls select{border:1px solid #c2d1c1;background:white;color:#183d2a;border-radius:12px;padding:11px;min-width:0;width:100%;height:46px;font:inherit}
+.controls input:focus-visible,.controls select:focus-visible,.paging button:focus-visible{outline:3px solid #bd944b;outline-offset:2px}
+.summary{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#546f5a;font-weight:700;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.card{border:1px solid #dce7d9;background:#fff;border-radius:15px;padding:17px;min-width:0}
+.cardHeader{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:11px;color:#638068}
+.card h3{font-size:17px;line-height:1.3;min-height:42px;margin:12px 0 8px;font-weight:700}
+.packaging,.dates,.note{font-size:12px;color:#627769;line-height:1.5}
+.prices{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:12px 0}.prices strong{font-size:25px;letter-spacing:-.06em;color:#124b32}.prices span{font-size:11px;color:#7d8d82}
+.discount{font-size:12px;font-weight:750;color:#af6235}.paging{display:flex;justify-content:center;align-items:center;gap:13px;margin:20px 0}
+.paging button{background:#fff;border:1px solid #bbcdbd;padding:9px 13px;border-radius:12px;color:#195036;cursor:pointer}
+.paging button:disabled{cursor:not-allowed;opacity:.5}.footer{border-top:1px solid #d7e0d7;margin:22px 0 0;padding:15px 0 0;font-size:12px;line-height:1.5;color:#667e6d}
+.footer a{color:#17543a;text-decoration:underline}
+@media(max-width:760px){.root{padding:15px}.controls{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.head{display:block}.label{display:inline-block;margin-top:14px}}
