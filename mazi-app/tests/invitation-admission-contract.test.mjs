@@ -87,3 +87,10 @@ test("ambiguous invite delivery never silently retries and revocation is documen
  assert.match(review,/name="revocation_reason"/);
  assert.match(sql,/OLD\.status='email_sent' AND NEW\.status IN \('consumed','revoked'\)/);
 });
+
+test("invitation expiry is capped below Supabase Auth's default one-hour invite link",()=>{
+ const expiry=read("../sql/017_invitation_expiry_shorter_than_auth.sql");
+ assert.match(expiry,/expires_at <= issued_at \+ interval '45 minutes'/);
+ assert.match(admin,/now\(\)\+interval '45 minutes'/);
+ assert.doesNotMatch(admin,/now\(\)\+interval '24 hours'/);
+});
