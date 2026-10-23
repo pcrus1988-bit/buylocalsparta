@@ -27,6 +27,9 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     throw Error('review_queue_limit_exceeded');
 
   const sourceMap = new Map(), approvalMap = new Map(), grouped = new Map(), globalSnapshotIds = new Map();
+  // Source registrations without acquisition approval are still reviewed. Do
+  // not allow alias keys or URL spelling differences to hide duplicate assets.
+  const sourceKeys = new Set(), canonicalUrls = new Set();
   const capturesBeyondRetention = new Set();
   // One SHA-256 digest describes one byte stream. Distinct byte lengths under
   // that digest are contradictory metadata even across separate snapshot IDs.
@@ -34,6 +37,17 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
   for (const source of sources) {
     if (!UUID.test(source?.id || '') || sourceMap.has(source.id))
       throw Error('invalid_or_duplicate_source');
+    // Normalize only URL identity (host case, default HTTPS port, etc.).
+    // This is metadata validation, not a network request or rights decision.
+    if (!safeHttps(source.canonical_url)) throw Error('invalid_source_canonical_url');
+    const canonicalUrl = new URL(source.canonical_url).href;
+    if (canonicalUrls.has(canonicalUrl)) throw Error('duplicate_source_canonical_url');
+    canonicalUrls.add(canonicalUrl);
+    if (typeof source.source_key === 'string' && source.source_key.trim()) {
+      const key = source.source_key.trim().toLowerCase();
+      if (sourceKeys.has(key)) throw Error('duplicate_source_key');
+      sourceKeys.add(key);
+    }
     sourceMap.set(source.id, source);
   }
   for (const approval of approvals) {
