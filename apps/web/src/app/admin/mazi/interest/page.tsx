@@ -59,6 +59,10 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
        <input name="emailVerified" type="checkbox"/>
        <span>Επιβεβαίωσα την ιδιοκτησία του δηλωμένου email (όχι μόνο μέσω δημόσιου ΓΕΜΗ).</span>
       </label>
+      <label style={{display:"flex",gap:8,alignItems:"start"}}>
+       <input name="companyActiveVerified" type="checkbox"/>
+       <span>Έλεγξα ανεξάρτητα ότι η επιχείρηση είναι ενεργή στο ΓΕΜΗ.</span>
+      </label>
       <div className={s.buttons}>
        <button type="submit" name="decision" value="approve" className={s.primary}
         disabled={a.registry_lookup_status!=="matched"||!a.gemi_number}>
