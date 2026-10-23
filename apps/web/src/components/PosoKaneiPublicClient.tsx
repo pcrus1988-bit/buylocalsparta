@@ -376,12 +376,12 @@ export function PosoKaneiPublicClient(){
                 {(p.lidlOffers?.length||0)>0&&<div className={styles.offers} role="note" aria-label={"Προσφορές Lidl για "+p.name}>
                   <h4>🏷️ Προσφορές Lidl · ελεγμένη αντιστοίχιση προϊόντος</h4>
                   {p.lidlOffers?.map(o=><div className={styles.offer} key={o.storeKey+":"+o.offerId}>
-                    <span><strong>Προσφορά Lidl</strong> · {o.storeName} ({o.storeKey})
+                    <span><strong>Προσφορά Lidl</strong> · {o.storeName===o.storeKey?o.storeKey:o.storeName+" ("+o.storeKey+")"}
                       <small> Ισχύει έως {o.validTo} · συγκεκριμένο κατάστημα</small>
                       <small>{o.membershipRequirement==="requires_lidl_plus"?"Απαιτείται Lidl Plus κάρτα για την έκπτωση":"Δεν απαιτείται Lidl Plus κάρτα (επαληθευμένο)"}</small>
                     </span>
                     <span><strong>{money(o.offerPriceEur)}</strong>
-                      {o.previousPriceEur!==null&&<small>Αρχική καταγεγραμμένη τιμή: {money(o.previousPriceEur)}</small>}
+                      {o.previousPriceEur!==null&&<small>Διαγραμμένη τιμή αναφοράς: {money(o.previousPriceEur)}</small>}
                     </span>
                   </div>)}
                   <small>Ενδεικτική προσφορά συγκεκριμένου καταστήματος. Δεν επηρεάζει το συγκριτικό καλάθι ούτε εγγυάται απόθεμα.</small>
