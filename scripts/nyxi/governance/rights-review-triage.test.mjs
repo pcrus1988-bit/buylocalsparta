@@ -107,3 +107,10 @@ test('empty approval is held, never silently approved',()=>{
   assert.equal(q.snapshot_count,0);
   assert.equal(q.entries[0].publication_authorized,false);
 });
+
+test('same snapshot ID cannot silently substitute another private object path',()=>{
+  const x=make();const other=structuredClone(x.snapshots[0]);
+  other.storage_path=other.source_id+'/'+other.sha256+'/substituted.html';
+  x.snapshots.push(other);
+  assert.throws(()=>buildRightsReviewQueue(x),/conflicting_snapshot_identity/);
+});
