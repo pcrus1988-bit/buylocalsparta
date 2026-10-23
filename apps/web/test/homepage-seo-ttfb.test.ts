@@ -29,6 +29,8 @@ test("marketplace canonical does not inherit preview or alternate-host APP_URL",
   const settings = readFileSync(new URL("../src/lib/seo-settings.ts", import.meta.url), "utf8");
   assert.match(origin, /export const PRODUCTION_PUBLIC_ORIGIN = "https:\/\/kontamou\.site"/);
   assert.match(settings, /canonicalOrigin: PRODUCTION_PUBLIC_ORIGIN/);
+  assert.match(settings, /settings: \{ \.\.\.snapshot\.settings, canonicalOrigin: PRODUCTION_PUBLIC_ORIGIN \}/);
+  assert.match(settings, /"seo-global-settings-snapshot-v2"/);
   assert.match(settings, /process\.env\.NODE_ENV === "production" && url\.origin !== PRODUCTION_PUBLIC_ORIGIN/);
 });
 
