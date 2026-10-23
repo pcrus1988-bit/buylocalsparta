@@ -71,7 +71,7 @@ test("public privacy notice discloses AFM/GEMI verification, invite records and 
  assert.match(notice,/ΑΦΜ/);
  assert.match(notice,/ΓΕΜΗ/);
  assert.match(notice,/Supabase Authentication/);
- assert.match(notice,/αναγνωριστικό πρόσκλησης/);
+ assert.match(notice,/αναγνωριστικό προσωπικής πρόσκλησης/);
  assert.match(notice,/διεύθυνση IP/);
  assert.match(notice,/δεν αποτελεί συγκατάθεση για άλλους σκοπούς/);
 });
