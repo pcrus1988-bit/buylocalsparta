@@ -15,6 +15,7 @@ export async function GET(request:Request){
     const category=(url.searchParams.get("category")||"").slice(0,150);
     const excluded=new Set((url.searchParams.get("exclude")||"").slice(0,1500).split(",").filter(x=>/^[a-zA-Z0-9_-]{1,100}$/.test(x)).slice(0,24));
     const groupId=(url.searchParams.get("group")||"").slice(0,100);
+    const onlyLidlOffers=url.searchParams.get("lidlOffers")==="1";
     const page=Math.max(1,Math.min(1000,Number.parseInt(url.searchParams.get("page")||"1",10)||1));
     const catalog=pricedCatalog(snapshot);
     const lidlBadges=await loadReviewedLidlPromotions(snapshot);
@@ -22,6 +23,7 @@ export async function GET(request:Request){
     const ids=new Set(targetGroup?.memberIds||[]);
     const eligibleById=new Map([...catalog.byProduct].map(([id,offers])=>[id,offers.filter(o=>!excluded.has(o.retailer_id))]));
     const all=snapshot.products.filter(p=>
+      (!onlyLidlOffers||lidlBadges.has(p.source_product_id))&&
       (groupId?ids.has(p.source_product_id):
         (!category||broadCategory(p.category)===category)&&(!q||normalizedGreek([p.name,p.brand||"",p.category||""].join(" ")).includes(q)))&&
       (eligibleById.get(p.source_product_id)?.length||0)>0
