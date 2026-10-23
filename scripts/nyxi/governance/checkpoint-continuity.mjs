@@ -42,19 +42,11 @@ export function verifyWitnessContinuation(chain, checkpoint, {
   } catch { return false; }
 }
 
-/** Metadata-only candidate anchor; store externally only AFTER independent verification. */
-export function checkpointAnchor(checkpoint, pinnedPublicKey, expectedWitnessId) {
-  if (!checkpoint || checkpoint.request?.witness_id !== expectedWitnessId ||
-      !pinnedPublicKey || pinnedPublicKey.type !== 'public' ||
-      pinnedPublicKey.asymmetricKeyType !== 'ed25519')
+/** Verified metadata-only anchor candidate. Independently preserve AFTER verification. */
+export function checkpointAnchor(chain, checkpoint, pinnedPublicKey, expectedWitnessId) {
+  if (!verifyWitnessCheckpoint(chain, checkpoint, {pinnedPublicKey, expectedWitnessId}))
     throw Error('invalid_checkpoint_anchor');
   const request = checkpoint.request;
-  if (!Number.isSafeInteger(request.entry_count) || request.entry_count < 1 ||
-      typeof request.root_sha256 !== 'string' || !SHA.test(request.root_sha256) ||
-      !canonicalTime(request.issued_at) || request.publication_authorized !== false)
-    throw Error('invalid_checkpoint_anchor');
-  // This is a candidate only; a separate verifier MUST verify the signature
-  // against the exact chain before pinning it in independent storage.
   return Object.freeze({
     entry_count: request.entry_count,
     root_sha256: request.root_sha256,
