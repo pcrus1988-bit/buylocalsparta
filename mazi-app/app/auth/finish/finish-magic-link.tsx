@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
+import { implicitEmailSession } from "../../../lib/implicit-email-session";
 
 const INVALID_LINK = "/join?notice=expired_link";
 
@@ -22,12 +23,8 @@ export default function FinishMagicLink() {
       ? window.location.hash.slice(1)
       : "";
     window.history.replaceState(window.history.state, "", "/auth/finish");
-    const params = new URLSearchParams(fragment);
-    const access_token = params.get("access_token");
-    const refresh_token = params.get("refresh_token");
-
-    if (params.has("error") || !access_token || !refresh_token ||
-        params.get("token_type") !== "bearer") {
+    const credentials = implicitEmailSession(fragment);
+    if (!credentials) {
       window.location.replace(INVALID_LINK);
       return;
     }
@@ -44,7 +41,7 @@ export default function FinishMagicLink() {
     // Never log credentials, put them in URLs or send them to our application.
     try {
       const auth = createBrowserClient(url, key);
-      void auth.auth.setSession({ access_token, refresh_token })
+      void auth.auth.setSession(credentials)
         .then(({ data, error }) => {
           if (error || !data.user || !data.session) {
             window.location.replace(INVALID_LINK);
