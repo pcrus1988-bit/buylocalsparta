@@ -13,7 +13,8 @@ ALTER TABLE public.mazi_proposals
 ALTER TABLE public.mazi_proposals
  ADD CONSTRAINT mazi_proposal_grant_policy_notice_required
  CHECK (
-   grant_policy_ack_version = 'mazi-grant-retention-v1'
+   grant_policy_ack_version IS NOT NULL
+   AND grant_policy_ack_version = 'mazi-grant-retention-v1'
    AND grant_policy_acknowledged_at IS NOT NULL
  );
 
