@@ -42,7 +42,7 @@ requireText(metadata, "!input.override?.title", "Explicit administrator title ov
 
 for (const contract of [
   '"@type": "WebSite"',
-  '"@type": "OnlineStore"',
+  '"@type": ["Organization", "OnlineStore"]',
   "publisher: { \"@id\": organizationId }",
   "KONTA_MOY_EMAIL_COMPANY.legalName",
   "KONTA_MOY_EMAIL_COMPANY.taxNumber",
