@@ -13,7 +13,7 @@ export type MaziMember={
 };
 export type MaziProposal={
  id:string;title:string;details:string;category:string;amount_cents:number;
- status:string;created_by:string;created_at:string
+ status:string;created_by:string;created_at:string;first_time_support_request?:boolean
 };
 export type MaziFollowup={
  id:string;question:string;requested_at:string;answer:string|null;answered_at:string|null;

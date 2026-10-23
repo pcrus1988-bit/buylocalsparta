@@ -58,7 +58,14 @@ export async function submitProposal(form:FormData) {
     details:asText(form.get("details"))
   };
   if(validateProposal(input)) urlMessage("/proposals","invalid_proposal");
-  const outcome=await maziMemberRequest("propose",input);
+  // A funding commitment is not triggered by a non-financial needs request,
+  // but the future contract formula must be disclosed at submission.
+  if(form.get("grant_terms_acknowledged")!=="on")
+    urlMessage("/proposals","grant_terms_acknowledgment_required");
+  const outcome=await maziMemberRequest("propose",{
+    ...input,acknowledge_grant_terms:true,
+    grant_policy_version:"mazi-grant-retention-v1"
+  });
   if(!outcome.ok)urlMessage("/proposals",
     ["cycle_closed","not_verified","already_submitted","invalid_proposal"].includes(outcome.error)?outcome.error:"proposal_failed");
   redirect("/proposals?notice=proposal_received");

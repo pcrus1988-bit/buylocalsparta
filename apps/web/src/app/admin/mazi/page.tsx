@@ -91,7 +91,12 @@ export default async function MaziSuperAdminPage({searchParams}:{searchParams:Pr
   </div>
  </article>})}</div>}</section>
  <section className={s.section}><div className={s.sectionTop}><div><p>02 / PROJECT GOVERNANCE</p><h2>Προτάσεις προς αξιολόγηση</h2></div><span>Χωρίς αυτοματοποιημένες εγκρίσεις χρηματοδότησης</span></div>
- {proposals.length===0?<div className={s.empty}>Δεν υπάρχουν προτάσεις σε αναμονή.</div>:<div className={s.stack}>{proposals.map(a=><article className={s.card} key={a.id}><div><span className={s.tag}>{a.category.toUpperCase()} · {new Date(a.created_at).toLocaleDateString("el-GR")}</span><h3>{a.title}</h3><p className={s.body}>{a.details}</p><p className={s.requested}>Αιτούμενο ποσό (όχι εκταμίευση): {money(a.amount_cents)}</p></div><ReviewDecision csrf={p.csrfToken} kind="proposal" id={a.id}/></article>)}</div>}</section>
+ {proposals.length===0?<div className={s.empty}>Δεν υπάρχουν προτάσεις σε αναμονή.</div>:<div className={s.stack}>{proposals.map(a=><article className={s.card} key={a.id}><div><span className={s.tag}>{a.category.toUpperCase()} · {new Date(a.created_at).toLocaleDateString("el-GR")}</span>
+ {a.first_time_support_request?<p className={s.tag} style={{marginTop:10}}>ΠΡΟΤΕΡΑΙΟΤΗΤΑ · ΠΡΩΤΗ ΑΙΤΗΣΗ ΕΝΙΣΧΥΣΗΣ</p>:null}
+ <h3>{a.title}</h3>
+ <p className={s.meta}>Ενημέρωση μελλοντικών όρων: {a.grant_policy_ack_version==="mazi-grant-retention-v1" && a.grant_policy_acknowledged_at
+   ? new Date(a.grant_policy_acknowledged_at).toLocaleDateString("el-GR")
+   : "Δεν τεκμηριώθηκε"}</p><p className={s.body}>{a.details}</p><p className={s.requested}>Αιτούμενο ποσό (όχι εκταμίευση): {money(a.amount_cents)}</p></div><ReviewDecision csrf={p.csrfToken} kind="proposal" id={a.id}/></article>)}</div>}</section>
  <section className={s.section}>
  <div className={s.sectionTop}><div><p>03 / KYB & VOTING RIGHTS</p><h2>Επαλήθευση επιχειρήσεων</h2></div><span>Μία νόμιμη επιχείρηση · μία ψήφος</span></div>
  <p className={s.disclaimer}>Έλεγξε τη νόμιμη κατάσταση ΓΕΜΗ, την ταυτοποίηση του εκπροσώπου και τις συνδεδεμένες επιχειρήσεις στην <a href="https://publicity.businessportal.gr/" target="_blank" rel="noopener noreferrer" style={{textDecoration:"underline"}}>επίσημη Δημοσιότητα ΓΕΜΗ ↗</a>. Η επαλήθευση εδώ καταγράφει χειροκίνητο έλεγχο, όχι αυτόματη επιβεβαίωση από κρατικό API.</p>

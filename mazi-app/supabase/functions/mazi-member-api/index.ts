@@ -95,7 +95,7 @@ Deno.serve(async(req:Request)=>{
    let tallies:Json[]=[];
    if(isVerified&&cycle) {
     const [{data:rows,error:pErr},{data:voted,error:vErr},{data:ownReview,error:rErr},{data:conflicts,error:cErr}]=await Promise.all([
-     admin.from("mazi_proposals").select("id,title,details,category,amount_cents,status,created_by,created_at")
+     admin.from("mazi_proposals").select("id,title,details,category,amount_cents,status,created_by,created_at,first_time_support_request")
        .eq("cycle_id",cycle.id).or(`status.eq.approved,created_by.eq.${user.id}`).order("created_at",{ascending:false}).limit(100),
      admin.from("mazi_votes").select("proposal_id").eq("cycle_id",cycle.id).eq("voter_id",user.id).limit(200),
      admin.from("mazi_proposals").select("id,review_reason").eq("cycle_id",cycle.id)
@@ -171,8 +171,16 @@ Deno.serve(async(req:Request)=>{
    if(title.length<8||title.length>140||details.length<80||details.length>4000||
       !["growth","resilience","joint"].includes(category)||!Number.isSafeInteger(cents)||
       cents<50000||cents>20000000)return out({error:"invalid_proposal"},400);
+   // Notice of the potential future binding period is mandatory at Need/Project
+   // submission. It is NOT the later acceptance of a funded grant or a
+   // withdrawal authorization; finance remains disabled.
+   if(input.acknowledge_grant_terms!==true||
+      input.grant_policy_version!=="mazi-grant-retention-v1")
+     return out({error:"grant_terms_acknowledgment_required"},400);
    const {error}=await admin.from("mazi_proposals").insert({
-     cycle_id:cycle.id,created_by:user.id,title,category,amount_cents:cents,details,status:"submitted"
+     cycle_id:cycle.id,created_by:user.id,title,category,amount_cents:cents,details,status:"submitted",
+     grant_policy_ack_version:"mazi-grant-retention-v1",
+     grant_policy_acknowledged_at:new Date().toISOString()
    });
    if(error)return out({error:error.code==="23505"?"already_submitted":"proposal_failed"},error.code==="23505"?409:503);
    return out({ok:true});
