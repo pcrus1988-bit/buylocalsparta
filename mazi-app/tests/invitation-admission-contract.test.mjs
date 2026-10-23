@@ -56,6 +56,8 @@ test("RPC cannot be called directly by browsers and fund remains untouched",()=>
 test("JWT verified by Edge, acceptance is explicit and versioned",()=>{
  assert.match(edge,/admin\.auth\.getUser\(match\[1\]\)/);
  assert.match(edge,/if\(operation==="invitation_state"\)/);
+ assert.match(edge,/\.eq\("recipient_email",recipient\)/);
+ assert.doesNotMatch(edge,/\.eq\("contact_email",/);
  assert.match(edge,/if\(operation==="accept_invitation"\)/);
  assert.match(edge,/admin\.rpc\("mazi_complete_invitation"/);
  assert.match(onboard,/name="accept_charter" required/);
