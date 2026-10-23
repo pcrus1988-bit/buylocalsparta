@@ -145,12 +145,26 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
   const sourcesWithoutAuthorizedAcquisition = Object.freeze([...sourceMap.keys()]
     .filter(sourceId => !authorizedSourceIds.has(sourceId))
     .sort());
+  // Absence of an archive is distinct from absence of acquisition permission.
+  // These lists are metadata-only worklists, NOT instructions to fetch assets.
+  const archivedSourceIds = new Set(snapshots.map(snapshot => snapshot.source_id));
+  const sourcesWithoutArchivedSnapshots = Object.freeze([...sourceMap.keys()]
+    .filter(sourceId => !archivedSourceIds.has(sourceId))
+    .sort());
+  const authorizedUncapturedApprovalIds = Object.freeze([...approvalMap.values()]
+    .filter(approval => approval.acquisition_authorized === true &&
+      grouped.get(approval.id).size === 0)
+    .map(approval => approval.id).sort());
 
   return Object.freeze({
     observed_at: observedAt,
     source_count: sourceMap.size,
     sources_without_authorized_acquisition_count: sourcesWithoutAuthorizedAcquisition.length,
     sources_without_authorized_acquisition_ids: sourcesWithoutAuthorizedAcquisition,
+    sources_without_archived_snapshots_count: sourcesWithoutArchivedSnapshots.length,
+    sources_without_archived_snapshots_ids: sourcesWithoutArchivedSnapshots,
+    authorized_uncaptured_approval_count: authorizedUncapturedApprovalIds.length,
+    authorized_uncaptured_approval_ids: authorizedUncapturedApprovalIds,
     approval_count: queue.length,
     snapshot_count: queue.reduce((n, item) => n + item.snapshot_count, 0),
     publication_authorized: false,
