@@ -70,3 +70,34 @@ test('valid multi-event chain remains appendable and root-verifiable',()=>{
   assert.equal(verify(chain,root(chain)),true);
   assert.equal(chain.length,3);
 });
+
+
+test('observation cannot precede its archived capture',()=>{
+  const v=f();v.observedAt='2026-10-19T23:59:59Z';
+  assert.throws(()=>observe(v),/invalid_event_fields/);
+});
+test('append rejects hash and byte-length identity drift for one snapshot',()=>{
+  const chain=append([],observe(f()));
+  const hashDrift={...observe(f()),snapshot_sha256:'f'.repeat(64)};
+  assert.throws(()=>append(chain,hashDrift),/snapshot_identity_drift/);
+  const sizeDrift={...observe(f()),byte_length:original.length+1};
+  assert.throws(()=>append(chain,sizeDrift),/snapshot_identity_drift/);
+});
+test('append rejects authorization, source and capture-time identity drift',()=>{
+  const chain=append([],observe(f()));
+  for(const [field,value] of [['approval_id',uuid('d')],['source_id',uuid('e')],['fetched_at','2026-10-19T00:00:00Z']]){
+    assert.throws(()=>append(chain,{...observe(f()),[field]:value}),/snapshot_identity_drift/);
+  }
+});
+test('verification rejects internally rehashed contradictory snapshot identities',()=>{
+  const first=append([],observe(f()));
+  const changed={...observe(f()),snapshot_sha256:'f'.repeat(64)};
+  const row={sequence:2,previous_hash:first[0].entry_hash,event:changed};
+  const canonical=value=>{
+    if(value===null || typeof value==='string' || typeof value==='boolean' || typeof value==='number') return JSON.stringify(value);
+    if(Array.isArray(value)) return '['+value.map(canonical).join(',')+']';
+    return '{'+Object.keys(value).sort().map(key=>JSON.stringify(key)+':'+canonical(value[key])).join(',')+'}';
+  };
+  const forgedRoot=createHash('sha256').update('NYXI_AGENT1_LEDGER_V1\\n'+canonical(row)).digest('hex');
+  assert.equal(verify([...first,{...row,entry_hash:forgedRoot}],forgedRoot),false);
+});
