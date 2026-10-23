@@ -23,3 +23,11 @@ test("homepage preserves SEO metadata and editorial vendor rotation", () => {
   assert.match(homepage, /selectEditorialVendors\(vendorDirectory, visitorKey\)/);
   assert.match(homepage, /homepageSectionOrFallback\("featured-products"/);
 });
+
+test("marketplace canonical does not inherit preview or alternate-host APP_URL", () => {
+  const origin = readFileSync(new URL("../src/lib/public-origin.ts", import.meta.url), "utf8");
+  const settings = readFileSync(new URL("../src/lib/seo-settings.ts", import.meta.url), "utf8");
+  assert.match(origin, /export const PRODUCTION_PUBLIC_ORIGIN = "https:\/\/kontamou\.site"/);
+  assert.match(settings, /canonicalOrigin: PRODUCTION_PUBLIC_ORIGIN/);
+  assert.match(settings, /process\.env\.NODE_ENV === "production" && url\.origin !== PRODUCTION_PUBLIC_ORIGIN/);
+});
