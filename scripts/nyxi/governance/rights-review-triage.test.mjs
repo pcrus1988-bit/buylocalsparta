@@ -341,3 +341,30 @@ test('unauthorized approval without captures never enters authorized acquisition
   assert.deepEqual(q.authorized_uncaptured_approval_ids,[]);
   assert.equal(q.publication_authorized,false);
 });
+
+test('duplicate source keys are rejected even when case and whitespace differ', () => {
+  const x=make();
+  x.sources[0].source_key='Official-Nail';
+  x.sources.push({id:uuid('1'),source_key:' official-nail ',canonical_url:'https://other.gov/nail'});
+  assert.throws(()=>buildRightsReviewQueue(x),/duplicate_source_key/);
+});
+test('equivalent canonical URLs cannot hide duplicate source registrations', () => {
+  const x=make();
+  x.sources[0].source_key='source-a';
+  x.sources.push({id:uuid('1'),source_key:'source-b',canonical_url:'https://AGENCY.GOV:443/nail'});
+  assert.throws(()=>buildRightsReviewQueue(x),/duplicate_source_canonical_url/);
+});
+test('unapproved source with invalid canonical URL fails closed', () => {
+  const x=make();
+  x.sources.push({id:uuid('1'),source_key:'unapproved',canonical_url:'http://agency.gov/nail'});
+  assert.throws(()=>buildRightsReviewQueue(x),/invalid_source_canonical_url/);
+});
+test('distinct registered source keys and URLs remain eligible for metadata-only triage', () => {
+  const x=make();
+  x.sources[0].source_key='source-a';
+  x.sources.push({id:uuid('1'),source_key:'source-b',canonical_url:'https://agency.gov/other'});
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.source_count,2);
+  assert.equal(q.sources_without_authorized_acquisition_count,1);
+  assert.equal(q.publication_authorized,false);
+});
