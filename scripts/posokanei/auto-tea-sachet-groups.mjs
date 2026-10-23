@@ -52,9 +52,10 @@ function contradictedFamily(p) {
   if(!name.startsWith(brand+" "))return null;
   const m=name.slice(brand.length).trim().match(spec[1]);
   if(!m)return null;
-  const eachGr=Number(m[2].replace(",","."));
+  const count=Number(m[1]),eachGr=Number(m[2].replace(",","."));
   const mg=Math.round(eachGr*1000);
-  if(!Number.isFinite(eachGr)||eachGr<=0||eachGr>10||
+  if(!Number.isSafeInteger(count)||count<2||count>30||
+     !Number.isFinite(eachGr)||eachGr<=0||eachGr>10||
      !Number.isSafeInteger(mg)||Math.abs(mg/1000-eachGr)>1e-8)return null;
   return category+"|"+spec[0]+"|"+mg;
 }
