@@ -70,6 +70,12 @@ for (const [source, route] of [[brands, "brand guide"], [hub, "city hub"], [hubD
   }
 }
 
+// SVG image URLs should remain visible in brand pages but never become
+// Open Graph/Twitter preview images. Social crawlers prefer raster URLs.
+if (!/const socialImage = brand\.logoUrl[\s\S]{0,250}png\|jpe\?g\|webp/.test(brands)) {
+  failures.push("Brand social images must use a raster-only source with a first-party fallback");
+}
+
 // XML sitemap governance and honest freshness.
 for (const contract of [
   "getSeoGlobalSettingsSnapshot",
