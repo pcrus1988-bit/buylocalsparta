@@ -59,12 +59,26 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
     hasIndexReadyCensus: approvedCensus,
     hasFilters
   });
+  const description = "Ανακάλυψε την αγορά του HUB " + hub.nameEl +
+    " με χάρτη, κατηγορίες, φίλτρα, εγκεκριμένες παρουσίες και δημόσιες πληροφοριακές καταχωρίσεις.";
   return {
     title: "Επιχειρήσεις " + hub.nameEl + " · Τοπικός κατάλογος · KONTA MOY",
-    description: "Ανακάλυψε την αγορά του HUB " + hub.nameEl +
-      " με χάρτη, κατηγορίες, φίλτρα, εγκεκριμένες παρουσίες και δημόσιες πληροφοριακές καταχωρίσεις.",
-    alternates: { canonical }, robots: { index: indexable, follow: true },
-    openGraph: { title: "Επιχειρήσεις " + hub.nameEl + " · KONTA MOY", url: canonical }
+    description,
+    alternates: { canonical },
+    robots: { index: indexable, follow: true },
+    openGraph: {
+      title: "Επιχειρήσεις " + hub.nameEl + " · ΚΟΝΤΑ ΜΟΥ",
+      description,
+      url: canonical,
+      type: "website",
+      images: ["/brand/kontamou-sparta-logo.webp"]
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "Επιχειρήσεις " + hub.nameEl + " · ΚΟΝΤΑ ΜΟΥ",
+      description,
+      images: ["/brand/kontamou-sparta-logo.webp"]
+    }
   };
 }
 

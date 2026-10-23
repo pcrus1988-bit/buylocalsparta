@@ -31,6 +31,9 @@ const category = read("apps/web/src/app/category/[slug]/page.tsx");
 const vendor = read("apps/web/src/app/vendor/[id]/page.tsx");
 const vendorLayout = read("apps/web/src/app/vendor/[id]/layout.tsx");
 const product = read("apps/web/src/app/product/[id]/page.tsx");
+const brands = read("apps/web/src/app/brands/[slug]/page.tsx");
+const hub = read("apps/web/src/app/hubs/[hubSlug]/page.tsx");
+const hubDirectory = read("apps/web/src/app/hubs/[hubSlug]/business/page.tsx");
 const nextConfig = read("apps/web/next.config.ts");
 const diagnosticRoute = read("apps/web/src/app/api/internal/research-seed-diagnostic/route.ts");
 const settingsRuntime = read("apps/web/src/lib/seo-settings.ts");
@@ -58,6 +61,14 @@ const searchConsole = read("apps/web/src/lib/seo-search-console.ts");
 const commerceRuntime = read("packages/postgres-runtime/src/customer-commerce.ts");
 const catalogCard = read("apps/web/src/components/CatalogProductCard.tsx");
 const envExample = read(".env.example");
+
+// Social cards must be specific to each page: a page-level Open Graph object
+// replaces the root image defaults rather than merging missing fields.
+for (const [source, route] of [[brands, "brand guide"], [hub, "city hub"], [hubDirectory, "hub business directory"]] as const) {
+  for (const contract of ["openGraph:", "images:", "twitter:", "summary_large_image", "description"]) {
+    requireText(source, contract, `${route} is missing managed social metadata: ${contract}`);
+  }
+}
 
 // XML sitemap governance and honest freshness.
 for (const contract of [

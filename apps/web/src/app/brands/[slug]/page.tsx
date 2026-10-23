@@ -34,6 +34,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description = brand.description
     ?? `Ανακάλυψε ${brand.name} στο ΚΟΝΤΑ ΜΟΥ: κατηγορίες και ${brand.liveProductCount.toLocaleString("el-GR")} διαθέσιμα προϊόντα.`;
 
+  const socialImage = brand.logoUrl || "/brand/kontamou-sparta-logo.webp";
+
   return {
     title: brand.liveProductCount > 0
       ? `${brand.name} — Brand Guide & διαθέσιμα προϊόντα`
@@ -44,7 +46,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: `${brand.name} | ΚΟΝΤΑ ΜΟΥ`,
       description: description.slice(0, 180),
-      url: `/brands/${brand.slug}`
+      url: `/brands/${brand.slug}`,
+      images: [socialImage],
+      type: "website"
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${brand.name} | ΚΟΝΤΑ ΜΟΥ`,
+      description: description.slice(0, 180),
+      images: [socialImage]
     }
   };
 }
