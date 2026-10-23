@@ -94,3 +94,13 @@ test("invitation expiry is capped below Supabase Auth's default one-hour invite 
  assert.match(admin,/now\(\)\+interval '45 minutes'/);
  assert.doesNotMatch(admin,/now\(\)\+interval '24 hours'/);
 });
+
+test("already registered Supabase users receive a verified no-signup email flow",()=>{
+ assert.match(admin,/\["email_exists","user_already_exists"\]/);
+ assert.match(admin,/response\.status!==400&&response\.status!==422/);
+ assert.match(admin,/new URL\("\/auth\/v1\/otp",AUTH_PROJECT_URL\)/);
+ assert.match(admin,/JSON\.stringify\(\{email,create_user:false\}\)/);
+ assert.match(admin,/existing_auth_email_otp/);
+ assert.match(admin,/providerMethod=await sendVerifiedAuthInvitation/);
+ assert.doesNotMatch(admin,/create_user:true/);
+});
