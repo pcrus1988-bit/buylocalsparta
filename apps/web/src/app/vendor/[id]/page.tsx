@@ -24,6 +24,7 @@ import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference
 import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-policy";
 import { vendorStorefrontThemeTokens } from "../../../lib/vendor-storefront-theme";
+import { publicLastReviewed } from "../../../lib/public-seo-dates";
 
 type Props = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -227,6 +228,7 @@ export default async function VendorPage({ params }: Props) {
   const reference: SeoEntityReference = { kind: isResearch ? "research_vendor" : "partner_vendor", id: vendor.id };
   const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore });
   const override = findSeoEntityOverride(overrides.entries, reference);
+  const reviewDate = publicLastReviewed(override?.lastReviewedAt ?? vendor.research?.checkedAt);
   const seoControl = resolveSeoEntityControl({
     settings,
     kind: reference.kind,
@@ -273,6 +275,7 @@ export default async function VendorPage({ params }: Props) {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
     "@id": `${vendorUrl}#business`,
+    mainEntityOfPage: { "@id": `${vendorUrl}#profile-page` },
     name: vendor.name,
     url: vendorUrl,
     description: vendor.profileShortDescription ?? vendor.profileStory ?? vendor.story?.excerpt ?? (isResearch ? "Χαρτογραφημένη τοπική επιχείρηση από δημόσιες επιχειρηματικές πηγές." : undefined),
@@ -294,6 +297,20 @@ export default async function VendorPage({ params }: Props) {
       longitude: location.coordinates.longitude
     } : undefined
   };
+  // Research profiles get their ProfilePage in the parent layout. Keep a single
+  // page identity while attaching the merchant as the main entity.
+  const partnerProfileStructuredData = !isResearch ? {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    "@id": `${vendorUrl}#profile-page`,
+    url: vendorUrl,
+    name: `${vendor.name} · Τοπικό κατάστημα`,
+    inLanguage: "el-GR",
+    isPartOf: { "@id": `${settings.canonicalOrigin}/#website` },
+    publisher: { "@id": `${settings.canonicalOrigin}/#organization` },
+    mainEntity: { "@id": `${vendorUrl}#business` },
+    lastReviewed: reviewDate
+  } : undefined;
   const storefrontTheme = !isResearch && vendor.storefrontTheme
     ? vendorStorefrontThemeTokens(vendor.storefrontTheme)
     : undefined;
@@ -321,6 +338,7 @@ export default async function VendorPage({ params }: Props) {
   return (
     <main className={`${styles.page} ${storefrontTheme ? styles.brandedPage : ""}`} style={storefrontThemeStyle}>
       {seoControl.schemaAllowed ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(businessStructuredData).replaceAll("<", "\\u003c") }} /> : null}
+      {seoControl.schemaAllowed && partnerProfileStructuredData ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(partnerProfileStructuredData).replaceAll("<", "\\u003c") }} /> : null}
       {seoControl.indexAllowed ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData).replaceAll("<", "\\u003c") }} /> : null}
       <div className="announcement">
         {isResearch
@@ -556,6 +574,10 @@ export default async function VendorPage({ params }: Props) {
                   <dt>Κατάσταση</dt>
                   <dd>{isResearch ? "Χαρτογραφημένη / προσκεκλημένη · όχι ακόμη ενεργός συνεργάτης" : "Ενεργός συνεργάτης ΚΟΝΤΑ ΜΟΥ Σπάρτη"}</dd>
                 </div>
+                {reviewDate ? <div className={styles.infoRow}>
+                  <dt>{isResearch ? "Τελευταίος έλεγχος δημόσιων στοιχείων" : "Τελευταία ανασκόπηση καταχώρισης"}</dt>
+                  <dd><time dateTime={reviewDate}>{checkedDate(reviewDate.slice(0, 10))}</time></dd>
+                </div> : null}
                 {location && (
                   <div className={styles.infoRow}>
                     <dt>Φυσικό κατάστημα</dt>
