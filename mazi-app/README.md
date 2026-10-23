@@ -64,3 +64,9 @@ No real financial service, pooled payments, crowdfunding or grant distributions 
 - Added pure AFM checksum and fail-closed invitation eligibility checks with tests, without touching existing users, invitations, subscription plans, ledger balances or finance.
 - Commercial proposal: KONTA MOY supplies HUB PRO plus 250 EUR equivalent of marketing services. Existing vendor plan mapping and token/fiscal rules must be verified before issuing benefits.
 - Growth Fund intent is support without ordinary repayment. Do not label it a binding loan absent legal review; fund balance remains zero and finance disabled.
+
+## 2026-10-23 · Proposed grant retention and first-time request priority
+- See [GRANT_RETENTION_POLICY_V1.md](docs/GRANT_RETENTION_POLICY_V1.md). Conditional non-repayable development support may entail an *additional* membership period only after a legally valid separate acceptance and actual disbursement; this is not a loan.
+- Formula: additional months = ceiling(requested grant cents / 10,000 cents). Reapplication after 80% of additional months, rounded up. Existing commitments stack and cannot overlap; ordinary members can cancel with ten calendar days' notice before month end.
+- First-ever financial support requests should be flagged and queued before repeat applicants, **excluding** the nonfinancial founding needs assessment from prior-grant application counts; precedence does not replace democratic voting.
+- New migration 013 and matched Edge/UI changes require prospective **disclosure-only** consent at every member Need submission. Binding award acceptance and disbursement are separate **unimplemented** workflows. Never enable financial operations without legal/tax review.
