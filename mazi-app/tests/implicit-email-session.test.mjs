@@ -30,7 +30,7 @@ test("redirect and client completion do not disclose fragment tokens to another 
   assert.match(route, /new URL\("\/auth\/finish", ORIGIN\)/);
   assert.match(route, /new URL\(path \+ "#", ORIGIN\)/);
   assert.match(finish, /window\.history\.replaceState\(window\.history\.state, "", "\/auth\/finish"\)/);
-  assert.ok(finish.indexOf("replaceState") < finish.indexOf("createBrowserClient"),
+  assert.ok(finish.indexOf("window.history.replaceState(") < finish.indexOf("const auth = createBrowserClient("),
     "fragment must be erased before the Supabase browser client initializes");
   assert.match(finish, /auth\.auth\.setSession\(credentials\)/);
   assert.match(finish, /window\.location\.replace\("\/members"\)/);
