@@ -1,7 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
 import { createClient } from "../lib/supabase/server";
-import { asText, validEmail, validateApplication, validateProposal } from "../lib/validation";
+import { asText, validEmail, validateProposal } from "../lib/validation";
 import {maziMemberRequest} from "../lib/mazi-api";
 
 const DESTINATION = "https://mazi.kontamou.site/auth/callback";
@@ -30,23 +30,6 @@ export async function signOut(){
   const db=await createClient();
   await db.auth.signOut();
   redirect("/");
-}
-
-export async function applyForMembership(form:FormData) {
-  await authenticated();
-  if (form.get("accept_privacy") !== "on") urlMessage("/members","privacy_required");
-  const input={
-    business_name:asText(form.get("business_name")),
-    representative_name:asText(form.get("representative_name")),
-    location:asText(form.get("location")),
-    sector:asText(form.get("sector")),
-    registry_number:asText(form.get("registry_number")).replace(/\s/g,"")||null,
-    description:asText(form.get("description"))
-  };
-  if(validateApplication(input)) urlMessage("/members","invalid_application");
-  const outcome=await maziMemberRequest("apply",{...input,accept_privacy:true});
-  if(!outcome.ok)urlMessage("/members",outcome.error==="already_applied"?"already_applied":"application_failed");
-  redirect("/members?notice=application_received");
 }
 
 export async function submitProposal(form:FormData) {
