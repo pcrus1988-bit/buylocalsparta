@@ -28,6 +28,9 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
 
   const sourceMap = new Map(), approvalMap = new Map(), grouped = new Map(), globalSnapshotIds = new Map();
   const capturesBeyondRetention = new Set();
+  // One SHA-256 digest describes one byte stream. Distinct byte lengths under
+  // that digest are contradictory metadata even across separate snapshot IDs.
+  const hashByteLengths = new Map(), hashSourceIds = new Map();
   for (const source of sources) {
     if (!UUID.test(source?.id || '') || sourceMap.has(source.id))
       throw Error('invalid_or_duplicate_source');
@@ -48,6 +51,12 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     // Reuse the same exact historical authorization and private-path validation
     // as the original-byte verification bridge. No Storage fetch occurs.
     const event = observe({ source, approval, snapshot, observedAt });
+    const recordedLength = hashByteLengths.get(event.snapshot_sha256);
+    if (recordedLength !== undefined && recordedLength !== event.byte_length)
+      throw Error('conflicting_content_hash_byte_length');
+    hashByteLengths.set(event.snapshot_sha256, event.byte_length);
+    if (!hashSourceIds.has(event.snapshot_sha256)) hashSourceIds.set(event.snapshot_sha256, new Set());
+    hashSourceIds.get(event.snapshot_sha256).add(event.source_id);
     const items = grouped.get(approvalId);
     if (validDate(approval.retention_until) &&
         Date.parse(snapshot.fetched_at) > Date.parse(approval.retention_until))
@@ -74,10 +83,16 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     });
   }
 
+  // Shared bytes do not transfer licensing rights between publishers.
+  // Preserve both snapshot identities, but require separate scope review.
+  const sharedAcrossSources = new Set([...hashSourceIds]
+    .filter(([, sourceIds]) => sourceIds.size > 1).map(([hash]) => hash));
   const queue = stable([...approvalMap.values()].map(approval => {
     const items = [...grouped.get(approval.id).values()]
       .map(x => x.item).sort((a, b) => a.snapshot_id.localeCompare(b.snapshot_id));
     const reasons = [];
+    if (items.some(item => sharedAcrossSources.has(item.snapshot_sha256)))
+      reasons.push('shared_content_hash_across_sources_scope_review_required');
     if (approval.acquisition_authorized !== true) reasons.push('acquisition_not_authorized');
     if (!safeHttps(approval.rights_policy_url))
       reasons.push('missing_or_invalid_policy_url');
