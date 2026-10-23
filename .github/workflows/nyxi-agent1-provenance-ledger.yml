@@ -10,6 +10,8 @@ on:
       - 'scripts/nyxi/governance/checkpoint-continuity.test.mjs'
       - 'scripts/nyxi/governance/private-storage-attestation.mjs'
       - 'scripts/nyxi/governance/private-storage-attestation.test.mjs'
+      - 'scripts/nyxi/governance/attestation-batch-plan.mjs'
+      - 'scripts/nyxi/governance/attestation-batch-plan.test.mjs'
       - '.github/workflows/nyxi-agent1-provenance-ledger.yml'
       - 'docs/nyxi/agent1-provenance-ledger-20261023.md'
   workflow_dispatch:
@@ -24,4 +26,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test scripts/nyxi/governance/attestation-ledger.test.mjs scripts/nyxi/governance/witness-checkpoint.test.mjs scripts/nyxi/governance/checkpoint-continuity.test.mjs scripts/nyxi/governance/private-storage-attestation.test.mjs
+      - run: node --test scripts/nyxi/governance/attestation-ledger.test.mjs scripts/nyxi/governance/witness-checkpoint.test.mjs scripts/nyxi/governance/checkpoint-continuity.test.mjs scripts/nyxi/governance/private-storage-attestation.test.mjs scripts/nyxi/governance/attestation-batch-plan.test.mjs
