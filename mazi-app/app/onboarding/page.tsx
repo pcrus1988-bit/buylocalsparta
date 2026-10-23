@@ -32,7 +32,7 @@ export default async function Onboarding({searchParams}:{searchParams:Promise<{n
     <Link className="button dark" href="/interest">Εκδήλωση ενδιαφέροντος ↗</Link></>
    :<><span className="eyebrow">ΕΠΑΛΗΘΕΥΜΕΝΗ ΠΡΟΣΚΛΗΣΗ</span>
     <h2>{invitation.business_name}</h2>
-    <p>Επιβεβαιωμένο email: <strong>{user.email}</strong>. Ισχύει έως {new Date(invitation.expires_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})}.</p>
+    <p>Επιβεβαιωμένο email: <strong>{user.email}</strong>. Η προθεσμία ένταξης λήγει το αργότερο {new Date(invitation.expires_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})}. Ο σύνδεσμος του email μπορεί να λήξει νωρίτερα, ανάλογα με τη ρύθμιση Supabase Auth.</p>
     <div className="record-card"><h3>Αποδοχή συμμετοχής — έκδοση v1</h3>
      <p>Η ένταξη αφορά το μη οικονομικό στάδιο λειτουργίας του ΜΑΖΙ. Δεν υπάρχει συνδρομή, τιμολόγηση, αυτόματη ψήφος ή υποχρέωση πληρωμής.</p>
      <p>Η μελλοντική συνδρομή €250/μήνα, τυχόν υπηρεσίες marketing και οποιαδήποτε αναπτυξιακή ενίσχυση απαιτούν χωριστούς όρους και ανεξάρτητη αποδοχή.</p>
