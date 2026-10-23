@@ -9,6 +9,8 @@ import { listPublicHubClaimsByHub } from "../../../lib/hub-claim-runtime";
 import { listVerifiedHubPartnersByHub } from "../../../lib/hub-verified-partners";
 import { hubClaimPublicPath } from "../../../lib/hub-claim-public-url";
 import { hubGemiApplicationPath } from "../../../lib/hub-gemi-join-links";
+import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
+import { jsonLdSafe } from "../../../lib/hub-business-structured-data";
 
 type Props = { params: Promise<{ hubSlug: string }> };
 
@@ -18,7 +20,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { hubSlug } = await params;
   const hub = getExpansionHubBySlug(hubSlug);
   if (!hub) return { title: "HUB δεν βρέθηκε · KONTA MOY", robots: { index: false, follow: false } };
-  const [claims, partners, indexReadyCensus] = await Promise.all([
+  const [{ settings }, claims, partners, indexReadyCensus] = await Promise.all([
+    getSeoGlobalSettingsSnapshot(),
     listPublicHubClaimsByHub(hubSlug, 1),
     listVerifiedHubPartnersByHub(hubSlug, 1),
     hubHasIndexReadyCensus(hubSlug)
@@ -30,7 +33,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: "HUB " + hub.nameEl + " · Τοπικές επιχειρήσεις · KONTA MOY",
     description,
     alternates: { canonical },
-    robots: { index: hasListings, follow: true },
+    robots: { index: settings.indexingEnabled && hasListings, follow: true },
     openGraph: {
       title: "ΚΟΝΤΑ ΜΟΥ HUB " + hub.nameEl,
       description,
@@ -53,7 +56,8 @@ export default async function PublicCityHubPage({ params }: Props) {
   if (!hub) notFound();
   const directoryPath = "/hubs/" + hub.slug + "/business";
   const joinPath = hubGemiApplicationPath({ plan: "claim", billing: "annual", showPlans: true });
-  const [claims, partners, census, categories] = await Promise.all([
+  const [{ settings }, claims, partners, census, categories] = await Promise.all([
+    getSeoGlobalSettingsSnapshot(),
     listPublicHubClaimsByHub(hubSlug, 100),
     listVerifiedHubPartnersByHub(hubSlug, 100),
     listPublicHubCensus(hubSlug, { limit: 6 }),
@@ -71,8 +75,46 @@ export default async function PublicCityHubPage({ params }: Props) {
     }))
   ];
 
+  const canonicalUrl = new URL("/hubs/" + hub.slug, `${settings.canonicalOrigin}/`).toString();
+  const approvedHighlights = approved.slice(0, 6);
+  const hubStructuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "CollectionPage",
+        "@id": `${canonicalUrl}#directory-page`,
+        url: canonicalUrl,
+        name: "HUB " + hub.nameEl + " · Τοπικές επιχειρήσεις",
+        inLanguage: "el-GR",
+        isPartOf: { "@id": `${settings.canonicalOrigin}/#website` },
+        publisher: { "@id": `${settings.canonicalOrigin}/#organization` },
+        about: { "@type": "Place", name: hub.nameEl },
+        mainEntity: { "@id": `${canonicalUrl}#verified-businesses` }
+      },
+      {
+        "@type": "ItemList",
+        "@id": `${canonicalUrl}#verified-businesses`,
+        numberOfItems: approvedHighlights.length,
+        itemListElement: approvedHighlights.map((business, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          name: business.name,
+          url: new URL(business.href, `${settings.canonicalOrigin}/`).toString()
+        }))
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Αρχική", item: settings.canonicalOrigin },
+          { "@type": "ListItem", position: 2, name: "HUB " + hub.nameEl, item: canonicalUrl }
+        ]
+      }
+    ]
+  };
+
   return (
     <main>
+      {settings.indexingEnabled && (hub.isSpartaLegacy || approved.length > 0) ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdSafe(hubStructuredData) }} /> : null}
       <div className="announcement">HUB {hub.nameEl} · Η τοπική αγορά κοντά σου.</div>
       <SiteHeader />
       <section className="shops-hero">

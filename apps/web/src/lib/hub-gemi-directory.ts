@@ -34,7 +34,7 @@ type HubCensusRow = {
   seo_approved: boolean;
   hub_distance_km: number | string | null;
   publication_basis: "premise" | "municipality";
-  registry_verified_at: string | null;
+  registry_verified_at: string | Date | null;
   gemi_active_verified: boolean;
   public_latitude: number | null;
   public_longitude: number | null;
@@ -64,6 +64,14 @@ export function hubCensusCategoryOptions(): ReadonlyArray<{ slug: string; label:
 }
 
 function fromRow(row: HubCensusRow): HubCensusBusiness {
+  const rawVerification = row.registry_verified_at;
+  const verificationDate = rawVerification instanceof Date ? rawVerification : rawVerification ? new Date(rawVerification) : undefined;
+  // pg may return a Date object for timestamptz; normalize once for the public
+  // dossier, visible <time> and ProfilePage.lastReviewed. Never use request time.
+  const registryVerifiedAt = verificationDate && Number.isFinite(verificationDate.getTime())
+    && verificationDate.getTime() >= Date.UTC(2000, 0, 1)
+    && verificationDate.getTime() <= Date.now() + 5 * 60_000
+    ? verificationDate.toISOString() : undefined;
   const distance = row.hub_distance_km === null ? undefined : Number(row.hub_distance_km);
   const latitude = row.public_latitude === null ? NaN : Number(row.public_latitude);
   const longitude = row.public_longitude === null ? NaN : Number(row.public_longitude);
@@ -84,7 +92,7 @@ function fromRow(row: HubCensusRow): HubCensusBusiness {
     seoApproved: row.seo_approved === true,
     distanceKm: Number.isFinite(distance) ? distance : undefined,
     locationBasis: row.publication_basis,
-    registryVerifiedAt: row.registry_verified_at || undefined,
+    registryVerifiedAt,
     gemiActiveVerified: row.gemi_active_verified === true
   };
 }
