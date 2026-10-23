@@ -67,7 +67,7 @@ export async function saveMaziInterest(input:MaziInterestInput){
    accuracy_confirmed,status)
   values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
    'mazi-afm-interest-v1',true,$13)
-  on conflict(tax_number) do nothing
+  on conflict(tax_number,contact_email) do nothing
  `,[
   candidate.afm,
   matched?registry.gemiNumber:null,
