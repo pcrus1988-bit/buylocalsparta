@@ -1,4 +1,4 @@
-const PRODUCTION_PUBLIC_ORIGIN = "https://kontamou.site";
+export const PRODUCTION_PUBLIC_ORIGIN = "https://kontamou.site";
 
 export function publicOrigin(): string {
   // The public production deployment has one authoritative host. Vercel preview
