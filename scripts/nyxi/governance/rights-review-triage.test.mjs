@@ -235,3 +235,31 @@ test('same-source repeated digest preserves separate snapshots without cross-sou
   assert.ok(!q.entries[0].blockers.includes('shared_content_hash_across_sources_scope_review_required'));
   assert.equal(q.publication_authorized,false);
 });
+
+test('same source and digest under distinct acquisition approvals require separate scope review',()=> {
+  const x=make();
+  const secondApproval={...structuredClone(x.approvals[0]),id:uuid('1')};
+  const secondSnapshot={...structuredClone(x.snapshots[0]),id:uuid('2'),
+    provenance:{asset_approval_id:secondApproval.id}};
+  x.approvals.push(secondApproval);
+  x.snapshots.push(secondSnapshot);
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.snapshot_count,2);
+  assert.equal(q.approval_count,2);
+  for (const entry of q.entries) {
+    assert.ok(entry.blockers.includes('shared_content_hash_across_approvals_scope_review_required'));
+    assert.ok(!entry.blockers.includes('shared_content_hash_across_sources_scope_review_required'));
+    assert.equal(entry.publication_authorized,false);
+  }
+});
+
+test('repeated byte-identical captures under one approval do not invent a cross-approval rights conflict',()=> {
+  const x=make();
+  const second=structuredClone(x.snapshots[0]);
+  second.id=uuid('1');
+  x.snapshots.push(second);
+  const entry=buildRightsReviewQueue(x).entries[0];
+  assert.equal(entry.snapshot_count,2);
+  assert.ok(!entry.blockers.includes('shared_content_hash_across_approvals_scope_review_required'));
+  assert.equal(entry.publication_authorized,false);
+});
