@@ -40,6 +40,16 @@ export async function consumeMaziInterestLimit(visitorKey:string,ip:string,now:n
  ]);
  return visitor.allowed&&network.allowed;
 }
+export async function consumeMaziLookupPreviewLimit(visitorKey:string,ip:string,now:number){
+ if(!productionDatabaseConfigured())return false;
+ const ipFingerprint=createHash("sha256").update(ip).digest("hex");
+ const [visitor,network]=await Promise.all([
+  limiter().consume({route:"mazi-afm-preview-visitor",key:visitorKey,limit:10,windowMs:86400000,now}),
+  limiter().consume({route:"mazi-afm-preview-network",key:ipFingerprint,limit:24,windowMs:86400000,now})
+ ]);
+ return visitor.allowed&&network.allowed;
+}
+
 export async function saveMaziInterest(input:MaziInterestInput){
  if(!productionDatabaseConfigured())throw new MaziInterestError("service_unavailable",503,"Η υπηρεσία αιτήσεων δεν είναι διαθέσιμη.");
  const candidate=validateMaziInterest(input);
@@ -57,7 +67,7 @@ export async function saveMaziInterest(input:MaziInterestInput){
    accuracy_confirmed,status)
   values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
    'mazi-afm-interest-v1',true,$13)
-  on conflict(tax_number) do nothing
+  on conflict(tax_number,contact_email) do nothing
  `,[
   candidate.afm,
   matched?registry.gemiNumber:null,

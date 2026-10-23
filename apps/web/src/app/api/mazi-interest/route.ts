@@ -1,4 +1,5 @@
-import {MaziInterestError,consumeMaziInterestLimit,saveMaziInterest} from "../../../lib/mazi-interest-runtime";
+import {normalizeGreekAfm,resolveGemiCompanyByAfm} from "../../../lib/gemi-runtime";
+import {MaziInterestError,consumeMaziInterestLimit,consumeMaziLookupPreviewLimit,saveMaziInterest} from "../../../lib/mazi-interest-runtime";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -29,8 +30,6 @@ export async function POST(req:Request){
  const ip=req.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim()||"";
  if(!ip||ip.length>100)return reply({code:"network_validation_unavailable"},503);
  try{
-  const allowed=await consumeMaziInterestLimit(visitor,ip,Date.now());
-  if(!allowed)return reply({code:"rate_limited",error:"Υπερβολικά πολλές αιτήσεις. Δοκίμασε αργότερα."},429);
   const raw=await req.text();
   if(raw.length>6500)return reply({code:"invalid_payload"},413);
   let body:Record<string,unknown>;
@@ -42,6 +41,23 @@ export async function POST(req:Request){
   if(typeof body.companyWebsiteCheck==="string"&&body.companyWebsiteCheck.trim())
     return reply({status:"received"},202);
   const get=(key:string)=>typeof body[key]==="string"?body[key] as string:"";
+  if(body.operation==="lookup"){
+   const allowed=await consumeMaziLookupPreviewLimit(visitor,ip,Date.now());
+   if(!allowed)return reply({code:"rate_limited",error:"Πάρα πολλές αναζητήσεις ΓΕΜΗ. Προσπάθησε αργότερα."},429);
+   const afm=normalizeGreekAfm(get("afm"));
+   const registry=await resolveGemiCompanyByAfm(afm);
+   if(registry.lookupStatus!=="matched")return reply({
+    status:registry.lookupStatus==="not_found"?"not_found":"unavailable",
+    message:"Η αναζήτηση δεν ολοκληρώθηκε. Η αίτηση μπορεί να αξιολογηθεί χειροκίνητα."
+   });
+   return reply({status:"matched",company:{
+    afm:registry.taxNumber,gemiNumber:registry.gemiNumber,legalName:registry.legalName,
+    tradingName:registry.tradingName||null,companyStatus:registry.companyStatus||null,
+    city:registry.city||null,checkedAt:registry.checkedAt
+   }});
+  }
+  const allowed=await consumeMaziInterestLimit(visitor,ip,Date.now());
+  if(!allowed)return reply({code:"rate_limited",error:"Υπερβολικά πολλές αιτήσεις. Δοκίμασε αργότερα."},429);
   await saveMaziInterest({
    afm:get("afm"),representativeName:get("representativeName"),
    contactEmail:get("contactEmail"),description:get("description"),
