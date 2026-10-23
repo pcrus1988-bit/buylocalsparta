@@ -282,10 +282,19 @@ async function readSeoGlobalSettingsSnapshot(): Promise<SeoSettingsSnapshot> {
 // without turning this operational setting into a process-global stale singleton.
 const getSeoGlobalSettingsPersistedSnapshot = unstable_cache(
   readSeoGlobalSettingsSnapshot,
-  ["seo-global-settings-snapshot-v1"],
+  ["seo-global-settings-snapshot-v2"],
   { revalidate: 60, tags: ["seo-global-settings"] }
 );
-export const getSeoGlobalSettingsSnapshot = cache(getSeoGlobalSettingsPersistedSnapshot);
+export const getSeoGlobalSettingsSnapshot = cache(async (): Promise<SeoSettingsSnapshot> => {
+  const snapshot = await getSeoGlobalSettingsPersistedSnapshot();
+  // Cache entries can outlive deployments, and preview/legacy APP_URL values
+  // must not leak into canonical, OG, robots sitemap or JSON-LD authority.
+  // Enforce this at the read boundary even for older cached snapshots.
+  return {
+    ...snapshot,
+    settings: { ...snapshot.settings, canonicalOrigin: PRODUCTION_PUBLIC_ORIGIN }
+  };
+});
 
 function flattenSettings(value: SeoGlobalSettings): Record<string, unknown> {
   return {
