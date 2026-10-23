@@ -9,7 +9,7 @@ type CompareResponse={status:string;candidates?:Candidate[];disclaimer?:string};
 type Payload={status:string;products?:Item[];stores?:Store[];count?:number;hasMore?:boolean;observedAt?:string;store?:Store};
 const money=(n:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(n);
 const day=(s:string)=>{const d=new Date(s);return Number.isNaN(d.getTime())?s.slice(0,10):new Intl.DateTimeFormat("el-GR",{timeZone:"Europe/Athens",day:"2-digit",month:"2-digit",year:"numeric"}).format(d)};
-export function LidlStandaloneOffers({onAdd,onAddGov}:{onAdd:(offer:LidlVisibleOffer,storeKey:string,storeName:string)=>void;onAddGov:(candidate:{id:string;name:string})=>void}){
+export function LidlStandaloneOffers({onAdd,onAddGov,searchQuery=""}:{onAdd:(offer:LidlVisibleOffer,storeKey:string,storeName:string)=>void;onAddGov:(candidate:{id:string;name:string})=>void;searchQuery?:string}){
  const [stores,setStores]=useState<Store[]>([]),[store,setStore]=useState("GR0851");
  const [period,setPeriod]=useState<"current"|"upcoming">("current");
  const [search,setSearch]=useState(""),[page,setPage]=useState(1);
@@ -41,14 +41,15 @@ export function LidlStandaloneOffers({onAdd,onAddGov}:{onAdd:(offer:LidlVisibleO
    const timer=setTimeout(()=>{
      setLoading(true);
      const p=new URLSearchParams({mode:"offers",store,period,page:String(page)});
-     if(search.trim())p.set("q",search.trim().slice(0,100));
+     const combinedQuery=(search.trim()||searchQuery.trim()).slice(0,100);
+     if(combinedQuery)p.set("q",combinedQuery);
      void fetch("/api/posokanei/lidl?"+p,{signal:abort.signal,cache:"no-store"})
        .then(async r=>{const v=await r.json() as Payload;if(!abort.signal.aborted)setData(v)})
        .catch(()=>{if(!abort.signal.aborted)setData({status:"source_unavailable",products:[]})})
        .finally(()=>{if(!abort.signal.aborted)setLoading(false)});
    },280);
    return()=>{clearTimeout(timer);abort.abort()};
- },[store,period,search,page]);
+ },[store,period,search,searchQuery,page]);
  // Do not show inactive/unlicensed or synthetic catalogue entries.
  if(data.status==="unpublished")return null;
  return <section className={styles.root} aria-label="Προσφορές Lidl χωρίς αντιστοίχιση">
@@ -66,7 +67,7 @@ export function LidlStandaloneOffers({onAdd,onAddGov}:{onAdd:(offer:LidlVisibleO
       </select>
     </label>
     <label>Αναζήτηση
-     <input type="search" value={search} placeholder="π.χ. καφές, γάλα"
+     <input type="search" value={search} placeholder={searchQuery?"Αναζήτηση PosoKanei: "+searchQuery:"π.χ. καφές, γάλα"}
        onChange={e=>{setSearch(e.target.value);setPage(1)}}/>
     </label>
     <label>Περίοδος
