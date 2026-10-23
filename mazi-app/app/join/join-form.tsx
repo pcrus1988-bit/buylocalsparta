@@ -7,13 +7,17 @@ type Company={afm:string;gemiNumber:string;legalName:string;tradingName:string|n
 type ResponseShape={status?:string;company?:Company;code?:string;error?:string;message?:string};
 const API="https://kontamou.site/api/mazi-interest";
 
+let transientVisitor="";
 function visitorKey(){
+ if(transientVisitor)return transientVisitor;
  const key="mazi_afm_interest_visitor_v1";
- let id=sessionStorage.getItem(key);
- if(!id||!/^[a-zA-Z0-9_-]{16,128}$/.test(id)){
+ let id="";
+ try{id=sessionStorage.getItem(key)||"";}catch{}
+ if(!/^[a-zA-Z0-9_-]{16,128}$/.test(id)){
   id=crypto.randomUUID().replaceAll("-","");
-  sessionStorage.setItem(key,id);
+  try{sessionStorage.setItem(key,id);}catch{}
  }
+ transientVisitor=id;
  return id;
 }
 async function send(body:Record<string,unknown>):Promise<ResponseShape>{
