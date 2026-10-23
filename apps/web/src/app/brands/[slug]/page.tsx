@@ -8,6 +8,7 @@ import { getPublicBrandGuide, type PublicBrandCategory } from "../../../lib/bran
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { storefrontCategoryForCode, storefrontLeafForSubcategory } from "../../../lib/storefront-taxonomy";
 import styles from "./page.module.css";
+import { publicLastReviewed } from "../../../lib/public-seo-dates";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
@@ -66,6 +67,7 @@ export default async function BrandGuidePage({ params }: Props) {
 
   const { settings } = await getSeoGlobalSettingsSnapshot();
   const canonicalUrl = new URL(`/brands/${brand.slug}`, `${settings.canonicalOrigin}/`).toString();
+  const lastReviewed = publicLastReviewed(brand.guide.reviewedAt);
   const breadcrumb = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -78,6 +80,8 @@ export default async function BrandGuidePage({ params }: Props) {
   const brandStructuredData = {
     "@context": "https://schema.org",
     "@type": "Brand",
+    "@id": `${canonicalUrl}#brand`,
+    mainEntityOfPage: { "@id": `${canonicalUrl}#webpage` },
     name: brand.name,
     url: canonicalUrl,
     ...(brand.logoUrl ? { logo: brand.logoUrl } : {}),
@@ -85,6 +89,18 @@ export default async function BrandGuidePage({ params }: Props) {
     ...(brand.website ? { sameAs: brand.website } : {})
   };
 
+  const webPageStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": `${canonicalUrl}#webpage`,
+    url: canonicalUrl,
+    name: `${brand.name} · Brand Guide`,
+    inLanguage: "el-GR",
+    isPartOf: { "@id": `${settings.canonicalOrigin}/#website` },
+    publisher: { "@id": `${settings.canonicalOrigin}/#organization` },
+    mainEntity: { "@id": `${canonicalUrl}#brand` },
+    lastReviewed
+  };
   const countryName = brand.countryCode
     ? new Intl.DisplayNames(["el"], { type: "region" }).of(brand.countryCode.toUpperCase()) ?? brand.countryCode
     : undefined;
@@ -145,6 +161,7 @@ export default async function BrandGuidePage({ params }: Props) {
   return <main className={styles.page}>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumb) }} />
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(brandStructuredData) }} />
+    {brand.indexable && settings.indexingEnabled ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(webPageStructuredData) }} /> : null}
     <SiteHeader />
 
     <div className="shell">
@@ -159,6 +176,11 @@ export default async function BrandGuidePage({ params }: Props) {
           </div> : null}
           <div className="eyebrow">KONTA MOU · Brand Guide</div>
           <h1 className={styles.brandName}>{brand.name}</h1>
+          {lastReviewed ? <p style={{ fontSize: "0.82rem", opacity: 0.8, marginTop: 6 }}>
+            Τελευταίος έλεγχος πληροφοριών: <time dateTime={lastReviewed}>
+              {new Intl.DateTimeFormat("el-GR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(lastReviewed))}
+            </time>
+          </p> : null}
           {brand.description ? <p className={styles.intro}>{brand.description}</p> : <p className={styles.intro}>Ανακάλυψε τις κατηγορίες και τα προϊόντα {brand.name} που είναι διαθέσιμα τώρα στο ΚΟΝΤΑ ΜΟΥ.</p>}
           {tags.length ? <div className={styles.dna} aria-label="Brand DNA">
             {tags.map((tag) => <span className={styles.tag} key={tag}>{tag}</span>)}
