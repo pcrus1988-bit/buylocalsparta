@@ -3,7 +3,8 @@ import {redirect} from "next/navigation";
 import {getAdminSession} from "../../../../lib/admin-session";
 import {isMaziSuperAdmin} from "../../../../lib/mazi-superadmin";
 import {maziInterestReviewQueue} from "../../../../lib/mazi-interest-admin";
-import {reviewMaziInterestAction} from "./actions";
+import {reviewMaziInterestAction,issueMaziInvitationAction} from "./actions";
+import {maziInvitationStates} from "../../../../lib/mazi-invitation-admin";
 import s from "../mazi.module.css";
 
 export const dynamic="force-dynamic";
@@ -14,7 +15,8 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
  if(!isMaziSuperAdmin(principal))return <main className={s.stage}><div className={s.shell}>
   <h1>Μόνο ο ΚΟΝΤΑ ΜΟΥ Super Admin έχει πρόσβαση.</h1></div></main>;
  let rows:Awaited<ReturnType<typeof maziInterestReviewQueue>>|null=null;
- try{rows=await maziInterestReviewQueue(principal);}catch{}
+ let invites:Awaited<ReturnType<typeof maziInvitationStates>>=[];
+ try{[rows,invites]=await Promise.all([maziInterestReviewQueue(principal),maziInvitationStates(principal)]);}catch{}
  if(!rows)return <main className={s.stage}><div className={s.shell}><h1>Προσωρινά μη διαθέσιμο</h1><p>Δεν έγινε καμία αλλαγή.</p></div></main>;
  const params=await searchParams;
  const pending=rows.filter(r=>r.status==="pending_review"||r.status==="registry_review_required");
@@ -27,6 +29,9 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
      Η έγκριση επιτρέπει μόνο το επόμενο βήμα πρόσκλησης — δεν δημιουργεί λογαριασμό, μέλος ή δικαιώματα.</p>
   </div></header>
   {params.notice==="reviewed"?<p className={s.notice} role="status">Η απόφαση καταχωρίστηκε στο μητρώο ελέγχου. Δεν έχει σταλεί πρόσκληση.</p>:null}
+  {params.notice==="invitation_sent"?<p className={s.notice} role="status">Η προσωπική πρόσκληση απεστάλη στο ήδη επαληθευμένο email. Δεν δημιουργήθηκε ακόμη συνδρομή ή μέλος.</p>:null}
+  {params.notice==="invitation_delivery_failed"?<p className={s.notice} role="alert">Η αποστολή δεν επιβεβαιώθηκε. Απαιτείται έλεγχος της κατάστασης στο Supabase Auth πριν από νέα προσπάθεια.</p>:null}
+  {params.notice==="invitation_not_issued"?<p className={s.notice} role="alert">Δεν εκδόθηκε πρόσκληση. Έλεγξε τις προϋποθέσεις ταυτοποίησης, την υπάρχουσα πρόσκληση και τη ρύθμιση αποστολής.</p>:null}
   <section className={s.section}><div className={s.sectionTop}><div>
    <p>01 / INTAKE REVIEW</p><h2>Προς αξιολόγηση ({pending.length})</h2>
   </div><span>Ισχύει ανεξάρτητη επαλήθευση εκπροσώπου και email</span></div>
@@ -75,8 +80,20 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
    </article>)}</div>}
   </section>
   <section className={s.section}><div className={s.sectionTop}><div><p>02 / REVIEW HISTORY</p><h2>Προηγούμενες αποφάσεις</h2></div></div>
-   {rows.filter(r=>!["pending_review","registry_review_required"].includes(r.status)).map(r=><div key={r.id} className={s.member}><strong>{r.registry_legal_name||r.tax_number}</strong>
-    <span>{r.status==="approved_pending_invite"?"Εγκεκριμένη, χωρίς αποστολή πρόσκλησης":"Απορρίφθηκε"} · {r.review_reason||"—"}</span></div>)}
+   {rows.filter(r=>!["pending_review","registry_review_required"].includes(r.status)).map(r=>{
+    const latest=invites.find(i=>i.interest_id===r.id);
+    return <div key={r.id} className={s.member} style={{display:"grid",gap:12}}>
+      <strong>{r.registry_legal_name||r.tax_number}</strong>
+      <span>{r.status==="approved_pending_invite"?"Εγκεκριμένη προς πρόσκληση":"Απορρίφθηκε"} · {r.review_reason||"—"}</span>
+      {latest?<span>Πρόσκληση: {latest.status} · {new Date(latest.issued_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})} · λήξη {new Date(latest.expires_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})}</span>:null}
+      {r.status==="approved_pending_invite"&&!latest?<form action={issueMaziInvitationAction} className={s.action}>
+        <input type="hidden" name="csrf" value={principal.csrfToken}/>
+        <input type="hidden" name="id" value={r.id}/>
+        <button type="submit" className={s.primary}>Αποστολή προσωπικής πρόσκλησης στο επαληθευμένο email ↗</button>
+      </form>:null}
+      {latest?.status==="delivery_failed"?<span>Η αποστολή χρειάζεται χειροκίνητη συμφωνία με Supabase Auth. Δεν γίνεται αυτόματη επανάληψη.</span>:null}
+    </div>;
+   })}
   </section>
  </div></main>;
 }
