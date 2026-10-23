@@ -34,7 +34,6 @@ const planOf=(r:BasketResult,m:Mode):BasketPlan|null=>m==="single"?r.bestSingleS
 export function PosoKaneiPublicClient(){
   const [q,setQ]=useState("");
   const [category,setCategory]=useState("");
-  const [onlyLidlOffers,setOnlyLidlOffers]=useState(false);
   const [page,setPage]=useState(1);
   const [listing,setListing]=useState<Listing>(empty);
   const [loading,setLoading]=useState(true);
@@ -130,7 +129,6 @@ export function PosoKaneiPublicClient(){
         const url=new URL("/api/posokanei",window.location.origin);
         if(q.trim())url.searchParams.set("q",q.trim());
         if(category)url.searchParams.set("category",category);
-        if(onlyLidlOffers)url.searchParams.set("lidlOffers","1");
         if(excluded.length)url.searchParams.set("exclude",excluded.join(","));
         url.searchParams.set("page",String(page));
         const response=await fetch(url.toString(),{signal:abort.signal,cache:"no-store"});
@@ -140,7 +138,7 @@ export function PosoKaneiPublicClient(){
       finally{if(!abort.signal.aborted)setLoading(false);}
     },180);
     return ()=>{clearTimeout(timer);abort.abort();};
-  },[q,category,page,excluded,preferencesLoaded,onlyLidlOffers]);
+  },[q,category,page,excluded,preferencesLoaded]);
   const update=useCallback((next:BasketLine[])=>{
     calculationId.current++;
     setLines(next);
@@ -360,7 +358,6 @@ export function PosoKaneiPublicClient(){
           <div className={styles.heading}><div><span className={styles.eyebrow}>01 · ΑΝΑΖΗΤΗΣΗ</span><h2>Βρες και σύγκρινε προϊόντα</h2></div>{listing.status==="ready"&&<span>{listing.count??0} αποτελέσματα</span>}</div>
           <div className={styles.filters}>
             <label>Αναζήτηση προϊόντος<input type="search" value={q} onChange={e=>{setQ(e.target.value);setPage(1);setActive(null);setComparedProduct(null);}} placeholder="π.χ. ρύζι, γάλα, ντομάτα ψιλοκομμένη" /></label>
-            <button type="button" className={styles.secondary} aria-pressed={onlyLidlOffers} onClick={()=>{setOnlyLidlOffers(v=>!v);setPage(1);setActive(null);}}>🏷️ {onlyLidlOffers?"✓ Μόνο προσφορές Lidl":"Δες μόνο προσφορές Lidl"}</button>
             <label>Κατηγορία<select value={category} onChange={e=>{setCategory(e.target.value);setPage(1);setComparedProduct(null);}}><option value="">Όλες οι κατηγορίες</option>{(listing.categoryGroups||[]).map(c=><option key={c} value={c}>{c}</option>)}</select></label>
           </div>
           {loading&&<p className={styles.message} role="status">Φόρτωση καταλόγου…</p>}
