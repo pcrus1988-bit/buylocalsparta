@@ -61,7 +61,7 @@ test("unknown ingredients, mixed/organic/mint/decaf green tea and missing quanti
   assert.deepEqual(valid.map(g=>g.memberIds),[["g","v"]]);
 });
 test("a contradictory or recycled source ID vetoes the apparent comparison family",()=>{
-  const bad={...green[0],source_product_id:"bad",unit_quantity:0.0015};
+  const bad={...green[0],source_product_id:"bad",unit_quantity:0.004};
   assert.deepEqual(deriveAutoTeaSachetGroups([...green,bad]),[]);
   assert.deepEqual(deriveAutoTeaSachetGroups([...green,green[0]]),[]);
   assert.deepEqual(deriveAutoTeaSachetGroups(green,[{status:"approved",memberIds:["v"]}]),[]);
