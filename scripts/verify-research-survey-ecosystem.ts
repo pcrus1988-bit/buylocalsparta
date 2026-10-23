@@ -745,7 +745,7 @@ if (!surveyRuntime.includes("researchSurveyAdminIndexOverview")) errors.push("li
 if (!researchAdmin.includes("researchSurveyAdminIndexOverview")) errors.push("survey index does not use lightweight loader");
 if (researchAdmin.includes("researchSurveyAdminOverview")) errors.push("survey index regressed to the heavyweight operational overview");
 if (!surveyRuntime.includes("getAdminPostgresRuntime().sqlPool.query<SqlRow>(`\n    WITH completed AS")) errors.push("survey index is not reusing the Admin database connection");
-if (!postgresRuntime.includes('const ADMIN_DB_IDLE_TIMEOUT_MS = "120000"')) errors.push("Admin database lane is not kept warm long enough for fast navigation");
+if (!postgresRuntime.includes('const ADMIN_DB_IDLE_TIMEOUT_MS = "10000"')) errors.push("Admin database pool must release idle clients rapidly on serverless deployments");
 if (!identityPersistence.includes("UPDATE user_sessions us") || !identityPersistence.includes("SET last_seen_at=$2")) errors.push("Admin session lookup is not validating and touching in one database statement");
 if (postgresAdminAuth.includes("await this.#identity.verifyCsrf({ sessionId: persisted.sessionId") || postgresAdminAuth.includes("await this.#identity.touchSession({ sessionId: persisted.sessionId")) errors.push("Admin session reads still perform redundant database round trips");
 if (researchAdmin.includes("#survey-")) errors.push("survey admin still relies on hash-anchor navigation");
