@@ -11,7 +11,7 @@ const action=source("../../apps/web/src/app/admin/mazi/interest/actions.ts");
 
 test("unauthenticated AFM interest is NOT an account registration",()=>{
  assert.match(runtime,/resolveGemiCompanyByAfm\(candidate\.afm\)/);
- assert.match(runtime,/on conflict\(tax_number\) do nothing/);
+ assert.match(runtime,/on conflict\(tax_number,contact_email\) do nothing/);
  assert.doesNotMatch(runtime,/auth\.signUp|auth\.admin\.createUser|auth\.signInWithOtp/);
  assert.doesNotMatch(route,/SUPABASE_SERVICE_ROLE_KEY|setSession|createUser/);
  assert.match(route,/const MAZI_ORIGIN="https:\/\/mazi\.kontamou\.site"/);
