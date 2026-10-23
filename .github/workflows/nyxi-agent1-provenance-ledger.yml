@@ -11,6 +11,7 @@ on:
       - 'scripts/nyxi/governance/private-storage-attestation.mjs'
       - 'scripts/nyxi/governance/private-storage-attestation.test.mjs'
       - '.github/workflows/nyxi-agent1-provenance-ledger.yml'
+      - 'docs/nyxi/agent1-provenance-ledger-20261023.md'
   workflow_dispatch:
 permissions:
   contents: read
