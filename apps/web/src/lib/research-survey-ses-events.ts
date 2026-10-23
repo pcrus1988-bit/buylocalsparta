@@ -113,7 +113,16 @@ async function processResearchSesEvent(
   const client = await runtime.sqlPool.connect();
   try {
     await client.query("BEGIN");
+    // Both identifiers are indexed individually. An OR over two independent
+    // columns on the 500k+ message table made repeated SES callbacks expensive.
+    // UNION resolves at most two IDs using the existing unique btree indexes;
+    // keep the final row order and row-level locks inside the transaction.
     const attemptResult = await client.query<SqlRow>(`
+      WITH matching_messages AS (
+        SELECT id FROM research_invite_messages WHERE provider_message_id=$1
+        UNION
+        SELECT id FROM research_invite_messages WHERE id=$2::uuid
+      )
       SELECT
         ri.id AS invite_id,
         ri.study_id,
@@ -122,11 +131,10 @@ async function processResearchSesEvent(
         ri.status,
         cp.contact_value_hash,
         m.id AS message_id
-      FROM research_invite_messages m
+      FROM matching_messages match
+      JOIN research_invite_messages m ON m.id=match.id
       JOIN research_invites ri ON ri.id=m.invite_id
       LEFT JOIN research_contact_points cp ON cp.id=ri.contact_point_id
-      WHERE m.provider_message_id=$1
-         OR m.id=$2::uuid
       ORDER BY m.created_at DESC,m.id DESC
       LIMIT 1
       FOR UPDATE OF m,ri
