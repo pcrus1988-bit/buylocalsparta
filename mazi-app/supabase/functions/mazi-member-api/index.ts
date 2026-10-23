@@ -171,22 +171,9 @@ Deno.serve(async(req:Request)=>{
    return out({ok:true});
   }
   if(operation==="apply"){
-   if(input.accept_privacy!==true)return out({error:"privacy_required"},400);
-   const v={
-    business_name:text(input.business_name), representative_name:text(input.representative_name),
-    location:text(input.location),sector:text(input.sector),
-    registry_number:text(input.registry_number)||null,description:text(input.description)
-   };
-   if(v.business_name.length<3||v.business_name.length>160||v.representative_name.length<3||
-      v.representative_name.length>120||v.location.length<2||v.location.length>120||
-      v.sector.length<2||v.sector.length>100||v.description.length<20||
-      v.description.length>1800||(v.registry_number!==null&&!/^[0-9]{12}$/.test(v.registry_number)))
-    return out({error:"invalid_application"},400);
-   const {error}=await admin.from("mazi_membership_applications").insert({
-     ...v,applicant_user_id:user.id,status:"pending",consent_version:"mazi-interest-v1"
-   });
-   if(error)return out({error:error.code==="23505"?"already_applied":"application_failed"},error.code==="23505"?409:503);
-   return out({ok:true});
+   // Public interest is now an independent AFM/GEMI marketplace intake.
+   // An existing Supabase Auth user can never self-admit to MAZI.
+   return out({error:"invitation_only"},403);
   }
   if(operation==="answer_followup"){
    const followupId=text(input.followup_id),answer=text(input.answer);
