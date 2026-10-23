@@ -15,6 +15,7 @@ const privacy=read("../app/privacy/page.tsx");
 test("MAZI public enrollment is AFM-first, not Supabase public signup",()=>{
  assert.match(join,/import JoinForm from "\.\/join-form"/);
  assert.match(join,/ένταξη γίνεται μόνο με πρόσκληση/);
+ assert.doesNotMatch(join,/if\(user\)redirect\("\/members"\)/);
  assert.match(form,/normalizeGreekAfm/);
  assert.match(form,/operation:"lookup"/);
  assert.match(form,/operation:"submit"/);
