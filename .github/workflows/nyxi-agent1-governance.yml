@@ -24,4 +24,4 @@ jobs:
         with:
           node-version: '22'
       - name: Fail-closed archived asset integrity tests
-        run: node --test scripts/nyxi/governance/archived-asset-integrity.test.mjs
+        run: node --test scripts/nyxi/governance/*.test.mjs
