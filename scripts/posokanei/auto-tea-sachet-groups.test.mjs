@@ -58,6 +58,9 @@ test("only genuinely cheaper whole packages may be offered from reviewed sachet 
     ["v",[{retailer_id:"a",price_eur:2.4}]],
     ["g",[{retailer_id:"b",price_eur:1.8}]]
   ]);
+  const unapproved=findBrandAlternatives({sourceId:"v",products:green,
+    offersByProduct:prices,approvedGroups:[]});
+  assert.deepEqual(unapproved.alternatives,[]);
   const result=findBrandAlternatives({sourceId:"v",products:green,
     offersByProduct:prices,approvedGroups:groups});
   assert.deepEqual(result.alternatives.map(x=>x.id),["g"]);
