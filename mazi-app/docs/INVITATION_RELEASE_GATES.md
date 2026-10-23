@@ -1,19 +1,18 @@
 # MAZI invitation-only onboarding — production activation gates
 
-**Candidate:** PR #1760, SQL migration 016. The source is not production-active merely because it is committed.
+**Candidate:** PR #1760, SQL migrations 016–017. Draft marketplace and MAZI website code is not production-active merely because it is committed.
 The existing founding needs-assessment round stays zero-funded. Membership invoicing, fund custody, marketing credits, award payout and automatic voting eligibility remain disabled.
 
 ## Live activation record — 23 October 2026
-- **COMPLETE:** Migration 016 applied to existing shared Supabase project `eemihhfreggbigxejjhj`; migration history `20261023100625` (`mazi_verified_single_use_member_invitations`).
-- **COMPLETE:** RLS and direct-role privileges verified: no anon/authenticated table access; RPC executable by service_role only.
-- **COMPLETE:** MAZI Edge gateway **v7** deployed, keeping JWT `getUser` authentication for every member operation; the legacy open `apply` returns 403.
-- **COMPLETE:** Dedicated MAZI GitHub CI and monorepo Production CI passed at `7b260117`. A preview from this exact commit is **READY**: `https://mazi-fba95qwvv-sp-business-lab.vercel.app`, protected by Vercel SSO.
-- **PENDING:** A newer, indexed invite-lookup change has been committed after the v7 deployment; its CI and rollout must be checked separately. The preview above does not include this later optimization.
-- **PENDING:** Marketplace and MAZI public-domain release, Supabase Auth redirect/SMTP confirmation, legal review, and real consenting-member end-to-end acceptance.
-- **GUARD:** No mock accounts were created; live interest applications, invitations, acceptances, verified members, ledger rows and award offers remain zero at the activation check; funding remains disabled.
+- **LIVE:** SQL 016 invitation/acceptance model and 017 hard 45-minute invitation-expiry cap applied to shared Supabase project `eemihhfreggbigxejjhj`; confirmed RLS blocks direct anon/authenticated access.
+- **LIVE:** `mazi-member-api` Edge gateway v8; JWT validated using Supabase Auth `getUser` before nonpublic operations, open `apply` returns 403.
+- **PREVIEW:** Latest verified protected MAZI preview `https://mazi-marvhubju-sp-business-lab.vercel.app` built at commit `5b3a36ad`; matching dedicated MAZI CI and monorepo Production CI passed.
+- **SOURCE ONLY:** Subsequent `admission_status` lightweight auth-only check added so invitation onboarding no longer depends on member-dashboard queries. Requires CI/preview verification and Edge v9 deployment before website launch.
+- **STILL PENDING:** The marketplace production admin UI and new MAZI frontend are not merged. Actual Supabase Auth OTP lifetime, invite and magic-link templates, SMTP, allowed redirect URLs and real consenting-business E2E need verification.
+- **GUARD:** No fictitious businesses or test users; funding cycle remains zero-budget, nonfinancial and no automatic voter entitlement.
 
 ## Chain of trust
-1. A business sends the real AFM/GEMI interest request. Nothing is registered in Supabase Auth.
+1. A business sends the real AFM/GEMI interest request. Nothing is registered in Supabase Auth; no billing or membership profile is created.
 2. The marketplace Super Admin independently verifies representation, contact-email control and active GEMI status, then approves `approved_pending_invite`.
 3. On a separate explicit Super Admin command, marketplace server (not the browser) creates an invitation record and calls the **same MAZI Supabase project's** Auth admin `/invite` for new Auth accounts. If and only if the provider explicitly reports an existing registered email, the server uses the Auth `/otp` existing-account email flow with `create_user:false` and the same fixed redirect. No user-metadata claims grant permissions, and no fallback on SMTP or rate-limit errors.
 4. Supabase sends its own expiring one-use email invitation to the previously verified address. Confirmed email is checked again by PostgreSQL before membership creation.
@@ -24,8 +23,8 @@ The existing founding needs-assessment round stays zero-funded. Membership invoi
 ## Production prerequisites (do not skip)
 - Run CI `MAZI Invite-only Admission Acceptance` to completion, including npm tests, Next typecheck and build. Run the marketplace build on the same commit.
 - Legal review of terms, GDPR notices, controller role, retention and funding structure before any external onboarding campaign.
-- Migration already applied: in authorized Supabase `eemihhfreggbigxejjhj`, verify migration `016_verified_single_use_invitations.sql` once. Verify the two tables, RLS, no direct anon/authenticated grants, and RPC EXECUTE restricted to service_role. Do not alter existing membership or grants.
-- The matched `mazi-member-api` v7 is now deployed ahead of frontend and admin UI; deploy only later source changes after CI. Verify its new `invitation_state` and `accept_invitation` operations and that legacy `apply` returns 403.
+- Both migrations 016 and 017 are already applied: in Supabase `eemihhfreggbigxejjhj`, verify their migration history and schema, without reapplying them. Verify the two tables, RLS, no direct anon/authenticated grants, and RPC EXECUTE restricted to service_role. Do not alter existing membership or grants.
+- The matched `mazi-member-api` v8 is deployed; deploy current source containing minimal `admission_status` only after CI. It must continue to reject unauthenticated calls and open `apply`. Verify its new `invitation_state` and `accept_invitation` operations and that legacy `apply` returns 403.
 - Verify marketplace server's `SUPABASE_URL` resolves to exactly `https://eemihhfreggbigxejjhj.supabase.co` and its server-only `SUPABASE_SERVICE_ROLE_KEY` belongs to that project. Optional dedicated `MAZI_SUPABASE_URL`/`MAZI_SUPABASE_SERVICE_ROLE_KEY` may override. Never expose admin keys via `NEXT_PUBLIC_`.
 - Confirm the actual Auth Email OTP Expiration is **at least 45 minutes** (default is one hour) and the MAZI invitation's server-issued 45-minute database cap is respected. Never claim longer validity than Auth.
 - Confirm BOTH Auth templates (new-user Invite and existing-account Magic Link / OTP) produce a usable link to MAZI, and are configured for custom SMTP. Numeric-only OTP templates require a separate code-entry UI and must not be used for the current flow.
