@@ -42,7 +42,8 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     const event = observe({ source, approval, snapshot, observedAt });
     const items = grouped.get(approvalId);
     const identity = [event.source_id, event.approval_id, event.snapshot_sha256,
-      event.byte_length, event.fetched_at].join('|');
+      event.byte_length, event.fetched_at, snapshot.storage_bucket,
+      snapshot.storage_path, snapshot.final_url].join('|');
     const previous = items.get(event.snapshot_id);
     if (previous && previous.identity !== identity)
       throw Error('conflicting_snapshot_identity');
