@@ -92,7 +92,7 @@ export async function issueMaziInvitation(principal:SessionPrincipal,interestId:
   const invited=await conn.query<{id:string;email:string}>(`
    INSERT INTO public.mazi_invitations (
     interest_id,recipient_email,recipient_gemi_number,issued_by,expires_at
-   ) VALUES ($1::uuid,lower(btrim($2)),$3,$4::uuid,now()+interval '24 hours')
+   ) VALUES ($1::uuid,lower(btrim($2)),$3,$4::uuid,now()+interval '45 minutes')
    RETURNING id::text,recipient_email AS email
   `,[interestId,app.contact_email,app.gemi_number,actorId]);
   record=invited.rows[0];
