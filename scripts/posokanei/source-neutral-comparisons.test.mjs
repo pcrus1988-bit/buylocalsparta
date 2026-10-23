@@ -9,3 +9,13 @@ test("government reviewed group can be approved",()=>{const a={...gov,id:"g1"},b
 test("unrelated cosmetics not grouped",()=>assert.equal(discoverSourceNeutralCandidates({source:lidl,candidates:[{...gov,name:"Σαμπουάν βρεφικό"}]}).length,0));
 test("price alone never implies match",()=>assert.equal(discoverSourceNeutralCandidates({source:{...lidl,name:"Ακτινίδια"},candidates:[gov]}).length,0));
 test("Greek accents folded",()=>assert.deepEqual(compareSearchTokens("Γιαούρτι 200g"),["γιαουρτι","200g"]));
+
+test("large government catalogue cannot crowd matching Lidl products out of capped groups",()=>{
+  const source={id:"gov0",origin:"posokanei",name:"Γιαούρτι στραγγιστό 5% 1kg",brand:"Brand",unit:"kg",quantity:1};
+  const government=Array.from({length:25},(_,i)=>({id:"gov"+(i+1),origin:"posokanei",name:"Γιαούρτι στραγγιστό 5% 1kg",brand:"Other"}));
+  const lidlOffer={id:"lidl_gr:GR0851:8bd5bd46-14f1-47c6-a37c-d4a13648fd3a",origin:"lidl_gr",name:"Γιαούρτι στραγγιστό 5%",brand:"Galpo",storeKey:"GR0851"};
+  const matches=discoverSourceNeutralCandidates({source,candidates:[...government,lidlOffer],limit:10});
+  assert.equal(matches.length,10);
+  assert.equal(matches.filter(x=>x.origin==="lidl_gr").length,1);
+  assert.equal(matches.find(x=>x.origin==="lidl_gr").confidence,"requires_review");
+});
