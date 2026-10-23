@@ -294,3 +294,50 @@ test('authorized sources do not enter the missing-authorization queue',()=> {
   assert.deepEqual(q.sources_without_authorized_acquisition_ids,[]);
   assert.equal(q.publication_authorized,false);
 });
+
+test('authorized but uncaptured approval is explicitly queued without authorizing a fetch',()=> {
+  const x=make();
+  x.snapshots=[];
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.sources_without_archived_snapshots_count,1);
+  assert.deepEqual(q.sources_without_archived_snapshots_ids,[x.sources[0].id]);
+  assert.equal(q.authorized_uncaptured_approval_count,1);
+  assert.deepEqual(q.authorized_uncaptured_approval_ids,[x.approvals[0].id]);
+  assert.equal(q.publication_authorized,false);
+  assert.ok(Object.isFrozen(q.authorized_uncaptured_approval_ids));
+  assert.ok(Object.isFrozen(q.sources_without_archived_snapshots_ids));
+});
+test('uncleared source and authorized uncaptured approval are counted separately',()=> {
+  const x=make();
+  const unapproved={id:uuid('1'),canonical_url:'https://private.example.invalid/no-rights'};
+  x.sources.push(unapproved);
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.sources_without_authorized_acquisition_count,1);
+  assert.deepEqual(q.sources_without_authorized_acquisition_ids,[unapproved.id]);
+  assert.equal(q.sources_without_archived_snapshots_count,1);
+  assert.deepEqual(q.sources_without_archived_snapshots_ids,[unapproved.id]);
+  assert.equal(q.authorized_uncaptured_approval_count,0);
+  assert.ok(!JSON.stringify(q).includes('private.example.invalid'));
+});
+test('distinct approval for archived source can be uncaptured without losing source archive status',()=> {
+  const x=make();
+  const secondApproval={...structuredClone(x.approvals[0]),id:uuid('1')};
+  x.approvals.push(secondApproval);
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.sources_without_archived_snapshots_count,0);
+  assert.equal(q.authorized_uncaptured_approval_count,1);
+  assert.deepEqual(q.authorized_uncaptured_approval_ids,[secondApproval.id]);
+  assert.equal(q.snapshot_count,1);
+  assert.equal(q.publication_authorized,false);
+});
+test('unauthorized approval without captures never enters authorized acquisition worklist',()=> {
+  const x=make();
+  x.snapshots=[];
+  x.approvals[0].acquisition_authorized=false;
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.sources_without_authorized_acquisition_count,1);
+  assert.equal(q.sources_without_archived_snapshots_count,1);
+  assert.equal(q.authorized_uncaptured_approval_count,0);
+  assert.deepEqual(q.authorized_uncaptured_approval_ids,[]);
+  assert.equal(q.publication_authorized,false);
+});
