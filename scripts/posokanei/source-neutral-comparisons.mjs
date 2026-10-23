@@ -40,5 +40,12 @@ export function discoverSourceNeutralCandidates({source,candidates,approvedGroup
   result.sort((a,b)=>(a.confidence==="reviewed_equivalent"?0:1)-(b.confidence==="reviewed_equivalent"?0:1)||
     Number(b.differentBrand)-Number(a.differentBrand)||b.score-a.score||
     a.name.localeCompare(b.name,"el"));
-  return result.slice(0,limit);
+  // A larger source catalogue must not consume every visible slot before
+  // a relevant product from another source is seen. Reserve a small, bounded
+  // cross-origin share without treating its name match as verified equivalence.
+  const crossOrigin=result.filter(candidate=>candidate.origin!==source.origin);
+  const crossSlots=Math.min(crossOrigin.length,Math.max(1,Math.floor(limit/3)));
+  const first=crossOrigin.slice(0,crossSlots);
+  const taken=new Set(first.map(candidate=>candidate.id));
+  return [...first,...result.filter(candidate=>!taken.has(candidate.id)).slice(0,limit-first.length)];
 }
