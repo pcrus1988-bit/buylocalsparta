@@ -81,7 +81,7 @@
     "check:storefront": "node --experimental-strip-types scripts/verify-storefront-taxonomy.ts",
     "check:research-seed": "node --experimental-strip-types scripts/verify-research-seed.ts",
     "check:merchants": "node --experimental-strip-types scripts/verify-merchant-directory.ts",
-    "check:seo": "node --experimental-strip-types scripts/verify-next-seo.ts && node --experimental-strip-types scripts/verify-seo-opportunity-signals.ts && node --experimental-strip-types scripts/verify-shop-semantic-links.ts",
+    "check:seo": "node --experimental-strip-types scripts/verify-next-seo.ts && node --experimental-strip-types scripts/verify-seo-opportunity-signals.ts && node --experimental-strip-types scripts/verify-shop-semantic-links.ts && node --experimental-strip-types scripts/verify-public-seo-dates.ts",
     "test:seo-shop-links": "node --experimental-strip-types scripts/verify-shop-semantic-links.ts",
     "test:seo-opportunities": "node --experimental-strip-types scripts/verify-seo-opportunity-signals.ts",
     "check:advice": "node --experimental-strip-types scripts/verify-advice-hub.ts",

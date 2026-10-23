@@ -7,6 +7,7 @@ import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference
 import { getPublicVendorSearchVisibility } from "../../../lib/seo-public-visibility";
 import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-policy";
 import styles from "./claim.module.css";
+import { publicLastReviewed } from "../../../lib/public-seo-dates";
 
 type Props = Readonly<{
   children: ReactNode;
@@ -61,6 +62,7 @@ export default async function PublicVendorProfileLayout({ children, params }: Pr
   const reference: SeoEntityReference = { kind: "research_vendor", id: vendor.id };
   const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore });
   const override = findSeoEntityOverride(overrides.entries, reference);
+  const reviewDate = publicLastReviewed(override?.lastReviewedAt ?? vendor.research?.checkedAt);
   const seoControl = resolveSeoEntityControl({
     settings,
     kind: reference.kind,
@@ -89,6 +91,7 @@ export default async function PublicVendorProfileLayout({ children, params }: Pr
         isPartOf: { "@id": `${origin}/#website` },
         publisher: { "@id": `${origin}/#organization` },
         mainEntity: { "@id": businessId },
+        lastReviewed: reviewDate,
         about: [{ "@id": businessId }, { "@id": relationshipStatusId }]
       },
       {

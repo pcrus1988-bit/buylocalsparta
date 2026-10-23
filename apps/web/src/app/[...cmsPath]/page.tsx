@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CmsContentRenderer } from "../../components/CmsContentRenderer";
-import { getPublicCmsPage, getPublicCmsSeo, isContentLocale } from "../../lib/public-cms";
+import { getPublicCmsSeo, isContentLocale } from "../../lib/public-cms";
 import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
+import { publicContentDates } from "../../lib/public-seo-dates";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,27 @@ export async function generateMetadata({ params }: CmsRouteProps): Promise<Metad
 export default async function CmsPublicPage({ params }: CmsRouteProps) {
   const resolvedRoute = routeParts((await params).cmsPath ?? []);
   if (!resolvedRoute) notFound();
-  const resolved = await getPublicCmsPage(resolvedRoute.locale, resolvedRoute.slug);
+  const { settings } = await getSeoGlobalSettingsSnapshot();
+  const resolved = await getPublicCmsSeo(resolvedRoute.locale, resolvedRoute.slug, settings.canonicalOrigin);
   if (!resolved) notFound();
-  return <CmsContentRenderer translation={resolved.translation} locale={resolvedRoute.locale} />;
+  const dates = publicContentDates(resolved.page);
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": `${resolved.seo.canonicalUrl}#webpage`,
+    url: resolved.seo.canonicalUrl,
+    name: resolved.translation.title,
+    description: resolved.seo.description,
+    inLanguage: resolvedRoute.locale === "el" ? "el-GR" : "en",
+    isPartOf: { "@id": `${settings.canonicalOrigin}/#website` },
+    publisher: { "@id": `${settings.canonicalOrigin}/#organization` },
+    datePublished: dates.datePublished,
+    dateModified: dates.dateModified
+  };
+  return <>
+    {settings.indexingEnabled && resolved.seo.robots === "index,follow"
+      ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }} />
+      : null}
+    <CmsContentRenderer translation={resolved.translation} locale={resolvedRoute.locale} dates={dates} />
+  </>;
 }
