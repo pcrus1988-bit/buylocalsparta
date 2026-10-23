@@ -3,6 +3,13 @@ import { observe } from './attestation-ledger.mjs';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHA = /^[0-9a-f]{64}$/;
 const validDate = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
+const safeHttps = value => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && Boolean(url.hostname) &&
+      !url.username && !url.password && !url.hash;
+  } catch { return false; }
+};
 const stable = rows => rows.sort((a, b) => a.id.localeCompare(b.id));
 
 /**
@@ -19,7 +26,7 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
   if (sources.length > 10000 || approvals.length > 10000 || snapshots.length > 100000)
     throw Error('review_queue_limit_exceeded');
 
-  const sourceMap = new Map(), approvalMap = new Map(), grouped = new Map();
+  const sourceMap = new Map(), approvalMap = new Map(), grouped = new Map(), globalSnapshotIds = new Map();
   for (const source of sources) {
     if (!UUID.test(source?.id || '') || sourceMap.has(source.id))
       throw Error('invalid_or_duplicate_source');
@@ -44,6 +51,12 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     const identity = [event.source_id, event.approval_id, event.snapshot_sha256,
       event.byte_length, event.fetched_at, snapshot.storage_bucket,
       snapshot.storage_path, snapshot.final_url].join('|');
+    // Snapshot UUIDs are globally unique, not merely unique within an
+    // acquisition approval. A second approval cannot rebind an archived ID.
+    const globalIdentity = globalSnapshotIds.get(event.snapshot_id);
+    if (globalIdentity !== undefined && globalIdentity !== identity)
+      throw Error('conflicting_snapshot_identity');
+    globalSnapshotIds.set(event.snapshot_id, identity);
     const previous = items.get(event.snapshot_id);
     if (previous && previous.identity !== identity)
       throw Error('conflicting_snapshot_identity');
@@ -62,9 +75,11 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
       .map(x => x.item).sort((a, b) => a.snapshot_id.localeCompare(b.snapshot_id));
     const reasons = [];
     if (approval.acquisition_authorized !== true) reasons.push('acquisition_not_authorized');
-    if (typeof approval.rights_policy_url !== 'string' || !approval.rights_policy_url.startsWith('https://'))
+    if (!safeHttps(approval.rights_policy_url))
       reasons.push('missing_or_invalid_policy_url');
     if (!validDate(approval.retention_until)) reasons.push('retention_deadline_missing');
+    else if (Date.parse(observedAt) >= Date.parse(approval.retention_until))
+      reasons.push('retention_deadline_expired');
     else if (items.length && snapshots.some(s => s.provenance?.asset_approval_id === approval.id &&
       Date.parse(s.fetched_at) > Date.parse(approval.retention_until)))
       reasons.push('retention_deadline_precedes_capture');
