@@ -20,7 +20,7 @@ export async function maziInvitationStates(principal:SessionPrincipal){
  return result.rows;
 }
 
-type InviteProviderMethod="supabase_auth_invite"|"existing_auth_magiclink";
+type InviteProviderMethod="supabase_auth_invite"|"existing_auth_email_otp";
 /**
  * One authorized email to the independently reviewed business contact.
  * Auth Admin invite only creates an Auth user for NEW addresses; confirmed
@@ -61,7 +61,7 @@ async function sendVerifiedAuthInvitation(email:string):Promise<InviteProviderMe
   signal:AbortSignal.timeout(9000)
  });
  if(!accepted.ok)throw Error("MAZI_EXISTING_AUTH_LOGIN_FAILED");
- return "existing_auth_magiclink";
+ return "existing_auth_email_otp";
 }
 
 export async function issueMaziInvitation(principal:SessionPrincipal,interestId:string,retryReason?:string):Promise<"sent"|"delivery_failed">{
