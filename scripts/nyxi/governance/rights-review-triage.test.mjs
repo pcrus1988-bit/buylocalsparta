@@ -368,3 +368,21 @@ test('distinct registered source keys and URLs remain eligible for metadata-only
   assert.equal(q.sources_without_authorized_acquisition_count,1);
   assert.equal(q.publication_authorized,false);
 });
+
+
+test('impossible rights-review deadline is triaged as invalid, not normalized',()=>{
+  const x=make();x.approvals[0].review_due_at='2026-02-30T00:00:00Z';
+  assert.ok(buildRightsReviewQueue(x).entries[0].blockers.includes('rights_review_due_date_missing_or_invalid'));
+});
+test('impossible retention deadline cannot silently authorize continued retention',()=>{
+  const x=make();x.approvals[0].retention_until='2026-02-30T00:00:00Z';
+  assert.ok(buildRightsReviewQueue(x).entries[0].blockers.includes('retention_deadline_missing'));
+});
+test('date-only observation time cannot create a provenance review checkpoint',()=>{
+  const x=make();x.observedAt='2026-10-23';
+  assert.throws(()=>buildRightsReviewQueue(x),/invalid_review_queue_input/);
+});
+test('invalid offset on uncaptured approval remains blocked for new acquisitions',()=>{
+  const x=make();x.snapshots=[];x.approvals[0].expires_at='2026-11-01T00:00:00+15:00';
+  assert.ok(buildRightsReviewQueue(x).entries[0].blockers.includes('acquisition_expiry_missing_or_invalid'));
+});
