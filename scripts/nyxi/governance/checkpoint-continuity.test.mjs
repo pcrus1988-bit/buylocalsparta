@@ -30,7 +30,7 @@ const signed = (chain,issuedAt,key=keys.privateKey) => {
 const cp1 = signed(first,'2026-10-23T08:01:00.000Z');
 const cp2 = signed(second,'2026-10-23T09:01:00.000Z');
 const cp3 = signed(third,'2026-10-23T10:01:00.000Z');
-const anchor = checkpointAnchor(cp1,keys.publicKey,witnessId);
+const anchor = checkpointAnchor(first,cp1,keys.publicKey,witnessId);
 const check = (chain=second,cp=cp2,options={}) => verifyWitnessContinuation(chain,cp,{
   pinnedPublicKey:keys.publicKey,expectedWitnessId:witnessId,previousAnchor:anchor,...options
 });
@@ -59,11 +59,16 @@ test('altered prefix of appended chain rejected',()=>{
 test('pinned fingerprint must match exact public key',()=>assert.equal(check(second,cp2,{previousAnchor:{...anchor,public_key_fingerprint:'f'.repeat(64)}}),false));
 test('invalid missing anchor and private-key anchor rejected',()=>{
   assert.equal(check(second,cp2,{previousAnchor:undefined}),false);
-  assert.throws(()=>checkpointAnchor(cp1,keys.privateKey,witnessId),/invalid_checkpoint_anchor/);
+  assert.throws(()=>checkpointAnchor(first,cp1,keys.privateKey,witnessId),/invalid_checkpoint_anchor/);
 });
 test('candidate anchor fingerprint is deterministic',()=>assert.equal(anchor.public_key_fingerprint,publicKeyFingerprint(keys.publicKey)));
-test('candidate anchor must not be mistaken for proof of signature verification',()=>{
+test('forged checkpoint cannot produce an independently pinnable anchor',()=>{
   const fake={request:{...cp1.request,root_sha256:'f'.repeat(64)},signature_base64:cp1.signature_base64};
-  assert.equal(checkpointAnchor(fake,keys.publicKey,witnessId).root_sha256,'f'.repeat(64));
-  assert.equal(check(second,cp2,{previousAnchor:checkpointAnchor(fake,keys.publicKey,witnessId)}),false);
+  assert.throws(()=>checkpointAnchor(first,fake,keys.publicKey,witnessId),/invalid_checkpoint_anchor/);
+});
+test('unsigned checkpoint cannot produce a verified anchor',()=>{
+  assert.throws(()=>checkpointAnchor(first,{request:cp1.request},keys.publicKey,witnessId),/invalid_checkpoint_anchor/);
+});
+test('truncated chain cannot produce a verified anchor',()=>{
+  assert.throws(()=>checkpointAnchor([],cp1,keys.publicKey,witnessId),/invalid_checkpoint_anchor/);
 });
