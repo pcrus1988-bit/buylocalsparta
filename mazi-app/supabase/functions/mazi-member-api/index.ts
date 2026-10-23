@@ -73,26 +73,25 @@ Deno.serve(async(req:Request)=>{
   // The email used here comes from Supabase Auth getUser(jwt), not a browser
   // submitted identity or user_metadata. Membership is NOT created by login.
   if(operation==="invitation_state"){
-   const {data:interests,error:interestError}=await admin.from("mazi_interest_applications")
-     .select("id,registry_legal_name,contact_email,status")
-     .eq("contact_email",(user.email||"").trim().toLowerCase())
-     .eq("status","approved_pending_invite").limit(5);
+   // Use the indexed, immutable invite recipient address rather than an
+   // unindexed and possibly mixed-case expression-of-interest email.
+   const recipient=(user.email||"").trim().toLowerCase();
+   const {data:invite,error:inviteError}=await admin.from("mazi_invitations")
+    .select("id,interest_id,expires_at,terms_version")
+    .eq("recipient_email",recipient).eq("status","email_sent")
+    .gt("expires_at",new Date().toISOString())
+    .order("issued_at",{ascending:false}).limit(1).maybeSingle();
+   if(inviteError)return out({error:"data_unavailable"},503);
+   if(!invite)return out({ok:true,invitation:null});
+   const {data:interest,error:interestError}=await admin.from("mazi_interest_applications")
+     .select("status,registry_legal_name").eq("id",invite.interest_id).maybeSingle();
    if(interestError)return out({error:"data_unavailable"},503);
-   let invitation:Json|null=null;
-   for(const interest of interests||[]){
-    const {data:invite,error:inviteError}=await admin.from("mazi_invitations")
-      .select("id,status,expires_at,terms_version")
-      .eq("interest_id",interest.id).eq("status","email_sent")
-      .gt("expires_at",new Date().toISOString())
-      .order("issued_at",{ascending:false}).limit(1).maybeSingle();
-    if(inviteError)return out({error:"data_unavailable"},503);
-    if(invite){
-     invitation={id:invite.id,terms_version:invite.terms_version,
-       business_name:interest.registry_legal_name,expires_at:invite.expires_at};
-     break;
-    }
-   }
-   return out({ok:true,invitation});
+   if(!interest||interest.status!=="approved_pending_invite")
+     return out({ok:true,invitation:null});
+   return out({ok:true,invitation:{
+      id:invite.id,terms_version:invite.terms_version,
+      business_name:interest.registry_legal_name,expires_at:invite.expires_at
+   }});
   }
   if(operation==="accept_invitation"){
    if(input.accept_charter!==true||input.accept_processing!==true
