@@ -386,3 +386,78 @@ test('invalid offset on uncaptured approval remains blocked for new acquisitions
   const x=make();x.snapshots=[];x.approvals[0].expires_at='2026-11-01T00:00:00+15:00';
   assert.ok(buildRightsReviewQueue(x).entries[0].blockers.includes('acquisition_expiry_missing_or_invalid'));
 });
+
+
+const uncapturedReady = () => {
+  const x=make();
+  x.snapshots=[];
+  x.approvals[0].review_due_at='2026-10-30T00:00:00Z';
+  x.approvals[0].retention_until='2026-12-31T00:00:00Z';
+  return x;
+};
+test('exact authorized uncaptured metadata is listed without granting fetch or publication rights',()=>{
+  const x=uncapturedReady();
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.authorized_uncaptured_approval_count,1);
+  assert.equal(q.metadata_eligible_uncaptured_approval_count,1);
+  assert.deepEqual(q.metadata_eligible_uncaptured_approval_ids,[x.approvals[0].id]);
+  assert.equal(q.entries[0].uncaptured_acquisition_metadata_eligible,true);
+  assert.equal(q.entries[0].publication_authorized,false);
+  assert.equal(q.publication_authorized,false);
+  assert.ok(Object.isFrozen(q.metadata_eligible_uncaptured_approval_ids));
+});
+test('an uncaptured approval cannot substitute a different source URL',()=>{
+  const x=uncapturedReady();
+  x.approvals[0].asset_url='https://different.gov/nail';
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.authorized_uncaptured_approval_count,1);
+  assert.equal(q.metadata_eligible_uncaptured_approval_count,0);
+  assert.ok(q.entries[0].blockers.includes('approved_asset_source_url_mismatch'));
+  assert.ok(!JSON.stringify(q).includes('different.gov'));
+});
+test('uncaptured final redirect target must be a safe exact HTTPS reference',()=>{
+  const x=uncapturedReady();
+  x.approvals[0].approved_final_url='http://agency.gov/nail';
+  const q=buildRightsReviewQueue(x);
+  assert.ok(q.entries[0].blockers.includes('approved_final_url_missing_or_invalid'));
+  assert.equal(q.entries[0].uncaptured_acquisition_metadata_eligible,false);
+});
+test('future or inverted acquisition windows block uncaptured worklist eligibility',()=>{
+  const x=uncapturedReady();
+  x.approvals[0].approved_at='2026-10-24T00:00:00Z';
+  let q=buildRightsReviewQueue(x);
+  assert.ok(q.entries[0].blockers.includes('acquisition_authorization_not_yet_active'));
+  assert.equal(q.metadata_eligible_uncaptured_approval_count,0);
+  x.approvals[0].expires_at='2026-10-22T00:00:00Z';
+  q=buildRightsReviewQueue(x);
+  assert.ok(q.entries[0].blockers.includes('acquisition_window_invalid'));
+  assert.equal(q.metadata_eligible_uncaptured_approval_count,0);
+});
+test('expired authorization and overdue review block uncaptured acquisition candidates',()=>{
+  const x=uncapturedReady();
+  x.approvals[0].expires_at='2026-10-22T00:00:00Z';
+  x.approvals[0].review_due_at='2026-10-22T00:00:00Z';
+  const q=buildRightsReviewQueue(x);
+  assert.ok(q.entries[0].blockers.includes('acquisition_authorization_expired_for_new_captures'));
+  assert.ok(q.entries[0].blockers.includes('rights_review_overdue'));
+  assert.equal(q.metadata_eligible_uncaptured_approval_count,0);
+});
+test('missing policy or retention cannot be hidden by caller eligibility flags',()=>{
+  const x=uncapturedReady();
+  x.approvals[0].rights_policy_url=null;
+  x.approvals[0].retention_until=null;
+  x.approvals[0].uncaptured_acquisition_metadata_eligible=true;
+  x.approvals[0].publication_authorized=true;
+  const q=buildRightsReviewQueue(x);
+  assert.ok(q.entries[0].blockers.includes('missing_or_invalid_policy_url'));
+  assert.ok(q.entries[0].blockers.includes('retention_deadline_missing'));
+  assert.equal(q.metadata_eligible_uncaptured_approval_count,0);
+  assert.equal(q.publication_authorized,false);
+});
+test('captured approvals are not represented as uncaptured acquisition candidates',()=>{
+  const x=uncapturedReady();
+  x.snapshots=make().snapshots;
+  const q=buildRightsReviewQueue(x);
+  assert.equal(q.metadata_eligible_uncaptured_approval_count,0);
+  assert.equal(q.entries[0].uncaptured_acquisition_metadata_eligible,false);
+});
