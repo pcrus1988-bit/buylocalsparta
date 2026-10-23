@@ -7,7 +7,7 @@ import {summarizeCheaperAlternatives} from "../../../../scripts/posokanei/altern
 import styles from "./PosoKaneiPublicClient.module.css";
 
 type Offer={retailerId:string;retailerName:string;priceEur:number;observedAt:string|null;discount:boolean};
-type LidlOffer={retailerId:string;retailerName:string;storeKey:string;storeName:string;offerPriceEur:number;previousPriceEur:number|null;validFrom:string;validTo:string;observedAt:string;offerId:string;scope:"specific_store";basketEligible:false};
+type LidlOffer={retailerId:string;retailerName:string;storeKey:string;storeName:string;offerPriceEur:number;previousPriceEur:number|null;validFrom:string;validTo:string;observedAt:string;offerId:string;scope:"specific_store";membershipRequirement:"requires_lidl_plus"|"no_membership_required";basketEligible:false};
 type Product={id:string;name:string;brand:string|null;category:string|null;unit:string|null;unitQuantity:number|null;imageUrl?:string|null;groupId:string|null;offers:Offer[];lidlOffers?:LidlOffer[];approvedAlternatives:Cheaper[]};
 type Group={id:string;label:string;basis:"kg"|"l"|"piece";approvalMethod?:"automatic_commodity"|"manual_review"};
 type Retailer={id:string;name:string};
@@ -378,6 +378,7 @@ export function PosoKaneiPublicClient(){
                   {p.lidlOffers?.map(o=><div className={styles.offer} key={o.storeKey+":"+o.offerId}>
                     <span><strong>Προσφορά Lidl</strong> · {o.storeName} ({o.storeKey})
                       <small> Ισχύει έως {o.validTo} · συγκεκριμένο κατάστημα</small>
+                      <small>{o.membershipRequirement==="requires_lidl_plus"?"Απαιτείται Lidl Plus κάρτα για την έκπτωση":"Δεν απαιτείται Lidl Plus κάρτα (επαληθευμένο)"}</small>
                     </span>
                     <span><strong>{money(o.offerPriceEur)}</strong>
                       {o.previousPriceEur!==null&&<small>Αρχική καταγεγραμμένη τιμή: {money(o.previousPriceEur)}</small>}
