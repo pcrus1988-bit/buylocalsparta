@@ -19,7 +19,7 @@ export async function emailSignIn(form:FormData) {
   if (!validEmail(email)) urlMessage("/join","invalid_email");
   const db=await createClient();
   const {error}=await db.auth.signInWithOtp({
-    email,options:{emailRedirectTo:DESTINATION,shouldCreateUser:true}
+    email,options:{emailRedirectTo:DESTINATION,shouldCreateUser:false}
   });
   if(error) urlMessage("/join","email_unavailable");
   redirect("/join?sent=1");
