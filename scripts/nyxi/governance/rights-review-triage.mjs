@@ -80,7 +80,7 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     if (!validDate(approval.retention_until)) reasons.push('retention_deadline_missing');
     else if (Date.parse(observedAt) >= Date.parse(approval.retention_until))
       reasons.push('retention_deadline_expired');
-    else if (items.length && snapshots.some(s => s.provenance?.asset_approval_id === approval.id &&
+    if (validDate(approval.retention_until) && items.length && snapshots.some(s => s.provenance?.asset_approval_id === approval.id &&
       Date.parse(s.fetched_at) > Date.parse(approval.retention_until)))
       reasons.push('retention_deadline_precedes_capture');
     if (!SHA.test(approval.metadata?.rights_policy_sha256 || ''))
