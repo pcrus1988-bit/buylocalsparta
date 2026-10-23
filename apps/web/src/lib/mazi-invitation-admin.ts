@@ -20,22 +20,48 @@ export async function maziInvitationStates(principal:SessionPrincipal){
  return result.rows;
 }
 
-async function sendVerifiedAuthInvitation(email:string){
+type InviteProviderMethod="supabase_auth_invite"|"existing_auth_magiclink";
+/**
+ * One authorized email to the independently reviewed business contact.
+ * Auth Admin invite only creates an Auth user for NEW addresses; confirmed
+ * preexisting accounts get a login link with create_user=false instead.
+ * Nothing here creates MAZI membership, which requires the SQL acceptance RPC.
+ */
+async function sendVerifiedAuthInvitation(email:string):Promise<InviteProviderMethod>{
  const key=process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
  const url=process.env.MAZI_SUPABASE_URL || process.env.SUPABASE_URL;
- // Intentional independent project binding: never invite via a different
- // project's Auth account, including the separate FISCAL project.
+ // Never invite from a different Auth project or expose service credentials.
  if(!key||url!==AUTH_PROJECT_URL)throw Error("MAZI_AUTH_DELIVERY_NOT_CONFIGURED");
+ const headers={"Content-Type":"application/json",apikey:key,authorization:`Bearer ${key}`};
  const endpoint=new URL("/auth/v1/invite",AUTH_PROJECT_URL);
  endpoint.searchParams.set("redirect_to",CALLBACK);
  const response=await fetch(endpoint.toString(),{
-  method:"POST",cache:"no-store",
-  headers:{"Content-Type":"application/json",apikey:key,authorization:`Bearer ${key}`},
+  method:"POST",cache:"no-store",headers,
   body:JSON.stringify({email}),
   signal:AbortSignal.timeout(9000)
  });
- if(!response.ok)throw Error("MAZI_AUTH_INVITE_PROVIDER_FAILED");
- // Do not persist or log provider tokens/user metadata in the marketplace.
+ if(response.ok)return "supabase_auth_invite";
+
+ // Never fall back on SMTP/auth/rate-limit/permission errors. Only the
+ // provider's explicitly identified already-existing account is eligible.
+ if(response.status!==400&&response.status!==422)
+  throw Error("MAZI_AUTH_INVITE_PROVIDER_FAILED");
+ const failure:unknown=await response.json().catch(()=>null);
+ const errorCode=(failure&&typeof failure==="object"&&
+  ("code" in failure || "error_code" in failure))
+   ? String(("code" in failure?failure.code:failure.error_code)||""):"";
+ if(!["email_exists","user_already_exists"].includes(errorCode))
+  throw Error("MAZI_AUTH_INVITE_PROVIDER_FAILED");
+
+ const existing=new URL("/auth/v1/otp",AUTH_PROJECT_URL);
+ existing.searchParams.set("redirect_to",CALLBACK);
+ const accepted=await fetch(existing.toString(),{
+  method:"POST",cache:"no-store",headers,
+  body:JSON.stringify({email,create_user:false}),
+  signal:AbortSignal.timeout(9000)
+ });
+ if(!accepted.ok)throw Error("MAZI_EXISTING_AUTH_LOGIN_FAILED");
+ return "existing_auth_magiclink";
 }
 
 export async function issueMaziInvitation(principal:SessionPrincipal,interestId:string,retryReason?:string):Promise<"sent"|"delivery_failed">{
@@ -112,7 +138,7 @@ export async function issueMaziInvitation(principal:SessionPrincipal,interestId:
  // One external email invitation after the persisted approval. If provider
  // delivery fails, record a terminal failure; never pretend it was sent.
  try{
-  await sendVerifiedAuthInvitation(record.email);
+  const providerMethod=await sendVerifiedAuthInvitation(record.email);
   const updated=await pool.query(`
    UPDATE public.mazi_invitations SET status='email_sent',emailed_at=now()
    WHERE id=$1::uuid AND status='pending_delivery'
@@ -123,8 +149,8 @@ export async function issueMaziInvitation(principal:SessionPrincipal,interestId:
    INSERT INTO public.mazi_audit_events(marketplace_actor_user_id,entity_type,
     entity_id,action,evidence)
    VALUES($1::uuid,'membership_invitation',$2::uuid,'email_sent',
-    '{"provider":"supabase_auth_invite"}'::jsonb)
-  `,[actorId,record.id]);
+    jsonb_build_object('provider','supabase_auth','method',$3::text))
+  `,[actorId,record.id,providerMethod]);
   return "sent";
  }catch{
   await pool.query(`
