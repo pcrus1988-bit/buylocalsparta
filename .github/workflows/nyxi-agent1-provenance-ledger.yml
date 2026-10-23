@@ -1,0 +1,20 @@
+name: NYXI Agent 1 Provenance Ledger
+on:
+  pull_request:
+    paths:
+      - 'scripts/nyxi/governance/attestation-ledger.mjs'
+      - 'scripts/nyxi/governance/attestation-ledger.test.mjs'
+      - '.github/workflows/nyxi-agent1-provenance-ledger.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test scripts/nyxi/governance/attestation-ledger.test.mjs
