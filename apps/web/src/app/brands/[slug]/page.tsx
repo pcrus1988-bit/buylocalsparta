@@ -34,7 +34,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description = brand.description
     ?? `Ανακάλυψε ${brand.name} στο ΚΟΝΤΑ ΜΟΥ: κατηγορίες και ${brand.liveProductCount.toLocaleString("el-GR")} διαθέσιμα προϊόντα.`;
 
-  const socialImage = brand.logoUrl || "/brand/kontamou-sparta-logo.webp";
+  // SVG logos display well on the brand page, but social crawlers may reject
+  // SVG Open Graph/Twitter card images. Only promote an already-public raster
+  // brand asset; otherwise use the approved first-party WebP fallback.
+  const socialImage = brand.logoUrl
+    && /^(?:https:\/\/|\/(?!\/))/.test(brand.logoUrl)
+    && /\.(?:png|jpe?g|webp)(?:[?#]|$)/i.test(brand.logoUrl)
+      ? brand.logoUrl
+      : "/brand/kontamou-sparta-logo.webp";
 
   return {
     title: brand.liveProductCount > 0
