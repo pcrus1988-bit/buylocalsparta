@@ -26,6 +26,29 @@ export function referenceQuantity(p) {
   const n=p?.unit_quantity;
   const unit=normalize(p?.unit);
   if(typeof n!=="number"||!Number.isFinite(n)||n<=0)return null;
+  // PosoKanei's green-tea/chamomile sachet source rows give the weight
+  // of ONE sachet. Retailer shelf prices, however, buy the WHOLE box.
+  // Correct only when the complete printed "N ΦΑΚ. X g" marking and
+  // that single-sachet source weight explicitly agree. Accept already
+  // total-weight metadata too; anything contradictory remains unchanged
+  // and cannot enter an approved tea-sachet group.
+  const category=normalize(p?.category).replace(/[^\p{L}\p{N}]+/gu," ").trim();
+  if(["τσαι","αφεψηματα"].includes(category)&&
+     ["kg","κιλο","κιλα","g","gr","γρ","γραμμαρια"].includes(unit)) {
+    const title=normalize(p?.name);
+    const form=category==="τσαι"?/πρασινο\s+τσαι/u:/χαμομηλι/u;
+    const label=title.match(/(?:^|\s)(\d{1,2})\s+φακ\.?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:γρ|gr|g)(?=$|[^\p{L}])/u);
+    if(form.test(title)&&label){
+      const count=Number(label[1]),grams=Number(label[2].replace(",","."));
+      const single=grams/1000,total=count*single;
+      const recordedKg=unit==="kg"||unit==="κιλο"||unit==="κιλα"?n:n/1000;
+      if(Number.isSafeInteger(count)&&count>=2&&count<=30&&
+         Number.isFinite(grams)&&grams>=0.1&&grams<=10&&
+         Number.isFinite(total)&&total<=0.3&&
+         (Math.abs(recordedKg-single)<1e-8||Math.abs(recordedKg-total)<1e-8))
+        return {unit:"kg",amount:total};
+    }
+  }
   if(unit==="kg"||unit==="κιλο"||unit==="κιλα")return {unit:"kg",amount:n};
   if(unit==="g"||unit==="gr"||unit==="γρ"||unit==="γραμμαρια")return {unit:"kg",amount:n/1000};
   if(unit==="l"||unit==="lt"||unit==="λιτρα")return {unit:"l",amount:n};
