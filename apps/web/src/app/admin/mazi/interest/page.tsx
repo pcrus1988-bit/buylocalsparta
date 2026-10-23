@@ -29,7 +29,7 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
      Η έγκριση επιτρέπει μόνο το επόμενο βήμα πρόσκλησης — δεν δημιουργεί λογαριασμό, μέλος ή δικαιώματα.</p>
   </div></header>
   {params.notice==="reviewed"?<p className={s.notice} role="status">Η απόφαση καταχωρίστηκε στο μητρώο ελέγχου. Δεν έχει σταλεί πρόσκληση.</p>:null}
-  {params.notice==="invitation_sent"?<p className={s.notice} role="status">Η προσωπική πρόσκληση απεστάλη στο ήδη επαληθευμένο email. Δεν δημιουργήθηκε ακόμη συνδρομή ή μέλος.</p>:null}
+  {params.notice==="invitation_sent"?<p className={s.notice} role="status">Ο πάροχος Auth αποδέχθηκε την αποστολή πρόσκλησης στο επαληθευμένο email. Η πραγματική παράδοση δεν έχει ακόμη επιβεβαιωθεί. Δεν δημιουργήθηκε συνδρομή ή μέλος.</p>:null}
   {params.notice==="invitation_delivery_failed"?<p className={s.notice} role="alert">Η αποστολή δεν επιβεβαιώθηκε. Απαιτείται έλεγχος της κατάστασης στο Supabase Auth πριν από νέα προσπάθεια.</p>:null}
   {params.notice==="invitation_revoked"?<p className={s.notice} role="status">Η προηγούμενη πρόσκληση ανακλήθηκε. Η ενδεχόμενη παλιά σύνδεση δεν παρέχει πλέον δικαίωμα ένταξης.</p>:null}
   {params.notice==="invitation_not_revoked"?<p className={s.notice} role="alert">Η ανάκληση απέτυχε ή δεν πληροί τους κανόνες καταγραφής. Δεν έγινε αλλαγή.</p>:null}
