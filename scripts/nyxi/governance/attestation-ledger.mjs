@@ -7,7 +7,7 @@ const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 // can influence acquisition windows, rights deadlines or signed provenance.
 export function isValidGovernanceTimestamp(x) {
   if (typeof x !== 'string') return false;
-  const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(?:\\.(\\d{1,9}))?(Z|[+-]\\d{2}:\\d{2})$/.exec(x);
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/.exec(x);
   if (!match || !Number.isFinite(Date.parse(x))) return false;
   const [,year,month,day,hour,minute,second,,zone] = match;
   if (+hour > 23 || +minute > 59 || +second > 59) return false;
