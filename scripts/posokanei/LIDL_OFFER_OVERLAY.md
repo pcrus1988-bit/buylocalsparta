@@ -24,7 +24,7 @@ The Lidl Plus source data itself is **not MIT-licensed** by that project.
    `retailer_product_id`, `source_product_id`, `source_product_hash`,
    `reviewed_by`, `reviewed_at` and the four strictly true flags
    `identity_verified`, `packaging_verified`,
-   `promotional_terms_verified`, `no_membership_required_verified`.
+   `promotional_terms_verified`, `membership_terms_verified`, and the verified\n   `membership_requirement` (`requires_lidl_plus` or `no_membership_required`).
    Compute the hash with `productIdentityHash(actualPosokaneiProduct)`
    from `lidl-weekly-overlay.mjs`. This pins the full product identity,
    not just a potentially ambiguous Greek name or Lidl SKU.
