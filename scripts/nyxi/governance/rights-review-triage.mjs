@@ -1,8 +1,8 @@
-import { observe } from './attestation-ledger.mjs';
+import { observe, isValidGovernanceTimestamp } from './attestation-ledger.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHA = /^[0-9a-f]{64}$/;
-const validDate = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
+const validDate = isValidGovernanceTimestamp;
 const safeHttps = value => {
   try {
     const url = new URL(value);
