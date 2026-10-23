@@ -10,6 +10,9 @@ const sha = x => typeof x === 'string' && SHA.test(x);
 const safeUrl = x => { try { const u = new URL(x); return u.protocol === 'https:' && !u.username && !u.password && !u.hash; } catch { return false; } };
 const reasons = new Set(['missing_retention','missing_rights_evidence','undecidable_scope','original_bytes_unavailable']);
 const eventKeys = ['type','source_id','snapshot_id','approval_id','snapshot_sha256','byte_length','fetched_at','observed_at','reason','publication_authorized'];
+// A snapshot is immutable. Later observations may change type/reason/time,
+// never the identity of the captured source, authorization, hash or bytes.
+const snapshotIdentity = e => JSON.stringify([e.source_id,e.approval_id,e.snapshot_sha256,e.byte_length,e.fetched_at]);
 
 function canonical(value) {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
@@ -27,7 +30,7 @@ function checkEvent(e) {
   if (!['catalog_observed','original_bytes_verified','rights_review_hold'].includes(e.type) ||
       !uuid(e.source_id) || !uuid(e.snapshot_id) || !uuid(e.approval_id) ||
       !sha(e.snapshot_sha256) || !Number.isSafeInteger(e.byte_length) || e.byte_length <= 0 ||
-      !date(e.fetched_at) || !date(e.observed_at) || e.publication_authorized !== false)
+      !date(e.fetched_at) || !date(e.observed_at) || Date.parse(e.observed_at) < Date.parse(e.fetched_at) || e.publication_authorized !== false)
     throw Error('invalid_event_fields');
   if (e.type === 'rights_review_hold' ? !reasons.has(e.reason) : Object.hasOwn(e,'reason')) throw Error('invalid_reason');
   canonical(e);
@@ -76,12 +79,15 @@ export function append(chain,event) {
   const previous_hash = chain.length ? chain[chain.length - 1]?.entry_hash : '0'.repeat(64);
   if (!sha(previous_hash) || (chain.length && !verify(chain, previous_hash)))
     throw Error('invalid_existing_chain');
+  if (chain.some(row => row.event.snapshot_id === event.snapshot_id &&
+      snapshotIdentity(row.event) !== snapshotIdentity(event))) throw Error('snapshot_identity_drift');
   const row = {sequence:chain.length + 1,previous_hash,event:structuredClone(event)};
   return [...chain,{...row,entry_hash:digest('NYXI_AGENT1_LEDGER_V1\n' + canonical(row))}];
 }
 export function verify(chain,independentlyPinnedRoot) {
   if (!Array.isArray(chain) || !chain.length || !sha(independentlyPinnedRoot)) return false;
   let previous = '0'.repeat(64);
+  const identities = new Map();
   try {
     for (let i = 0; i < chain.length; i++) {
       const row = chain[i];
@@ -89,6 +95,10 @@ export function verify(chain,independentlyPinnedRoot) {
           Object.keys(row).sort().join(',') !== 'entry_hash,event,previous_hash,sequence' ||
           row.sequence !== i + 1 || row.previous_hash !== previous) return false;
       checkEvent(row.event);
+      const id = snapshotIdentity(row.event);
+      const known = identities.get(row.event.snapshot_id);
+      if (known !== undefined && known !== id) return false;
+      identities.set(row.event.snapshot_id, id);
       const actual = digest('NYXI_AGENT1_LEDGER_V1\n' + canonical({sequence:row.sequence,previous_hash:row.previous_hash,event:row.event}));
       if (actual !== row.entry_hash) return false;
       previous = actual;
