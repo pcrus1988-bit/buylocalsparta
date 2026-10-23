@@ -136,8 +136,21 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
       publication_authorized: false
     });
   }));
+  // Registered sources with no independently authorized acquisition must not
+  // disappear merely because this queue is grouped by acquisition approvals.
+  // Report only immutable source IDs: no URLs, document text or private paths.
+  const authorizedSourceIds = new Set([...approvalMap.values()]
+    .filter(approval => approval.acquisition_authorized === true)
+    .map(approval => approval.source_id));
+  const sourcesWithoutAuthorizedAcquisition = Object.freeze([...sourceMap.keys()]
+    .filter(sourceId => !authorizedSourceIds.has(sourceId))
+    .sort());
+
   return Object.freeze({
     observed_at: observedAt,
+    source_count: sourceMap.size,
+    sources_without_authorized_acquisition_count: sourcesWithoutAuthorizedAcquisition.length,
+    sources_without_authorized_acquisition_ids: sourcesWithoutAuthorizedAcquisition,
     approval_count: queue.length,
     snapshot_count: queue.reduce((n, item) => n + item.snapshot_count, 0),
     publication_authorized: false,
