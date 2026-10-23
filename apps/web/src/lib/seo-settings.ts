@@ -6,7 +6,7 @@ import { unstable_cache } from "next/cache";
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { publicOrigin } from "./public-origin";
+import { PRODUCTION_PUBLIC_ORIGIN } from "./public-origin";
 
 export const SEO_GLOBAL_SETTINGS_KEY = "seo.visibility.global.v1";
 export const SEO_SETTINGS_AUDIT_ENTITY = "seo_global_settings";
@@ -79,7 +79,7 @@ function marketCode(): string {
 
 export function defaultSeoGlobalSettings(): SeoGlobalSettings {
   return {
-    canonicalOrigin: publicOrigin(),
+    canonicalOrigin: PRODUCTION_PUBLIC_ORIGIN,
     siteName: LOCALIZED_SITE_NAME,
     defaultTitle: "KONTA MOY | Η τοπική αγορά της Σπάρτης online",
     titleTemplate: "%s | KONTA MOY",
@@ -187,6 +187,11 @@ function normalizeCanonicalOrigin(value: string): string {
   }
   const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
   if (url.protocol !== "https:" && !(local && url.protocol === "http:")) throw new Error("Canonical origin must use HTTPS.");
+  // One production SEO authority. A misconfigured preview APP_URL or a saved
+  // admin value must never point canonical/OG/sitemap URLs to an alternate host.
+  if (process.env.NODE_ENV === "production" && url.origin !== PRODUCTION_PUBLIC_ORIGIN) {
+    throw new Error("Marketplace canonical origin must be https://kontamou.site.");
+  }
   return url.origin;
 }
 
