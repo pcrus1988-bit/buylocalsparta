@@ -41,7 +41,8 @@ export function verifiedLidlBadges(snapshot,artifact,{now=new Date(),maxAgeHours
       typeof o.reviewed_by!=='string'||!o.reviewed_by.trim()||
       typeof o.source_product_hash!=='string'||! /^[a-f0-9]{64}$/.test(o.source_product_hash)||
       o.identity_verified!==true||o.packaging_verified!==true||
-      o.promotional_terms_verified!==true||o.no_membership_required_verified!==true||
+      o.promotional_terms_verified!==true||o.membership_terms_verified!==true||
+      !['requires_lidl_plus','no_membership_required'].includes(o.membership_requirement)||
       o.currency!=='EUR'||!Number.isSafeInteger(o.price_cents)||
       o.price_cents<=0||o.price_cents>10000000)fail('unreviewed or invalid promotion');
     if(o.reference_price_cents!==null&&o.reference_price_cents!==undefined&&
@@ -60,7 +61,7 @@ export function verifiedLidlBadges(snapshot,artifact,{now=new Date(),maxAgeHours
       offerPriceEur:o.price_cents/100,
       previousPriceEur:o.reference_price_cents==null?null:o.reference_price_cents/100,
       validFrom:o.valid_from,validTo:o.valid_to,observedAt:o.observed_at,
-      offerId:o.offer_id,scope:'specific_store',basketEligible:false};
+      offerId:o.offer_id,scope:'specific_store',membershipRequirement:o.membership_requirement,basketEligible:false};
     const group=result.get(o.source_product_id)||[];
     group.push(badge);result.set(o.source_product_id,group);
   }
