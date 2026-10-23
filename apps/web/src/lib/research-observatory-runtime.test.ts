@@ -9,23 +9,22 @@ const publicQuery = source.slice(
   source.indexOf("export async function publicResearchStudy")
 );
 
-test("public observatory never falls back to a pilot draw when the main phase opens", () => {
-  assert.match(publicQuery, /d\.fieldwork_phase='main'/);
-  assert.doesNotMatch(publicQuery, /active_draw\.id|d\.fieldwork_phase='pilot'/);
-  assert.match(publicQuery, /d\.status IN \('locked','fielded'\)/);
+test("public observatory reads the governed main-fieldwork rollup, not 100k+ invites", () => {
+  assert.match(publicQuery, /FROM bls_private\.research_progress_public/);
+  assert.match(publicQuery, /summary_refreshed_at/);
+  assert.doesNotMatch(publicQuery, /LEFT JOIN LATERAL \(\s*SELECT\s*count\(\*\)::int AS invites/);
 });
 
-test("cohort A and B are counted together rather than taking the newest draw only", () => {
-  assert.match(publicQuery, /SUM\(\(/);
-  assert.match(publicQuery, /SUM\(COALESCE\(sd\.desired_complete_n,0\)\)/);
-  assert.match(publicQuery, /d\.wave_id=w\.id/);
+test("all cohorts remain represented by the precomputed summary view", () => {
+  assert.match(publicQuery, /selected,target_completes,invites,sent/);
+  assert.match(publicQuery, /delivered,opened,started,completed,admin_finalized/);
+  assert.match(publicQuery, /participantConfirmed: completed - adminFinalized/);
 });
 
-test("invitation, delivery, open and response counts are all main-only", () => {
-  assert.ok((publicQuery.match(/ri\.fieldwork_phase='main'/g) || []).length >= 2);
-  assert.match(publicQuery, /ri\.wave_id=w\.id/);
-  assert.match(publicQuery, /rr\.wave_id=w\.id/);
-  assert.match(publicQuery, /rr\.status='completed'/);
+test("public geography comes from the refreshed aggregate, not personal response joins", () => {
+  assert.match(publicQuery, /FROM bls_private\.research_progress_geography/);
+  assert.match(publicQuery, /SELECT study_id,wave_id,prefecture,postcode,started/);
+  assert.doesNotMatch(publicQuery, /GROUP BY rr\.study_id,rr\.wave_id/);
 });
 
 test("shared public counters are not recomputed for every visitor", () => {
