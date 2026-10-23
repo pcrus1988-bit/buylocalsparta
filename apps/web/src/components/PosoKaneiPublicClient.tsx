@@ -333,8 +333,8 @@ export function PosoKaneiPublicClient(){
     return()=>{window.removeEventListener("keydown",onKey);if(narrow)document.body.style.overflow=original;};
   },[mobileListOpen]);
   async function saveList(){
-    if(!lines.length||savingList||accountStatus==="checking")return;
-    const draft:SavedList={lines,labels,excluded,maxStores:storeLimit,progress,dismissedAlternativeLines};
+    if(!(lines.length+lidlLines.length)||savingList||accountStatus==="checking")return;
+    const draft:SavedList={lines,lidlLines,labels,excluded,maxStores:storeLimit,progress,dismissedAlternativeLines};
     if(accountStatus==="guest"){
       try{sessionStorage.setItem(PENDING_LIST_KEY,JSON.stringify(draft));}
       catch{setNotice("Δεν μπορεί να διατηρηθεί προσωρινά η λίστα μέχρι τη σύνδεση.");return;}
@@ -384,8 +384,17 @@ export function PosoKaneiPublicClient(){
     });
   }
   async function copyPlan(){
-    const text=shoppingPlanText(result,plan,mode);
-    if(!text)return;
+    const gov=shoppingPlanText(result,plan,mode);
+    const active=lidlQuote?.items.filter(q=>q.status==="current"&&q.offer)||[];
+    const lidlText=active.length?["","Lidl — επιλεγμένες προσφορές συγκεκριμένων καταστημάτων",
+      ...lidlQuote!.stores.flatMap(store=>[store.storeName+" · "+money(store.subtotalEur),
+        ...active.filter(q=>q.storeKey===store.storeKey).map(q=>
+          "☐ "+q.offer!.name+" × "+q.quantity+" — "+money(q.offer!.priceEur*q.quantity)+" · έως "+q.offer!.validTo.slice(0,10))]),
+      "Ελέγξτε Lidl Plus, διαθεσιμότητα και τρέχουσα τιμή στο κατάστημα.",
+      "Οι προσφορές Lidl δεν συμμετέχουν στη σύγκριση εξοικονόμησης PosoKanei."
+    ].join("\n"):"";
+    const text=(gov||"ΚΟΝΤΑ ΜΟΥ — Λίστα αγορών")+lidlText;
+    if(!gov&&!lidlText)return;
     try{
       await navigator.clipboard.writeText(text);
       setNotice("Η λίστα ανά σούπερ μάρκετ αντιγράφηκε. Μπορείς να τη στείλεις ή να την αποθηκεύσεις.");
@@ -423,7 +432,7 @@ export function PosoKaneiPublicClient(){
         </div>}
       </section>
       <div className={styles.disclaimer} role="note">Οι τιμές είναι ενδεικτικές. <details><summary>Τι πρέπει να γνωρίζω;</summary>Οι τιμές και η διαθεσιμότητα μπορεί να διαφέρουν ανά κατάστημα. Δεν πραγματοποιούνται αγορές από αυτή τη σελίδα.</details></div>
-      <LidlStandaloneOffers/>
+      <LidlStandaloneOffers onAdd={addLidlOffer} onAddGov={addGovById}/>
       {listing.status!=="ready"&&!loading?<section className={styles.pending} role="status">
         <h2>Η σύγκριση τιμών ετοιμάζεται.</h2>
         <p>Ο ανεξάρτητος κατάλογος θα ενεργοποιηθεί μόλις ολοκληρωθεί η επαλήθευση της πηγής και η δημοσίευση των ενημερωμένων δεδομένων. Δεν εμφανίζουμε δοκιμαστικές τιμές ως πραγματικές.</p>
@@ -449,6 +458,7 @@ export function PosoKaneiPublicClient(){
                 </div>
                 <div className={styles.buttons}>
                   <button className={styles.primary} type="button" disabled={!best} onClick={()=>addProduct(p)}>+ Στη λίστα</button>
+                  <button className={styles.secondary} type="button" onClick={()=>{void compareGovernmentProduct(p)}} aria-expanded={sourceCompareId===p.id}>Παρόμοια από όλες τις πηγές</button>
                   <button className={styles.secondary} type="button" onClick={()=>setActive(expanded?null:p.id)} aria-expanded={expanded}>Τιμές στις αλυσίδες {expanded?"−":"+"}</button>
                   {cheaperCatalogueOptions.length>0&&<button className={styles.textButton} type="button"
                     aria-expanded={comparedProduct===p.id}
@@ -468,6 +478,16 @@ export function PosoKaneiPublicClient(){
                       <button className={styles.secondary} type="button" onClick={()=>addReviewedComparable(a,p)}>Επιλογή</button>
                     </div>)}
                   </div>}
+                {sourceCompareId===p.id&&<div className={styles.comparablePanel} role="region" aria-label={"Διασταυρούμενες προτάσεις για "+p.name}>
+                  <h4>Πιθανά παρόμοια · όλες οι πηγές</h4>
+                  {sourceCompareWorking?<p>Αναζήτηση…</p>:!sourceCompare?.candidates?.length?<p>Δεν υπάρχουν διαθέσιμες τεκμηριωμένες προτάσεις.</p>:
+                    sourceCompare.candidates.map(item=><div key={item.id} className={styles.comparableRow}>
+                      <div><strong>{item.name}</strong><small>{item.origin==="lidl_gr"?"Lidl":"PosoKanei"} · {item.brand||"Χωρίς μάρκα"} · {item.priceEur===null?"—":money(item.priceEur)}</small>
+                      <small>{item.confidence==="reviewed_equivalent"?"Ελεγμένη ομάδα":"Υποψήφιο προς επαλήθευση — χωρίς επιβεβαιωμένη ισοδυναμία"}</small></div>
+                      <button type="button" className={styles.secondary} onClick={()=>addSourceCandidate(item)}>+ Στη λίστα</button>
+                    </div>)}
+                  <small>Χωρίς αυτόματη αντιστοίχιση ή υπολογισμό μη επαληθευμένης εξοικονόμησης.</small>
+                </div>}
                 {expanded&&<div className={styles.offers}><h4>Καταγεγραμμένες τιμές · μόνο από τις επιλεγμένες αλυσίδες</h4>
                   {p.offers.map((o,i)=><div key={o.retailerId} className={styles.offer}><span>{o.retailerName}{i===0&&<small className={styles.lowest}> Χαμηλότερη καταγραφή</small>}{o.discount&&<small> · Σήμανση έκπτωσης</small>}</span><strong>{money(o.priceEur)}</strong><button type="button" className={styles.secondary} aria-label={"Επιλογή τιμής "+money(o.priceEur)+" από "+o.retailerName+" για "+p.name} onClick={()=>addProduct(p,o)}>Επιλογή τιμής</button></div>)}
                 </div>}
@@ -479,18 +499,30 @@ export function PosoKaneiPublicClient(){
         {mobileListOpen&&<button type="button" className={styles.mobileListBackdrop} aria-label="Κλείσιμο λίστας αγορών" onClick={()=>setMobileListOpen(false)}/>}
         <aside className={`${styles.sidebar} ${mobileListOpen?styles.mobileBasketOpen:""}`} aria-label="Λίστα και εξοικονόμηση" role={mobileListOpen?"dialog":undefined} aria-modal={mobileListOpen?true:undefined}><div className={styles.basket} id="posokanei-basket">
           <div className={styles.drawerHeader}><strong>Η λίστα σου</strong><button type="button" onClick={()=>setMobileListOpen(false)} aria-label="Κλείσιμο λίστας">✕</button></div>
-          <div className={styles.heading}><div><span className={styles.eyebrow}>02 · ΤΟ ΚΑΛΑΘΙ ΣΟΥ</span><h2>Η λίστα αγορών</h2></div><span className={styles.count}>{lines.length}</span></div>
-          {lines.length>0&&<div className={styles.saveBar}>
-            <button className={styles.saveButton} type="button" disabled={!lines.length||savingList||accountStatus==="checking"} onClick={()=>{void saveList();}}>{savingList?"Αποθήκευση…":accountStatus==="guest"?"🔒 Σύνδεση / εγγραφή & αποθήκευση":"💾 Αποθήκευση λίστας"}</button>
+          <div className={styles.heading}><div><span className={styles.eyebrow}>02 · ΤΟ ΚΑΛΑΘΙ ΣΟΥ</span><h2>Η λίστα αγορών</h2></div><span className={styles.count}>{lines.length+lidlLines.length}</span></div>
+          {lines.length+lidlLines.length>0&&<div className={styles.saveBar}>
+            <button className={styles.saveButton} type="button" disabled={!(lines.length+lidlLines.length)||savingList||accountStatus==="checking"} onClick={()=>{void saveList();}}>{savingList?"Αποθήκευση…":accountStatus==="guest"?"🔒 Σύνδεση / εγγραφή & αποθήκευση":"💾 Αποθήκευση λίστας"}</button>
             <small>{accountStatus==="guest"?"Για να διατηρήσεις τη λίστα, συνδέσου ή κάνε εγγραφή.":savedAt?"✓ Αποθηκεύτηκε στον λογαριασμό σου":accountStatus==="checking"?"Έλεγχος λογαριασμού…":"Για να κρατήσεις τις αλλαγές, πάτησε Αποθήκευση."}</small>
           </div>}
-          {!lines.length?<p className={styles.message}>Πρόσθεσε προϊόντα για να βρεις το οικονομικότερο καλάθι.</p>:<details className={styles.listDetails} open><summary>Προϊόντα στη λίστα ({lines.length}) · Επεξεργασία</summary><div className={styles.lines}>{lines.map(l=><div className={styles.line} key={l.id}>
+          {!(lines.length+lidlLines.length)?<p className={styles.message}>Πρόσθεσε προϊόντα για να σχεδιάσεις τη λίστα αγορών.</p>:<details className={styles.listDetails} open><summary>Προϊόντα στη λίστα ({lines.length+lidlLines.length}) · Επεξεργασία</summary><div className={styles.lines}>{lines.map(l=><div className={styles.line} key={l.id}>
             <div className={styles.lineTop}><strong>{labels[l.id]||"Προϊόν"}</strong><button type="button" onClick={()=>update(lines.filter(x=>x.id!==l.id))} aria-label="Αφαίρεση από τη λίστα">✕</button></div>
             <label>{l.kind==="exact"?"Συσκευασίες":"Ποσότητα ("+(listing.groups.find(g=>g.id===l.groupId)?.basis||"kg")+")"}<input type="number" min="1" max="100" step={l.kind==="exact"?"1":"0.1"} value={l.kind==="exact"?l.packageCount:l.requiredBaseQuantity} onChange={e=>changeLine(l.id,l.kind==="exact"?{packageCount:Number(e.target.value)}:{requiredBaseQuantity:Number(e.target.value)})}/></label>
             {l.lockedRetailerId&&<div className={styles.retailerLock}><span>🔒 Επιλεγμένη αλυσίδα: {listing.retailers.find(r=>r.id===l.lockedRetailerId)?.name||l.lockedRetailerId}{excluded.includes(l.lockedRetailerId)?" · έχει αποκλειστεί στις ρυθμίσεις":""}</span><button type="button" onClick={()=>changeLine(l.id,{lockedRetailerId:undefined})}>Ξεκλείδωμα</button></div>}
             {dismissedAlternativeLines.includes(l.id)?<small className={styles.selectedAlternativeNote}>✓ Επέλεξες φθηνότερη μάρκα</small>:l.kind==="exact"&&(checkingBrands||((brandResults[l.id]?.alternatives.length||0)+(brandResults[l.id]?.candidates.length||0))>0)&&<small className={styles.brandStatus}>{checkingBrands?"Έλεγχος τιμών…":"💡 Φθηνότερες επιλογές παρακάτω"}</small>}
 
-          </div>)}</div></details>}
+          </div>)}
+          {lidlLines.map(item=><div className={styles.line} key={item.id}>
+            <div className={styles.lineTop}><strong>{item.name}</strong>
+              <button type="button" onClick={()=>{setLidlLines(v=>v.filter(x=>x.id!==item.id));setSavedAt(null)}} aria-label={"Αφαίρεση "+item.name}>✕</button>
+            </div>
+            <small>🏷️ Lidl · {item.storeName} · Προσφορά καταστήματος</small>
+            <label>Συσκευασίες<input type="number" min="1" max="100" step="1" value={item.quantity}
+              onChange={e=>changeLidlLine(item.id,Number(e.target.value))}/></label>
+            {(()=>{const quote=lidlQuote?.items.find(q=>q.lineId===item.id);return quote?.status==="current"&&quote.offer?
+              <small>Επαληθευμένη καταγραφή: {money(quote.offer.priceEur)} / συσκ. · έως {quote.offer.validTo.slice(0,10)}</small>:
+              <small>⚠ {lidlQuoteWorking?"Επανέλεγχος…":"Η προσφορά δεν είναι τρέχουσα ή δεν μπορεί να επαληθευτεί."}</small>})()}
+          </div>)}
+          </div></details>}
           {notice&&<p className={styles.notice} role="status">{notice}</p>}
           {savingsOpportunities.productCount>0&&<button type="button" className={styles.savingsOpportunity}
             onClick={()=>{
@@ -524,6 +556,15 @@ export function PosoKaneiPublicClient(){
               </div>
             </section>
           )}
+          {lidlLines.length>0&&<section className={styles.pending} aria-label="Επιλεγμένες προσφορές Lidl ανά κατάστημα">
+            <h3>🏷️ Lidl · αγορές ανά κατάστημα</h3>
+            <p>Οι προσφορές επανελέγχονται από την πηγή, ανεξάρτητα από τις τιμές PosoKanei.</p>
+            {lidlQuote?.stores.map(store=><p key={store.storeKey}><strong>{store.storeName}</strong> · {store.lines} είδη · {money(store.subtotalEur)}</p>)}
+            {lidlQuote&&!lidlQuote.complete&&<p role="alert">Κάποιες προσφορές έληξαν ή δεν βρέθηκαν· δεν περιλαμβάνονται στο ενδεικτικό υποσύνολο.</p>}
+            {lidlQuoteWorking&&<p role="status">Έλεγχος προσφορών…</p>}
+            <button type="button" className={styles.secondary} disabled={!lidlQuote?.items.some(i=>i.status==="current")} onClick={()=>{void copyPlan()}}>Αντιγραφή λίστας ανά κατάστημα</button>
+            <small>Δεν έχουν επιβεβαιωθεί οι όροι Lidl Plus ή τα αποθέματα. Το Lidl υποσύνολο δεν προστίθεται στα σύνολα εξοικονόμησης PosoKanei.</small>
+          </section>}
           <p className={styles.basketPreset}>Σύγκριση σε έως {storeLimit} σούπερ μάρκετ. <button type="button" onClick={()=>{setSettingsOpen(true);setMobileListOpen(false);window.scrollTo({top:0,behavior:"smooth"});}}>Αλλαγή</button></p>
           <button className={styles.calculate} type="button" onClick={()=>{void calculate();}} disabled={!lines.length||listing.status!=="ready"||working||listing.retailers.length===excluded.length}>{working?"Υπολογισμός…":"Βρες το οικονομικότερο καλάθι →"}</button>
           {error&&<p className={styles.error} role="alert">{error}</p>}
@@ -599,7 +640,7 @@ export function PosoKaneiPublicClient(){
           </div>}
         </div></aside>
       </div>
-      <button type="button" className={styles.mobileBasketShortcut} aria-expanded={mobileListOpen} aria-controls="posokanei-basket" onClick={()=>setMobileListOpen(true)}><span>🛒 Λίστα αγορών <b>{lines.length}</b></span><strong>{plan?.complete?money(plan.totalEur):"Άνοιγμα ↑"}</strong></button>
+      <button type="button" className={styles.mobileBasketShortcut} aria-expanded={mobileListOpen} aria-controls="posokanei-basket" onClick={()=>setMobileListOpen(true)}><span>🛒 Λίστα αγορών <b>{lines.length+lidlLines.length}</b></span><strong>{plan?.complete?money(plan.totalEur):"Άνοιγμα ↑"}</strong></button>
       <p className={styles.footerNote}>KONTA MOY × PosoKanei · Ανεξάρτητη υπηρεσία αναφοράς τιμών. Χωρίς πραγματική αγορά, απόθεμα ή σύνδεση με το checkout του ΚΟΝΤΑ ΜΟΥ.</p><p className={styles.footerNote}>Πηγή τιμών: <a href="https://posokanei.gov.gr/" target="_blank" rel="noopener noreferrer">posokanei.gov.gr</a> · Δημόσιο ημερήσιο αρχείο: <a href="https://github.com/spyrosavl/posokanei" target="_blank" rel="noopener noreferrer">spyrosavl/posokanei</a> · Νομική βάση περαιτέρω χρήσης: ν. 4727/2020, άρθρο 61 (με επιφύλαξη άρθρου 59). Δεν αποτελεί επίσημη κυβερνητική υπηρεσία.</p>
     </div>
   </div>;
