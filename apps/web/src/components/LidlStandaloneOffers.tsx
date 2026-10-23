@@ -10,7 +10,7 @@ export function LidlStandaloneOffers(){
  const [stores,setStores]=useState<Store[]>([]),[store,setStore]=useState("GR0851");
  const [period,setPeriod]=useState<"current"|"upcoming">("current");
  const [search,setSearch]=useState(""),[page,setPage]=useState(1);
- const [data,setData]=useState<Payload>({status:"loading",products:[]}),[loading,setLoading]=useState(true);
+ const [data,setData]=useState<Payload>({status:"unpublished",products:[]}),[loading,setLoading]=useState(false);
  useEffect(()=>{
    const abort=new AbortController();
    void fetch("/api/posokanei/lidl?mode=stores",{signal:abort.signal,cache:"no-store"})
