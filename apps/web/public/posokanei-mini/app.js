@@ -18,7 +18,7 @@ function restore(){
   }catch{}
 }
 function persist(){try{sessionStorage.setItem(KEY,JSON.stringify({lines:state.lines,excluded:state.excluded,storeLimit:state.storeLimit}));}catch{}}
-function invalidate(){run++;state.result=null;state.resultsVisible=false;state.brandResults=[];$('plan-section').hidden=true;persist();renderBasket();}
+function invalidate(){run++;state.checking=false;state.result=null;state.resultsVisible=false;state.brandResults=[];$('plan-section').hidden=true;persist();renderBasket();}
 function renderStatus(){
   const ready=state.catalog.status==='ready';
   const label=state.loading?'Έλεγχος δημοσιευμένων τιμών…':ready?`Καταγραφή: ${state.catalog.snapshotDate||'μη διαθέσιμη ημερομηνία'} · Ενδεικτικές τιμές`:'Δεν έχουν δημοσιευτεί επαληθευμένες τιμές — η χειροκίνητη λίστα λειτουργεί.';
@@ -99,10 +99,9 @@ $('search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=
 $('products').addEventListener('click',e=>{
   const btn=e.target.closest('[data-action="add"]');if(!btn)return;
   const p=(state.catalog.products||[]).find(x=>x.id===btn.dataset.id);if(!p)return;
-  if(state.lines.length>=20)return toast('Η λίστα χωρά έως 20 είδη.');
   const existing=state.lines.find(l=>l.kind==='exact'&&l.sourceProductId===p.id&&!l.replacedFrom);
   if(existing){if(existing.packageCount>=100)return toast('Έως 100 συσκευασίες ανά προϊόν.');existing.packageCount++;}
-  else state.lines.push({id:id(),kind:'exact',sourceProductId:p.id,packageCount:1,name:p.name,done:false});
+  else {if(state.lines.length>=20)return toast('Η λίστα χωρά έως 20 είδη.');state.lines.push({id:id(),kind:'exact',sourceProductId:p.id,packageCount:1,name:p.name,done:false});}
   invalidate();toast('Προστέθηκε στη λίστα.');
 });
 $('manual-form').addEventListener('submit',e=>{
