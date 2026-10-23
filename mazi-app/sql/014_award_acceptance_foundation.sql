@@ -128,8 +128,7 @@ CREATE TABLE public.mazi_grant_award_acknowledgements (
   accepted_policy_version text NOT NULL CHECK (accepted_policy_version='mazi-grant-retention-v1'),
   accepted_document_sha256 text NOT NULL CHECK (accepted_document_sha256 ~ '^[a-f0-9]{64}$'),
   affirmatively_accepted boolean NOT NULL CHECK (affirmatively_accepted IS TRUE),
-  acknowledged_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT mazi_grant_ack_date CHECK (acknowledged_at <= now())
+  acknowledged_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX mazi_grant_award_ack_recipient_idx
  ON public.mazi_grant_award_acknowledgements(recipient_user_id);
