@@ -14,12 +14,15 @@ import { officialGemiPublicityUrl } from "../../../../../lib/hub-gemi-publicity"
 import { HUB_EXPANSION_PLANS, billingLabelForPlan } from "../../../../../lib/hub-expansion-plans";
 import { hubGemiApplicationPath } from "../../../../../lib/hub-gemi-join-links";
 import styles from "../../../claim/claim.module.css";
+import { hubBusinessStructuredData, jsonLdSafe } from "../../../../../lib/hub-business-structured-data";
+import { getSeoGlobalSettingsSnapshot } from "../../../../../lib/seo-settings";
 
 type Params = { params: Promise<{ hubSlug: string; id: string }> };
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { hubSlug, id } = await params;
+  const { settings } = await getSeoGlobalSettingsSnapshot();
   const profile = await getPublicHubClaim(hubSlug, id);
   if (profile) {
     const canonical = hubClaimPublicPath(profile);
@@ -29,7 +32,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       title: profile.businessName + " · HUB " + profile.hubCity + " · KONTA MOY",
       description,
       alternates: { canonical },
-      robots: { index: true, follow: true },
+      robots: { index: settings.indexingEnabled, follow: true },
       openGraph: { title: profile.businessName + " · KONTA MOY", description, url: canonical, type: "website" }
     };
   }
@@ -41,7 +44,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       title: partner.businessName + " · HUB " + partner.hubCity + " · KONTA MOY",
       description,
       alternates: { canonical: partner.publicPath },
-      robots: { index: true, follow: true },
+      robots: { index: settings.indexingEnabled, follow: true },
       openGraph: { title: partner.businessName + " · KONTA MOY", description, url: partner.publicPath, type: "website" }
     };
   }
@@ -56,7 +59,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     title: business.legalName + " – " + business.category + " · " + locality + " | KONTA MOY",
     description,
     alternates: { canonical },
-    robots: { index: business.seoApproved, follow: true },
+    robots: { index: settings.indexingEnabled && business.seoApproved, follow: true },
     openGraph: { title: business.legalName + " · KONTA MOY", description, url: canonical, type: "website" }
   };
 }
@@ -67,7 +70,24 @@ export default async function PublicHubBusinessPage({ params }: Params) {
   if (profile) {
     if (id !== profile.slug) permanentRedirect(hubClaimPublicPath(profile));
     const photos = await listPublicHubClaimMedia(profile.id);
+    const claimStructuredData = hubBusinessStructuredData({
+      kind: "claimed",
+      url: hubClaimPublicPath(profile),
+      name: profile.businessName,
+      category: profile.category,
+      description: profile.description || undefined,
+      city: profile.hubCity,
+      region: profile.hubRegion,
+      addressLine: profile.address,
+      postcode: profile.postcode,
+      telephone: profile.phone,
+      website: profile.website,
+      instagramUrl: profile.instagramUrl,
+      facebookUrl: profile.facebookUrl,
+      gemiNumber: profile.gemiNumber
+    });
     return <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdSafe(claimStructuredData) }} />
       <SiteHeader compact />
       <section className="shell"><HubClaimPublicContent profile={profile} media={photos} /></section>
       <SiteFooter />
@@ -78,7 +98,15 @@ export default async function PublicHubBusinessPage({ params }: Params) {
   if (partner) {
     const plan = HUB_EXPANSION_PLANS.find((entry) => entry.code === partner.planCode);
     const directoryPath = "/hubs/" + partner.hubSlug + "/business";
+    const partnerStructuredData = hubBusinessStructuredData({
+      kind: "verified_partner",
+      url: partner.publicPath,
+      name: partner.businessName,
+      category: partner.category,
+      city: partner.hubCity
+    });
     return <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdSafe(partnerStructuredData) }} />
       <SiteHeader compact />
       <section className="shell">
         <div className={styles.hero}>
@@ -114,19 +142,22 @@ export default async function PublicHubBusinessPage({ params }: Params) {
   const joinPath = hubGemiApplicationPath({ plan: "claim", billing: "annual", gemi: business.gemiNumber, showPlans: true });
   const gemiSourceUrl = officialGemiPublicityUrl(business.gemiNumber);
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Organization",
+  // Municipality assignment is not evidence of a street-level business premise.
+  const registryStructuredData = hubBusinessStructuredData({
+    kind: "unclaimed_registry",
+    url: hubCensusBusinessPath(business),
     name: business.legalName,
-    identifier: { "@type": "PropertyValue", propertyID: "ΓΕΜΗ", value: business.gemiNumber },
-    areaServed: business.city || hub.nameEl,
-    url: hubCensusBusinessPath(business)
-  };
+    category: business.category,
+    description: "Ανεξάρτητη πληροφοριακή καταχώριση επιχείρησης από ΓΕΜΗ.",
+    city: business.city || hub.nameEl,
+    postcode: business.postcode || undefined,
+    gemiNumber: business.gemiNumber,
+    reviewedAt: business.registryVerifiedAt || undefined,
+    officialRegistryUrl: gemiSourceUrl || undefined
+  });
 
   return <main>
-    <script type="application/ld+json" dangerouslySetInnerHTML={{
-      __html: JSON.stringify(jsonLd).replaceAll("<", "\\u003c")
-    }} />
+    {business.seoApproved ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdSafe(registryStructuredData) }} /> : null}
     <SiteHeader compact />
     <section className="shell">
       <div className={styles.hero}>
