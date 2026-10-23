@@ -5,6 +5,7 @@ import type {BasketLine,BasketPlan,BasketResult} from "../../../../scripts/posok
 import {groupShoppingPlan,planFingerprint,savingsForPlan,savingsIncludingBrands,shoppingPlanText,packagesForEquivalent} from "../../../../scripts/posokanei/shopping-plan.mjs";
 import {summarizeCheaperAlternatives} from "../../../../scripts/posokanei/alternative-opportunities.mjs";
 import styles from "./PosoKaneiPublicClient.module.css";
+import {LidlStandaloneOffers} from "./LidlStandaloneOffers";
 
 type Offer={retailerId:string;retailerName:string;priceEur:number;observedAt:string|null;discount:boolean};
 type LidlOffer={retailerId:string;retailerName:string;storeKey:string;storeName:string;offerPriceEur:number;previousPriceEur:number|null;validFrom:string;validTo:string;observedAt:string;offerId:string;scope:"specific_store";membershipRequirement:"requires_lidl_plus"|"no_membership_required";basketEligible:false};
@@ -349,6 +350,7 @@ export function PosoKaneiPublicClient(){
         </div>}
       </section>
       <div className={styles.disclaimer} role="note">Οι τιμές είναι ενδεικτικές. <details><summary>Τι πρέπει να γνωρίζω;</summary>Οι τιμές και η διαθεσιμότητα μπορεί να διαφέρουν ανά κατάστημα. Δεν πραγματοποιούνται αγορές από αυτή τη σελίδα.</details></div>
+      <LidlStandaloneOffers/>
       {listing.status!=="ready"&&!loading?<section className={styles.pending} role="status">
         <h2>Η σύγκριση τιμών ετοιμάζεται.</h2>
         <p>Ο ανεξάρτητος κατάλογος θα ενεργοποιηθεί μόλις ολοκληρωθεί η επαλήθευση της πηγής και η δημοσίευση των ενημερωμένων δεδομένων. Δεν εμφανίζουμε δοκιμαστικές τιμές ως πραγματικές.</p>
