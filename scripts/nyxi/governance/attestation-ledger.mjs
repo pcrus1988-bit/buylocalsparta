@@ -3,7 +3,23 @@ import { createHash } from 'node:crypto';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHA = /^[0-9a-f]{64}$/;
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
-const date = x => typeof x === 'string' && Number.isFinite(Date.parse(x));
+// Reject ambiguous, normalized or calendar-impossible timestamps before they
+// can influence acquisition windows, rights deadlines or signed provenance.
+export function isValidGovernanceTimestamp(x) {
+  if (typeof x !== 'string') return false;
+  const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(?:\\.(\\d{1,9}))?(Z|[+-]\\d{2}:\\d{2})$/.exec(x);
+  if (!match || !Number.isFinite(Date.parse(x))) return false;
+  const [,year,month,day,hour,minute,second,,zone] = match;
+  if (+hour > 23 || +minute > 59 || +second > 59) return false;
+  if (zone !== 'Z') {
+    const [offsetHours,offsetMinutes] = zone.slice(1).split(':').map(Number);
+    if (offsetHours > 14 || offsetMinutes > 59 ||
+        (offsetHours === 14 && offsetMinutes !== 0)) return false;
+  }
+  const midnight = new Date(Date.UTC(+year,+month-1,+day));
+  return midnight.toISOString().slice(0,10) === year+'-'+month+'-'+day;
+}
+const date = isValidGovernanceTimestamp;
 const bytes = x => Buffer.isBuffer(x) || x instanceof Uint8Array;
 const uuid = x => typeof x === 'string' && UUID.test(x);
 const sha = x => typeof x === 'string' && SHA.test(x);
