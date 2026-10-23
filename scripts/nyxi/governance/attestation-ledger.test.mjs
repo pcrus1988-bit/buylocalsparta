@@ -98,6 +98,6 @@ test('verification rejects internally rehashed contradictory snapshot identities
     if(Array.isArray(value)) return '['+value.map(canonical).join(',')+']';
     return '{'+Object.keys(value).sort().map(key=>JSON.stringify(key)+':'+canonical(value[key])).join(',')+'}';
   };
-  const forgedRoot=createHash('sha256').update('NYXI_AGENT1_LEDGER_V1\\n'+canonical(row)).digest('hex');
+  const forgedRoot=createHash('sha256').update('NYXI_AGENT1_LEDGER_V1\n'+canonical(row)).digest('hex');
   assert.equal(verify([...first,{...row,entry_hash:forgedRoot}],forgedRoot),false);
 });
