@@ -25,6 +25,7 @@ CREATE TABLE public.mazi_interest_applications (
  review_reason text,
  representation_verified_at timestamptz,
  business_contact_verified_at timestamptz,
+ company_active_verified_at timestamptz,
  CONSTRAINT mazi_afm_interest_review_complete CHECK(
   (reviewed_at IS NULL AND reviewed_by IS NULL AND review_reason IS NULL)
   OR (reviewed_at IS NOT NULL AND reviewed_by IS NOT NULL AND char_length(review_reason) BETWEEN 20 AND 1000)
@@ -33,7 +34,8 @@ CREATE TABLE public.mazi_interest_applications (
   status <> 'approved_pending_invite'
   OR (registry_lookup_status='matched' AND gemi_number IS NOT NULL
    AND registry_checked_at IS NOT NULL AND reviewed_at IS NOT NULL
-   AND representation_verified_at IS NOT NULL AND business_contact_verified_at IS NOT NULL)
+   AND representation_verified_at IS NOT NULL AND business_contact_verified_at IS NOT NULL
+   AND company_active_verified_at IS NOT NULL)
  )
 );
 CREATE INDEX mazi_interest_queue_idx ON public.mazi_interest_applications(status,submitted_at);
