@@ -9,6 +9,9 @@ const uuid = x => typeof x === 'string' && UUID.test(x);
 const sha = x => typeof x === 'string' && SHA.test(x);
 const safeUrl = x => { try { const u = new URL(x); return u.protocol === 'https:' && !u.username && !u.password && !u.hash; } catch { return false; } };
 const reasons = new Set(['missing_retention','missing_rights_evidence','undecidable_scope','original_bytes_unavailable']);
+// Process-local capability: a byte-verified event must originate from observe().
+// This does NOT replace independent byte access or a trusted external witness.
+const byteVerifiedEvents = new WeakSet();
 const eventKeys = ['type','source_id','snapshot_id','approval_id','snapshot_sha256','byte_length','fetched_at','observed_at','reason','publication_authorized'];
 // A snapshot is immutable. Later observations may change type/reason/time,
 // never the identity of the captured source, authorization, hash or bytes.
@@ -71,11 +74,14 @@ export function observe({source,approval,snapshot,originalBytes,observedAt,holdR
     fetched_at:snapshot.fetched_at,observed_at:observedAt,publication_authorized:false};
   if (type === 'rights_review_hold') event.reason = holdReason;
   checkEvent(event);
-  return event;
+  if (type === 'original_bytes_verified') byteVerifiedEvents.add(event);
+  return Object.freeze(event);
 }
 export function append(chain,event) {
   if (!Array.isArray(chain)) throw Error('invalid_chain');
   checkEvent(event);
+  if (event.type === 'original_bytes_verified' && !byteVerifiedEvents.has(event))
+    throw Error('unverified_byte_attestation_event');
   const previous_hash = chain.length ? chain[chain.length - 1]?.entry_hash : '0'.repeat(64);
   if (!sha(previous_hash) || (chain.length && !verify(chain, previous_hash)))
     throw Error('invalid_existing_chain');
