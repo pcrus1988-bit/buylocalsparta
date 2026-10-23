@@ -25,7 +25,7 @@ export async function maziInterestReviewQueue(principal:SessionPrincipal){
 }
 export async function reviewMaziInterest(principal:SessionPrincipal,input:{
  id:string;decision:"approve"|"decline";reason:string;
- representativeVerified:boolean;emailVerified:boolean
+ representativeVerified:boolean;emailVerified:boolean;companyActiveVerified:boolean
 }){
  const actorId=await marketplaceMaziActor(principal);
  const reason=input.reason.trim();
@@ -49,7 +49,7 @@ export async function reviewMaziInterest(principal:SessionPrincipal,input:{
    if(app.registry_lookup_status!=="matched"||!app.gemi_number||
      !app.registry_checked_at||
      Date.now()-new Date(app.registry_checked_at).getTime()>7*86400000||
-     !input.representativeVerified||!input.emailVerified)
+     !input.representativeVerified||!input.emailVerified||!input.companyActiveVerified)
      throw Error("MAZI_INTEREST_VERIFICATION_REQUIRED");
    // A registry match is not proof the applicant has authority. The human
    // reviewer must separately confirm representation and email ownership.
@@ -65,7 +65,8 @@ export async function reviewMaziInterest(principal:SessionPrincipal,input:{
    UPDATE public.mazi_interest_applications SET
     status=$2,reviewed_at=now(),reviewed_by=$3::uuid,review_reason=$4,
     representation_verified_at=CASE WHEN $2='approved_pending_invite' THEN now() ELSE NULL END,
-    business_contact_verified_at=CASE WHEN $2='approved_pending_invite' THEN now() ELSE NULL END
+    business_contact_verified_at=CASE WHEN $2='approved_pending_invite' THEN now() ELSE NULL END,
+    company_active_verified_at=CASE WHEN $2='approved_pending_invite' THEN now() ELSE NULL END
    WHERE id=$1::uuid
   `,[app.id,decision,actorId,reason]);
   await client.query(`
