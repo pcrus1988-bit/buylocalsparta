@@ -37,6 +37,8 @@ export type MaziAdminApplication = {
 };
 export type MaziAdminProposal = {
  id:string;title:string;category:string;details:string;amount_cents:string;created_at:Date;
+ first_time_support_request:boolean;
+ grant_policy_ack_version:string|null;grant_policy_acknowledged_at:Date|null;
 };
 export type MaziAdminMember = {
  user_id:string;status:string;voting_eligible:boolean;admitted_at:Date;
@@ -77,9 +79,10 @@ export async function maziAdminSnapshot(principal: SessionPrincipal): Promise<Ma
     order by created_at asc limit 75
    `),
    db().query<MaziAdminProposal>(`
-    select id::text,title,category,details,amount_cents::text,created_at
+    select id::text,title,category,details,amount_cents::text,created_at,
+       first_time_support_request,grant_policy_ack_version,grant_policy_acknowledged_at
     from public.mazi_proposals where status='submitted'
-    order by created_at asc limit 75
+    order by first_time_support_request desc,created_at asc limit 75
    `),
    db().query<MaziAdminMember>(`
     select m.user_id::text,m.status,m.voting_eligible,m.admitted_at,
