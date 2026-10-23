@@ -43,6 +43,13 @@ test("Super Admin review requires independently verified representative and emai
  assert.match(review,/name="companyActiveVerified"/);
  assert.match(review,/Δεν έχει σταλεί πρόσκληση/);
 });
+test("competing applicants cannot squat an AFM or both be approved",()=>{
+ const followup=source("../sql/016_afm_competing_claims.sql");
+ assert.match(followup,/DROP CONSTRAINT mazi_interest_applications_tax_number_key/);
+ assert.match(followup,/ON public\.mazi_interest_applications\(tax_number,contact_email\)/);
+ assert.match(admin,/MAZI_COMPETING_APPROVED_CLAIM/);
+ assert.match(admin,/hashtextextended\(\$1::text,39128\)/);
+});
 test("no finance, membership or invitations are minted",()=>{
  for(const file of [runtime,route,admin,sql]){
   assert.doesNotMatch(file,/INSERT INTO public\.mazi_members\b/i);
