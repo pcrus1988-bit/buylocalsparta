@@ -18,7 +18,8 @@ export async function reviewMaziInterestAction(form:FormData){
   decision:action,
   reason:value(form,"reason"),
   representativeVerified:form.get("representativeVerified")==="on",
-  emailVerified:form.get("emailVerified")==="on"
+  emailVerified:form.get("emailVerified")==="on",
+  companyActiveVerified:form.get("companyActiveVerified")==="on"
  });
  revalidatePath("/admin/mazi/interest");
  redirect("/admin/mazi/interest?notice=reviewed");
