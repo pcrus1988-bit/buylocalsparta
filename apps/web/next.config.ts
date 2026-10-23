@@ -57,6 +57,7 @@ const SECURITY_HEADERS = [
 ] as const;
 
 const RETIRED_PUBLIC_HOSTS = [
+  "skroutz.site", // Alternate attached domain must not compete with the canonical marketplace.
   "www.kontamou.site",
   "kontamou.info",
   "www.kontamou.info",
