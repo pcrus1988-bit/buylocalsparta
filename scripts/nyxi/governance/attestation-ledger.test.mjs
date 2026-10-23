@@ -101,3 +101,15 @@ test('verification rejects internally rehashed contradictory snapshot identities
   const forgedRoot=createHash('sha256').update('NYXI_AGENT1_LEDGER_V1\n'+canonical(row)).digest('hex');
   assert.equal(verify([...first,{...row,entry_hash:forgedRoot}],forgedRoot),false);
 });
+
+test('caller-forged byte attestation cannot be appended without trusted observe capability',()=>{
+  const genuine=observe({...f(),originalBytes:original});
+  const forged=structuredClone(genuine);
+  assert.throws(()=>append([],forged),/unverified_byte_attestation_event/);
+  assert.equal(append([],genuine).length,1);
+});
+test('byte-verified event identity is frozen after original-byte digest',()=>{
+  const event=observe({...f(),originalBytes:original});
+  assert.equal(Object.isFrozen(event),true);
+  assert.throws(()=>{event.snapshot_sha256='f'.repeat(64)},TypeError);
+});
