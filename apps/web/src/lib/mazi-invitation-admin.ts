@@ -38,7 +38,7 @@ async function sendVerifiedAuthInvitation(email:string){
  // Do not persist or log provider tokens/user metadata in the marketplace.
 }
 
-export async function issueMaziInvitation(principal:SessionPrincipal,interestId:string):Promise<"sent"|"delivery_failed">{
+export async function issueMaziInvitation(principal:SessionPrincipal,interestId:string,retryReason?:string):Promise<"sent"|"delivery_failed">{
  const actorId=await marketplaceMaziActor(principal);
  if(!/^[a-f0-9-]{36}$/i.test(interestId))throw Error("MAZI_INVITATION_INVALID");
  // Fail before writing if the Auth project is not securely configured.
@@ -73,6 +73,17 @@ export async function issueMaziInvitation(principal:SessionPrincipal,interestId:
    ||!app.company_active_verified_at)
    throw Error("MAZI_INVITATION_BUSINESS_NOT_VERIFIED");
 
+  const last=await conn.query<{status:MaziInviteStatus}>(`
+   SELECT status FROM public.mazi_invitations
+   WHERE interest_id=$1::uuid
+   ORDER BY issued_at DESC LIMIT 1 FOR UPDATE
+  `,[interestId]);
+  if(last.rows[0]?.status==="pending_delivery"||last.rows[0]?.status==="email_sent")
+    throw Error("MAZI_INVITATION_ALREADY_ACTIVE");
+  if(last.rows[0]?.status==="consumed")throw Error("MAZI_INVITATION_ALREADY_CONSUMED");
+  if(last.rows[0]?.status==="delivery_failed" &&
+     (!retryReason||retryReason.trim().length<20||retryReason.trim().length>1000))
+    throw Error("MAZI_INVITATION_PROVIDER_RECONCILIATION_REQUIRED");
   const existing=await conn.query<{present:boolean}>(`
    SELECT EXISTS(SELECT 1 FROM public.mazi_members m
     WHERE left(m.gemi_number,9)=left($1,9)) AS present
@@ -90,8 +101,9 @@ export async function issueMaziInvitation(principal:SessionPrincipal,interestId:
      entity_id,action,evidence)
    VALUES($1::uuid,'membership_invitation',$2::uuid,'issued',
       jsonb_build_object('authority','konta_moy_super_admin',
-        'verified_interest_id',$3::text,'billing_active',false))
-  `,[actorId,record.id,interestId]);
+        'verified_interest_id',$3::text,'billing_active',false,
+        'retry_after_failure_review',$4::text))
+  `,[actorId,record.id,interestId,retryReason?.trim()||null]);
   await conn.query("COMMIT");
  }catch(err){await conn.query("ROLLBACK").catch(()=>{});throw err;}
  finally{conn.release();}
@@ -122,4 +134,41 @@ export async function issueMaziInvitation(principal:SessionPrincipal,interestId:
   `,[record.id]).catch(()=>{});
   return "delivery_failed";
  }
+}
+
+/**
+ * Explicitly revoke a pending or already emailed invitation. Provider links
+ * may remain clickable but the PostgreSQL admission gate rejects revocation.
+ * Never automatically revoke, resend or delete accepted acknowledgements.
+ */
+export async function revokeMaziInvitation(
+ principal:SessionPrincipal,interestId:string,invitationId:string,reason:string
+):Promise<void>{
+ const actorId=await marketplaceMaziActor(principal);
+ if(!/^[a-f0-9-]{36}$/i.test(interestId)||!/^[a-f0-9-]{36}$/i.test(invitationId)||
+    reason.trim().length<20||reason.trim().length>1000)
+  throw Error("MAZI_INVITATION_REVOCATION_INVALID");
+ const pool=getAdminPostgresRuntime().nativePool;
+ const conn=await pool.connect();
+ try{
+  await conn.query("BEGIN");
+  const current=await conn.query<{id:string;status:MaziInviteStatus}>(`
+    SELECT id::text,status FROM public.mazi_invitations
+    WHERE id=$1::uuid AND interest_id=$2::uuid FOR UPDATE
+  `,[invitationId,interestId]);
+  if(!current.rows[0]||!["pending_delivery","email_sent"].includes(current.rows[0].status))
+   throw Error("MAZI_INVITATION_NOT_REVOCABLE");
+  await conn.query(`
+    UPDATE public.mazi_invitations SET status='revoked'
+    WHERE id=$1::uuid AND status IN ('pending_delivery','email_sent')
+  `,[invitationId]);
+  await conn.query(`
+   INSERT INTO public.mazi_audit_events(marketplace_actor_user_id,entity_type,
+     entity_id,action,evidence)
+   VALUES($1::uuid,'membership_invitation',$2::uuid,'revoked',
+     jsonb_build_object('reason',$3::text,'authority','konta_moy_super_admin'))
+  `,[actorId,invitationId,reason.trim()]);
+  await conn.query("COMMIT");
+ }catch(error){await conn.query("ROLLBACK").catch(()=>{});throw error;}
+ finally{conn.release();}
 }
