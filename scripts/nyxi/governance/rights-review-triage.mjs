@@ -113,6 +113,21 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     const items = [...grouped.get(approval.id).values()]
       .map(x => x.item).sort((a, b) => a.snapshot_id.localeCompare(b.snapshot_id));
     const reasons = [];
+    const source = sourceMap.get(approval.source_id);
+    // An authorization flag alone must not place an uncaptured asset on an
+    // acquisition worklist. Validate the exact approved source URL and current
+    // authorization window even when no archived snapshot exists to bind().
+    if (!safeHttps(approval.asset_url) || approval.asset_url !== source.canonical_url)
+      reasons.push('approved_asset_source_url_mismatch');
+    if (!safeHttps(approval.approved_final_url || approval.asset_url))
+      reasons.push('approved_final_url_missing_or_invalid');
+    if (!validDate(approval.approved_at))
+      reasons.push('acquisition_start_missing_or_invalid');
+    else if (Date.parse(observedAt) < Date.parse(approval.approved_at))
+      reasons.push('acquisition_authorization_not_yet_active');
+    if (validDate(approval.approved_at) && validDate(approval.expires_at) &&
+        Date.parse(approval.expires_at) <= Date.parse(approval.approved_at))
+      reasons.push('acquisition_window_invalid');
     if (items.some(item => sharedAcrossSources.has(item.snapshot_sha256)))
       reasons.push('shared_content_hash_across_sources_scope_review_required');
     if (items.some(item => sharedAcrossApprovals.has(item.snapshot_sha256)))
@@ -137,6 +152,21 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
       reasons.push('acquisition_authorization_expired_for_new_captures');
     if (!SHA.test(approval.metadata?.rights_policy_sha256 || ''))
       reasons.push('documentary_rights_anchor_missing_or_invalid');
+    // A metadata-only candidate is NOT an instruction to fetch, and never
+    // establishes rights to redistribute or publish. Network, terms, rate
+    // limits, and independent rights checks remain external responsibilities.
+    const captureBlockers = new Set([
+      'acquisition_not_authorized', 'approved_asset_source_url_mismatch',
+      'approved_final_url_missing_or_invalid', 'missing_or_invalid_policy_url',
+      'acquisition_start_missing_or_invalid',
+      'acquisition_authorization_not_yet_active', 'acquisition_window_invalid',
+      'acquisition_expiry_missing_or_invalid',
+      'acquisition_authorization_expired_for_new_captures',
+      'retention_deadline_missing', 'retention_deadline_expired',
+      'rights_review_due_date_missing_or_invalid', 'rights_review_overdue'
+    ]);
+    const uncapturedMetadataEligible = items.length === 0 &&
+      !reasons.some(reason => captureBlockers.has(reason));
     // These cannot be satisfied by caller-supplied JSON flags.
     reasons.push('independent_documentary_witness_required',
       'independent_original_byte_attestation_required',
@@ -145,6 +175,7 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
       id: approval.id, source_id: approval.source_id,
       snapshot_count: items.length,
       snapshots: Object.freeze(items),
+      uncaptured_acquisition_metadata_eligible: uncapturedMetadataEligible,
       blockers: Object.freeze(reasons),
       review_status: 'hold',
       publication_authorized: false
@@ -170,6 +201,10 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
       grouped.get(approval.id).size === 0)
     .map(approval => approval.id).sort());
 
+  const metadataEligibleUncapturedApprovalIds = Object.freeze(queue
+    .filter(entry => entry.uncaptured_acquisition_metadata_eligible)
+    .map(entry => entry.id).sort());
+
   return Object.freeze({
     observed_at: observedAt,
     source_count: sourceMap.size,
@@ -179,6 +214,9 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     sources_without_archived_snapshots_ids: sourcesWithoutArchivedSnapshots,
     authorized_uncaptured_approval_count: authorizedUncapturedApprovalIds.length,
     authorized_uncaptured_approval_ids: authorizedUncapturedApprovalIds,
+    // Strict subset: metadata-eligible only, NOT a fetch/publication grant.
+    metadata_eligible_uncaptured_approval_count: metadataEligibleUncapturedApprovalIds.length,
+    metadata_eligible_uncaptured_approval_ids: metadataEligibleUncapturedApprovalIds,
     approval_count: queue.length,
     snapshot_count: queue.reduce((n, item) => n + item.snapshot_count, 0),
     publication_authorized: false,
