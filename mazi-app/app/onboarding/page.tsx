@@ -2,7 +2,7 @@ import type {Metadata} from "next";
 import Link from "next/link";
 import {redirect} from "next/navigation";
 import {createClient} from "../../lib/supabase/server";
-import {maziMemberRequest,type MaziState} from "../../lib/mazi-api";
+import {maziMemberRequest} from "../../lib/mazi-api";
 import {acceptMaziInvitation,signOut} from "../actions";
 
 export const dynamic="force-dynamic";
@@ -12,9 +12,9 @@ export default async function Onboarding({searchParams}:{searchParams:Promise<{n
  const db=await createClient();
  const {data:{user}}=await db.auth.getUser();
  if(!user)redirect("/join");
- const existing=await maziMemberRequest<MaziState>("state");
+ const existing=await maziMemberRequest<{has_existing_application:boolean;already_member:boolean}>("admission_status");
  if(!existing.ok)return <main id="content" className="section shell"><h1>Η υπηρεσία δεν είναι διαθέσιμη.</h1><p>Δεν έγινε αποδοχή ή εγγραφή. Δοκίμασε ξανά αργότερα.</p></main>;
- if(existing.application||existing.member)redirect("/members");
+ if(existing.has_existing_application||existing.already_member)redirect("/members");
  const response=await maziMemberRequest<{invitation:ActiveInvite|null}>("invitation_state");
  const invitation=response.ok?response.invitation:null;
  const {notice}=await searchParams;
