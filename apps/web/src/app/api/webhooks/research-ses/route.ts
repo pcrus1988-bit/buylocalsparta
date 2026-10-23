@@ -17,8 +17,12 @@ export async function POST(request: Request) {
       event: "research.ses_webhook_failed",
       message
     }));
-    return Response.json({ error: message }, {
-      status: message.includes("required") || message.includes("DATABASE_UNAVAILABLE") ? 503 : 400,
+    // SNS must retry transient connection-pool/database failures. Returning 400
+    // would acknowledge failure as a permanent bad event and risk lost delivery
+    // status. Verified duplicate events remain idempotent in the DB handler.
+    const temporarilyUnavailable = /required|DATABASE_UNAVAILABLE|timeout|ECONNRESET|ECONNREFUSED|ETIMEDOUT|connection terminated|too many clients|remaining connection slots/i.test(message);
+    return Response.json({ error: temporarilyUnavailable ? "RESEARCH_SES_TEMPORARILY_UNAVAILABLE" : "RESEARCH_SES_EVENT_REJECTED" }, {
+      status: temporarilyUnavailable ? 503 : 400,
       headers: { "Cache-Control": "no-store" }
     });
   }
