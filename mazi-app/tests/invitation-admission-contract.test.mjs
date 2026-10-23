@@ -104,3 +104,13 @@ test("already registered Supabase users receive a verified no-signup email flow"
  assert.match(admin,/providerMethod=await sendVerifiedAuthInvitation/);
  assert.doesNotMatch(admin,/create_user:true/);
 });
+
+test("onboarding admission guard does not depend on cycle, ledger, voting or dashboard loading",()=>{
+ assert.match(edge,/if\(operation==="admission_status"\)/);
+ assert.match(onboard,/maziMemberRequest<\{has_existing_application:boolean;already_member:boolean\}>\("admission_status"\)/);
+ assert.doesNotMatch(onboard,/maziMemberRequest<MaziState>\("state"\)/);
+ const section=edge.slice(edge.indexOf('if(operation==="admission_status")'),edge.indexOf('if(operation==="invitation_state")'));
+ assert.match(section,/eq\("applicant_user_id",user.id\)/);
+ assert.match(section,/eq\("user_id",user.id\)/);
+ assert.doesNotMatch(section,/currentCycle|mazi_grant_award_offers|mazi_proposals|mazi_fund_ledger/);
+});
