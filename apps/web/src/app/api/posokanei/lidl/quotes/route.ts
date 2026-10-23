@@ -1,5 +1,5 @@
 import {NextResponse} from "next/server";
-import {lidlPublicEnabled,readLidlOffers} from "../../../../lib/posokanei-lidl-source";
+import {lidlPublicEnabled,readLidlOffers} from "../../../../../lib/posokanei-lidl-source";
 export const dynamic="force-dynamic";
 export const runtime="nodejs";
 const headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
