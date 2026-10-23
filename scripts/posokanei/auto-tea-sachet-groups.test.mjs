@@ -1,46 +1,60 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {deriveAutoTeaSachetGroups} from "./auto-tea-sachet-groups.mjs";
-import {findBrandAlternatives} from "./brand-alternatives.mjs";
+import {findBrandAlternatives,referenceQuantity} from "./brand-alternatives.mjs";
 
-const p=(id,brand,name,category,grams,unit="kg")=>({
-  source_product_id:id,brand,name,category,unit,unit_quantity:grams/1000
+const p=(id,brand,name,category,totalGrams,unit="kg",recordedGrams=totalGrams)=>({
+  source_product_id:id,brand,name,category,unit,unit_quantity:recordedGrams/1000
 });
 const green=[
-  p("v","VEVI","VEVI ΠΡΑΣΙΝΟ ΤΣΑΪ 10 ΦΑΚ. X 1,5ΓΡ","Τσάι",15),
-  p("g","ΓΑΛΑΞΙΑΣ","ΓΑΛΑΞΙΑΣ ΠΡΑΣΙΝΟ ΤΣΑΪ 10 ΦΑΚ. X 1,5ΓΡ","Τσάι",15)
+  p("v","VEVI","VEVI ΠΡΑΣΙΝΟ ΤΣΑΪ 10 ΦΑΚ. X 1,5ΓΡ","Τσάι",15,"kg",1.5),
+  p("g","ΓΑΛΑΞΙΑΣ","ΓΑΛΑΞΙΑΣ ΠΡΑΣΙΝΟ ΤΣΑΪ 10 ΦΑΚ. X 1,5ΓΡ","Τσάι",15,"kg",1.5)
 ];
 test("real source-described 10x1.5g green-tea sachets match across declared brands",()=>{
+  // In the dated PosoKanei archive, unit_quantity is 0.0015kg per bag.
+  // The box price covers ten bags: 0.015kg total.
+  assert.equal(green[0].unit_quantity,0.0015);
+  assert.deepEqual(referenceQuantity(green[0]),{unit:"kg",amount:0.015});
   const groups=deriveAutoTeaSachetGroups(green);
   assert.deepEqual(groups.map(g=>g.memberIds),[["g","v"]]);
   assert.equal(groups[0].status,"approved");
   assert.equal(groups[0].basis,"kg");
 });
 test("different counts can only match with same inner sachet weight and corroborated total mass",()=>{
-  const extra=p("e","ELENI","ELENI ΠΡΑΣΙΝΟ ΤΣΑΪ 20 ΦΑΚ. X 1,5ΓΡ","Τσάι",30);
+  const extra=p("e","ELENI","ELENI ΠΡΑΣΙΝΟ ΤΣΑΪ 20 ΦΑΚ. X 1,5ΓΡ","Τσάι",30,"kg",1.5);
   assert.deepEqual(deriveAutoTeaSachetGroups([...green,extra]).map(g=>g.memberIds),[["e","g","v"]]);
-  const wrong=p("wrong","OTHER","OTHER ΠΡΑΣΙΝΟ ΤΣΑΪ 20 ΦΑΚ. X 2ΓΡ","Τσάι",40);
+  const wrong=p("wrong","OTHER","OTHER ΠΡΑΣΙΝΟ ΤΣΑΪ 20 ΦΑΚ. X 2ΓΡ","Τσάι",40,"kg",2);
   assert.deepEqual(deriveAutoTeaSachetGroups([...green,wrong]).map(g=>g.memberIds),[["g","v"]]);
   const inconsistent={...extra,unit_quantity:0.003};
   assert.deepEqual(deriveAutoTeaSachetGroups([...green,inconsistent]),[]);
 });
+test("tea box normalization cannot alter other products or accept contradicted sachet metadata",()=>{
+  const unrelated=p("rice","A","A Ρύζι 10 ΦΑΚ. X 1,5ΓΡ","Ρύζι",1.5);
+  assert.deepEqual(referenceQuantity(unrelated),{unit:"kg",amount:0.0015});
+  const invalid={...green[0],unit_quantity:0.004};
+  assert.deepEqual(referenceQuantity(invalid),{unit:"kg",amount:0.004});
+  assert.deepEqual(deriveAutoTeaSachetGroups([...green,invalid]),[]);
+  const alreadyWhole={...green[0],unit_quantity:0.015};
+  assert.deepEqual(referenceQuantity(alreadyWhole),{unit:"kg",amount:0.015});
+});
+
 test("different chamomile mass is NOT equivalent, even when both packages have ten sachets",()=>{
   const herb=[
-    p("a","VEVI","VEVI ΧΑΜΟΜΗΛΙ 10 ΦΑΚ. X 1,2ΓΡ","Αφεψήματα",12),
-    p("b","ΓΑΛΑΞΙΑΣ","ΓΑΛΑΞΙΑΣ ΧΑΜΟΜΗΛΙ 10 ΦΑΚ. X 1ΓΡ","Αφεψήματα",10)
+    p("a","VEVI","VEVI ΧΑΜΟΜΗΛΙ 10 ΦΑΚ. X 1,2ΓΡ","Αφεψήματα",12,"kg",1.2),
+    p("b","ΓΑΛΑΞΙΑΣ","ΓΑΛΑΞΙΑΣ ΧΑΜΟΜΗΛΙ 10 ΦΑΚ. X 1ΓΡ","Αφεψήματα",10,"kg",1)
   ];
   assert.deepEqual(deriveAutoTeaSachetGroups(herb),[]);
-  const same=p("c","OTHER","OTHER ΧΑΜΟΜΗΛΙ 10 ΦΑΚ. X 1,2ΓΡ","Αφεψήματα",12);
+  const same=p("c","OTHER","OTHER ΧΑΜΟΜΗΛΙ 10 ΦΑΚ. X 1,2ΓΡ","Αφεψήματα",12,"kg",1.2);
   assert.deepEqual(deriveAutoTeaSachetGroups([...herb,same]).map(g=>g.memberIds),[["a","c"]]);
 });
 test("unknown ingredients, mixed/organic/mint/decaf green tea and missing quantities fail closed",()=>{
   const variants=[
-    p("organic","A","A ΠΡΑΣΙΝΟ ΤΣΑΪ ΒΙΟΛΟΓΙΚΟ 10 ΦΑΚ. X 1,5ΓΡ","Τσάι",15),
-    p("mint","B","B ΠΡΑΣΙΝΟ ΤΣΑΪ ΜΕ ΜΕΝΤΑ 10 ΦΑΚ. X 1,5ΓΡ","Τσάι",15),
-    p("mix","C","C ΠΡΑΣΙΝΟ ΤΣΑΪ MIX 10 ΦΑΚ. X 1,5ΓΡ","Τσάι",15),
-    p("unknown","D","D ΠΡΑΣΙΝΟ ΤΣΑΪ 10 ΦΑΚ.","Τσάι",15),
+    p("organic","A","A ΠΡΑΣΙΝΟ ΤΣΑΪ ΒΙΟΛΟΓΙΚΟ 10 ΦΑΚ. X 1,5ΓΡ","Τσάι",15,"kg",1.5),
+    p("mint","B","B ΠΡΑΣΙΝΟ ΤΣΑΪ ΜΕ ΜΕΝΤΑ 10 ΦΑΚ. X 1,5ΓΡ","Τσάι",15,"kg",1.5),
+    p("mix","C","C ΠΡΑΣΙΝΟ ΤΣΑΪ MIX 10 ΦΑΚ. X 1,5ΓΡ","Τσάι",15,"kg",1.5),
+    p("unknown","D","D ΠΡΑΣΙΝΟ ΤΣΑΪ 10 ΦΑΚ.","Τσάι",15,"kg",1.5),
     p("single","E","E ΠΡΑΣΙΝΟ ΤΣΑΪ 1 ΦΑΚ. X 1,5ΓΡ","Τσάι",1.5),
-    p("differentType","F","F ΧΑΜΟΜΗΛΙ 10 ΦΑΚ. X 1,5ΓΡ","Τσάι",15)
+    p("differentType","F","F ΧΑΜΟΜΗΛΙ 10 ΦΑΚ. X 1,5ΓΡ","Τσάι",15,"kg",1.5)
   ];
   assert.deepEqual(deriveAutoTeaSachetGroups(variants),[]);
   const valid=deriveAutoTeaSachetGroups([...green,...variants]);
