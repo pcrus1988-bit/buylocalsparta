@@ -113,3 +113,23 @@ test('byte-verified event identity is frozen after original-byte digest',()=>{
   assert.equal(Object.isFrozen(event),true);
   assert.throws(()=>{event.snapshot_sha256='f'.repeat(64)},TypeError);
 });
+
+
+test('impossible calendar capture cannot be normalized into a valid authorization window',()=>{
+  fail(v=>v.snapshot.fetched_at='2026-02-30T00:00:00Z','capture_outside_authorization');
+});
+test('ambiguous date-only authorization is rejected',()=>{
+  fail(v=>v.approval.approved_at='2026-10-01','capture_outside_authorization');
+});
+test('24-hour timestamp rollover is rejected in observation',()=>{
+  fail(v=>v.observedAt='2026-10-23T24:00:00Z','invalid_observed_at');
+});
+test('valid leap day and explicit timezone offset are accepted',()=>{
+  const v=f();
+  v.approval.approved_at='2024-02-29T12:00:00+02:00';
+  v.snapshot.fetched_at='2026-10-20T03:00:00+03:00';
+  assert.equal(observe(v).type,'catalog_observed');
+});
+test('invalid timezone offset cannot extend acquisition authorization',()=>{
+  fail(v=>v.approval.expires_at='2026-10-31T00:00:00+15:00','capture_outside_authorization');
+});
