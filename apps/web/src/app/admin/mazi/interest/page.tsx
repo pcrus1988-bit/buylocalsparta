@@ -3,7 +3,7 @@ import {redirect} from "next/navigation";
 import {getAdminSession} from "../../../../lib/admin-session";
 import {isMaziSuperAdmin} from "../../../../lib/mazi-superadmin";
 import {maziInterestReviewQueue} from "../../../../lib/mazi-interest-admin";
-import {reviewMaziInterestAction,issueMaziInvitationAction} from "./actions";
+import {reviewMaziInterestAction,issueMaziInvitationAction,revokeMaziInvitationAction} from "./actions";
 import {maziInvitationStates} from "../../../../lib/mazi-invitation-admin";
 import s from "../mazi.module.css";
 
@@ -31,6 +31,8 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
   {params.notice==="reviewed"?<p className={s.notice} role="status">Η απόφαση καταχωρίστηκε στο μητρώο ελέγχου. Δεν έχει σταλεί πρόσκληση.</p>:null}
   {params.notice==="invitation_sent"?<p className={s.notice} role="status">Η προσωπική πρόσκληση απεστάλη στο ήδη επαληθευμένο email. Δεν δημιουργήθηκε ακόμη συνδρομή ή μέλος.</p>:null}
   {params.notice==="invitation_delivery_failed"?<p className={s.notice} role="alert">Η αποστολή δεν επιβεβαιώθηκε. Απαιτείται έλεγχος της κατάστασης στο Supabase Auth πριν από νέα προσπάθεια.</p>:null}
+  {params.notice==="invitation_revoked"?<p className={s.notice} role="status">Η προηγούμενη πρόσκληση ανακλήθηκε. Η ενδεχόμενη παλιά σύνδεση δεν παρέχει πλέον δικαίωμα ένταξης.</p>:null}
+  {params.notice==="invitation_not_revoked"?<p className={s.notice} role="alert">Η ανάκληση απέτυχε ή δεν πληροί τους κανόνες καταγραφής. Δεν έγινε αλλαγή.</p>:null}
   {params.notice==="invitation_not_issued"?<p className={s.notice} role="alert">Δεν εκδόθηκε πρόσκληση. Έλεγξε τις προϋποθέσεις ταυτοποίησης, την υπάρχουσα πρόσκληση και τη ρύθμιση αποστολής.</p>:null}
   <section className={s.section}><div className={s.sectionTop}><div>
    <p>01 / INTAKE REVIEW</p><h2>Προς αξιολόγηση ({pending.length})</h2>
@@ -86,12 +88,30 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
       <strong>{r.registry_legal_name||r.tax_number}</strong>
       <span>{r.status==="approved_pending_invite"?"Εγκεκριμένη προς πρόσκληση":"Απορρίφθηκε"} · {r.review_reason||"—"}</span>
       {latest?<span>Πρόσκληση: {latest.status} · {new Date(latest.issued_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})} · λήξη {new Date(latest.expires_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})}</span>:null}
-      {r.status==="approved_pending_invite"&&!latest?<form action={issueMaziInvitationAction} className={s.action}>
+      {r.status==="approved_pending_invite"&&(!latest||latest.status==="revoked"||latest.status==="delivery_failed")?
+       <form action={issueMaziInvitationAction} className={s.action} style={{display:"grid",gap:8}}>
         <input type="hidden" name="csrf" value={principal.csrfToken}/>
         <input type="hidden" name="id" value={r.id}/>
-        <button type="submit" className={s.primary}>Αποστολή προσωπικής πρόσκλησης στο επαληθευμένο email ↗</button>
-      </form>:null}
-      {latest?.status==="delivery_failed"?<span>Η αποστολή χρειάζεται χειροκίνητη συμφωνία με Supabase Auth. Δεν γίνεται αυτόματη επανάληψη.</span>:null}
+        {latest?.status==="delivery_failed"?<>
+         <p>Η προηγούμενη αποστολή είναι αβέβαιη. Πριν από νέα πρόσκληση, επαλήθευσε χειροκίνητα την κατάσταση στο Supabase Auth.</p>
+         <label>Τεκμηρίωση ελέγχου της αποστολής (20–1.000 χαρακτήρες)
+          <textarea name="reconciliation_reason" required minLength={20} maxLength={1000} rows={3}/>
+         </label>
+         <label><input type="checkbox" name="provider_reconciled" required/> Επιβεβαιώνω ότι εξέτασα τον παραλήπτη και την κατάσταση της προηγούμενης αποστολής στον πάροχο.</label>
+        </>:null}
+        <button type="submit" className={s.primary}>{latest?"Επανέκδοση ατομικής πρόσκλησης":"Αποστολή προσωπικής πρόσκλησης"} ↗</button>
+       </form>:null}
+      {latest&&(latest.status==="pending_delivery"||latest.status==="email_sent")?
+       <form action={revokeMaziInvitationAction} className={s.action} style={{display:"grid",gap:8}}>
+        <input type="hidden" name="csrf" value={principal.csrfToken}/>
+        <input type="hidden" name="id" value={r.id}/>
+        <input type="hidden" name="invitation_id" value={latest.id}/>
+        <label>Αιτιολογία ανάκλησης (20–1.000 χαρακτήρες)
+          <textarea name="revocation_reason" required minLength={20} maxLength={1000} rows={3}/>
+        </label>
+        <label><input type="checkbox" name="confirm_revocation" required/> Κατανοώ ότι ανακαλείται η δυνατότητα ένταξης, ακόμη και αν ο παραλήπτης διατηρεί τον σύνδεσμο email.</label>
+        <button type="submit">Ανάκληση προσωπικής πρόσκλησης ↗</button>
+       </form>:null}
     </div>;
    })}
   </section>
