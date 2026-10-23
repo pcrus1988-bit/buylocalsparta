@@ -40,6 +40,7 @@ test("Super Admin review requires independently verified representative and emai
  assert.match(action,/assertAdminCsrf\(principal/);
  assert.match(review,/name="representativeVerified"/);
  assert.match(review,/name="emailVerified"/);
+ assert.match(review,/name="companyActiveVerified"/);
  assert.match(review,/Δεν έχει σταλεί πρόσκληση/);
 });
 test("no finance, membership or invitations are minted",()=>{
