@@ -50,3 +50,10 @@ No real financial service, pooled payments, crowdfunding or grant distributions 
 - Existing scoped `service_role` privileges, including the follow-up answer column grants, remain intact. The Edge service still has **no access** to the financial ledger.
 - Supabase migration `012_lock_down_client_role_grants.sql` applied and checked against live Postgres on 2026-10-22; neither member records nor financial balances were altered.
 - `npm test` includes a static grant contract. This is not an end-to-end verification of email OTP or Super Admin sessions. Exercise those with a real consenting applicant before declaring onboarding fully validated.
+
+## 2026-10-23 · Magic-link callback compatibility
+- The fixed `/auth/callback` route completes PKCE code exchange and supported token-hash links on the server. Requests that carry neither type redirect **only to the MAZI same-origin** `/auth/finish` page, preserving the browser URL fragment when present (RFC 9110 §10.2.2).
+- `/auth/finish` immediately clears fragment credentials from the address bar before instantiating the Supabase browser client. It verifies the session with `setSession` and uses `@supabase/ssr` cookie storage; the next `/members` request independently checks the user server-side.
+- Invalid, expired and malformed credential fragments return to `/join`; completed server-side callback redirects include an explicit empty fragment so tokens cannot be inherited by ordinary pages.
+- No Supabase project-wide authentication template or redirect allowlist settings have been changed. Verify the real Supabase email template and the production redirect allowlist, then complete a real opt-in business login before marking end-to-end email sign-in verified.
+- Unit tests cover the fallback fragment parsing, invalid links, same-origin redirects and redaction order. These tests do not send emails or create fictional member records.
