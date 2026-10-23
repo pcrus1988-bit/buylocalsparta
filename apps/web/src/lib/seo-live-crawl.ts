@@ -27,6 +27,10 @@ export type SeoLiveCrawlRow = Readonly<{
   contentType?: string;
   responseTimeMs: number;
   title?: string;
+  description?: string;
+  ogImage?: string;
+  xRobotsTag?: string;
+  missingAltCount?: number;
   canonical?: string;
   robots?: string;
   h1Count?: number;
@@ -62,6 +66,25 @@ function crawlIssue(code: string, severity: SeoLiveCrawlIssueSeverity, detail: s
 function htmlText(source: string, expression: RegExp): string | undefined {
   const match = source.match(expression)?.[1]?.replace(/\s+/g, " ").trim();
   return match || undefined;
+}
+
+/** Attribute-order-independent extraction for search/social metadata. */
+function metaContent(html: string, attribute: "name" | "property", key: string): string | undefined {
+  const tags = html.match(/<meta\b[^>]*>/gi) ?? [];
+  for (const tag of tags) {
+    const attributes = new Map(
+      [...tag.matchAll(/([\w:-]+)\s*=\s*(["'])(.*?)\2/g)]
+        .map((match) => [match[1]!.toLowerCase(), match[3]!] as const)
+    );
+    if (attributes.get(attribute)?.toLowerCase() === key.toLowerCase()) return attributes.get("content")?.trim() || undefined;
+  }
+  return undefined;
+}
+
+function missingImageAltCount(html: string): number {
+  // alt="" is valid for decorative imagery; an omitted alt attribute is not.
+  return [...html.matchAll(/<img\b[^>]*>/gi)]
+    .filter((match) => !/\balt\s*=\s*(?:"[^"]*"|'[^']*')/i.test(match[0])).length;
 }
 
 function normalizeComparableUrl(value: string): string {
@@ -164,6 +187,7 @@ async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean
     });
     const contentType = response.headers.get("content-type") ?? undefined;
     const finalUrl = response.url || expectedUrl.toString();
+    const xRobotsTag = response.headers.get("x-robots-tag") ?? undefined;
     const issueDetails: SeoLiveCrawlIssue[] = [];
     if (response.status < 200 || response.status >= 300) issueDetails.push(crawlIssue(
       "http_status",
@@ -177,6 +201,9 @@ async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean
     ));
 
     let title: string | undefined;
+    let description: string | undefined;
+    let ogImage: string | undefined;
+    let missingAltCount: number | undefined;
     let canonical: string | undefined;
     let robots: string | undefined;
     let h1Count: number | undefined;
@@ -185,6 +212,9 @@ async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean
     let structuredDataParseErrors: number | undefined;
     if (contentType?.toLowerCase().includes("text/html")) {
       const html = await response.text();
+      description = metaContent(html, "name", "description");
+      ogImage = metaContent(html, "property", "og:image");
+      missingAltCount = missingImageAltCount(html);
       title = htmlText(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
       canonical = htmlText(html, /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["'][^>]*>/i)
         ?? htmlText(html, /<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["'][^>]*>/i);
@@ -197,6 +227,12 @@ async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean
       structuredDataParseErrors = structuredData.parseErrorCount;
       addStructuredDataIssues(issueDetails, schemaExpectation, structuredData);
       if (!title) issueDetails.push(crawlIssue("missing_title", "warning", "Missing <title>"));
+      if (!description) issueDetails.push(crawlIssue("missing_meta_description", "warning", "Missing meta description"));
+      if (!ogImage) issueDetails.push(crawlIssue("missing_og_image", "warning", "Missing Open Graph image"));
+      if (missingAltCount > 0) issueDetails.push(crawlIssue("missing_image_alt", "warning", `${missingAltCount} image(s) missing alt attributes`));
+      if (indexAllowed && xRobotsTag?.toLowerCase().includes("noindex")) issueDetails.push(crawlIssue(
+        "unexpected_x_robots_noindex", "critical", "Indexable page has X-Robots-Tag: noindex"
+      ));
       if (!canonical) issueDetails.push(crawlIssue("missing_canonical", "warning", "Missing canonical"));
       else {
         const resolvedCanonical = new URL(canonical, expectedUrl).toString();
@@ -233,6 +269,10 @@ async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean
       contentType,
       responseTimeMs: Date.now() - started,
       title,
+      description,
+      ogImage,
+      xRobotsTag,
+      missingAltCount,
       canonical,
       robots,
       h1Count,
