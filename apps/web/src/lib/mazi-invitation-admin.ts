@@ -21,8 +21,8 @@ export async function maziInvitationStates(principal:SessionPrincipal){
 }
 
 async function sendVerifiedAuthInvitation(email:string){
- const key=process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY;
- const url=process.env.MAZI_SUPABASE_URL;
+ const key=process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+ const url=process.env.MAZI_SUPABASE_URL || process.env.SUPABASE_URL;
  // Intentional independent project binding: never invite via a different
  // project's Auth account, including the separate FISCAL project.
  if(!key||url!==AUTH_PROJECT_URL)throw Error("MAZI_AUTH_DELIVERY_NOT_CONFIGURED");
@@ -42,8 +42,8 @@ export async function issueMaziInvitation(principal:SessionPrincipal,interestId:
  const actorId=await marketplaceMaziActor(principal);
  if(!/^[a-f0-9-]{36}$/i.test(interestId))throw Error("MAZI_INVITATION_INVALID");
  // Fail before writing if the Auth project is not securely configured.
- if(process.env.MAZI_SUPABASE_URL!==AUTH_PROJECT_URL||
-    !process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY)
+ if((process.env.MAZI_SUPABASE_URL || process.env.SUPABASE_URL)!==AUTH_PROJECT_URL||
+    !(process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY))
    throw Error("MAZI_INVITATION_DELIVERY_NOT_READY");
  const pool=getAdminPostgresRuntime().nativePool;
  const conn=await pool.connect();
