@@ -18,8 +18,19 @@ export type MaziProposal={
 export type MaziFollowup={
  id:string;question:string;requested_at:string;answer:string|null;answered_at:string|null;
 };
+export type MaziGrantOffer={
+ id:string;proposal_id:string;recipient_gemi_number:string;
+ requested_amount_cents:number;assigned_amount_cents:number;
+ additional_months:number;reapplication_after_months:number;
+ monthly_membership_fee_cents:number;policy_version:string;
+ agreement_body:string;agreement_sha256:string;expires_at:string;offered_at:string
+};
+export type MaziGrantAcknowledgement={
+ offer_id:string;acknowledged_at:string;accepted_document_sha256:string
+};
 export type MaziState={
  followups:MaziFollowup[];
+ grant_offers:MaziGrantOffer[];grant_acknowledgements:MaziGrantAcknowledgement[];
  application:MaziApplication|null;member:MaziMember|null;cycle:MaziCycle|null;
  proposals:MaziProposal[];votes:{proposal_id:string}[];
  proposal_review:{id:string;review_reason:string|null}|null;
