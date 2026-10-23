@@ -5,9 +5,11 @@ import type {BasketLine,BasketPlan,BasketResult} from "../../../../scripts/posok
 import {groupShoppingPlan,planFingerprint,savingsForPlan,savingsIncludingBrands,shoppingPlanText,packagesForEquivalent} from "../../../../scripts/posokanei/shopping-plan.mjs";
 import {summarizeCheaperAlternatives} from "../../../../scripts/posokanei/alternative-opportunities.mjs";
 import styles from "./PosoKaneiPublicClient.module.css";
+import {LidlStandaloneOffers} from "./LidlStandaloneOffers";
 
 type Offer={retailerId:string;retailerName:string;priceEur:number;observedAt:string|null;discount:boolean};
-type Product={id:string;name:string;brand:string|null;category:string|null;unit:string|null;unitQuantity:number|null;imageUrl?:string|null;groupId:string|null;offers:Offer[];approvedAlternatives:Cheaper[]};
+type LidlOffer={retailerId:string;retailerName:string;storeKey:string;storeName:string;offerPriceEur:number;previousPriceEur:number|null;validFrom:string;validTo:string;observedAt:string;offerId:string;scope:"specific_store";membershipRequirement:"requires_lidl_plus"|"no_membership_required";basketEligible:false};
+type Product={id:string;name:string;brand:string|null;category:string|null;unit:string|null;unitQuantity:number|null;imageUrl?:string|null;groupId:string|null;offers:Offer[];lidlOffers?:LidlOffer[];approvedAlternatives:Cheaper[]};
 type Group={id:string;label:string;basis:"kg"|"l"|"piece";approvalMethod?:"automatic_commodity"|"manual_review"};
 type Retailer={id:string;name:string};
 type Listing={status:string;snapshotDate?:string;source?:string;count?:number;page?:number;hasMore?:boolean;products:Product[];categories:string[];categoryGroups?:string[];groups:Group[];retailers:Retailer[]};
@@ -346,6 +348,7 @@ export function PosoKaneiPublicClient(){
         </div>}
       </section>
       <div className={styles.disclaimer} role="note">Οι τιμές είναι ενδεικτικές. <details><summary>Τι πρέπει να γνωρίζω;</summary>Οι τιμές και η διαθεσιμότητα μπορεί να διαφέρουν ανά κατάστημα. Δεν πραγματοποιούνται αγορές από αυτή τη σελίδα.</details></div>
+      <LidlStandaloneOffers/>
       {listing.status!=="ready"&&!loading?<section className={styles.pending} role="status">
         <h2>Η σύγκριση τιμών ετοιμάζεται.</h2>
         <p>Ο ανεξάρτητος κατάλογος θα ενεργοποιηθεί μόλις ολοκληρωθεί η επαλήθευση της πηγής και η δημοσίευση των ενημερωμένων δεδομένων. Δεν εμφανίζουμε δοκιμαστικές τιμές ως πραγματικές.</p>
@@ -369,6 +372,19 @@ export function PosoKaneiPublicClient(){
                   <div className={styles.productTitle}><small>{p.brand||"Χωρίς μάρκα"} · {p.category||"Λοιπά"}</small><h3>{p.name}</h3><small>{p.unitQuantity??"—"} {p.unit||""} · {p.offers.length} καταγραφές</small></div>
                   <div className={styles.amount}><small>Από</small><strong>{money(best?.priceEur)}</strong><small>{best?.retailerName||"—"}</small>{unit&&<small>{money(unit.price)}/{unit.unit}</small>}</div>
                 </div>
+                {(p.lidlOffers?.length||0)>0&&<div className={styles.offers} role="note" aria-label={"Προσφορές Lidl για "+p.name}>
+                  <h4>🏷️ Προσφορές Lidl · ελεγμένη αντιστοίχιση προϊόντος</h4>
+                  {p.lidlOffers?.map(o=><div className={styles.offer} key={o.storeKey+":"+o.offerId}>
+                    <span><strong>Προσφορά Lidl</strong> · {o.storeName===o.storeKey?o.storeKey:o.storeName+" ("+o.storeKey+")"}
+                      <small> Ισχύει έως {o.validTo} · συγκεκριμένο κατάστημα</small>
+                      <small>{o.membershipRequirement==="requires_lidl_plus"?"Απαιτείται Lidl Plus κάρτα για την έκπτωση":"Δεν απαιτείται Lidl Plus κάρτα (επαληθευμένο)"}</small>
+                    </span>
+                    <span><strong>{money(o.offerPriceEur)}</strong>
+                      {o.previousPriceEur!==null&&<small>Διαγραμμένη τιμή αναφοράς: {money(o.previousPriceEur)}</small>}
+                    </span>
+                  </div>)}
+                  <small>Ενδεικτική προσφορά συγκεκριμένου καταστήματος. Δεν επηρεάζει το συγκριτικό καλάθι ούτε εγγυάται απόθεμα.</small>
+                </div>}
                 <div className={styles.buttons}>
                   <button className={styles.primary} type="button" disabled={!best} onClick={()=>addProduct(p)}>+ Στη λίστα</button>
                   <button className={styles.secondary} type="button" onClick={()=>setActive(expanded?null:p.id)} aria-expanded={expanded}>Τιμές στις αλυσίδες {expanded?"−":"+"}</button>
