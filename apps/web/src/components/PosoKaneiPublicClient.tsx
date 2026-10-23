@@ -276,7 +276,7 @@ export function PosoKaneiPublicClient(){
   }
   function addReviewedComparable(option:Cheaper,sourceProduct:Product){
     if(!["reviewed_equivalent","automatically_verified"].includes(option.confidence)||!isCheaper(option))return;
-    if(lines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
+    if(lines.length+lidlLines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
     const key=id();
     setDismissedAlternativeLines(current=>[...current,key]);
     setLabels(current=>({...current,[key]:option.name}));
