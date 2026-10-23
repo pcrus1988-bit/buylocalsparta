@@ -171,7 +171,10 @@ const specs=new Map([
   ["παξιμαδι",["kg",/παξιμαδ|rusk/u]],
   ["σπαγγετινι",["kg",/σπαγγετιν|spaghettini/u]],
   ["νυφαδες καλαμποκιου",["kg",/νιφαδ.*καλαμποκ|καλαμποκ.*νιφαδ|corn flakes/u]],
-  ["φυσικο μεταλλικο νερο",["l",/φυσικ.*μεταλλικ.*νερ|νερ.*φυσικ.*μεταλλικ|natural mineral water/u]],
+  // The public source category includes a separately labelled "Επιτραπέζιο"
+  // water family. Accept that exact family without equating it to mineral,
+  // sparkling, flavoured or other bottled-water preparations.
+  ["φυσικο μεταλλικο νερο",["l",/φυσικ.*μεταλλικ.*νερ|νερ.*φυσικ.*μεταλλικ|natural mineral water|(?=.*νερο)(?=.*επιτραπεζιο)/u]],
   ["πατατακια",["kg",/πατατακ|τσιπς|chips?/u]],
   ["μουσταρδα",["kg",/μουσταρδ|mustard/u]],
   ["μαρμελαδα",["kg",/μαρμελαδ|jam/u]],
