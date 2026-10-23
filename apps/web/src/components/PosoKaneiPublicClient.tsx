@@ -5,7 +5,7 @@ import type {BasketLine,BasketPlan,BasketResult} from "../../../../scripts/posok
 import {groupShoppingPlan,planFingerprint,savingsForPlan,savingsIncludingBrands,shoppingPlanText,packagesForEquivalent} from "../../../../scripts/posokanei/shopping-plan.mjs";
 import {summarizeCheaperAlternatives} from "../../../../scripts/posokanei/alternative-opportunities.mjs";
 import styles from "./PosoKaneiPublicClient.module.css";
-import {LidlStandaloneOffers} from "./LidlStandaloneOffers";
+import {LidlStandaloneOffers,type LidlVisibleOffer} from "./LidlStandaloneOffers";
 
 type Offer={retailerId:string;retailerName:string;priceEur:number;observedAt:string|null;discount:boolean};
 type Product={id:string;name:string;brand:string|null;category:string|null;unit:string|null;unitQuantity:number|null;imageUrl?:string|null;groupId:string|null;offers:Offer[];approvedAlternatives:Cheaper[]};
@@ -13,9 +13,13 @@ type Group={id:string;label:string;basis:"kg"|"l"|"piece";approvalMethod?:"autom
 type Retailer={id:string;name:string};
 type Listing={status:string;snapshotDate?:string;source?:string;count?:number;page?:number;hasMore?:boolean;products:Product[];categories:string[];categoryGroups?:string[];groups:Group[];retailers:Retailer[]};
 type Cheaper={id:string;name:string;brand:string;priceEur:number;unitPriceEur:number;retailerName:string;retailerId:string;savingPercent:number;packageQuantity:number;unit:string;packageCount:number;originalTotalEur:number;candidateTotalEur:number;savingsEur:number;confidence:"reviewed_equivalent"|"automatically_verified"|"unverified_match";approvalMethod?:"automatic_commodity"|"manual_review"|"automatic_match"|"manual_or_unverified"};
+type LidlLine={id:string;source:"lidl_gr";storeKey:string;storeName:string;offerId:string;name:string;brand:string|null;quantity:number;selectedPriceEur:number;validTo:string};
+type LidlQuote={status:string;complete:boolean;items:Array<{lineId:string;storeKey:string;storeName:string;quantity:number;status:"current"|"not_current";offer:null|{id:string;name:string;priceEur:number;validTo:string;membershipRequirement:string}}>;stores:Array<{storeKey:string;storeName:string;subtotalEur:number;lines:number}>};
+type SourceCandidate={id:string;origin:string;storeKey:string|null;name:string;brand:string|null;priceEur:number|null;confidence:string;differentBrand:boolean};
+type SourceCompare={status:string;candidates?:SourceCandidate[]};
 type Mode="single"|"limited";
 type AccountStatus="checking"|"guest"|"customer"|"error";
-type SavedList={lines:BasketLine[];labels:Record<string,string>;excluded:string[];maxStores:number;progress:{key:string;completed:string[]};dismissedAlternativeLines?:string[]};
+type SavedList={lines:BasketLine[];lidlLines?:LidlLine[];labels:Record<string,string>;excluded:string[];maxStores:number;progress:{key:string;completed:string[]};dismissedAlternativeLines?:string[]};
 const PENDING_LIST_KEY="posokanei-pending-account-save-v1";
 const isCheaper=(option:Cheaper)=>Number.isFinite(option.originalTotalEur)&&Number.isFinite(option.candidateTotalEur)&&
   Math.round(option.originalTotalEur*100)>Math.round(option.candidateTotalEur*100)&&option.savingsEur>0;
@@ -39,6 +43,12 @@ export function PosoKaneiPublicClient(){
   const [active,setActive]=useState<string|null>(null);
   const [comparedProduct,setComparedProduct]=useState<string|null>(null);
   const [lines,setLines]=useState<BasketLine[]>([]);
+  const [lidlLines,setLidlLines]=useState<LidlLine[]>([]);
+  const [lidlQuote,setLidlQuote]=useState<LidlQuote|null>(null);
+  const [lidlQuoteWorking,setLidlQuoteWorking]=useState(false);
+  const [sourceCompareId,setSourceCompareId]=useState<string|null>(null);
+  const [sourceCompare,setSourceCompare]=useState<SourceCompare|null>(null);
+  const [sourceCompareWorking,setSourceCompareWorking]=useState(false);
   const [labels,setLabels]=useState<Record<string,string>>({});
   const [storeLimit,setStoreLimit]=useState(5);
   const [excluded,setExcluded]=useState<string[]>([]);
@@ -71,6 +81,7 @@ export function PosoKaneiPublicClient(){
       if(Array.isArray(saved.excluded))setExcluded(saved.excluded.filter(x=>typeof x==="string"&&/^[A-Za-z0-9_-]{1,100}$/.test(x)).slice(0,24));
       if(typeof saved.maxStores==="number"&&Number.isSafeInteger(saved.maxStores)&&saved.maxStores>=1&&saved.maxStores<=5)setStoreLimit(saved.maxStores);
       if(Array.isArray(saved.lines)&&saved.lines.length<=20&&saved.lines.every(x=>x&&typeof x.id==="string"&&["exact","group"].includes(x.kind)))setLines(saved.lines);
+      if(Array.isArray(saved.lidlLines)&&saved.lidlLines.length<=20&&saved.lidlLines.every(l=>l&&l.source==="lidl_gr"&&/^GR\d{4}$/.test(l.storeKey)&&/^[0-9a-f-]{36}$/i.test(l.offerId)&&Number.isSafeInteger(l.quantity)&&l.quantity>=1&&l.quantity<=100))setLidlLines(saved.lidlLines);
       if(saved.labels&&typeof saved.labels==="object")setLabels(saved.labels);
       if(saved.progress&&typeof saved.progress.key==="string"&&Array.isArray(saved.progress.completed))setProgress(saved.progress);
       if(Array.isArray(saved.dismissedAlternativeLines))setDismissedAlternativeLines(saved.dismissedAlternativeLines.filter(id=>typeof id==="string"&&/^line_[a-z0-9]{1,30}$/.test(id)&&saved.lines?.some(line=>line.id===id)).slice(0,20));
@@ -107,7 +118,7 @@ export function PosoKaneiPublicClient(){
           window.history.replaceState(window.history.state,"","/posokanei");
           setNotice("✓ Η λίστα αποθηκεύτηκε στον λογαριασμό KONTA MOY.");
         }else if(data.saved&&!lines.length){
-          setLines(data.saved.lines);setLabels(data.saved.labels);setExcluded(data.saved.excluded);
+          setLines(data.saved.lines);setLidlLines(data.saved.lidlLines||[]);setLabels(data.saved.labels);setExcluded(data.saved.excluded);
           setStoreLimit(data.saved.maxStores);setProgress(data.saved.progress);
           setDismissedAlternativeLines(data.saved.dismissedAlternativeLines||[]);
         }
@@ -145,6 +156,25 @@ export function PosoKaneiPublicClient(){
     setResult(null);setError("");setSavedAt(null);
   },[]);
   useEffect(()=>{calculationId.current++;setResult(null);},[excluded,storeLimit]);
+  useEffect(()=>{
+    if(!preferencesLoaded){return}
+    if(!lidlLines.length){setLidlQuote(null);setLidlQuoteWorking(false);return}
+    const controller=new AbortController();
+    setLidlQuote(null);setLidlQuoteWorking(true);
+    const timer=setTimeout(async()=>{
+      try{
+        const response=await fetch("/api/posokanei/lidl/quotes",{method:"POST",cache:"no-store",
+          signal:controller.signal,headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({items:lidlLines.map(l=>({id:l.id,storeKey:l.storeKey,offerId:l.offerId,quantity:l.quantity}))})});
+        const result=await response.json() as LidlQuote;
+        if(!response.ok||result.status!=="ready")throw Error("quote_failed");
+        if(!controller.signal.aborted)setLidlQuote(result);
+      }catch{
+        if(!controller.signal.aborted)setNotice("Δεν ήταν δυνατό να επανελεγχθούν οι προσφορές Lidl. Δεν υπολογίζονται ως διαθέσιμες.");
+      }finally{if(!controller.signal.aborted)setLidlQuoteWorking(false)}
+    },250);
+    return()=>{clearTimeout(timer);controller.abort()};
+  },[lidlLines,preferencesLoaded]);
   // One race-safe, quantity-aware request refreshes ALL existing basket SKUs.
   // A store exclusion or line edit automatically invalidates older alerts.
   useEffect(()=>{
@@ -187,7 +217,7 @@ export function PosoKaneiPublicClient(){
     return()=>{clearTimeout(timer);controller.abort();};
   },[excluded,lines,dismissedAlternativeLines,preferencesLoaded,brandRefresh]);
   function addProduct(p:Product,chosenOffer?:Offer){
-    if(lines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
+    if(lines.length+lidlLines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
     // A locked retailer is an explicit choice from a current, allowed shelf quote.
     if(chosenOffer&&(!p.offers.some(o=>o.retailerId===chosenOffer.retailerId)||
        excluded.includes(chosenOffer.retailerId)))return;
@@ -198,9 +228,55 @@ export function PosoKaneiPublicClient(){
     setNotice(chosenOffer?"✓ Επιλέχθηκε η καταγεγραμμένη τιμή "+money(chosenOffer.priceEur)+
       " από "+chosenOffer.retailerName+". Μπορείς να ξεκλειδώσεις την αλυσίδα από τη λίστα.":"Προστέθηκε στη λίστα: "+p.name);
   }
+  function addGovById(sourceProductId:string,name:string){
+    if(lines.length+lidlLines.length>=20){setNotice("Μέχρι 20 προϊόντα ανά λίστα.");return}
+    if(!/^[A-Za-z0-9_-]{1,100}$/.test(sourceProductId))return;
+    const key=id();
+    setLabels(current=>({...current,[key]:name.slice(0,200)}));
+    update([...lines,{id:key,kind:"exact",sourceProductId,packageCount:1}]);
+    setNotice("Το προϊόν PosoKanei προστέθηκε στη λίστα.");
+  }
+  function addLidlOffer(offer:LidlVisibleOffer,storeKey:string,storeName:string){
+    if(lines.length+lidlLines.length>=20){setNotice("Μέχρι 20 προϊόντα ανά λίστα.");return}
+    if(offer.validityStatus!=="current"||!/^GR\d{4}$/.test(storeKey))return;
+    const parts=offer.id.split(":");
+    if(parts.length!==3||parts[0]!=="lidl_gr"||parts[1]!==storeKey||!/^[0-9a-f-]{36}$/i.test(parts[2]))return;
+    if(lidlLines.some(l=>l.storeKey===storeKey&&l.offerId===parts[2])){
+      setNotice("Η προσφορά βρίσκεται ήδη στη λίστα.");return;
+    }
+    const selected:LidlLine={id:id(),source:"lidl_gr",storeKey,storeName:storeName.slice(0,100),
+      offerId:parts[2],name:offer.name.slice(0,200),brand:offer.brand,
+      quantity:1,selectedPriceEur:offer.priceEur,validTo:offer.validTo};
+    setLidlLines(current=>[...current,selected]);
+    setSavedAt(null);setNotice("✓ Προστέθηκε στη λίστα Lidl: "+offer.name+". Η τιμή επανελέγχεται.");
+  }
+  function changeLidlLine(lineId:string,quantity:number){
+    if(!Number.isSafeInteger(quantity)||quantity<1||quantity>100)return;
+    setLidlLines(current=>current.map(l=>l.id===lineId?{...l,quantity}:l));setSavedAt(null);
+  }
+  async function compareGovernmentProduct(p:Product){
+    if(sourceCompareId===p.id){setSourceCompareId(null);setSourceCompare(null);return}
+    setSourceCompareId(p.id);setSourceCompare(null);setSourceCompareWorking(true);
+    try{
+      const url=new URLSearchParams({origin:"posokanei",id:p.id,store:lidlLines[0]?.storeKey||"GR0851"});
+      const response=await fetch("/api/posokanei/compare-sources?"+url,{cache:"no-store"});
+      const result=await response.json() as SourceCompare;
+      if(!response.ok)throw Error("compare_unavailable");
+      setSourceCompare(result);
+    }catch{setSourceCompare({status:"unavailable",candidates:[]})}
+    finally{setSourceCompareWorking(false)}
+  }
+  function addSourceCandidate(candidate:SourceCandidate){
+    if(candidate.origin==="posokanei"){addGovById(candidate.id,candidate.name);return}
+    if(candidate.origin!=="lidl_gr"||!candidate.storeKey||!Number.isFinite(candidate.priceEur))return;
+    const synthetic:LidlVisibleOffer={id:candidate.id,name:candidate.name,brand:candidate.brand,
+      packaging:null,priceEur:candidate.priceEur!,referencePriceEur:null,validFrom:"",validTo:"",
+      discountText:null,validityStatus:"current"};
+    addLidlOffer(synthetic,candidate.storeKey,candidate.storeKey);
+  }
   function addReviewedComparable(option:Cheaper,sourceProduct:Product){
     if(!["reviewed_equivalent","automatically_verified"].includes(option.confidence)||!isCheaper(option))return;
-    if(lines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
+    if(lines.length+lidlLines.length>=20){setNotice("Μπορείς να προσθέσεις έως 20 προϊόντα στη λίστα.");return;}
     const key=id();
     setDismissedAlternativeLines(current=>[...current,key]);
     setLabels(current=>({...current,[key]:option.name}));
@@ -257,8 +333,8 @@ export function PosoKaneiPublicClient(){
     return()=>{window.removeEventListener("keydown",onKey);if(narrow)document.body.style.overflow=original;};
   },[mobileListOpen]);
   async function saveList(){
-    if(!lines.length||savingList||accountStatus==="checking")return;
-    const draft:SavedList={lines,labels,excluded,maxStores:storeLimit,progress,dismissedAlternativeLines};
+    if(!(lines.length+lidlLines.length)||savingList||accountStatus==="checking")return;
+    const draft:SavedList={lines,lidlLines,labels,excluded,maxStores:storeLimit,progress,dismissedAlternativeLines};
     if(accountStatus==="guest"){
       try{sessionStorage.setItem(PENDING_LIST_KEY,JSON.stringify(draft));}
       catch{setNotice("Δεν μπορεί να διατηρηθεί προσωρινά η λίστα μέχρι τη σύνδεση.");return;}
@@ -308,8 +384,17 @@ export function PosoKaneiPublicClient(){
     });
   }
   async function copyPlan(){
-    const text=shoppingPlanText(result,plan,mode);
-    if(!text)return;
+    const gov=shoppingPlanText(result,plan,mode);
+    const active=lidlQuote?.items.filter(q=>q.status==="current"&&q.offer)||[];
+    const lidlText=active.length?["","Lidl — επιλεγμένες προσφορές συγκεκριμένων καταστημάτων",
+      ...lidlQuote!.stores.flatMap(store=>[store.storeName+" · "+money(store.subtotalEur),
+        ...active.filter(q=>q.storeKey===store.storeKey).map(q=>
+          "☐ "+q.offer!.name+" × "+q.quantity+" — "+money(q.offer!.priceEur*q.quantity)+" · έως "+q.offer!.validTo.slice(0,10))]),
+      "Ελέγξτε Lidl Plus, διαθεσιμότητα και τρέχουσα τιμή στο κατάστημα.",
+      "Οι προσφορές Lidl δεν συμμετέχουν στη σύγκριση εξοικονόμησης PosoKanei."
+    ].join("\n"):"";
+    const text=(gov||"ΚΟΝΤΑ ΜΟΥ — Λίστα αγορών")+lidlText;
+    if(!gov&&!lidlText)return;
     try{
       await navigator.clipboard.writeText(text);
       setNotice("Η λίστα ανά σούπερ μάρκετ αντιγράφηκε. Μπορείς να τη στείλεις ή να την αποθηκεύσεις.");
@@ -347,7 +432,7 @@ export function PosoKaneiPublicClient(){
         </div>}
       </section>
       <div className={styles.disclaimer} role="note">Οι τιμές είναι ενδεικτικές. <details><summary>Τι πρέπει να γνωρίζω;</summary>Οι τιμές και η διαθεσιμότητα μπορεί να διαφέρουν ανά κατάστημα. Δεν πραγματοποιούνται αγορές από αυτή τη σελίδα.</details></div>
-      <LidlStandaloneOffers/>
+      <LidlStandaloneOffers onAdd={addLidlOffer} onAddGov={candidate=>addGovById(candidate.id,candidate.name)} searchQuery={q}/>
       {listing.status!=="ready"&&!loading?<section className={styles.pending} role="status">
         <h2>Η σύγκριση τιμών ετοιμάζεται.</h2>
         <p>Ο ανεξάρτητος κατάλογος θα ενεργοποιηθεί μόλις ολοκληρωθεί η επαλήθευση της πηγής και η δημοσίευση των ενημερωμένων δεδομένων. Δεν εμφανίζουμε δοκιμαστικές τιμές ως πραγματικές.</p>
@@ -373,6 +458,7 @@ export function PosoKaneiPublicClient(){
                 </div>
                 <div className={styles.buttons}>
                   <button className={styles.primary} type="button" disabled={!best} onClick={()=>addProduct(p)}>+ Στη λίστα</button>
+                  <button className={styles.secondary} type="button" onClick={()=>{void compareGovernmentProduct(p)}} aria-expanded={sourceCompareId===p.id}>Παρόμοια από όλες τις πηγές</button>
                   <button className={styles.secondary} type="button" onClick={()=>setActive(expanded?null:p.id)} aria-expanded={expanded}>Τιμές στις αλυσίδες {expanded?"−":"+"}</button>
                   {cheaperCatalogueOptions.length>0&&<button className={styles.textButton} type="button"
                     aria-expanded={comparedProduct===p.id}
@@ -392,6 +478,16 @@ export function PosoKaneiPublicClient(){
                       <button className={styles.secondary} type="button" onClick={()=>addReviewedComparable(a,p)}>Επιλογή</button>
                     </div>)}
                   </div>}
+                {sourceCompareId===p.id&&<div className={styles.comparablePanel} role="region" aria-label={"Διασταυρούμενες προτάσεις για "+p.name}>
+                  <h4>Πιθανά παρόμοια · όλες οι πηγές</h4>
+                  {sourceCompareWorking?<p>Αναζήτηση…</p>:!sourceCompare?.candidates?.length?<p>Δεν υπάρχουν διαθέσιμες τεκμηριωμένες προτάσεις.</p>:
+                    sourceCompare.candidates.map(item=><div key={item.id} className={styles.comparableRow}>
+                      <div><strong>{item.name}</strong><small>{item.origin==="lidl_gr"?"Lidl":"PosoKanei"} · {item.brand||"Χωρίς μάρκα"} · {item.priceEur===null?"—":money(item.priceEur)}</small>
+                      <small>{item.confidence==="reviewed_equivalent"?"Ελεγμένη ομάδα":"Υποψήφιο προς επαλήθευση — χωρίς επιβεβαιωμένη ισοδυναμία"}</small></div>
+                      <button type="button" className={styles.secondary} onClick={()=>addSourceCandidate(item)}>+ Στη λίστα</button>
+                    </div>)}
+                  <small>Χωρίς αυτόματη αντιστοίχιση ή υπολογισμό μη επαληθευμένης εξοικονόμησης.</small>
+                </div>}
                 {expanded&&<div className={styles.offers}><h4>Καταγεγραμμένες τιμές · μόνο από τις επιλεγμένες αλυσίδες</h4>
                   {p.offers.map((o,i)=><div key={o.retailerId} className={styles.offer}><span>{o.retailerName}{i===0&&<small className={styles.lowest}> Χαμηλότερη καταγραφή</small>}{o.discount&&<small> · Σήμανση έκπτωσης</small>}</span><strong>{money(o.priceEur)}</strong><button type="button" className={styles.secondary} aria-label={"Επιλογή τιμής "+money(o.priceEur)+" από "+o.retailerName+" για "+p.name} onClick={()=>addProduct(p,o)}>Επιλογή τιμής</button></div>)}
                 </div>}
@@ -403,18 +499,30 @@ export function PosoKaneiPublicClient(){
         {mobileListOpen&&<button type="button" className={styles.mobileListBackdrop} aria-label="Κλείσιμο λίστας αγορών" onClick={()=>setMobileListOpen(false)}/>}
         <aside className={`${styles.sidebar} ${mobileListOpen?styles.mobileBasketOpen:""}`} aria-label="Λίστα και εξοικονόμηση" role={mobileListOpen?"dialog":undefined} aria-modal={mobileListOpen?true:undefined}><div className={styles.basket} id="posokanei-basket">
           <div className={styles.drawerHeader}><strong>Η λίστα σου</strong><button type="button" onClick={()=>setMobileListOpen(false)} aria-label="Κλείσιμο λίστας">✕</button></div>
-          <div className={styles.heading}><div><span className={styles.eyebrow}>02 · ΤΟ ΚΑΛΑΘΙ ΣΟΥ</span><h2>Η λίστα αγορών</h2></div><span className={styles.count}>{lines.length}</span></div>
-          {lines.length>0&&<div className={styles.saveBar}>
-            <button className={styles.saveButton} type="button" disabled={!lines.length||savingList||accountStatus==="checking"} onClick={()=>{void saveList();}}>{savingList?"Αποθήκευση…":accountStatus==="guest"?"🔒 Σύνδεση / εγγραφή & αποθήκευση":"💾 Αποθήκευση λίστας"}</button>
+          <div className={styles.heading}><div><span className={styles.eyebrow}>02 · ΤΟ ΚΑΛΑΘΙ ΣΟΥ</span><h2>Η λίστα αγορών</h2></div><span className={styles.count}>{lines.length+lidlLines.length}</span></div>
+          {lines.length+lidlLines.length>0&&<div className={styles.saveBar}>
+            <button className={styles.saveButton} type="button" disabled={!(lines.length+lidlLines.length)||savingList||accountStatus==="checking"} onClick={()=>{void saveList();}}>{savingList?"Αποθήκευση…":accountStatus==="guest"?"🔒 Σύνδεση / εγγραφή & αποθήκευση":"💾 Αποθήκευση λίστας"}</button>
             <small>{accountStatus==="guest"?"Για να διατηρήσεις τη λίστα, συνδέσου ή κάνε εγγραφή.":savedAt?"✓ Αποθηκεύτηκε στον λογαριασμό σου":accountStatus==="checking"?"Έλεγχος λογαριασμού…":"Για να κρατήσεις τις αλλαγές, πάτησε Αποθήκευση."}</small>
           </div>}
-          {!lines.length?<p className={styles.message}>Πρόσθεσε προϊόντα για να βρεις το οικονομικότερο καλάθι.</p>:<details className={styles.listDetails} open><summary>Προϊόντα στη λίστα ({lines.length}) · Επεξεργασία</summary><div className={styles.lines}>{lines.map(l=><div className={styles.line} key={l.id}>
+          {!(lines.length+lidlLines.length)?<p className={styles.message}>Πρόσθεσε προϊόντα για να σχεδιάσεις τη λίστα αγορών.</p>:<details className={styles.listDetails} open><summary>Προϊόντα στη λίστα ({lines.length+lidlLines.length}) · Επεξεργασία</summary><div className={styles.lines}>{lines.map(l=><div className={styles.line} key={l.id}>
             <div className={styles.lineTop}><strong>{labels[l.id]||"Προϊόν"}</strong><button type="button" onClick={()=>update(lines.filter(x=>x.id!==l.id))} aria-label="Αφαίρεση από τη λίστα">✕</button></div>
             <label>{l.kind==="exact"?"Συσκευασίες":"Ποσότητα ("+(listing.groups.find(g=>g.id===l.groupId)?.basis||"kg")+")"}<input type="number" min="1" max="100" step={l.kind==="exact"?"1":"0.1"} value={l.kind==="exact"?l.packageCount:l.requiredBaseQuantity} onChange={e=>changeLine(l.id,l.kind==="exact"?{packageCount:Number(e.target.value)}:{requiredBaseQuantity:Number(e.target.value)})}/></label>
             {l.lockedRetailerId&&<div className={styles.retailerLock}><span>🔒 Επιλεγμένη αλυσίδα: {listing.retailers.find(r=>r.id===l.lockedRetailerId)?.name||l.lockedRetailerId}{excluded.includes(l.lockedRetailerId)?" · έχει αποκλειστεί στις ρυθμίσεις":""}</span><button type="button" onClick={()=>changeLine(l.id,{lockedRetailerId:undefined})}>Ξεκλείδωμα</button></div>}
             {dismissedAlternativeLines.includes(l.id)?<small className={styles.selectedAlternativeNote}>✓ Επέλεξες φθηνότερη μάρκα</small>:l.kind==="exact"&&(checkingBrands||((brandResults[l.id]?.alternatives.length||0)+(brandResults[l.id]?.candidates.length||0))>0)&&<small className={styles.brandStatus}>{checkingBrands?"Έλεγχος τιμών…":"💡 Φθηνότερες επιλογές παρακάτω"}</small>}
 
-          </div>)}</div></details>}
+          </div>)}
+          {lidlLines.map(item=><div className={styles.line} key={item.id}>
+            <div className={styles.lineTop}><strong>{item.name}</strong>
+              <button type="button" onClick={()=>{setLidlLines(v=>v.filter(x=>x.id!==item.id));setSavedAt(null)}} aria-label={"Αφαίρεση "+item.name}>✕</button>
+            </div>
+            <small>🏷️ Lidl · {item.storeName} · Προσφορά καταστήματος</small>
+            <label>Συσκευασίες<input type="number" min="1" max="100" step="1" value={item.quantity}
+              onChange={e=>changeLidlLine(item.id,Number(e.target.value))}/></label>
+            {(()=>{const quote=lidlQuote?.items.find(q=>q.lineId===item.id);return quote?.status==="current"&&quote.offer?
+              <small>Επαληθευμένη καταγραφή: {money(quote.offer.priceEur)} / συσκ. · έως {quote.offer.validTo.slice(0,10)}</small>:
+              <small>⚠ {lidlQuoteWorking?"Επανέλεγχος…":"Η προσφορά δεν είναι τρέχουσα ή δεν μπορεί να επαληθευτεί."}</small>})()}
+          </div>)}
+          </div></details>}
           {notice&&<p className={styles.notice} role="status">{notice}</p>}
           {savingsOpportunities.productCount>0&&<button type="button" className={styles.savingsOpportunity}
             onClick={()=>{
@@ -448,6 +556,17 @@ export function PosoKaneiPublicClient(){
               </div>
             </section>
           )}
+          {lidlLines.length>0&&<section className={styles.pending} aria-label="Επιλεγμένες προσφορές Lidl ανά κατάστημα">
+            <h3>🏷️ Lidl · αγορές ανά κατάστημα</h3>
+            <p>Οι προσφορές επανελέγχονται από την πηγή, ανεξάρτητα από τις τιμές PosoKanei.</p>
+            {lidlQuote?.stores.map(store=><p key={store.storeKey}><strong>{store.storeName}</strong> · {store.lines} είδη · {money(store.subtotalEur)}</p>)}
+            {plan?.complete&&lidlQuote&&plan.storeCount+lidlQuote.stores.length>storeLimit&&
+              <p role="note">⚠ Οι επιλεγμένες φυσικές επισκέψεις, μαζί με Lidl, υπερβαίνουν το όριο {storeLimit} καταστημάτων. Οι προσφορές Lidl δεν συμμετέχουν ακόμη στην ίδια βελτιστοποίηση.</p>}
+            {lidlQuote&&!lidlQuote.complete&&<p role="alert">Κάποιες προσφορές έληξαν ή δεν βρέθηκαν· δεν περιλαμβάνονται στο ενδεικτικό υποσύνολο.</p>}
+            {lidlQuoteWorking&&<p role="status">Έλεγχος προσφορών…</p>}
+            <button type="button" className={styles.secondary} disabled={!lidlQuote?.items.some(i=>i.status==="current")} onClick={()=>{void copyPlan()}}>Αντιγραφή λίστας ανά κατάστημα</button>
+            <small>Δεν έχουν επιβεβαιωθεί οι όροι Lidl Plus ή τα αποθέματα. Το Lidl υποσύνολο δεν προστίθεται στα σύνολα εξοικονόμησης PosoKanei.</small>
+          </section>}
           <p className={styles.basketPreset}>Σύγκριση σε έως {storeLimit} σούπερ μάρκετ. <button type="button" onClick={()=>{setSettingsOpen(true);setMobileListOpen(false);window.scrollTo({top:0,behavior:"smooth"});}}>Αλλαγή</button></p>
           <button className={styles.calculate} type="button" onClick={()=>{void calculate();}} disabled={!lines.length||listing.status!=="ready"||working||listing.retailers.length===excluded.length}>{working?"Υπολογισμός…":"Βρες το οικονομικότερο καλάθι →"}</button>
           {error&&<p className={styles.error} role="alert">{error}</p>}
@@ -523,7 +642,7 @@ export function PosoKaneiPublicClient(){
           </div>}
         </div></aside>
       </div>
-      <button type="button" className={styles.mobileBasketShortcut} aria-expanded={mobileListOpen} aria-controls="posokanei-basket" onClick={()=>setMobileListOpen(true)}><span>🛒 Λίστα αγορών <b>{lines.length}</b></span><strong>{plan?.complete?money(plan.totalEur):"Άνοιγμα ↑"}</strong></button>
+      <button type="button" className={styles.mobileBasketShortcut} aria-expanded={mobileListOpen} aria-controls="posokanei-basket" onClick={()=>setMobileListOpen(true)}><span>🛒 Λίστα αγορών <b>{lines.length+lidlLines.length}</b></span><strong>{plan?.complete?money(plan.totalEur):"Άνοιγμα ↑"}</strong></button>
       <p className={styles.footerNote}>KONTA MOY × PosoKanei · Ανεξάρτητη υπηρεσία αναφοράς τιμών. Χωρίς πραγματική αγορά, απόθεμα ή σύνδεση με το checkout του ΚΟΝΤΑ ΜΟΥ.</p><p className={styles.footerNote}>Πηγή τιμών: <a href="https://posokanei.gov.gr/" target="_blank" rel="noopener noreferrer">posokanei.gov.gr</a> · Δημόσιο ημερήσιο αρχείο: <a href="https://github.com/spyrosavl/posokanei" target="_blank" rel="noopener noreferrer">spyrosavl/posokanei</a> · Νομική βάση περαιτέρω χρήσης: ν. 4727/2020, άρθρο 61 (με επιφύλαξη άρθρου 59). Δεν αποτελεί επίσημη κυβερνητική υπηρεσία.</p>
     </div>
   </div>;

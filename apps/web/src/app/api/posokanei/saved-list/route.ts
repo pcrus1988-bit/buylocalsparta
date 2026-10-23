@@ -5,7 +5,8 @@ export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const headers={"Cache-Control":"private, no-store"};
 
-type SavedList={lines:Array<Record<string,unknown>>;labels:Record<string,string>;excluded:string[];maxStores:number;progress:{key:string;completed:string[]};dismissedAlternativeLines?:string[]};
+type LidlSavedLine={id:string;source:"lidl_gr";storeKey:string;storeName:string;offerId:string;name:string;brand:string|null;quantity:number;selectedPriceEur:number;validTo:string};
+type SavedList={lines:Array<Record<string,unknown>>;lidlLines?:LidlSavedLine[];labels:Record<string,string>;excluded:string[];maxStores:number;progress:{key:string;completed:string[]};dismissedAlternativeLines?:string[]};
 
 function validList(value:unknown):value is SavedList{
   if(!value||typeof value!=="object"||Array.isArray(value))return false;
@@ -15,6 +16,19 @@ function validList(value:unknown):value is SavedList{
        ((l.kind==="exact"&&typeof l.sourceProductId==="string"&&l.sourceProductId.length<=140&&typeof l.packageCount==="number"&&Number.isSafeInteger(l.packageCount)&&l.packageCount>=1&&l.packageCount<=100&&
           (l.lockedRetailerId===undefined||(typeof l.lockedRetailerId==="string"&&/^[A-Za-z0-9_-]{1,100}$/.test(l.lockedRetailerId))))||
         (l.kind==="group"&&typeof l.groupId==="string"&&l.groupId.length<=140&&typeof l.requiredBaseQuantity==="number"&&Number.isFinite(l.requiredBaseQuantity)&&l.requiredBaseQuantity>0&&l.requiredBaseQuantity<=100))))return false;
+  if(v.lidlLines!==undefined&&(!Array.isArray(v.lidlLines)||v.lidlLines.length>20||
+      v.lidlLines.some(l=>!l||typeof l!=="object"||
+        !/^line_[a-z0-9]{1,30}$/.test(l.id)||
+        l.source!=="lidl_gr"||!/^GR\d{4}$/.test(l.storeKey)||
+        !/^[0-9a-f-]{36}$/i.test(l.offerId)||
+        typeof l.name!=="string"||!l.name.trim()||l.name.length>200||
+        typeof l.storeName!=="string"||l.storeName.length>100||
+        !(l.brand===null||(typeof l.brand==="string"&&l.brand.length<=120))||
+        !Number.isSafeInteger(l.quantity)||l.quantity<1||l.quantity>100||
+        !Number.isFinite(l.selectedPriceEur)||l.selectedPriceEur<=0||l.selectedPriceEur>100000||
+        typeof l.validTo!=="string"||l.validTo.length>40)||
+      v.lines!.length+v.lidlLines.length>20||
+      new Set([...v.lines!.map(l=>l.id),...v.lidlLines.map(l=>l.id)]).size!==v.lines!.length+v.lidlLines.length))return false;
   if(!v.labels||typeof v.labels!=="object"||Array.isArray(v.labels)||Object.keys(v.labels).length>20||
      !Object.entries(v.labels).every(([k,val])=>/^line_[a-z0-9]{1,30}$/.test(k)&&typeof val==="string"&&val.length<=220))return false;
   if(!Array.isArray(v.excluded)||v.excluded.length>24||

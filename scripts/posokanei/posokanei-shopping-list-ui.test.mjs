@@ -55,7 +55,7 @@ test("the selected suggestion disappears, does not return after refresh, and rem
   assert.match(source,/line\.kind===\"exact\"&&!dismissedAlternativeLines\.includes\(line\.id\)/);
   assert.match(source,/setExpandedAlternatives\(current=>current\.filter\(id=>id!==lineId\)\)/);
   assert.match(source,/setDismissedAlternativeLines\(data\.saved\.dismissedAlternativeLines\|\|\[\]\)/);
-  assert.match(source,/draft:SavedList=\{lines,labels,excluded,maxStores:storeLimit,progress,dismissedAlternativeLines\}/);
+  assert.match(source,/draft:SavedList=\{lines,(?:lidlLines,)?labels,excluded,maxStores:storeLimit,progress,dismissedAlternativeLines\}/);
   assert.match(savedRoute,/v\.dismissedAlternativeLines!==undefined/);
   assert.match(savedRoute,/v\.lines!\.some\(line=>line\.id===id\)/);
 });
@@ -102,4 +102,13 @@ test("catalogue alternative selection keeps its baseline for server-calculated r
   assert.match(source,/void calculate\(revised\)/);
   assert.match(source,/Δυνητικό όφελος/);
   assert.match(source,/lockedRetailerId:undefined/);
+});
+
+test("independent retailer-source list entries are persisted without forging government prices",()=>{
+  assert.match(source,/lidlLines/);
+  assert.match(source,/\/api\/posokanei\/lidl\/quotes/);
+  assert.match(source,/source:"lidl_gr"/);
+  assert.match(source,/lidlQuote.*stores/);
+  assert.match(savedRoute,/v\.lidlLines!==undefined/);
+  assert.doesNotMatch(source,/price_eur:.*selectedPriceEur/);
 });

@@ -2,15 +2,34 @@
 import {useEffect,useState} from "react";
 import styles from "./LidlStandaloneOffers.module.css";
 type Store={id:string;name:string;city:string;address:string;postalCode:string};
-type Item={id:string;name:string;brand:string|null;packaging:string|null;priceEur:number;referencePriceEur:number|null;validFrom:string;validTo:string;discountText:string|null;validityStatus:"current"|"upcoming"};
+export type LidlVisibleOffer={id:string;name:string;brand:string|null;packaging:string|null;priceEur:number;referencePriceEur:number|null;validFrom:string;validTo:string;discountText:string|null;validityStatus:"current"|"upcoming"};
+type Item=LidlVisibleOffer;
+type Candidate={id:string;origin:string;storeKey:string|null;name:string;brand:string|null;priceEur:number|null;confidence:string;differentBrand:boolean;priceComparisonAvailable:boolean};
+type CompareResponse={status:string;candidates?:Candidate[];disclaimer?:string};
 type Payload={status:string;products?:Item[];stores?:Store[];count?:number;hasMore?:boolean;observedAt?:string;store?:Store};
 const money=(n:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(n);
 const day=(s:string)=>{const d=new Date(s);return Number.isNaN(d.getTime())?s.slice(0,10):new Intl.DateTimeFormat("el-GR",{timeZone:"Europe/Athens",day:"2-digit",month:"2-digit",year:"numeric"}).format(d)};
-export function LidlStandaloneOffers(){
+export function LidlStandaloneOffers({onAdd,onAddGov,searchQuery=""}:{onAdd:(offer:LidlVisibleOffer,storeKey:string,storeName:string)=>void;onAddGov:(candidate:{id:string;name:string})=>void;searchQuery?:string}){
  const [stores,setStores]=useState<Store[]>([]),[store,setStore]=useState("GR0851");
  const [period,setPeriod]=useState<"current"|"upcoming">("current");
  const [search,setSearch]=useState(""),[page,setPage]=useState(1);
  const [data,setData]=useState<Payload>({status:"unpublished",products:[]}),[loading,setLoading]=useState(false);
+ const [expanded,setExpanded]=useState<string|null>(null);
+ const [comparison,setComparison]=useState<CompareResponse|null>(null);
+ const [comparisonLoading,setComparisonLoading]=useState(false);
+ async function compareLidlProduct(item:Item){
+   if(expanded===item.id){setExpanded(null);setComparison(null);return;}
+   setExpanded(item.id);setComparison(null);setComparisonLoading(true);
+   try{
+     const offerId=item.id.split(":")[2];
+     const q=new URLSearchParams({origin:"lidl_gr",id:offerId,store});
+     const response=await fetch("/api/posokanei/compare-sources?"+q.toString(),{cache:"no-store"});
+     const result=await response.json() as CompareResponse;
+     if(!response.ok)throw Error("unavailable");
+     setComparison(result);
+   }catch{setComparison({status:"unavailable",candidates:[]})}
+   finally{setComparisonLoading(false)}
+ }
  useEffect(()=>{
    const abort=new AbortController();
    void fetch("/api/posokanei/lidl?mode=stores",{signal:abort.signal,cache:"no-store"})
@@ -22,14 +41,15 @@ export function LidlStandaloneOffers(){
    const timer=setTimeout(()=>{
      setLoading(true);
      const p=new URLSearchParams({mode:"offers",store,period,page:String(page)});
-     if(search.trim())p.set("q",search.trim().slice(0,100));
+     const combinedQuery=(search.trim()||searchQuery.trim()).slice(0,100);
+     if(combinedQuery)p.set("q",combinedQuery);
      void fetch("/api/posokanei/lidl?"+p,{signal:abort.signal,cache:"no-store"})
        .then(async r=>{const v=await r.json() as Payload;if(!abort.signal.aborted)setData(v)})
        .catch(()=>{if(!abort.signal.aborted)setData({status:"source_unavailable",products:[]})})
        .finally(()=>{if(!abort.signal.aborted)setLoading(false)});
    },280);
    return()=>{clearTimeout(timer);abort.abort()};
- },[store,period,search,page]);
+ },[store,period,search,searchQuery,page]);
  // Do not show inactive/unlicensed or synthetic catalogue entries.
  if(data.status==="unpublished")return null;
  return <section className={styles.root} aria-label="Προσφορές Lidl χωρίς αντιστοίχιση">
@@ -47,7 +67,7 @@ export function LidlStandaloneOffers(){
       </select>
     </label>
     <label>Αναζήτηση
-     <input type="search" value={search} placeholder="π.χ. καφές, γάλα"
+     <input type="search" value={search} placeholder={searchQuery?"Αναζήτηση PosoKanei: "+searchQuery:"π.χ. καφές, γάλα"}
        onChange={e=>{setSearch(e.target.value);setPage(1)}}/>
     </label>
     <label>Περίοδος
@@ -76,6 +96,18 @@ export function LidlStandaloneOffers(){
        {item.discountText&&<p className={styles.discount}>{item.discountText}</p>}
        <p className={styles.dates}>Από {day(item.validFrom)} έως {day(item.validTo)}</p>
        <p className={styles.note}>Ελέγξτε όρους Lidl Plus και διαθεσιμότητα στο κατάστημα.</p>
+       <div className={styles.actions}>
+         <button type="button" disabled={item.validityStatus!=="current"} onClick={()=>onAdd(item,store,data.store?.name||store)}>+ Στη λίστα</button>
+         <button type="button" aria-expanded={expanded===item.id} onClick={()=>{void compareLidlProduct(item)}}>Παρόμοια / άλλες μάρκες</button>
+       </div>
+       {expanded===item.id&&<div className={styles.compare} role="region" aria-label={"Πιθανώς παρόμοια με "+item.name}>
+         {comparisonLoading?<p>Έλεγχος ομοιοτήτων…</p>:!comparison?.candidates?.length?<p>Δεν υπάρχουν ακόμη επαρκώς τεκμηριωμένες προτάσεις.</p>:
+           comparison.candidates.map(candidate=><div key={candidate.id} className={styles.candidate}>
+             <span><strong>{candidate.name}</strong><small>{candidate.origin==="lidl_gr"?"Lidl":"PosoKanei"} · {candidate.brand||"Χωρίς μάρκα"}</small><small>{candidate.confidence==="reviewed_equivalent"?"Ελεγμένη ομάδα":"Υποψήφιο προς επαλήθευση — όχι επιβεβαιωμένο ισοδύναμο"}</small></span>
+             {candidate.origin==="posokanei"&&<button type="button" onClick={()=>onAddGov({id:candidate.id,name:candidate.name})}>+ Στη λίστα</button>}
+           </div>)}
+         <small>Η ομοιότητα δεν αποδεικνύει ίδια ποσότητα ή χαμηλότερη τιμή. Δεν επηρεάζει τον υπολογισμό εξοικονόμησης.</small>
+       </div>}
      </article>)}
    </div>
    {data.status==="ready"&&(page>1||data.hasMore)&&<nav aria-label="Σελίδες προσφορών Lidl" className={styles.paging}>
@@ -83,7 +115,7 @@ export function LidlStandaloneOffers(){
      <span>Σελίδα {page}</span>
      <button type="button" disabled={!data.hasMore} onClick={()=>setPage(x=>x+1)}>Επόμενη →</button>
    </nav>}
-   <p className={styles.footer}>Οι προσφορές είναι ενδεικτικές και δεν εισάγονται στον υπολογισμό του καλαθιού.
+   <p className={styles.footer}>Οι προσφορές Lidl μπορούν να μπουν στη λίστα αγορών, αλλά διατηρούν ξεχωριστό, επανελεγμένο κόστος ανά κατάστημα. Δεν αλλάζουν αυτόματα τις τιμές αναφοράς του PosoKanei.
     Δεν είναι κατάλογος όλων των προϊόντων Lidl. Πηγή: <a href="https://www.lidl-hellas.gr/" target="_blank" rel="noopener noreferrer">Lidl Ελλάς</a>.</p>
  </section>
 }

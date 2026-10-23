@@ -18,3 +18,11 @@
 .paging button:disabled{cursor:not-allowed;opacity:.5}.footer{border-top:1px solid #d7e0d7;margin:22px 0 0;padding:15px 0 0;font-size:12px;line-height:1.5;color:#667e6d}
 .footer a{color:#17543a;text-decoration:underline}
 @media(max-width:760px){.root{padding:15px}.controls{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.head{display:block}.label{display:inline-block;margin-top:14px}}
+
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.actions button,.candidate button{cursor:pointer;background:#16533a;color:white;border:1px solid #16533a;border-radius:10px;padding:9px 11px;font-weight:700;font-size:12px}
+.actions button+button{background:white;color:#16533a}
+.actions button:disabled{opacity:.45;cursor:not-allowed}
+.compare{border-top:1px solid #d6e0d7;padding:12px 0;font-size:12px;line-height:1.5}
+.candidate{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #e3ebe2}
+.candidate span{min-width:0;flex:1}.candidate small{display:block;font-size:11px;color:#627a68}
