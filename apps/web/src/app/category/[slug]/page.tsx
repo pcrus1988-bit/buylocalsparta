@@ -126,7 +126,11 @@ export default async function CategoryPage({ params }: Props) {
   const purchasableProducts = products.filter((product) => product.available && product.priceMinor > 0 && Boolean(product.vendorId));
   const siblings = STOREFRONT_CATEGORIES.filter((item) => item.slug !== category.slug);
   const availableProducts = purchasableProducts;
-  const entityEligible = availableProducts.length > 0;
+  // A curated category is a durable public landing page. Temporary inventory
+  // gaps, stale crawler projections or PostgreSQL timeouts must not flip its
+  // canonical URL to noindex; the page can still explain the category and link
+  // shoppers to Ask Local while products recover.
+  const entityEligible = true;
   const reference: SeoEntityReference = { kind: "category", id: category.slug };
   const override = findSeoEntityOverride(overrideSnapshot.entries, reference);
   const seoControl = resolveSeoEntityControl({
