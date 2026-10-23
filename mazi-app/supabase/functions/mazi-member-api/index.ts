@@ -70,6 +70,46 @@ Deno.serve(async(req:Request)=>{
   }catch{return out({error:"bad_json"},400);}
   if(!input||Array.isArray(input)||typeof input!=="object")return out({error:"bad_json"},400);
   const operation=text(input.operation);
+  // The email used here comes from Supabase Auth getUser(jwt), not a browser
+  // submitted identity or user_metadata. Membership is NOT created by login.
+  if(operation==="invitation_state"){
+   const {data:interests,error:interestError}=await admin.from("mazi_interest_applications")
+     .select("id,registry_legal_name,contact_email,status")
+     .eq("contact_email",(user.email||"").trim().toLowerCase())
+     .eq("status","approved_pending_invite").limit(5);
+   if(interestError)return out({error:"data_unavailable"},503);
+   let invitation:Json|null=null;
+   for(const interest of interests||[]){
+    const {data:invite,error:inviteError}=await admin.from("mazi_invitations")
+      .select("id,status,expires_at,terms_version")
+      .eq("interest_id",interest.id).eq("status","email_sent")
+      .gt("expires_at",new Date().toISOString())
+      .order("issued_at",{ascending:false}).limit(1).maybeSingle();
+    if(inviteError)return out({error:"data_unavailable"},503);
+    if(invite){
+     invitation={id:invite.id,terms_version:invite.terms_version,
+       business_name:interest.registry_legal_name,expires_at:invite.expires_at};
+     break;
+    }
+   }
+   return out({ok:true,invitation});
+  }
+  if(operation==="accept_invitation"){
+   if(input.accept_charter!==true||input.accept_processing!==true
+     ||input.terms_version!=="mazi-invitation-terms-v1"||
+     !uuid(text(input.invitation_id)))
+    return out({error:"invitation_terms_required"},400);
+   // SECURITY DEFINER RPC is executable only by service_role and enforces
+   // confirmed email, approved legal entity, expiry and single-use locks in SQL.
+   const {data:accepted,error:acceptError}=await admin.rpc("mazi_complete_invitation",{
+    p_invitation_id:text(input.invitation_id),p_user_id:user.id,
+    p_terms_version:"mazi-invitation-terms-v1",
+    p_accept_charter:true,p_accept_processing:true
+   });
+   if(acceptError||accepted!==true)
+    return out({error:"invitation_not_eligible"},409);
+   return out({ok:true});
+  }
   if(operation==="state"){
    const [{data:application,error:aErr},{data:member,error:mErr},cycle]=await Promise.all([
     admin.from("mazi_membership_applications")
@@ -170,24 +210,9 @@ Deno.serve(async(req:Request)=>{
    if(!record)return out({error:"award_not_eligible"},403);
    return out({ok:true});
   }
-  if(operation==="apply"){
-   if(input.accept_privacy!==true)return out({error:"privacy_required"},400);
-   const v={
-    business_name:text(input.business_name), representative_name:text(input.representative_name),
-    location:text(input.location),sector:text(input.sector),
-    registry_number:text(input.registry_number)||null,description:text(input.description)
-   };
-   if(v.business_name.length<3||v.business_name.length>160||v.representative_name.length<3||
-      v.representative_name.length>120||v.location.length<2||v.location.length>120||
-      v.sector.length<2||v.sector.length>100||v.description.length<20||
-      v.description.length>1800||(v.registry_number!==null&&!/^[0-9]{12}$/.test(v.registry_number)))
-    return out({error:"invalid_application"},400);
-   const {error}=await admin.from("mazi_membership_applications").insert({
-     ...v,applicant_user_id:user.id,status:"pending",consent_version:"mazi-interest-v1"
-   });
-   if(error)return out({error:error.code==="23505"?"already_applied":"application_failed"},error.code==="23505"?409:503);
-   return out({ok:true});
-  }
+  // The old open membership-application endpoint is intentionally disabled.
+  // New admission MUST use the verified invitation, not a generic Auth account.
+  if(operation==="apply")return out({error:"invitation_required"},403);
   if(operation==="answer_followup"){
    const followupId=text(input.followup_id),answer=text(input.answer);
    if(!uuid(followupId)||answer.length<20||answer.length>2000)
