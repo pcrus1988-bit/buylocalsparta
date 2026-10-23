@@ -30,7 +30,7 @@ function reader(bytes = original, responseOverride) {
   } };
 }
 const run = (changes = {}, storage = reader()) =>
-  appendPrivateStorageAttestation({ ...args(), ...changes, storage });
+  appendPrivateStorageAttestation({ ...args(), storage, ...changes });
 
 test('original private bytes produce one verified metadata-only event', async () => {
   const storage = reader();
