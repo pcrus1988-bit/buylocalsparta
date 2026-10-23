@@ -126,7 +126,11 @@ export default async function Home() {
   // Keep the existing personalized projection available as an explicit opt-in
   // for a future capacity-tested rollout, never as the default crawl path.
   // Product detail and checkout still validate live stock, price and vendors.
-  const visitorKey = await homepageSectionOrFallback("visitor-key", () => getVisitorKey(), "");
+  // Avoid reading visitor state on the default public/crawler homepage path.
+  // This preserves a shared cacheable discovery view and saves unnecessary work.
+  const visitorKey = PERSONALIZED_HOMEPAGE_DISCOVERY_ENABLED
+    ? await homepageSectionOrFallback("visitor-key", () => getVisitorKey(), "")
+    : "";
 
   const [featuredProducts, heroSlides, visibleCategories, vendorDirectory] = await Promise.all([
     homepageSectionOrFallback("featured-products", async () => {
