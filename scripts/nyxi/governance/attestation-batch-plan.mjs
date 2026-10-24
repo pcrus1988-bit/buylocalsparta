@@ -21,6 +21,10 @@ export function planPrivateAttestationBatch(records, { observedAt, maxBytes = MA
     throw Error('invalid_attestation_batch');
 
   const seen = new Map();
+  // Bound the total bytes handed to the private verifier, not just each
+  // individual object. Repeated identical snapshot IDs count only once.
+  let plannedBytes = 0;
+  const hashByteLengths = new Map();
   for (const record of records) {
     if (!plain(record) || !plain(record.source) || !plain(record.approval) ||
         !plain(record.snapshot) || !plain(record.snapshot.provenance))
@@ -42,6 +46,14 @@ export function planPrivateAttestationBatch(records, { observedAt, maxBytes = MA
       if (previous.identity !== identity) throw Error('duplicate_snapshot_identity_conflict');
       continue;
     }
+    // SHA-256 identifies one exact byte stream, including its length.
+    // Contradictory catalog sizes must fail before any Storage work begins.
+    const knownLength = hashByteLengths.get(snapshot.sha256);
+    if (knownLength !== undefined && knownLength !== snapshot.byte_length)
+      throw Error('conflicting_content_hash_byte_length');
+    hashByteLengths.set(snapshot.sha256, snapshot.byte_length);
+    plannedBytes += snapshot.byte_length;
+    if (plannedBytes > maxBytes) throw Error('attestation_batch_total_bytes_exceeded');
     seen.set(snapshot.id, {
       identity,
       handoff: Object.freeze({
