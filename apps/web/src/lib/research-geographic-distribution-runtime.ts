@@ -5,6 +5,7 @@ import { answerPostcodeHeatField } from "./research-answer-postcode-density";
 import { assertAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { rawResearchAnswerAccess } from "./research-survey-response-admin";
+import { resolveResearchAdministrativeGeography } from "./research-postcode-geography";
 import { questionChoices, SECTOR_LABELS, type RelationshipChoice, type RelationshipQuestion } from "./research-geographic-relations-runtime";
 import {
   aggregateDistribution, safeDistributionCounts, safeDistributionRegion,
@@ -138,7 +139,7 @@ export async function researchSingleQuestionDistribution(
   ]);
   const detailInput = selected.rows.map(row => ({
     postcode: asText(row.postcode),
-    prefecture: asText(row.prefecture),
+    prefecture: resolveResearchAdministrativeGeography(row.postcode,row.prefecture).regionCode,
     answered: Number(row.answered ?? 0),
     matched: Number(row.matched ?? 0)
   }));
