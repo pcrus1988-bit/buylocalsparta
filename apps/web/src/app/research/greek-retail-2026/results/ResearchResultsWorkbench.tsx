@@ -279,7 +279,7 @@ export function ResearchResultsWorkbench({
       return <tr key={county.key}>
        <td>{groupLabel(county.key,"prefectureCode")}</td>
        <td>{county.band==="under10"?"Κάλυψη, n<10":county.band==="none"?"Χωρίς επιλέξιμη συμμετοχή":
-         (county.eligibleN??"—").toLocaleString("el-GR")+(county.band==="10to29"?" · μικρό δείγμα":"")}</td>
+         (county.eligibleN?.toLocaleString("el-GR")??"—")+(county.band==="10to29"?" · μικρό δείγμα":"")}</td>
        <td>{row?format(row)+" · n="+row.n:"Δεν διατίθεται αξιόπιστη τιμή"}</td>
       </tr>;
      })}</tbody>
