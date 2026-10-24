@@ -11,6 +11,7 @@ import { runGreekRetailAnalysis } from "./research-survey-analysis";
 import { proportionalStratumAllocation } from "./research-survey-statistics";
 import { allowIsolatedResearchSubmissionFailure, evaluateResearchDeliverySafety, invalidResearchRecipientAddressReason, RESEARCH_BOUNCE_POLICY_VERSION } from "./research-survey-delivery-safety";
 import { buildGreekRetailRelease } from "./research-survey-release";
+import { GREEK_RETAIL_RESULTS_PUBLICATION_AT } from "./research-results-publication";
 import { ABANDONED_FOLLOWUP_MODE, ABANDONED_RESEARCH_FOLLOWUP_SUBJECT, ABANDONED_RESEARCH_FOLLOWUP_BODY } from "./research-survey-abandoned-followup";
 import { greekRetailSector, greekRetailSectorV1, isRetailKad, RETAIL_ACTIVITY_GROUP_IDS, RETAIL_CLASSIFICATION_VERSION, RETAIL_SOURCE_REFERENCE } from "./research-kad-coverage";
 import {
@@ -1316,13 +1317,13 @@ export async function queueGreekRetailResultsNotifications(
     JOIN LATERAL (
       SELECT id
       FROM research_release_snapshots
-      WHERE study_id=s.id AND wave_id=s.current_wave_id AND published_at IS NOT NULL
+      WHERE study_id=s.id AND wave_id=s.current_wave_id AND published_at <= now()
       ORDER BY published_at DESC,created_at DESC
       LIMIT 1
     ) rs ON true
-    WHERE s.slug=$1 AND s.status='published'
+    WHERE s.slug=$1 AND s.status='published' AND now() >= $2::timestamptz
     LIMIT 1
-  `, [STUDY_SLUG]);
+  `, [STUDY_SLUG, GREEK_RETAIL_RESULTS_PUBLICATION_AT]);
   const row = release.rows[0];
   if (!row) throw new Error("RESEARCH_RESULTS_NOTIFICATION_REQUIRES_PUBLISHED_RELEASE");
   if (!text(row.wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
@@ -4474,8 +4475,10 @@ async function processResultsNotificationJob(job: ResearchJobRow): Promise<Recor
     FROM research_release_snapshots rs
     JOIN research_studies s ON s.id=rs.study_id
     WHERE rs.id=$1 AND rs.study_id=$2
+      AND rs.published_at <= now()
+      AND (s.slug <> $4::text OR now() >= $3::timestamptz)
     LIMIT 1
-  `, [releaseSnapshotId, job.study_id]);
+  `, [releaseSnapshotId, job.study_id, GREEK_RETAIL_RESULTS_PUBLICATION_AT, STUDY_SLUG]);
   const release = releaseResult.rows[0];
   if (!release || !release.published_at) {
     throw new Error("RESEARCH_RESULTS_NOTIFICATION_REQUIRES_PUBLISHED_RELEASE");
