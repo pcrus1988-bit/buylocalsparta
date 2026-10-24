@@ -6,6 +6,9 @@ import styles from "../../../../components/ResearchSurveyPage.module.css";
 import previewStyles from "./ResultsPreview.module.css";
 import { getPublishedGreekRetailResults } from "../../../../lib/research-survey-release";
 import { governedStaticSeoMetadata } from "../../../../lib/seo-metadata";
+import { publicResearchStudy } from "../../../../lib/research-observatory-runtime";
+import { publicResultPoints, type SafeParticipationGeography } from "../../../../lib/research-public-results-data";
+import { ResearchResultsWorkbench } from "./ResearchResultsWorkbench";
 
 export const dynamic = "force-dynamic";
 
@@ -145,10 +148,28 @@ export default async function GreekRetailResultsPage() {
           </div>
         </section>
       </div>
+      <ResearchResultsWorkbench mode="unpublished" points={[]} />
       <SiteFooter />
     </main>;
   }
 
+  // Public reader is already gated by the immutable Athens publication cutoff.
+  // Only already-published and privacy-suppressed aggregate estimates reach the browser.
+  const safePoints = publicResultPoints(published.estimates);
+  let geography: SafeParticipationGeography | undefined;
+  try {
+    const publicStudy = await publicResearchStudy("greek-retail-2026");
+    const snapshot = publicStudy?.participationGeography;
+    if (snapshot) geography = {
+      // Participation starts are a separate data series from published results.
+      // Do not expose small regional cells through React Flight.
+      regions: snapshot.regions.filter(region => region.started >= 30)
+        .map(region => ({key:region.key,label:region.label,started:region.started})),
+      densityImage: snapshot.densityImage
+    };
+  } catch (cause) {
+    console.error("research_results_geography_unavailable",cause instanceof Error?cause.name:"UnknownError");
+  }
   const visible = published.estimates.filter((estimate) => !estimate.suppressed && estimate.estimate != null);
   const overall = visible.filter((estimate) => Object.keys(estimate.segment).length === 0);
   const region = visible.filter((estimate) => typeof estimate.segment.regionCode === "string");
@@ -167,6 +188,7 @@ export default async function GreekRetailResultsPage() {
       </div>
     </header>
 
+    <ResearchResultsWorkbench mode="published" points={safePoints} geography={geography} />
     <section className={styles.invalid}>
       <div className={styles.brand}>Πώς να διαβάσετε τους αριθμούς</div>
       <h2>Κοιτάξτε την τιμή μαζί με το n και το διάστημα εμπιστοσύνης.</h2>
