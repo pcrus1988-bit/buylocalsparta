@@ -15,7 +15,7 @@ const chain=append([],makeEvent());
 const {privateKey,publicKey}=generateKeyPairSync('ed25519');
 const other=generateKeyPairSync('ed25519');
 const requestArgs={witnessId:'external-witness-01',issuedAt:'2026-10-23T09:13:07.000Z'};
-const makeCheckpoint=(c=chain)=>{const {request,signing_payload}=createWitnessRequest(c,requestArgs);return {request,signature_base64:sign(null,Buffer.from(signing_payload),privateKey).toString('base64')}};
+const makeCheckpoint=(c=chain,issuedAt=requestArgs.issuedAt)=>{const {request,signing_payload}=createWitnessRequest(c,{...requestArgs,issuedAt});return {request,signature_base64:sign(null,Buffer.from(signing_payload),privateKey).toString('base64')}};
 const check=(c,cp,key=publicKey,id='external-witness-01')=>verifyWitnessCheckpoint(c,cp,{pinnedPublicKey:key,expectedWitnessId:id});
 
 test('external Ed25519 signature and pinned witness verify',()=>assert.equal(check(chain,makeCheckpoint()),true));
@@ -26,7 +26,7 @@ test('expected witness identity must match',()=>assert.equal(check(chain,makeChe
 test('altered checkpoint root is rejected',()=>{const c=makeCheckpoint();c.request.root_sha256='f'.repeat(64);assert.equal(check(chain,c),false)});
 test('altered checkpoint timestamp is rejected',()=>{const c=makeCheckpoint();c.request.issued_at='2026-10-23T09:13:08.000Z';assert.equal(check(chain,c),false)});
 test('tampered or truncated chain is rejected against signed checkpoint',()=>{const c=makeCheckpoint();assert.equal(check([],c),false);const broken=structuredClone(chain);broken[0].event.snapshot_sha256='f'.repeat(64);assert.equal(check(broken,c),false)});
-test('chain extension requires a new independent signature',()=>{const c=makeCheckpoint();const extended=append(chain,observe({source,approval,snapshot,observedAt:'2026-10-23T09:14:00Z',holdReason:'missing_rights_evidence'}));assert.equal(check(extended,c),false);assert.equal(check(extended,makeCheckpoint(extended)),true)});
+test('chain extension requires a new independent signature',()=>{const c=makeCheckpoint();const extended=append(chain,observe({source,approval,snapshot,observedAt:'2026-10-23T09:14:00Z',holdReason:'missing_rights_evidence'}));assert.equal(check(extended,c),false);assert.equal(check(extended,makeCheckpoint(extended,'2026-10-23T09:14:01.000Z')),true)});
 test('arbitrary injected metadata fails closed',()=>{const c=makeCheckpoint();c.request.body_text='private';assert.equal(check(chain,c),false)});
 test('signature mutation fails closed',()=>{const c=makeCheckpoint();c.signature_base64=Buffer.alloc(64).toString('base64');assert.equal(check(chain,c),false)});
 test('noncanonical base64 and malformed signatures fail closed',()=>{const c=makeCheckpoint();c.signature_base64='x';assert.equal(check(chain,c),false)});
@@ -34,3 +34,18 @@ test('invalid witness identifiers and dates rejected',()=>{assert.throws(()=>cre
 test('corrupted chain cannot be prepared for external signing',()=>{const c=structuredClone(chain);c[0].event.byte_length++;assert.throws(()=>createWitnessRequest(c,requestArgs),/invalid_existing_chain/)});
 test('pinned key fingerprint stable and key type enforced',()=>{assert.match(publicKeyFingerprint(publicKey),/^[0-9a-f]{64}$/);assert.throws(()=>publicKeyFingerprint(privateKey),/invalid_pinned_witness_key/)});
 test('public release cannot be smuggled into signed checkpoint',()=>{const c=makeCheckpoint();c.request.publication_authorized=true;assert.equal(check(chain,c),false)});
+
+test('request rejects witness issue time before observed event',()=>{
+  assert.throws(()=>createWitnessRequest(chain,{...requestArgs,issuedAt:'2026-10-23T09:12:59.000Z'}),/invalid_witness_request/);
+});
+test('even independently signed backdated checkpoint fails verification',()=>{
+  const request={...makeCheckpoint().request,issued_at:'2026-10-23T09:12:59.000Z'};
+  const signingPayload='NYXI_AGENT1_EXTERNAL_WITNESS_V1\\n'+JSON.stringify(request);
+  const cp={request,signature_base64:sign(null,Buffer.from(signingPayload),privateKey).toString('base64')};
+  assert.equal(check(chain,cp),false);
+});
+test('all observations must predate witness, not only last appended row',()=>{
+  const future=append(chain,observe({source,approval,snapshot,observedAt:'2026-10-23T09:15:00Z'}));
+  const outOfOrder=append(future,observe({source,approval,snapshot,observedAt:'2026-10-23T09:12:00Z'}));
+  assert.throws(()=>createWitnessRequest(outOfOrder,{...requestArgs,issuedAt:'2026-10-23T09:14:00.000Z'}),/invalid_witness_request/);
+});
