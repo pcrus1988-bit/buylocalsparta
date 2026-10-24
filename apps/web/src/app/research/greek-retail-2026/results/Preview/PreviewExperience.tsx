@@ -5,11 +5,12 @@ import Link from "next/link";
 import styles from "./Preview.module.css";
 import { ResearchResultsWorkbench } from "../ResearchResultsWorkbench";
 import type { LiveGreekRetailPreview } from "../../../../../lib/research-live-preview-data";
+import type { SafeParticipationGeography } from "../../../../../lib/research-public-results-data";
 
 const LIVE_URL = "/api/research/greek-retail-2026/results-preview-live";
 const REFRESH_MS = 60_000;
 
-export function ResearchResultsPreviewExperience({initial}:{initial:LiveGreekRetailPreview|null}) {
+export function ResearchResultsPreviewExperience({initial,geography}:{initial:LiveGreekRetailPreview|null;geography?:SafeParticipationGeography}) {
   const [snapshot,setSnapshot] = useState<LiveGreekRetailPreview|null>(initial);
   const [error,setError] = useState(!initial);
   const [refreshing,setRefreshing] = useState(false);
@@ -75,6 +76,6 @@ export function ResearchResultsPreviewExperience({initial}:{initial:LiveGreekRet
       </button>
     </div>
     {error && <p role="alert" style={{padding:16}}>Η ζωντανή ανάκτηση απέτυχε. Δεν εμφανίζονται αποθηκευμένα ή υποθετικά αποτελέσματα. Δοκιμάστε ξανά την ανανέωση.</p>}
-    <ResearchResultsWorkbench mode="live" points={snapshot?.points??[]} />
+    <ResearchResultsWorkbench mode="live" points={snapshot?.points??[]} geography={geography} />
   </div>;
 }
