@@ -112,8 +112,8 @@ export function ResearchPublicationMap({
  const selectedKey=hasMetric?answer:"participation";
  const visibleAnswers=mapAnswers(question);
  const sectors=[...new Set(points.flatMap(p=>p.segment.sectorCode?[p.segment.sectorCode]:[]))].sort();
- const hasApprovedCrossSections=points.some(p=>p.segment.sectorCode&&p.segment.regionCode);
- const regionalApproved=new Set(points.filter(p=>typeof p.segment.regionCode==="string").map(p=>p.metricKey));
+ const hasApprovedCrossSections=points.some(p=>p.segment.sectorCode&&p.segment.prefectureCode);
+ const regionalApproved=new Set(points.filter(p=>typeof p.segment.prefectureCode==="string").map(p=>p.metricKey));
  const regionValues=useMemo(()=>{
   const byKey=new Map(internalCoverage?internalCoverage.regions.filter(x=>x.eligibleN!==null).map(x=>[x.key,x.eligibleN!] as const):(geography?.regions.map(x=>[x.key,x.started] as const)??[]));
   const regionPoints=points.filter(p=>p.metricKey===selectedKey&&typeof p.segment.regionCode==="string"&&
@@ -148,9 +148,9 @@ export function ResearchPublicationMap({
   const c=coverageByKey.get(key);
   if(!c)return "";
   if(c.band==="under10")return "Συμμετοχή · n<10 · χωρίς αριθμητικά ευρήματα";
-  if(c.band==="10to29")return "Μικρό δείγμα · n="+c.eligibleN+" · ενδεικτικό";
-  if(c.band==="30plus")return "Επαρκέστερο n="+c.eligibleN;
-  return "Χωρίς QA-επιλέξιμη συμμετοχή";
+  if(c.band==="10to29")return "Περιορισμένες απαντήσεις · n="+c.eligibleN+" · ενδεικτικό";
+  if(c.band==="30plus")return "Απαντήσεις n="+c.eligibleN;
+  return "Χωρίς ολοκληρωμένες απαντήσεις";
  };
  const names=PREFECTURE_NAMES;
  const available=currentValues.filter(v=>v.value!==undefined&&v.n!==undefined);
@@ -206,7 +206,7 @@ export function ResearchPublicationMap({
    {hasMetric&&<label>2 · Επιλέξτε απάντηση / δείκτη
     <select value={selectedKey} onChange={e=>{setAnswerKey(e.target.value);setSelected("");}}>
      {visibleAnswers.map(item=><option value={item.key} key={item.key}>
-       {item.label}{!regionalApproved.has(item.key)&&!isDemo?" · χωρίς περιφερειακά στοιχεία":""}
+       {item.label}{!regionalApproved.has(item.key)&&!isDemo?" · χωρίς διαθέσιμα στοιχεία ανά νομό":""}
      </option>)}
     </select>
    </label>}
@@ -233,7 +233,7 @@ export function ResearchPublicationMap({
    </div>
    <div className={styles.mapQuestionStats}>
     <b>{internalCoverage?anyQA:coverage} / {GREECE_PREFECTURES.length}</b>
-    <span>{internalCoverage?"Με QA-επιλέξιμη συμμετοχή":"Με διαθέσιμη τιμή"}</span>
+    <span>{internalCoverage?"Με ολοκληρωμένες απαντήσεις":"Με διαθέσιμη τιμή"}</span>
     {internalCoverage&&<small>{coverage} με αριθμητική τιμή · {lowQA} με n&lt;10</small>}
    </div>
   </div>
@@ -256,7 +256,7 @@ export function ResearchPublicationMap({
      <small>95% ΔΕ: {legendValue(nationalPoint.ciLower)} – {legendValue(nationalPoint.ciUpper)}</small>}
    </div>
    <div className={styles.nationalDetails}>
-    <span className={styles.nationalTag}>ΔΙΑΣΠΑΣΗ ΑΝΑ ΝΟΜΟ</span>
+    <span className={styles.nationalTag}>ΑΠΑΝΤΗΣΕΙΣ ΑΝΑ ΝΟΜΟ</span>
     <strong>{internalCoverage?anyQA:regionalCoverage} / 55 νομοί με {internalCoverage?"ολοκληρωμένες απαντήσεις":"διαθέσιμη τιμή"}</strong>
     <p>{hasMetric?"Κάθε ποσοστό βασίζεται στις ολοκληρωμένες απαντήσεις του αντίστοιχου νομού. Τα ποσοστά των νομών δεν αθροίζονται σε 100%.":"Οι νομοί με λίγες ολοκληρωμένες απαντήσεις εμφανίζονται ως γεωγραφική κάλυψη χωρίς δημοσίευση μικρών κελιών. Η συνολική βάση περιλαμβάνει όλες τις ολοκληρωμένες απαντήσεις."}</p>
     {hasMetric&&nationalValue!==undefined&&<p>{internalCoverage?"Οι συγκρίσεις είναι περιγραφικές και μη σταθμισμένες· δεν αποτελούν στατιστικά τεστ.":"Η σύγκριση γίνεται με την ξεχωριστά σταθμισμένη εθνική εκτίμηση. Δεν αποτελεί από μόνη της έλεγχο στατιστικής σημαντικότητας."}</p>}
@@ -272,7 +272,7 @@ export function ResearchPublicationMap({
   {isDemo&&<div className={styles.demoStrip}>ΔΕΙΓΜΑ ΠΡΟΕΠΙΣΚΟΠΗΣΗΣ — Δεν απεικονίζονται πραγματικές συμμετοχές ή αποτελέσματα.</div>}
   <div className={styles.mapLayout}>
    <div className={styles.mapCanvas}>
-    <div className={styles.mapToolbar}><strong>{hasMetric?"Περιφερειακή εικόνα · "+question.id:"Πυκνότητα συμμετοχής"}</strong>
+    <div className={styles.mapToolbar}><strong>{hasMetric?"Περιφερειακή εικόνα · "+question.id:"Κατανομή ολοκληρωμένων απαντήσεων"}</strong>
      <label className={styles.mapLabelToggle}><input type="checkbox" checked={showLabels} onChange={e=>setShowLabels(e.target.checked)}/> Τιμές πάνω στον χάρτη</label>
      <div className={styles.mapZoom}>
       <button type="button" aria-label="Σμίκρυνση" disabled={zoom<=1} onClick={()=>setZoom(z=>Math.max(1,z/1.4))}>−</button>
@@ -317,7 +317,7 @@ export function ResearchPublicationMap({
       })}
      </svg>}
     {internalCoverage&&<p role="note" style={{fontSize:12,color:"#385a41",lineHeight:1.7,margin:"14px 0"}}>
-      <strong>{anyQA} / {55}</strong> γεωγραφικές ενότητες έχουν QA-επιλέξιμη συμμετοχή.
+      <strong>{anyQA} / {55}</strong> νομοί έχουν ολοκληρωμένες απαντήσεις.
       Η μπεζ σκίαση δείχνει n&lt;10, χωρίς δημοσίευση ακριβούς αριθμού ή αποτελέσματος.
       Τα αποτελέσματα n=10–29 είναι προκαταρκτικά, μη σταθμισμένα και μόνο για εσωτερική χρήση.
     </p>}
@@ -355,8 +355,8 @@ export function ResearchPublicationMap({
    την κλίμακα και αναταξινομεί τους νομούς από τον συγκεκριμένο δείκτη.
    Οι τιμές εμφανίζονται απευθείας πάνω στις διαθέσιμες γεωγραφικές ενότητες.
    Τα ποσοστά χρησιμοποιούν σταθερή κλίμακα 0–100%, οι βαθμολογίες την επιστημονική τους κλίμακα.
-   {sector&&!hasApprovedCrossSections?" Δεν υπάρχει εγκεκριμένη περιφερειακή διασταύρωση για αυτόν τον κλάδο.":""}
-   {internalCoverage?" Στην εσωτερική live προεπισκόπηση οι μονοδιάστατοι δείκτες νομών με n≥10 είναι μόνο ενδεικτικοί και δεν έχουν έγκριση δημόσιας δημοσίευσης.":" Στις Περιφέρειες εμφανίζονται εγκεκριμένες συγκεντρωτικές εκτιμήσεις με n≥30, στους νομούς μόνο πρόσθετα εγκεκριμένα στοιχεία με n≥50."} {isDemo?"Η DEMO προεπισκόπηση νομών χρησιμοποιεί τεχνητές τιμές.":""}
+   {sector&&!hasApprovedCrossSections?" Δεν υπάρχει διαθέσιμη διασταύρωση νομού και κλάδου.":""}
+   {internalCoverage?" Στην εσωτερική live προεπισκόπηση οι μονοδιάστατοι δείκτες νομών με n≥10 είναι μόνο ενδεικτικοί και δεν έχουν έγκριση δημόσιας δημοσίευσης.":" Στους νομούς εμφανίζονται μόνο ανεξάρτητα εγκεκριμένες δημοσιεύσιμες εκτιμήσεις με επαρκείς βάσεις."} {isDemo?"Η DEMO προεπισκόπηση νομών χρησιμοποιεί τεχνητές τιμές.":""}
 
    {available.length===0?" Δεν υπάρχουν ακόμη δημοσιεύσιμα περιφερειακά αποτελέσματα για αυτή την απάντηση.":""}
   </p>:<p className={styles.note}>
