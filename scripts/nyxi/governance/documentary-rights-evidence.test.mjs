@@ -101,3 +101,11 @@ test('missing observedAt rejected', () => {
   const input = make(); delete input.observedAt;
   assert.throws(() => observeDocumentaryRightsEvidence(input), /invalid_observed_at/);
 });
+
+test('private-network and internal rights-policy URLs cannot anchor evidence',()=>{
+  for (const url of ['https://localhost/rights','https://127.0.0.1/rights',
+    'https://[::1]/rights','https://collector.internal/rights']) {
+    const input=make();input.policyUrl=url;input.approval.rights_policy_url=url;
+    assert.throws(()=>observeDocumentaryRightsEvidence(input),/rights_policy_url_not_authorized/);
+  }
+});
