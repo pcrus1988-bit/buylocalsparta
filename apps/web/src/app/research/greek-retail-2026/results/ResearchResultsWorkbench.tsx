@@ -177,7 +177,9 @@ export function ResearchResultsWorkbench({
       <thead><tr><th>Ομάδα</th><th>Εκτίμηση</th><th>n</th><th>95% ΔΕ</th></tr></thead>
       <tbody>{graphRows.map((p,i)=><tr key={i}><td>{groupLabel(p.segment[graphDimension]??"",graphDimension)}</td>
        <td>{format(p)}</td><td>{p.n.toLocaleString("el-GR")}</td>
-       <td>{p.ciLower!==null&&p.ciUpper!==null?pct(p.ciLower)+" – "+pct(p.ciUpper):"—"}</td></tr>)}</tbody></table></div>:
+       <td>{p.ciLower!==null&&p.ciUpper!==null?
+        p.format==="proportion"?pct(p.ciLower*100)+"% – "+pct(p.ciUpper*100)+"%":
+          pct(p.ciLower)+" – "+pct(p.ciUpper):"—"}</td></tr>)}</tbody></table></div>:
     <div className={styles.graphChart} role="img" aria-label={"Γράφημα: "+publicMetricLabel(graphKey)}>
      {graphRows.map((p,i)=><div className={styles.graphRow} key={i}>
       <span>{groupLabel(p.segment[graphDimension]??"",graphDimension)}</span>
