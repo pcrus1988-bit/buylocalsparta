@@ -32,6 +32,7 @@ export type PrivateExperimentSummary = Readonly<{
   unanswered: number;
   taskChoices: PrivateExperimentTaskChoice[];
   attributes: PrivateExperimentAttribute[];
+  pricingPairs: ReadonlyArray<Readonly<{commission: number; monthlyFee: number; chosen: number}>>;
   scope: PrivateExperimentScope;
 }>;
 
@@ -67,6 +68,20 @@ export async function privateResearchExperimentSummary(
           ri.fieldwork_phase='main' AND quality.decision='include'
         ))
     ),
+    chosen_profiles AS (
+      SELECT CASE WHEN selected='a' THEN alternative_a
+                  WHEN selected='b' THEN alternative_b
+                  ELSE NULL END AS chosen
+      FROM filtered
+    ),
+    pricing_pairs AS (
+      SELECT (chosen->>'commission_pct')::int AS commission,
+             (chosen->>'monthly_fee_eur')::int AS monthly_fee,
+             count(*)::int AS chosen
+      FROM chosen_profiles
+      WHERE chosen IS NOT NULL
+      GROUP BY 1,2
+    ),
     exposures AS (
       SELECT f.selected,profile.side,a.key AS attribute,a.value AS level
       FROM filtered f
@@ -90,13 +105,16 @@ export async function privateResearchExperimentSummary(
                     count(*)::int AS count FROM filtered GROUP BY 1,2) t
       ) AS task_choices,
       (SELECT coalesce(jsonb_agg(row_to_json(a) ORDER BY attribute,level),'[]'::jsonb)
-       FROM attributes a) AS attributes
+       FROM attributes a) AS attributes,
+      (SELECT coalesce(jsonb_agg(row_to_json(p) ORDER BY commission,monthly_fee),'[]'::jsonb)
+       FROM pricing_pairs p) AS pricing_pairs
   `, [slug, scope]);
 
   const row = result.rows[0] ?? {};
   const nonnegative = (value: unknown) => Math.max(0, Number(value) || 0);
   const taskChoices = Array.isArray(row.task_choices) ? row.task_choices : [];
   const attributes = Array.isArray(row.attributes) ? row.attributes : [];
+  const pricingPairs = Array.isArray(row.pricing_pairs) ? row.pricing_pairs : [];
   return {
     respondents: nonnegative(row.respondents),
     tasks: nonnegative(row.tasks),
@@ -108,6 +126,11 @@ export async function privateResearchExperimentSummary(
       task_number: nonnegative(item.task_number),
       selection: String(item.selection) as PrivateExperimentTaskChoice["selection"],
       count: nonnegative(item.count)
+    })),
+    pricingPairs: pricingPairs.map((item: Record<string, unknown>) => ({
+      commission: nonnegative(item.commission),
+      monthlyFee: nonnegative(item.monthly_fee),
+      chosen: nonnegative(item.chosen)
     })),
     attributes: attributes.map((item: Record<string, unknown>) => ({
       attribute: String(item.attribute),
