@@ -9,6 +9,7 @@ import { governedStaticSeoMetadata } from "../../../../lib/seo-metadata";
 import { publicResearchStudy } from "../../../../lib/research-observatory-runtime";
 import { publicResultPoints, validRegionValue, type SafeParticipationGeography } from "../../../../lib/research-public-results-data";
 import { ResearchResultsWorkbench } from "./ResearchResultsWorkbench";
+import { publicVoiceDataFromRelease } from "../../../../lib/research-public-voices-data";
 
 export const dynamic = "force-dynamic";
 
@@ -190,7 +191,8 @@ export default async function GreekRetailResultsPage() {
       </div>
     </header>
 
-    <ResearchResultsWorkbench mode="published" points={safePoints} geography={geography} />
+    <ResearchResultsWorkbench mode="published" points={safePoints} geography={geography}
+      voices={publicVoiceDataFromRelease(published.methodology.q18PublicVoices)} />
     <section className={styles.invalid}>
       <div className={styles.brand}>Πώς να διαβάσετε τους αριθμούς</div>
       <h2>Κοιτάξτε την τιμή μαζί με το n και το διάστημα εμπιστοσύνης.</h2>
