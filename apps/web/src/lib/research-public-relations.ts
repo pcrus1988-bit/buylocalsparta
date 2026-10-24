@@ -41,9 +41,6 @@ const range = (raw: unknown): number | undefined => {
   const value = Number(raw);
   return Number.isInteger(value) && value >= 1 && value <= 5 ? value : undefined;
 };
-const q21Known = ["increased","stable","decreased"] as const;
-const q19Known = ["very_pessimistic","pessimistic","neutral","optimistic","very_optimistic"] as const;
-const q17Known = ["down_large","down_small","stable","up_small","up_large"] as const;
 const big = ["5_9","10_19","20_49","50_plus"] as const;
 
 export const RESEARCH_PUBLIC_RELATIONS: readonly ResearchRelation[] = [
