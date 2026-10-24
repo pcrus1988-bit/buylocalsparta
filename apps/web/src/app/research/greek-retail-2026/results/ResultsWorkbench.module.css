@@ -58,3 +58,6 @@
 @media(max-width:880px){.metricGrid,.chapterGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.mapLayout{grid-template-columns:1fr}.mapSide{max-height:330px}.regionList{max-height:210px}.mapFilters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:570px){.shell{border-radius:15px;padding:16px;margin:22px auto}.heading{display:block}.demoFlag,.dataFlag{display:inline-flex;margin:10px 0}.menu{grid-template-columns:1fr}.menuButton,.menuActive{padding:11px 13px}.chapterGrid,.metricGrid,.analysisGrid{grid-template-columns:1fr}.subchapterMenu{display:grid}.filters,.mapFilters{grid-template-columns:1fr}.graphRow{grid-template-columns:1fr 1.1fr 58px;gap:5px}.graphRow>small{display:none}.graphTrack{height:12px}.regionButton,.selectedRegion{font-size:10px}.mapSvg{max-height:380px}}
 @media(prefers-reduced-motion:reduce){.mapRegion{transition:none}}
+
+.graphHeading{padding:12px 0 8px}
+.mapPanel{min-width:0;max-width:100%}
