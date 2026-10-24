@@ -2,12 +2,17 @@ import "server-only";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { resolveResearchAdministrativeGeography } from "./research-postcode-geography";
+import { GREECE_PREFECTURES } from "./research-prefectures";
+import { GREECE_REGIONS } from "./research-geographic-core";
 import { scoreGreekRetail2026, type ResearchAnswerMap } from "./research-survey-model";
 import { PUBLIC_RESULTS_METRICS, publicMetricLabel } from "./research-public-results-sections";
-import type { SafePublicResultPoint } from "./research-public-results-data";
+import type { SafePublicResultPoint,InternalResearchGeographicCoverage } from "./research-public-results-data";
 
 const ALLOWED_METRICS = new Set<string>(PUBLIC_RESULTS_METRICS);
 const MIN_CELL_N = 30;
+// The restricted admin Preview may inspect descriptive single-county
+// aggregates at n>=10. This NEVER lowers thresholds for the public release.
+const MIN_INTERNAL_PREFECTURE_N = 10;
 const RESTRICTED = /experiment|exp01|amce|conjoint|randomized_profile|platform_choice/i;
 type Question = { code: string; kind: string; key: string; config: Record<string, unknown> };
 type Participant = { answers: Record<string, unknown>; regionCode: string; prefectureCode: string; sectorCode: string; sizeBand: string };
@@ -15,6 +20,7 @@ type Measure = { metricKey: string; format: "proportion" | "mean"; observations:
 export type LiveGreekRetailPreview = Readonly<{
   capturedAt: string;
   includedResponses: number;
+  coverage: InternalResearchGeographicCoverage;
   points: readonly SafePublicResultPoint[];
 }>;
 
@@ -82,6 +88,32 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
     return {answers, regionCode, prefectureCode, sectorCode,
       sizeBand: typeof answers.Q02 === "string" ? answers.Q02 : ""};
   });
+
+  // Expose only county/region labels and broad suppressed cohort bands.
+  // n<10 remains null, with no answer values, postcode, identity or raw rows.
+  const countCoverage = (dimension:"regionCode"|"prefectureCode") => {
+    const totals=new Map<string,number>();
+    for(const person of people) {
+      const code=person[dimension];
+      if(code) totals.set(code,(totals.get(code)??0)+1);
+    }
+    return totals;
+  };
+  const countyCounts=countCoverage("prefectureCode");
+  const regionCounts=countCoverage("regionCode");
+  const band=(n:number):"none"|"under10"|"10to29"|"30plus" =>
+    n>=30?"30plus":n>=10?"10to29":n>0?"under10":"none";
+  const coverage:InternalResearchGeographicCoverage={
+    includedTotal:people.length,
+    prefectures:GREECE_PREFECTURES.map(p=>{
+      const n=countyCounts.get(p.key)??0;
+      return {key:p.key,band:band(n),eligibleN:n>=MIN_INTERNAL_PREFECTURE_N?n:null};
+    }),
+    regions:GREECE_REGIONS.map(p=>{
+      const n=regionCounts.get(p.key)??0;
+      return {key:p.key,band:band(n),eligibleN:n>=MIN_INTERNAL_PREFECTURE_N?n:null};
+    })
+  };
 
   const questionResult = await db.query<SqlRow>(`
     SELECT DISTINCT ON (q.code) q.code,q.question_type,q.analysis_key,q.config
@@ -185,7 +217,7 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
     }
     for (const cohort of cohorts) {
       const n=cohort.observations.length;
-      if (n<MIN_CELL_N) continue;
+      if (n<(cohort.segment.prefectureCode ? MIN_INTERNAL_PREFECTURE_N : MIN_CELL_N)) continue;
       const estimate=cohort.observations.reduce((sum,item)=>sum+item.value,0)/n;
       if (!Number.isFinite(estimate)) continue;
       points.push({
@@ -196,5 +228,5 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
       });
     }
   }
-  return {capturedAt:new Date().toISOString(),includedResponses:people.length,points};
+  return {capturedAt:new Date().toISOString(),includedResponses:people.length,coverage,points};
 }
