@@ -2,10 +2,11 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {getAdminSession} from "../../../../lib/admin-session";
 import {isMaziSuperAdmin} from "../../../../lib/mazi-superadmin";
-import {maziOperationsSnapshot,maziLaunchGateStates,
+import {maziOperationsSnapshot,maziLaunchGateStates,maziLaunchGateHistory,
  type MaziOperationsSnapshot,type MaziLaunchGateKey,type MaziLaunchGateReview
 } from "../../../../lib/mazi-operations";
 import {reviewMaziLaunchGateAction} from "./actions";
+import {assessMaziReleaseReadiness} from "../../../../lib/mazi-readiness";
 import s from "../mazi.module.css";
 
 export const dynamic="force-dynamic";
@@ -58,6 +59,11 @@ function ExternalGate({title,description,gateKey,review,csrf}:{
   </form>
  </article>;
 }
+const gateLabels:Record<MaziLaunchGateKey,string>={
+ auth_email_delivery:"Supabase Auth · email και redirect",
+ legal_and_retention:"Νομικός έλεγχος και διατήρηση",
+ consenting_business_e2e:"Πραγματική ένταξη επιχείρησης"
+};
 const date=(v:Date|null)=>v?new Date(v).toLocaleString("el-GR",{timeZone:"Europe/Athens"}):"Δεν υπάρχει καταγεγραμμένο γεγονός";
 export default async function MaziOperationsPage({searchParams}:{searchParams:Promise<{notice?:string}>}){
  const principal=await getAdminSession();
@@ -70,8 +76,10 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
   </section></main>;
  let state:MaziOperationsSnapshot|null=null;
  let gates:MaziLaunchGateReview[]=[];
- try{[state,gates]=await Promise.all([
-  maziOperationsSnapshot(principal),maziLaunchGateStates(principal)
+ let gateHistory:MaziLaunchGateReview[]=[];
+ try{[state,gates,gateHistory]=await Promise.all([
+  maziOperationsSnapshot(principal),maziLaunchGateStates(principal),
+  maziLaunchGateHistory(principal)
  ]);}catch{}
  if(!state)return <main className={s.stage}><div className={s.shell}>
   <div className={s.breadcrumb}><Link href="/admin/mazi">ΜΑΖΙ</Link><span>↗</span><span>ΛΕΙΤΟΥΡΓΙΚΟΣ ΕΛΕΓΧΟΣ</span></div>
@@ -81,6 +89,7 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
  </div></main>;
  const {notice}=await searchParams;
  const latestGate=(key:MaziLaunchGateKey)=>gates.find(gate=>gate.gate_key===key);
+ const assessment=assessMaziReleaseReadiness(state,gates);
  const financeLocked=state.finance_enabled_cycles===0&&state.ledger_total===0&&
   state.grant_offers_total===0&&state.safe_founding_cycles===1;
  const auditCoherent=state.acceptances===state.invitations_consumed;
@@ -105,6 +114,31 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
   </header>
   {notice==="gate_recorded"?<p className={s.notice} role="status">Η χειροκίνητη επαλήθευση καταχωρίστηκε στο αμετάβλητο ιστορικό. Δεν ενεργοποιήθηκε υπηρεσία ή πληρωμή.</p>:null}
   {notice==="gate_not_saved"?<p className={s.notice} role="alert">Δεν καταχωρίστηκε απόφαση. Ελέγξτε τα αποδεικτικά, την επιβεβαίωση και τον ενεργό Super Admin ρόλο.</p>:null}
+
+  <section className={s.section} aria-label="Εκτίμηση ετοιμότητας έναρξης" style={{marginTop:32}}>
+   <div className={s.sectionTop}>
+    <div><p>PRE-RELEASE / LIVE DIAGNOSTICS</p><h2>Ετοιμότητα ελεγχόμενης έναρξης</h2></div>
+    <span>Δεν είναι εξουσιοδότηση δημοσίευσης, εγγραφών ή οικονομικής ενεργοποίησης</span>
+   </div>
+   <div className={s.card}>
+    <div style={{flex:1}}>
+     <span className={s.tag}>ΤΕΚΜΗΡΙΩΜΕΝΟΙ ΕΛΕΓΧΟΙ: {assessment.evidenceGatesVerified}/{assessment.evidenceGatesTotal}</span>
+     <h3>{assessment.prerequisitesRecorded?
+      "Οι προϋποθέσεις έχουν καταγραφεί — απαιτείται ανεξάρτητη έγκριση δημοσίευσης":
+      "Δεν έχουν ολοκληρωθεί όλοι οι απαιτούμενοι έλεγχοι"}</h3>
+     <p className={s.body}>Η κατάσταση προκύπτει από πραγματικά στοιχεία της βάσης και τις τελευταίες βεβαιώσεις του Super Admin. Κάθε βεβαίωση είναι ανθρώπινη δήλωση, όχι αυτόματη απόδειξη συμμόρφωσης.</p>
+     {assessment.blockers.length?<ul style={{marginTop:16,paddingLeft:20,lineHeight:1.8}}>
+      {assessment.blockers.map((reason,i)=><li key={i}>{reason}</li>)}
+     </ul>:<p className={s.body}>Δεν εντοπίστηκε εκκρεμότητα στους ελεγχόμενους δείκτες. Απαιτούνται ανεξάρτητη έγκριση και ελεγχόμενη δημοσίευση.</p>}
+    </div>
+    <div style={{minWidth:235}}>
+     <p className={s.meta}>Οικονομική δικλίδα: {assessment.financeLocked?"κλειδωμένη":"ΑΠΟΚΛΙΣΗ"}</p>
+     <p className={s.meta}>Συμφωνία αποδοχών: {assessment.invitationAuditCoherent?"ναι":"ΑΝΑΝΤΙΣΤΟΙΧΙΑ"}</p>
+     <p className={s.meta}>Εκκρεμότητες εντάξεων: {assessment.admissionExceptions}</p>
+     <p className={s.meta}><strong>Δημοσίευση παραγωγής: απαιτεί ξεχωριστή έγκριση</strong></p>
+    </div>
+   </div>
+  </section>
 
   <div className={s.stats}>
    <Metric index="01" title="ΕΝΔΙΑΦΕΡΟΝ" value={state.interest_total}
@@ -184,6 +218,22 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
      title="Πρώτη πραγματική δοκιμή ένταξης"
      description="Μόνο με συναινούσα πραγματική επιχείρηση: ΑΦΜ, ΓΕΜΗ, εκπροσώπηση, email, προσωπική πρόσκληση και ρητή αποδοχή. Όχι εικονικά μέλη."/>
    </div>
+  </section>
+  <section className={s.section}>
+   <div className={s.sectionTop}>
+    <div><p>05 / APPEND-ONLY EVIDENCE</p><h2>Ιστορικό ελέγχων</h2></div>
+    <span>Τελευταίες 30 εγγραφές · χωρίς τροποποίηση ή διαγραφή</span>
+   </div>
+   {!gateHistory.length?<div className={s.empty}>Δεν υπάρχουν ακόμη βεβαιώσεις. Δεν θεωρούμε κανέναν εξωτερικό έλεγχο ολοκληρωμένο.</div>
+   :<div className={s.stack}>{gateHistory.map(item=><article className={s.card} key={item.id}>
+     <div style={{flex:1,minWidth:0}}>
+      <span className={s.tag}>{gateLabels[item.gate_key]} · {item.decision==="verified"?"Επιβεβαιώθηκε":"Άνοιξε ξανά"}</span>
+      <h3>{date(item.recorded_at)}</h3>
+      <p className={s.body}>{item.evidence}</p>
+     </div>
+     <div><p className={s.meta}>Αμετάβλητη εγγραφή #{item.id}</p></div>
+    </article>)}</div>}
+   <p className={s.disclaimer}>Το ιστορικό είναι ιδιωτικό και προσβάσιμο αποκλειστικά στον Super Admin. Μην καταχωρίζετε προσωπικά δεδομένα, διαπιστευτήρια ή εμπιστευτικά έγγραφα.</p>
   </section>
  </div></main>;
 }
