@@ -44,9 +44,17 @@ export function planPrivateAttestationBatch(records, { observedAt, maxBytes = MA
       throw Error('conflicting_source_identity');
     sourceIdentities.set(source.id, sourceIdentity);
 
+    // One approval UUID cannot carry conflicting rights or retention scope
+    // inside a batch, even if both snapshots independently pass capture checks.
+    // The digest is evidence metadata, NEVER a publication-rights grant.
     const approvalIdentity = JSON.stringify([
       approval.source_id, approval.asset_url, approval.approved_final_url,
-      approval.approved_at, approval.expires_at, approval.acquisition_authorized
+      approval.approved_at, approval.expires_at, approval.acquisition_authorized,
+      approval.rights_basis, approval.rights_policy_url, approval.attribution,
+      approval.retention_policy, approval.retention_until, approval.approved_by,
+      approval.review_due_at, approval.mirror_authorized,
+      approval.acquisition_method, approval.asset_kind,
+      approval.metadata?.rights_policy_sha256
     ]);
     const knownApproval = approvalIdentities.get(approval.id);
     if (knownApproval !== undefined && knownApproval !== approvalIdentity)
