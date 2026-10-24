@@ -25,6 +25,11 @@ export function planPrivateAttestationBatch(records, { observedAt, maxBytes = MA
   // individual object. Repeated identical snapshot IDs count only once.
   let plannedBytes = 0;
   const hashByteLengths = new Map();
+  // A UUID is a global identity, not merely a key local to one snapshot.
+  // Reject a mixed batch that rebinds one source or approval ID to another
+  // URL, source, authorization scope or capture window. Every individual
+  // record could otherwise pass observe() while the batch contradicts itself.
+  const sourceIdentities = new Map(), approvalIdentities = new Map();
   for (const record of records) {
     if (!plain(record) || !plain(record.source) || !plain(record.approval) ||
         !plain(record.snapshot) || !plain(record.snapshot.provenance))
@@ -32,6 +37,21 @@ export function planPrivateAttestationBatch(records, { observedAt, maxBytes = MA
     const { source, approval, snapshot } = record;
     const event = observe({ source, approval, snapshot, observedAt });
     if (snapshot.byte_length > maxBytes) throw Error('archive_exceeds_size_limit');
+
+    const sourceIdentity = source.canonical_url;
+    const knownSource = sourceIdentities.get(source.id);
+    if (knownSource !== undefined && knownSource !== sourceIdentity)
+      throw Error('conflicting_source_identity');
+    sourceIdentities.set(source.id, sourceIdentity);
+
+    const approvalIdentity = JSON.stringify([
+      approval.source_id, approval.asset_url, approval.approved_final_url,
+      approval.approved_at, approval.expires_at, approval.acquisition_authorized
+    ]);
+    const knownApproval = approvalIdentities.get(approval.id);
+    if (knownApproval !== undefined && knownApproval !== approvalIdentity)
+      throw Error('conflicting_approval_identity');
+    approvalIdentities.set(approval.id, approvalIdentity);
 
     const identity = JSON.stringify([
       source.id, source.canonical_url,
