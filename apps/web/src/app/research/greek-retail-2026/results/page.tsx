@@ -162,6 +162,7 @@ export default async function GreekRetailResultsPage() {
     const publicStudy = await publicResearchStudy("greek-retail-2026");
     const snapshot = publicStudy?.participationGeography;
     if (snapshot) geography = {
+      nationalStarted: publicStudy && Number.isSafeInteger(publicStudy.started) && publicStudy.started > 0 ? publicStudy.started : undefined,
       // Participation starts are a separate data series from published results.
       // Do not expose small regional cells through React Flight.
       regions: snapshot.regions.filter(region => region.started >= 30)
