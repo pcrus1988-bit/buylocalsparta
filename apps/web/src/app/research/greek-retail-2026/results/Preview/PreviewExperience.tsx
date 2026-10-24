@@ -23,7 +23,8 @@ export function ResearchResultsPreviewExperience({initial,geography}:{initial:Li
       const data: LiveGreekRetailPreview & {schema:string} = await res.json();
       if (data.schema!=="kontamou.research.live-preview.v1"
           || !Array.isArray(data.points) || !Number.isSafeInteger(data.includedResponses)
-          || !Array.isArray(data.coverage?.prefectures) || !Array.isArray(data.coverage?.regions)) {
+          || !Array.isArray(data.coverage?.prefectures) || !Array.isArray(data.coverage?.regions)
+          || !Number.isSafeInteger(data.pendingQualityReview)) {
         throw new Error("LIVE_PREVIEW_INVALID");
       }
       setSnapshot(data); setError(false);
@@ -50,7 +51,7 @@ export function ResearchResultsPreviewExperience({initial,geography}:{initial:Li
         <div className={styles.superline}><span className={styles.dot}/> KONTA MOY RESEARCH <span className={styles.separator}>/</span> ΕΛΛΗΝΙΚΟ ΛΙΑΝΕΜΠΟΡΙΟ 2026</div>
         <div className={styles.chip}>LIVE · ΠΡΑΓΜΑΤΙΚΕΣ ΑΠΑΝΤΗΣΕΙΣ · ΜΟΝΟ ΓΙΑ ΕΣΩΤΕΡΙΚΗ ΧΡΗΣΗ</div>
         <h1>Πίσω από τους αριθμούς, <em>η πραγματικότητα της αγοράς.</em></h1>
-        <p>Η προεπισκόπηση ενημερώνεται με συγκεντρωτικά δεδομένα από ολοκληρωμένα και ήδη εγκεκριμένα στον ποιοτικό έλεγχο ερωτηματολόγια. Οι τιμές είναι προκαταρκτικές, μη σταθμισμένες και δεν αποτελούν τελική επιστημονική έκθεση.</p>
+        <p>Η προεπισκόπηση χρησιμοποιεί το σύνολο των ολοκληρωμένων απαντήσεων της κύριας έρευνας, όχι επιλεγμένο υποσύνολο. Περιλαμβάνει και όσες αναμένουν ποιοτική αξιολόγηση· αποκλείει αποσυρμένες ή απορριφθείσες συμμετοχές. Όλες οι τιμές είναι περιγραφικές, μη σταθμισμένες και προσωρινές.</p>
         <div className={styles.heroActions}>
           <a className={styles.primaryAction} href="#research-workbench">Εξερεύνηση ευρημάτων ↗</a>
           <Link href="/research/greek-retail-2026/results" className={styles.secondaryAction}>Δημόσια σελίδα αποτελεσμάτων</Link>
@@ -58,9 +59,9 @@ export function ResearchResultsPreviewExperience({initial,geography}:{initial:Li
       </div>
       <div className={styles.heroGraphic}>
         <div className={styles.paperTop}><span>RESEARCH / 2026</span><span>LIVE SNAPSHOT</span></div>
-        <div className={styles.paperTitle}>Ποιοτικά εγκεκριμένες συμμετοχές</div>
+        <div className={styles.paperTitle}>Όλες οι υποβληθείσες ολοκληρωμένες απαντήσεις</div>
         <div style={{fontSize:"3rem",fontWeight:800,marginBlock:"1rem"}}>{snapshot ? snapshot.includedResponses.toLocaleString("el-GR") : "—"}</div>
-        <p>Ολοκληρωμένες απαντήσεις με τελευταίο έλεγχο «include». Οι υπό έλεγχο, απορριφθείσες, μη ολοκληρωμένες και αποσυρμένες αποκλείονται.</p>
+        <p>Όλες οι ολοκληρωμένες, μη αποσυρμένες απαντήσεις της κύριας έρευνας. {snapshot?.pendingQualityReview!==undefined&&<strong>{snapshot.pendingQualityReview.toLocaleString("el-GR")} εκκρεμούν σε ποιοτικό έλεγχο.</strong>} Οι απορριφθείσες και μη ολοκληρωμένες δεν συγκαταλέγονται.</p>
         <div className={styles.heroPaperFooter}>
           {snapshot
             ? "Τελευταία ενημέρωση: "+new Date(snapshot.capturedAt).toLocaleString("el-GR",{timeZone:"Europe/Athens",dateStyle:"medium",timeStyle:"medium"})+" (Ελλάδα)"
@@ -70,8 +71,8 @@ export function ResearchResultsPreviewExperience({initial,geography}:{initial:Li
     </section>
 
     <div className={styles.demoRibbon} role="note">
-      <strong>ΠΡΟΚΑΤΑΡΚΤΙΚΑ · ΜΗ ΣΤΑΘΜΙΣΜΕΝΑ ΔΕΔΟΜΕΝΑ</strong>
-      <span>Πραγματικές συγκεντρωτικές απαντήσεις, όχι δεδομένα επίδειξης. Οι νομοί εμφανίζονται όλοι ως γεωγραφικές ενότητες: για n=1–9 βλέπετε μόνο ένδειξη κάλυψης, για n=10–29 εσωτερικές μη σταθμισμένες, ενδεικτικές τιμές και από n≥30 ισχυρότερες περιγραφικές βάσεις. Δεν πρόκειται για δημόσια έγκριση δημοσίευσης. Τα διαστήματα εμπιστοσύνης, η στάθμιση και οι τελικές ερμηνείες θα προκύψουν μόνο από την εγκεκριμένη ανάλυση. Η επίσημη δημοσίευση παραμένει προγραμματισμένη για 1 Νοεμβρίου 2026, 00:00:01 ώρα Ελλάδας.</span>
+      <strong>ΟΛΕΣ ΟΙ ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΑΠΑΝΤΗΣΕΙΣ · ΑΝΑ ΝΟΜΟ</strong>
+      <span>Οι αναλύσεις περιλαμβάνουν όλες τις ολοκληρωμένες απαντήσεις της κύριας έρευνας ανά νομό, όχι δειγματοληψία από αυτές. Ο αριθμός απαντήσεων ανά νομό είναι ο πραγματικός παρονομαστής, όχι εκτίμηση του πληθυσμού επιχειρήσεων. Για προστασία ιδιωτικότητας, όταν n<10 δεν εμφανίζονται επιμέρους δείκτες. Ποιοτικώς εκκρεμείς συμμετοχές περιλαμβάνονται προσωρινά. Καμία αναγωγή στα δεδομένα όλων των ελληνικών επιχειρήσεων. Η δημόσια δημοσίευση της 1ης Νοεμβρίου ακολουθεί ξεχωριστή έγκριση.</span>
       <button type="button" disabled={refreshing} onClick={()=>{void refresh();}} style={{marginTop:10}}>
         {refreshing?"Ανανέωση…":"Ανανέωση δεδομένων τώρα"}
       </button>
