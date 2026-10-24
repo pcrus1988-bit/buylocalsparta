@@ -1,9 +1,10 @@
 import type { PublishedResearchEstimate } from "./research-survey-release";
 import { GREECE_REGIONS } from "./research-geographic-core.ts";
+import { GREECE_PREFECTURES } from "./research-prefectures.ts";
 import { PUBLIC_RESULTS_METRICS } from "./research-public-results-sections.ts";
 
 /** Minimal release-derived browser payload. Never ship raw survey answers or
- * suppressed/low-n estimates. One dimension per estimate (no false cross-filter).
+ * suppressed/low-n estimates. Bivariate cells require explicit independent approval.
  */
 export type SafePublicResultPoint = Readonly<{
  metricKey:string; label:string; value:number; format:"proportion"|"mean";
@@ -17,6 +18,7 @@ export type SafeParticipationGeography = Readonly<{
 const RESTRICTED = /exp01|experiment|randomized_profile|platform_choice|conjoint|amce/i;
 const METRIC_SET=new Set(PUBLIC_RESULTS_METRICS);
 const permittedRegion=new Set<string>(GREECE_REGIONS.map(r=>r.key));
+const permittedPrefecture=new Set<string>(GREECE_PREFECTURES.map(r=>r.key));
 export function publicResultPoints(estimates: readonly PublishedResearchEstimate[]): SafePublicResultPoint[]{
  return estimates.flatMap(e=>{
   if(e.suppressed || e.estimate===null || !Number.isFinite(e.estimate) ||
@@ -26,15 +28,18 @@ export function publicResultPoints(estimates: readonly PublishedResearchEstimate
   const entries=Object.entries(e.segment);
   // Bivariate cells are NEVER reconstructed from marginal figures.
   // A publication reviewer must explicitly approve each sufficiently large cross-tab.
-  const isCross=entries.length===2&&entries.every(([key])=>["regionCode","sectorCode"].includes(key))&&
-   entries.some(([key])=>key==="regionCode")&&entries.some(([key])=>key==="sectorCode");
-  if(entries.length>2 || entries.some(([key])=>!["regionCode","sectorCode","sizeBand"].includes(key)) ||
+  const isCross=entries.length===2&&entries.some(([key])=>key==="sectorCode")&&
+    entries.some(([key])=>key==="regionCode"||key==="prefectureCode");
+  const isPrefecture=entries.some(([key])=>key==="prefectureCode");
+  if(entries.length>2 || entries.some(([key])=>!["regionCode","prefectureCode","sectorCode","sizeBand"].includes(key)) ||
      (entries.length===2&&!isCross) ||
-     (isCross&&(e.unweightedN<50||e.metadata.publicCrossTabApproved!==true)))return [];
+     (isCross&&(e.unweightedN<50||e.metadata.publicCrossTabApproved!==true)) ||
+     (isPrefecture&&(e.unweightedN<50||e.metadata.publicPrefectureApproved!==true)))return [];
   if(entries.some(([_,value])=>typeof value!=="string"||!value.trim()))return [];
   // regionCode in the current frozen frame is a HISTORICAL prefecture code.
   // Only explicitly keyed administrative-region names may feed region heatmaps.
   if(entries.some(([key,value])=>key==="regionCode"&&!permittedRegion.has(String(value))))return [];
+  if(entries.some(([key,value])=>key==="prefectureCode"&&!permittedPrefecture.has(String(value))))return [];
   return [{
    metricKey:e.metricKey,
    label:typeof e.metadata.label==="string"&&e.metadata.label.length<180&&!RESTRICTED.test(e.metadata.label)
