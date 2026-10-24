@@ -13,6 +13,13 @@ const canonicalTime = value => typeof value === 'string' &&
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) &&
   Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+// A witness cannot truthfully issue a checkpoint before ANY observation in its
+// signed chain, even if observations were appended out of chronological order.
+const observationsNotInFuture = (chain, issuedAt) => Array.isArray(chain) &&
+  chain.length > 0 && chain.every(row =>
+    typeof row?.event?.observed_at === 'string' &&
+    Number.isFinite(Date.parse(row.event.observed_at)) &&
+    Date.parse(row.event.observed_at) <= Date.parse(issuedAt));
 
 function validRequest(request) {
   return exactKeys(request,FIELDS) && request.version === VERSION && request.scope === SCOPE &&
@@ -32,7 +39,7 @@ export function createWitnessRequest(chain, {witnessId,issuedAt} = {}) {
     throw Error('invalid_witness_request');
   const request = {version:VERSION,scope:SCOPE,witness_id:witnessId,issued_at:issuedAt,
     entry_count:chain.length,root_sha256:root(chain),publication_authorized:false};
-  if (!validRequest(request)) throw Error('invalid_witness_request');
+  if (!validRequest(request) || !observationsNotInFuture(chain, issuedAt)) throw Error('invalid_witness_request');
   return {request,signing_payload:payload(request)};
 }
 
@@ -46,7 +53,8 @@ export function verifyWitnessCheckpoint(chain, checkpoint, {pinnedPublicKey,expe
     if (typeof signature !== 'string' || !/^[A-Za-z0-9+/]{86}==$/.test(signature)) return false;
     const raw = Buffer.from(signature,'base64');
     if (raw.length !== 64 || raw.toString('base64') !== signature) return false;
-    if (!Array.isArray(chain) || chain.length !== checkpoint.request.entry_count ||
+    if (!observationsNotInFuture(chain, checkpoint.request.issued_at) ||
+        chain.length !== checkpoint.request.entry_count ||
         !verifyChain(chain,checkpoint.request.root_sha256)) return false;
     return verifySignature(null,Buffer.from(payload(checkpoint.request),'utf8'),pinnedPublicKey,raw);
   } catch { return false; }
