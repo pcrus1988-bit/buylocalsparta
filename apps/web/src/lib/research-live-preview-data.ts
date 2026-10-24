@@ -221,6 +221,21 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
       }
       for (const [value,observations] of groups) cohorts.push({segment:{[dimension]:value},observations});
     }
+    // Actual county × sector intersections, never a reconstruction from
+    // separately published marginals. No raw postcode or respondent IDs leave.
+    const countySector=new Map<string,{prefectureCode:string;sectorCode:string;observations:Measure["observations"]}>();
+    for(const observation of measure.observations){
+      const {prefectureCode,sectorCode}=observation.person;
+      if(!prefectureCode||!sectorCode||sectorCode==="unknown")continue;
+      const key=prefectureCode+"\u001f"+sectorCode;
+      const group=countySector.get(key)??{prefectureCode,sectorCode,observations:[]};
+      group.observations.push(observation);
+      countySector.set(key,group);
+    }
+    for(const row of countySector.values())cohorts.push({
+      segment:{prefectureCode:row.prefectureCode,sectorCode:row.sectorCode},
+      observations:row.observations
+    });
     for (const cohort of cohorts) {
       const n=cohort.observations.length;
       if (n<(cohort.segment.prefectureCode ? MIN_INTERNAL_PREFECTURE_N : MIN_CELL_N)) continue;
