@@ -36,3 +36,14 @@ This feature is a GitHub evidence consumer, **not** a second orchestrator. Its u
 4. Trigger a real AUTOPILOT transition in an isolated runner; validate provenance, event and state cursor, worker heartbeat and UI update.
 5. Test disconnection, reconnection, browser sleep, stale lease, role mismatch, Android 2D fallback and reduced motion. No visual-demo content may masquerade as reality.
 6. Obtain explicit owner approval before production merge/deployment. Production deployment is **not approved**.
+
+
+## No-API ChatGPT Task allocation bridge
+
+The existing TIGER no-API claim protocol is maintained upstream in TIGER PR #82; no new coordinator is introduced in the admin application. The dashboard **reads only** `autopilot-runtime-state:runtime/claims/*.json` using the same server-side GitHub read token, validates exact claim fields, task naming, A02 role declaration, expiry duration (maximum 120 minutes), repository, and bounded file size. A missing claims directory on the initialized branch means **zero allocations**, not a broken GitHub connection.
+
+Recorded claims appear under **Allocated** and in the evidence feed and, once expired, under the issue wall with explicit reconciliation required. A claim is an allocation declaration, not an authenticated continuously hosted process or a heartbeat. Claims must never move a tiger desk to `working`, increment the `Running` count, or falsely advance the authoritative revision-zero state ledger. Only a real AUTOPILOT state-machine lease with a fresh heartbeat can show a live worker.
+
+After the separate no-API claim-writer PR is reviewed and merged, the scheduled ChatGPT engineering Task may create claim documents atomically with the connected GitHub `create_file` operation. GitHub Actions remain read-only; claims must originate from actual Task execution. The dashboard does not change or delete claims, resolve collisions, fabricate review events or auto-merge. Expired allocations require inspection of real PR/commit evidence before manual reconciliation.
+
+The read-only API keeps its existing `admin.audit.read` permission and `no-store` response headers. Never move the private GitHub token to a browser bundle or `NEXT_PUBLIC_` variable.
