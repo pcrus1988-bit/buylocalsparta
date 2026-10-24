@@ -42,6 +42,18 @@ export function publicResultPoints(estimates: readonly PublishedResearchEstimate
   }];
  });
 }
+/** Deterministic, distinct pseudo-spatial demo patterns per answer. 
+ * DEMO only: no connection to survey geography or actual responses.
+ */
+function demoRegionOffset(key:string,index:number,scale:number,proportion:boolean){
+ let seed=2166136261;
+ for(const letter of key)seed=Math.imul(seed ^ letter.charCodeAt(0),16777619)>>>0;
+ let value=(seed ^ Math.imul(index+1,0x9e3779b1))>>>0;
+ value=Math.imul(value^(value>>>16),0x7feb352d)>>>0;
+ value=Math.imul(value^(value>>>15),0x846ca68b)>>>0;
+ const signed=((value^(value>>>16))>>>0)/4294967295-.5;
+ return signed*(proportion?.48:scale===100?31:1.65);
+}
 export function demoResultPoints():SafePublicResultPoint[]{
  const regionKeys=GREECE_REGIONS.map(x=>x.key);
  const sectors=["food_groceries","fashion_footwear","home_living","retail_intermediation","health_beauty"];
@@ -74,8 +86,11 @@ export function demoResultPoints():SafePublicResultPoint[]{
    for(const [i,value] of keys.entries())choices.push([{[dimension]:value},64+(i*37)%160]);
   }
   for(const [i,[segment,n]] of choices.entries()){
-   const offset=i===0?0:(((i*17+index*3)%15)-7)*(format==="proportion"?0.025:scale===100?1.9:.12);
-   const number=format==="proportion"?Math.min(.92,Math.max(.04,base+offset)):
+   const isRegion=typeof segment.regionCode==="string";
+   const offset=i===0?0:isRegion
+      ?demoRegionOffset(key,regionKeys.indexOf(segment.regionCode),scale,format==="proportion")
+      :(((i*17+index*3)%15)-7)*(format==="proportion"?0.025:scale===100?1.9:.12);
+   const number=format==="proportion"?Math.min(.97,Math.max(.02,base+offset)):
      Math.min(scale,Math.max(scale===100?5:1,base+offset));
    const delta=format==="proportion"?.055:scale===100?5:.35;
    result.push({metricKey:key,label:"",format,value:number,n,segment,
