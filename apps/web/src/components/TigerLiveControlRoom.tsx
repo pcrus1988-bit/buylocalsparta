@@ -105,6 +105,7 @@ export function TigerLiveControlRoom({initial}:{initial:TigerSnapshot}){
         <span className="tiger-chip">Running <strong>{snapshot.runningTasks}</strong></span>
         <span className="tiger-chip">Blocked <strong>{snapshot.blockedTasks}</strong></span>
         <span className="tiger-chip">CI <strong>{snapshot.ciHealth}</strong></span>
+        <span className="tiger-chip">GitHub PRs <strong>{snapshot.verifiedPullRequests}</strong></span>
         <span className="tiger-chip">Budget <strong>{snapshot.budgetStatus}</strong></span>
       </div>
       <div className="tiger-verified">LAST VERIFIED READ <strong>{fmt(snapshot.observedAt)}</strong></div>
