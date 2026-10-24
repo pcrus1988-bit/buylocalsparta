@@ -16,7 +16,7 @@ export type SafeParticipationGeography = Readonly<{
 }>;
 const RESTRICTED = /exp01|experiment|randomized_profile|platform_choice|conjoint|amce/i;
 const METRIC_SET=new Set(PUBLIC_RESULTS_METRICS);
-const permittedRegion=new Set(GREECE_REGIONS.map(r=>r.key));
+const permittedRegion=new Set<string>(GREECE_REGIONS.map(r=>r.key));
 export function publicResultPoints(estimates: readonly PublishedResearchEstimate[]): SafePublicResultPoint[]{
  return estimates.flatMap(e=>{
   if(e.suppressed || e.estimate===null || !Number.isFinite(e.estimate) ||
