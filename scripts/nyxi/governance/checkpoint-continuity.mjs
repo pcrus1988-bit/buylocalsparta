@@ -35,10 +35,21 @@ export function verifyWitnessContinuation(chain, checkpoint, {
     if (!verifyWitnessCheckpoint(chain, checkpoint, { pinnedPublicKey, expectedWitnessId }))
       return false;
 
+    // A pinned root must not be backdated before an observation it claims to
+    // witness. Check EVERY row in the anchored prefix: append order is not
+    // necessarily chronological. The successor signature alone cannot prove
+    // the chronology of a previously pinned metadata-only anchor.
+    const anchoredAt = Date.parse(previousAnchor.issued_at);
+    for (let i = 0; i < previousAnchor.entry_count; i++) {
+      const observedAt = chain[i]?.event?.observed_at;
+      if (typeof observedAt !== 'string' || !Number.isFinite(Date.parse(observedAt)) ||
+          Date.parse(observedAt) > anchoredAt) return false;
+    }
+
     const request = checkpoint.request;
     return request.entry_count === chain.length &&
       chain[previousAnchor.entry_count - 1]?.entry_hash === previousAnchor.root_sha256 &&
-      Date.parse(request.issued_at) > Date.parse(previousAnchor.issued_at);
+      Date.parse(request.issued_at) > anchoredAt;
   } catch { return false; }
 }
 
