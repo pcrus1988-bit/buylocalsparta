@@ -21,6 +21,12 @@ function OperationalIssue({title,count,description}:{
   <strong>{count.toLocaleString("el-GR")}</strong>
  </article>;
 }
+function ExternalGate({title,description}:{title:string;description:string}){
+ return <article className={s.member}>
+  <div><strong>{title}</strong><span>{description}</span></div>
+  <span className={s.tag}>ΑΝΕΠΙΒΕΒΑΙΩΤΟ</span>
+ </article>;
+}
 const date=(v:Date|null)=>v?new Date(v).toLocaleString("el-GR",{timeZone:"Europe/Athens"}):"Δεν υπάρχει καταγεγραμμένο γεγονός";
 export default async function MaziOperationsPage(){
  const principal=await getAdminSession();
@@ -130,11 +136,11 @@ export default async function MaziOperationsPage(){
    <span>Οι παρακάτω έλεγχοι δεν πιστοποιούνται από τη βάση</span>
   </div>
    <div className={s.stack}>
-    <OperationalIssue title="Supabase Auth email, SMTP και redirect" count={0}
-     description="Εκκρεμεί εξωτερική επιβεβαίωση χρόνου ισχύος OTP, προτύπων email, παραλαβής και επιτρεπόμενης διεύθυνσης callback. Το 0 δεν δηλώνει ολοκλήρωση."/>
-    <OperationalIssue title="Νομικός έλεγχος και διατήρηση δεδομένων" count={0}
+    <ExternalGate title="Supabase Auth email, SMTP και redirect"
+     description="Εκκρεμεί εξωτερική επιβεβαίωση χρόνου ισχύος OTP, προτύπων email, παραλαβής και επιτρεπόμενης διεύθυνσης callback."/>
+    <ExternalGate title="Νομικός έλεγχος και διατήρηση δεδομένων"
      description="Εκκρεμεί ξεχωριστή έγκριση πριν από παραγωγική διάθεση της ροής εγγραφής και των μελλοντικών οικονομικών όρων."/>
-    <OperationalIssue title="Πρώτη πραγματική δοκιμή ένταξης" count={0}
+    <ExternalGate title="Πρώτη πραγματική δοκιμή ένταξης"
      description="Απαιτείται επιχείρηση με ρητή βούληση, πραγματικό ΑΦΜ/ΓΕΜΗ, έλεγχο εκπροσώπου, email και ρητή αποδοχή. Δεν χρησιμοποιούνται εικονικές εγγραφές."/>
    </div>
   </section>
