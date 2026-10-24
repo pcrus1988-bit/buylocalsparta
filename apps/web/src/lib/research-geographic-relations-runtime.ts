@@ -3,6 +3,7 @@ import { assertAdminPermission, recordAdminPersonalDataAccess } from "./admin-ru
 import { rawResearchAnswerAccess } from "./research-survey-response-admin";
 import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { GREECE_REGIONS } from "./research-geographic-core";
+import { resolveResearchAdministrativeGeography } from "./research-postcode-geography";
 import {
   RESEARCH_RELATIONSHIP_PRESETS, aggregateRelationship, relationshipAnswerCoverage,
   relationshipAnswerCoverageByRegion,
@@ -161,7 +162,7 @@ export async function researchRelationshipMap(
   // Unknown/none responses are recorded answers, not silently discarded.
   const records=await pool.query<SqlRow>([
     "WITH labeled AS (",
-    " SELECT COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),NULLIF(ctx.source_prefecture,''),'') AS prefecture,",
+    " SELECT COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),NULLIF(ctx.source_prefecture,''),'') AS prefecture, COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,",
     "   CASE WHEN jsonb_typeof(a.answer)='array' THEN jsonb_array_length(a.answer)>0",
     "     WHEN jsonb_typeof(a.answer)='string' THEN btrim(a.answer #>> '{}')<>''",
     "     WHEN jsonb_typeof(a.answer) IN ('number','boolean') THEN true",
@@ -198,20 +199,20 @@ export async function researchRelationshipMap(
     " AND ($9::text='' OR COALESCE(fu.sector_code,ctx.sector_code)=$9)",
     " AND ($10::text='' OR COALESCE(fu.sampling_attributes->'matchedActivityCodes',ctx.matched_kad_codes,'[]'::jsonb) ? $10::text)",
     ")",
-    "SELECT prefecture,segment,",
+    "SELECT prefecture,postcode,segment,",
     " count(*) FILTER (WHERE has_a AND has_b)::integer AS answered,",
     " count(*) FILTER (WHERE has_a AND has_b AND outcome)::integer AS selected,",
     " count(*) FILTER (WHERE has_a AND NOT has_b)::integer AS only_a,",
     " count(*) FILTER (WHERE has_b AND NOT has_a)::integer AS only_b",
     " FROM labeled WHERE has_a OR has_b",
-    " GROUP BY prefecture,segment ORDER BY prefecture,segment"
+    " GROUP BY prefecture,postcode,segment ORDER BY prefecture,postcode,segment"
   ].join("\n"),[
     study.study_id,study.instrument_id,
     mode==="draft"?"in_progress":mode,phase,
     qa.id,qb.id,[...resolved.pair.av],[...resolved.pair.bv],sector,kad
   ]);
   const recordRows=records.rows.map(row=>({
-    prefecture:text(row.prefecture),
+    prefecture:resolveResearchAdministrativeGeography(row.postcode,row.prefecture).regionCode,
     segment:row.segment===null||row.segment===undefined?null:
       row.segment===true||row.segment==="true",
     answered:Number(row.answered??0), selected:Number(row.selected??0),
