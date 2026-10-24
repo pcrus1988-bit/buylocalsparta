@@ -21,10 +21,14 @@ export function assessMaziReleaseReadiness(
  state:MaziOperationsSnapshot,gates:readonly MaziLaunchGateReview[]
 ):MaziReleaseReadiness{
  const latest=new Map<MaziLaunchGateKey,MaziLaunchGateReview>();
- for(const gate of [...gates].sort((a,b)=>
-  new Date(b.recorded_at).getTime()-new Date(a.recorded_at).getTime()
-  ||(b.id||0)-(a.id||0))){
-  if(!latest.has(gate.gate_key))latest.set(gate.gate_key,gate);
+ for(const gate of gates){
+  const prior=latest.get(gate.gate_key);
+  const currentAt=new Date(gate.recorded_at).getTime();
+  const priorAt=prior?new Date(prior.recorded_at).getTime():-Infinity;
+  if(!prior || currentAt>priorAt ||
+    (currentAt===priorAt&&BigInt(gate.id)>BigInt(prior.id))){
+    latest.set(gate.gate_key,gate);
+  }
  }
  const financeLocked=state.finance_enabled_cycles===0&&state.ledger_total===0&&
   state.grant_offers_total===0&&state.safe_founding_cycles===1;
