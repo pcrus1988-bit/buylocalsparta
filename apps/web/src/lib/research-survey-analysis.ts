@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { resolveResearchAdministrativeGeography } from "./research-postcode-geography";
+import { resolveResearchAdministrativeGeography } from "./research-postcode-geography-core";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import {
