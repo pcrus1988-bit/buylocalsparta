@@ -6,6 +6,9 @@ const read=(path)=>readFileSync(new URL(path,import.meta.url),"utf8");
 const aggregate=read("../../apps/web/src/lib/mazi-operations.ts");
 const page=read("../../apps/web/src/app/admin/mazi/operations/page.tsx");
 const governance=read("../../apps/web/src/app/admin/mazi/page.tsx");
+const action=read("../../apps/web/src/app/admin/mazi/operations/actions.ts");
+const sql=read("../sql/018_superadmin_release_gate_reviews.sql");
+const readOnlySnapshot=aggregate.slice(0,aggregate.indexOf("/** Each verification"));
 const review=read("../../apps/web/src/app/admin/mazi/interest/page.tsx");
 
 test("MAZI operations are available only to verified marketplace Super Admin",()=>{
@@ -24,9 +27,9 @@ test("read-only aggregate query cannot expose applicants' identifiers or write r
  assert.match(aggregate,/count\(\*\)::int FROM public\.mazi_fund_ledger/);
  assert.match(aggregate,/count\(\*\)::int FROM public\.mazi_grant_award_offers/);
  assert.match(aggregate,/getAdminPostgresRuntime\(\)\.nativePool\.query/);
- assert.doesNotMatch(aggregate,/\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\s+(?:INTO|FROM|TABLE|FUNCTION|public\.)/i);
+ assert.doesNotMatch(readOnlySnapshot,/\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\s+(?:INTO|FROM|TABLE|FUNCTION|public\.)/i);
  assert.doesNotMatch(aggregate,/SELECT\s+.*(?:tax_number|contact_email|representative_name)/i);
- assert.doesNotMatch(page,/<form\s+action=/);
+ assert.match(page,/<form action=\{reviewMaziLaunchGateAction\}/);
 });
 
 test("monitor flags delivery ambiguity and stale registry reviews rather than retrying",()=>{
@@ -54,7 +57,27 @@ test("the operations view is navigable, safe on database failure, and external g
  assert.match(review,/href="\/admin\/mazi\/operations"/);
  assert.match(page,/dynamic="force-dynamic"/);
  assert.match(page,/Δεν εμφανίζουμε προγενέστερα ή δοκιμαστικά νούμερα/);
- assert.match(page,/ΑΝΕΠΙΒΕΒΑΙΩΤΟ/);
+ assert.match(page,/ΕΚΚΡΕΜΕΙ ΕΠΑΛΗΘΕΥΣΗ/);
  assert.doesNotMatch(page,/count=\{0\}/);
  assert.match(page,/Δεν υπάρχουν αυτόματες επαναποστολές/);
+});
+
+test("manual release gates record immutable authorization and never launch money or enrollment",()=>{
+ assert.match(sql,/CREATE TABLE public\.mazi_launch_gate_reviews/);
+ assert.match(sql,/ALTER TABLE public\.mazi_launch_gate_reviews ENABLE ROW LEVEL SECURITY/);
+ assert.match(sql,/REVOKE ALL ON TABLE public\.mazi_launch_gate_reviews FROM PUBLIC,anon,authenticated,service_role/);
+ assert.match(sql,/MAZI_LAUNCH_GATE_REVIEW_IMMUTABLE/);
+ assert.match(sql,/BEFORE UPDATE OR DELETE ON public\.mazi_launch_gate_reviews/);
+ assert.match(aggregate,/await marketplaceMaziActor\(principal\)/);
+ assert.match(aggregate,/INSERT INTO public\.mazi_launch_gate_reviews/);
+ assert.match(aggregate,/allowedGateKeys\.has\(gateKey as MaziLaunchGateKey\)/);
+ assert.match(action,/requireMarketplaceSuperAdminRole\(principal\)/);
+ assert.match(action,/assertAdminCsrf\(principal/);
+ assert.match(action,/form\.get\("affirmed"\)!=="on"/);
+ assert.match(page,/name="gate_key" value=\{gateKey\}/);
+ assert.match(page,/name="evidence" required minLength=\{40\} maxLength=\{1200\}/);
+ assert.match(page,/name="decision" value="verified"/);
+ assert.match(page,/name="decision" value="reopened"/);
+ assert.match(page,/Δεν ενεργοποιήθηκε υπηρεσία ή πληρωμή/);
+ assert.doesNotMatch(sql,/UPDATE public\.mazi_(?:members|cycles|fund_ledger|grant_award_offers)/);
 });
