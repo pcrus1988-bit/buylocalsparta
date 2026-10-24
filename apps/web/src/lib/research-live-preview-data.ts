@@ -1,7 +1,7 @@
 import "server-only";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { greekRegionForPrefecture } from "./research-geographic-core";
+import { resolveResearchAdministrativeGeography } from "./research-postcode-geography";
 import { scoreGreekRetail2026, type ResearchAnswerMap } from "./research-survey-model";
 import { PUBLIC_RESULTS_METRICS, publicMetricLabel } from "./research-public-results-sections";
 import type { SafePublicResultPoint } from "./research-public-results-data";
@@ -10,7 +10,7 @@ const ALLOWED_METRICS = new Set<string>(PUBLIC_RESULTS_METRICS);
 const MIN_CELL_N = 30;
 const RESTRICTED = /experiment|exp01|amce|conjoint|randomized_profile|platform_choice/i;
 type Question = { code: string; kind: string; key: string; config: Record<string, unknown> };
-type Participant = { answers: Record<string, unknown>; regionCode: string; sectorCode: string; sizeBand: string };
+type Participant = { answers: Record<string, unknown>; regionCode: string; prefectureCode: string; sectorCode: string; sizeBand: string };
 type Measure = { metricKey: string; format: "proportion" | "mean"; observations: { person: Participant; value: number }[] };
 export type LiveGreekRetailPreview = Readonly<{
   capturedAt: string;
@@ -53,7 +53,8 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
       ORDER BY qr.response_id, qr.created_at DESC, qr.id DESC
     )
     SELECT r.id AS response_id,
-      COALESCE(fu.sampling_attributes->>'prefecture', ctx.source_prefecture, '') AS prefecture,
+      COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),ctx.source_prefecture,'') AS prefecture,
+      COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,
       COALESCE(fu.sector_code, ctx.sector_code, '') AS sector_code,
       COALESCE(jsonb_object_agg(q.code, a.answer)
         FILTER (WHERE a.id IS NOT NULL AND q.question_type NOT IN ('text','experiment')
@@ -75,9 +76,10 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
 
   const people: Participant[] = result.rows.map(row => {
     const answers = object(row.answers);
-    const regionCode = greekRegionForPrefecture(String(row.prefecture ?? "")) ?? "";
+    const location = resolveResearchAdministrativeGeography(row.postcode,row.prefecture);
+    const {regionCode,prefectureCode} = location;
     const sectorCode = String(row.sector_code ?? "");
-    return {answers, regionCode, sectorCode,
+    return {answers, regionCode, prefectureCode, sectorCode,
       sizeBand: typeof answers.Q02 === "string" ? answers.Q02 : ""};
   });
 
@@ -170,7 +172,7 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
     const cohorts: Array<{segment:Record<string,string>; observations:Measure["observations"]}>=[
       {segment:{},observations:measure.observations}
     ];
-    for (const dimension of ["regionCode","sectorCode","sizeBand"] as const) {
+    for (const dimension of ["regionCode","prefectureCode","sectorCode","sizeBand"] as const) {
       const groups=new Map<string,Measure["observations"]>();
       for (const observation of measure.observations) {
         const value=observation.person[dimension];
