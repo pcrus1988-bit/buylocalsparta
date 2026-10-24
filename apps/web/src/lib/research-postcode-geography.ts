@@ -67,3 +67,36 @@ export function resolveResearchAdministrativeGeography(
     source:regionCode?"legacy_prefecture":"unresolved"
   };
 }
+
+/** Counts only, grouped on the server. Postal codes are consumed but never
+ * included in the output. Unresolved region totals remain explicit.
+ */
+export function summarizeResearchPostcodeCells(rows:readonly Readonly<{
+  postcode:string;prefecture:string;respondents:number;answered:number;selected:number;
+}>[]) {
+  const regions=new Map(GREECE_REGIONS.map(r=>[r.key,{
+    key:r.key,label:r.label,respondents:0,answered:0,selected:0
+  }]));
+  const prefectures=new Map<string,{name:string;region:GreekRegionKey|null;respondents:number;answered:number;selected:number}>();
+  let unresolved=0;
+  for(const row of rows){
+    const resolved=resolveResearchAdministrativeGeography(row.postcode,row.prefecture);
+    const key=resolved.regionCode;
+    if(!key){unresolved+=row.respondents;continue;}
+    const current=regions.get(key)!;
+    current.respondents+=row.respondents;
+    current.answered+=row.answered;
+    current.selected+=row.selected;
+    if(resolved.prefectureCode){
+      const name=resolved.prefectureLabel;
+      const previous=prefectures.get(resolved.prefectureCode)??{
+        name,region:key,respondents:0,answered:0,selected:0
+      };
+      previous.respondents+=row.respondents;
+      previous.answered+=row.answered;
+      previous.selected+=row.selected;
+      prefectures.set(resolved.prefectureCode,previous);
+    }
+  }
+  return {regions:[...regions.values()],prefectures:[...prefectures.values()],unresolved};
+}
