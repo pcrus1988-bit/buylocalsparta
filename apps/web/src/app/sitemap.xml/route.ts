@@ -6,11 +6,11 @@ export const dynamic = "force-dynamic";
 
 function escapeXml(value: string): string {
   return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
+    .replaceAll("&", "&")
+    .replaceAll("<", "<")
+    .replaceAll(">", ">")
+    .replaceAll('"', """)
+    .replaceAll("'", "'");
 }
 
 export async function GET(): Promise<Response> {
@@ -36,10 +36,20 @@ export async function GET(): Promise<Response> {
       ]
     : [];
 
+  // lastmod helps Google treat the index as actively maintained. Child sitemaps
+  // already carry their own lastmod where available; this is a lightweight signal
+  // for the index document itself.
+  const lastmod = new Date().toISOString();
+
   const body = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    ...sitemapUrls.map((url) => `  <sitemap><loc>${escapeXml(url)}</loc></sitemap>`),
+    ...sitemapUrls.map((url) => [
+      "  <sitemap>",
+      `    <loc>${escapeXml(url)}</loc>`,
+      `    <lastmod>${lastmod}</lastmod>`,
+      "  </sitemap>"
+    ].join("\n")),
     "</sitemapindex>"
   ].join("\n");
 
