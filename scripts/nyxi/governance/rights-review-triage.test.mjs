@@ -473,3 +473,23 @@ test('private-network policy URLs are held for independent review',()=>{
   const x=make();x.approvals[0].rights_policy_url='https://127.0.0.1/rights';
   assert.ok(buildRightsReviewQueue(x).entries[0].blockers.includes('missing_or_invalid_policy_url'));
 });
+
+test('explicit blank source keys cannot evade registration deduplication', () => {
+  for (const key of ['', '  ', '\t\n']) {
+    const x=make();
+    x.sources[0].source_key=key;
+    assert.throws(()=>buildRightsReviewQueue(x),/invalid_source_key/);
+  }
+});
+test('non-string source keys fail closed rather than becoming anonymous aliases', () => {
+  for (const key of [null, 0, {}, ['source-a']]) {
+    const x=make();
+    x.sources[0].source_key=key;
+    assert.throws(()=>buildRightsReviewQueue(x),/invalid_source_key/);
+  }
+});
+test('legacy omitted keys remain compatible but never grant rights', () => {
+  const q=buildRightsReviewQueue(make());
+  assert.equal(q.publication_authorized,false);
+  assert.equal(q.approval_count,1);
+});
