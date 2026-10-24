@@ -63,7 +63,8 @@ export function mapTigerTransition(raw:RawEvent,observedAt:string):TigerLiveEven
   const result:TigerLiveEvent={id:"autopilot:"+raw.seq,schemaVersion:1,cursor:raw.seq,
     occurredAt:raw.at,receivedAt:observedAt,eventType,severity,summary,
     taskId:raw.task_id,engineId:raw.task_id.slice(5,8)};
-  if(role(raw.owner))result.agentId=raw.owner;
+  const attributedRole=typeof raw.owner==="string" ? raw.owner.match(/^(A(?:0[0-9]|10))(?::[A-Za-z0-9_.-]{1,100})?$/)?.[1] : undefined;
+  if(role(attributedRole))result.agentId=attributedRole;
   const url=githubEvidence(raw.evidence?.pr_url)||githubEvidence(raw.evidence?.ci_url);
   if(url)result.evidenceUrl=url;
   return result;
