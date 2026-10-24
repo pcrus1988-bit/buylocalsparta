@@ -41,10 +41,13 @@ function shuffle<T>(items:readonly T[]):T[]{
  return result;
 }
 const fmt=(value:number)=>value.toLocaleString("el-GR");
+const EMPTY_CATEGORIES:readonly PublishedVoiceCategory[]=[];
+const EMPTY_QUOTES:readonly PublishedVoice[]=[];
+const EMPTY_GEOGRAPHY:readonly PublishedVoiceGeography[]=[];
 export function ResearchVoiceOfGreece({isDemo,data}:{isDemo:boolean;data?:PublicVoices}){
  const dataset=isDemo?DEMO:data;
- const categories=dataset?.categories??[];
- const eligible=useMemo(()=>dataset?.quotes.filter(q=>q.text.trim().length>0&&categories.some(c=>c.key===q.category))??[],[dataset,categories]);
+ const categories=dataset?.categories??EMPTY_CATEGORIES;
+ const eligible=useMemo(()=>dataset?.quotes.filter(q=>q.text.trim().length>0&&categories.some(c=>c.key===q.category))??EMPTY_QUOTES,[dataset,categories]);
  const [playing,setPlaying]=useState(true);
  const [index,setIndex]=useState(0);
  const [round,setRound]=useState(0);
@@ -58,7 +61,7 @@ export function ResearchVoiceOfGreece({isDemo,data}:{isDemo:boolean;data?:Public
  },[playing,index,order]);
  const revealed=order.slice(0,index).filter(v=>!filter||v.category===filter);
  const shownCategories=categories.filter(c=>!filter||c.key===filter);
- const geo=dataset?.geography.filter(g=>g.eligibleN>=30&&g.count>=30&&(!filter||g.category===filter))??[];
+ const geo=(dataset?.geography??EMPTY_GEOGRAPHY).filter(g=>g.eligibleN>=30&&g.count>=30&&(!filter||g.category===filter));
  return <section className={styles.voicePage} aria-label="Η φωνή της Ελλάδας">
   <div className={styles.voiceHeader}>
    <div><span className={styles.eyebrow}>Q18 · ΠΟΙΟΤΙΚΗ ΑΝΑΛΥΣΗ</span><h3>Η φωνή της Ελλάδας</h3>
