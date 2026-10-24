@@ -2,6 +2,7 @@ import postcodePoints from "../../public/research/greece-postcode-points.json";
 import sharp from "sharp";
 import { participationHeatField } from "./research-participation-density";
 import { summarizeResearchPostcodeCells } from "./research-postcode-geography";
+import { GREECE_PREFECTURES } from "./research-prefectures";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -56,7 +57,7 @@ export type PublicResearchStudySummary = Readonly<{
   delivered: number;
   opened: number;
   started: number;
-  participationGeography?: Readonly<{ regions: readonly Readonly<{ key: string; label: string; started: number }>[]; unresolved: number; densityImage?: string; densityMapped?: number; postcodeUnmatched?: number }>;
+  participationGeography?: Readonly<{ regions: readonly Readonly<{ key: string; label: string; started: number }>[]; prefectures?:readonly Readonly<{key:string;label:string;started:number}>[]; unresolved: number; densityImage?: string; densityMapped?: number; postcodeUnmatched?: number }>;
   completed: number;
   /** Completed following an explicit participant Submit action. */
   participantConfirmed?: number;
@@ -239,6 +240,11 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
           .png().toBuffer();
         geographyByWave.set(key, {
           regions: mapped.regions.map(region => ({ key: region.key, label: region.label, started: region.respondents })),
+          // A public county count is transmitted only at n>=30.
+          prefectures: mapped.prefectures.filter(item=>item.respondents>=30).map(item=>({
+            key: GREECE_PREFECTURES.find(p=>p.label===item.name)?.key??"",
+            label:item.name,started:item.respondents
+          })).filter(item=>item.key),
           unresolved: mapped.unresolved,
           densityImage: "data:image/png;base64," + image.toString("base64"), densityMapped: local.mapped, postcodeUnmatched: local.unmatched
         });
