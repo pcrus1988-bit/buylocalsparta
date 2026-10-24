@@ -5,6 +5,7 @@ export type ResearchSurveyAdminSection =
   | "settings"
   | "questions"
   | "evaluation"
+  | "analytics"
   | "barometer"
   | "free-text"
   | "behaviour"
@@ -37,6 +38,7 @@ export const RESEARCH_SURVEY_ADMIN_SECTIONS: ReadonlyArray<Readonly<{
   { key: "settings", label: "Survey settings", description: "Title, population, methodology, language, deadline and public results destination.", group: "design" },
   { key: "questions", label: "Questions", description: "Questionnaire structure, wording, answer options, order and analysis keys.", group: "design" },
   { key: "evaluation", label: "Evaluation & analysis", description: "Preregistered evaluation plus versioned later exploratory analyses.", group: "design" },
+  { key: "analytics", label: "Analytical Engine", description: "Private randomized marketplace-choice explorer with QA and official-analysis readiness.", group: "design" },
   { key: "barometer", label: "Live Barometer", description: "Live, unweighted provisional indices, response trends and question distributions; drafts and completed submissions stay separate.", group: "design" },
   { key: "free-text", label: "Free-text themes", description: "Explore every non-withdrawn free-text response, grouped by topics with keyword, status, and question filters.", group: "design" },
   { key: "behaviour", label: "Participant Behaviour Analytics", description: "Daily and hourly questionnaire starts, completion duration and submission/backfill timeline.", group: "design" },
