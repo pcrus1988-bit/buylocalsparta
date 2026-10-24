@@ -61,7 +61,7 @@ export default async function GreekRetailResultsPage() {
         <div className={previewStyles.status}>Τα τελικά αποτελέσματα δεν έχουν δημοσιευθεί ακόμη</div>
         <div className={styles.meta}>
           <Link href="/research/greek-retail-2026">← Επισκόπηση και πρόοδος της έρευνας</Link>
-          <Link href="/research/greek-retail-2026/methodology">Μεθοδολογία</Link>
+          <Link href="/research/greek-retail-2026/methodology">Μεθοδολογία</Link><a href="#research-workbench">Εργαλεία, γραφήματα & χάρτης ↓</a>
         </div>
       </header>
 
