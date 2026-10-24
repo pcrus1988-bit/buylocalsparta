@@ -28,7 +28,7 @@ export async function GET(request:Request){
         if(closed)return;
         try{
           const snapshot=await getTigerLiveSnapshot();
-          const fingerprint=JSON.stringify([snapshot.source,snapshot.cursor,snapshot.events.map(e=>e.id),snapshot.activeWorkers,snapshot.blockedTasks,snapshot.ciHealth]);
+          const fingerprint=JSON.stringify([snapshot.source,snapshot.cursor,snapshot.events.map(e=>e.id),snapshot.activeWorkers,snapshot.runningTasks,snapshot.blockedTasks,snapshot.ciHealth,snapshot.achievements.map(a=>a.id),snapshot.engines.map(e=>[e.id,e.status,e.taskId]),snapshot.message]);
           if(fingerprint!==last){
             controller.enqueue(encoder.encode("event: snapshot\ndata: "+JSON.stringify(snapshot)+"\n\n"));
             last=fingerprint;
