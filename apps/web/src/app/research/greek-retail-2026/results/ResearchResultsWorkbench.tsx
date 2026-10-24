@@ -33,7 +33,7 @@ const pct=(v:number)=>new Intl.NumberFormat("el-GR",{maximumFractionDigits:1}).f
 const matches=(p:SafePublicResultPoint,dimension:GroupBy,level:string)=>
  dimension==="overall"?Object.keys(p.segment).length===0:
  Object.keys(p.segment).length===1&&typeof p.segment[dimension]==="string"&&(!level||p.segment[dimension]===level);
-function csvValue(s:string){return '"'+s.replaceAll('"','""').replace(/^[=+@-]/,"'\$&")+'"';}
+function csvValue(s:string){const safe=/^[=+@\\-\\t\\r]/.test(s)?"'"+s:s;return '"'+safe.replaceAll('"','""')+'"';}
 
 export function ResearchResultsWorkbench({
  mode,points:publishedPoints=[],geography
