@@ -5,6 +5,8 @@
  */
 import "server-only";
 import {latestWorkflowOutcomes,verifiedContractRun} from "./tiger-live-evidence";
+import {inspectTaskAllocations} from "./tiger-live-claims";
+import type {TigerTaskAllocation} from "./tiger-live-claims";
 
 export type TigerSourceState = "LIVE" | "STALE" | "DISCONNECTED" | "NOT CONFIGURED" | "NO ACTIVITY";
 export type TigerLiveEvent = {
@@ -16,10 +18,11 @@ export type TigerLiveEvent = {
 export type TigerWorker = { id:string; name:string; status:"offline"|"idle"|"working"|"blocked"; taskId?:string; engineId?:string; heartbeatAt?:string };
 export type TigerEngine = { id:string; name:string; status:string; taskId?:string; issueUrl?:string };
 export type TigerIssue = { id:string; title:string; severity:"warning"|"critical"; engineId?:string; taskId?:string; evidenceUrl?:string; owner?:string };
+export type TigerAllocation = TigerTaskAllocation & {evidenceUrl:string};
 export type TigerSnapshot = {
   schemaVersion:1; source:TigerSourceState; observedAt:string|null; lastVerifiedUpdate:string|null;
   message:string; cursor:number; agents:TigerWorker[]; engines:TigerEngine[];
-  events:TigerLiveEvent[]; issues:TigerIssue[];
+  events:TigerLiveEvent[]; issues:TigerIssue[]; allocations:TigerAllocation[];
   achievements:{id:string;title:string;evidenceUrl:string}[];
   activeWorkers:number; runningTasks:number; blockedTasks:number;
   ciHealth:"passing"|"failing"|"running"|"unknown";
@@ -27,7 +30,6 @@ export type TigerSnapshot = {
 };
 const REPO = "pcrus1988-bit/Tiger-2-0";
 const API = "https://api.github.com/repos/" + REPO;
-const AUTO_BRANCH = "agent/tiger-autopilot-foundation-20261024";
 const STATE_BRANCH = "autopilot-runtime-state";
 const AGENT_NAMES = ["Chief Orchestrator","Architecture","Engineering","Integration","QA","Security","Database","DevOps","Independent Review","Documentation","Systems Intelligence"];
 const ENGINE_NAMES = ["Identity & Accounts","Provider & Business","Universal Catalogue","Search & Intent","Geography & Eligibility","Inventory & Availability","Booking & Scheduling","Pricing & Quotations","Orders & Contracts","Payments & Settlement","FISCAL","Fulfillment & Dispatch","Communications","Aftercare","Workflow Orchestrator","Integration Gateway","Trust & Reputation","Subscriptions & Entitlements","Governance & Compliance","Analytics & Intelligence"];
@@ -38,7 +40,7 @@ function githubEvidence(value:unknown):string|undefined {
   try{
     const url=new URL(value);
     return url.protocol==="https:" && url.hostname==="github.com" &&
-      new RegExp("^/pcrus1988-bit/Tiger-2-0/(pull/[0-9]+|issues/[0-9]+|actions/runs/[0-9]+)$").test(url.pathname)
+      new RegExp("^/pcrus1988-bit/Tiger-2-0/(pull/[0-9]+|issues/[0-9]+|actions/runs/[0-9]+|blob/autopilot-runtime-state/runtime/claims/AUTO-E(?:0[1-9]|1[0-9]|20)-[0-9]{2}\\.json)$").test(url.pathname)
       && !url.search && !url.hash ? url.href : undefined;
   }catch{return undefined;}
 }
@@ -70,12 +72,13 @@ export function mapTigerTransition(raw:RawEvent,observedAt:string):TigerLiveEven
   if(url)result.evidenceUrl=url;
   return result;
 }
-async function github(path:string,token:string):Promise<unknown>{
+async function github(path:string,token:string,optional=false):Promise<unknown>{
   const response=await fetch(API+path,{headers:{
     authorization:"Bearer "+token,
     accept:"application/vnd.github+json",
     "x-github-api-version":"2022-11-28"
   },cache:"no-store",signal:AbortSignal.timeout(8000)});
+  if(optional&&response.status===404)return null;
   if(!response.ok)throw new Error("TIGER_GITHUB_HTTP_"+response.status);
   return response.json();
 }
@@ -91,23 +94,65 @@ async function eventFile(token:string):Promise<RawEvent[]> {
   const content=Buffer.from((response.content||"").replace(/\s/g,""),"base64").toString("utf8");
   return content.split("\n").filter(Boolean).slice(-150).map(line=>JSON.parse(line) as RawEvent);
 }
+async function claimFiles(token:string):Promise<ReadonlyArray<{filename:string;content:unknown}>>{
+  // Absence of the directory on the untouched revision-0 state branch is
+  // legitimate; all other GitHub read errors fail closed.
+  const files=await github("/contents/runtime/claims?ref="+STATE_BRANCH,token,true);
+  if(files===null)return [];
+  if(!Array.isArray(files)||files.length>25)throw new Error("TIGER_CLAIM_DIRECTORY_INVALID");
+  const names=files.filter((f:unknown)=>{
+    const e=f as {name?:string;type?:string;size?:number};
+    return e?.name!==".gitkeep";
+  }) as {name?:string;type?:string;size?:number}[];
+  if(names.length>20||names.some(f=>f.type!=="file"||
+      !/^AUTO-E(?:0[1-9]|1[0-9]|20)-[0-9]{2}\.json$/.test(f.name||"")||
+      !Number.isSafeInteger(f.size)||f.size!>4096))throw new Error("TIGER_CLAIM_DIRECTORY_INVALID");
+  return Promise.all(names.map(async f=>{
+    const name=f.name!;
+    return {filename:name,content:await jsonFile("runtime/claims/"+name,STATE_BRANCH,token)};
+  }));
+}
 function blank(source:TigerSourceState,message:string):TigerSnapshot {
   return {schemaVersion:1,source,observedAt:null,lastVerifiedUpdate:null,message,cursor:0,
     agents:AGENT_NAMES.map((name,i)=>({id:"A"+String(i).padStart(2,"0"),name,status:"offline"})),
     engines:ENGINE_NAMES.map((name,i)=>({id:"E"+String(i+1).padStart(2,"0"),name,status:"unknown"})),
-    events:[],issues:[],achievements:[],activeWorkers:0,runningTasks:0,blockedTasks:0,
+    events:[],issues:[],allocations:[],achievements:[],activeWorkers:0,runningTasks:0,blockedTasks:0,
     ciHealth:"unknown",budgetStatus:"unavailable",verifiedPullRequests:0};
 }
 function dateOf(input:unknown):string|null{
   if(typeof input!=="string"||!Number.isFinite(Date.parse(input)))return null;
   return new Date(input).toISOString();
 }
-function snapshotFromSources(state:RawState,transitions:RawEvent[],runs:unknown,prs:unknown):TigerSnapshot {
+function snapshotFromSources(state:RawState,transitions:RawEvent[],runs:unknown,prs:unknown,claims:ReadonlyArray<{filename:string;content:unknown}>):TigerSnapshot {
   const now=Date.now(), observedAt=new Date(now).toISOString(), view=blank("NO ACTIVITY","Source reachable; no verified active logical agents.");
   view.observedAt=observedAt;
   if(state.schema_version!==1||!Number.isSafeInteger(state.revision)||!state.tasks)throw new Error("TIGER_STATE_SCHEMA_MISMATCH");
   view.cursor=state.revision||0;
   const allTasks=Object.entries(state.tasks);
+  view.allocations=inspectTaskAllocations(claims,now).map(claim=>{
+    if(state.tasks?.[claim.taskId]?.engine!==claim.engineId||
+        state.tasks?.[claim.taskId]?.status==="blocked")
+      throw new Error("TIGER_CLAIM_NOT_ELIGIBLE");
+    const evidenceUrl=githubEvidence("https://github.com/"+REPO+
+      "/blob/"+STATE_BRANCH+"/runtime/claims/"+claim.taskId+".json");
+    if(!evidenceUrl)throw new Error("TIGER_CLAIM_EVIDENCE_INVALID");
+    return {...claim,evidenceUrl};
+  });
+  const claimEvents:TigerLiveEvent[]=view.allocations.map(claim=>({
+    id:"allocation:"+claim.taskId+":"+claim.status,schemaVersion:1,cursor:0,
+    occurredAt:claim.status==="expired"?claim.expiresAt:claim.createdAt,
+    receivedAt:observedAt,eventType:claim.status==="expired"?"task.allocation.expired":"task.allocation.recorded",
+    severity:claim.status==="expired"?"warning":"info",
+    summary:claim.status==="expired"?
+      "Recorded task allocation expired; reconciliation required":
+      "Task allocation recorded; worker execution not independently verified",
+    engineId:claim.engineId,taskId:claim.taskId,evidenceUrl:claim.evidenceUrl
+  }));
+  for(const claim of view.allocations.filter(c=>c.status==="expired")){
+    view.issues.push({id:"expired-allocation:"+claim.taskId,
+      title:"Expired task allocation needs reconciliation",severity:"warning",
+      taskId:claim.taskId,engineId:claim.engineId,evidenceUrl:claim.evidenceUrl});
+  }
   view.engines=view.engines.map(e=>{
     const match=allTasks.find(([,task])=>task.engine===e.id);
     return {...e,status:match?.[1].status||"unknown",taskId:match?.[0],
@@ -176,7 +221,7 @@ function snapshotFromSources(state:RawState,transitions:RawEvent[],runs:unknown,
       ...(engine(relatedEngine)?{engineId:relatedEngine}:{})}];
   });
   view.verifiedPullRequests=prEvents.length;
-  view.events=[...recorded,...ciEvents,...prEvents]
+  view.events=[...recorded,...claimEvents,...ciEvents,...prEvents]
     .sort((a,b)=>Date.parse(b.occurredAt)-Date.parse(a.occurredAt)||a.id.localeCompare(b.id)).slice(0,120);
   view.blockedTasks=view.issues.filter(i=>i.id.startsWith("task:")).length;
   view.lastVerifiedUpdate=view.events[0]?.occurredAt||dateOf((state.last_event as {at?:string}|null)?.at);
@@ -198,13 +243,14 @@ export async function getTigerLiveSnapshot():Promise<TigerSnapshot>{
   if(memo.promise)return memo.promise;
   memo.promise=(async()=>{
     try{
-      const [state,events,runs,prs]=await Promise.all([
+      const [state,events,runs,prs,claims]=await Promise.all([
         jsonFile("runtime/state.json",STATE_BRANCH,token) as Promise<RawState>,
         eventFile(token),
         github("/actions/runs?per_page=35",token),
-        github("/pulls?state=all&per_page=60",token)
+        github("/pulls?state=all&per_page=60",token),
+        claimFiles(token)
       ]);
-      return snapshotFromSources(state,events,runs,prs);
+      return snapshotFromSources(state,events,runs,prs,claims);
     }catch{
       return blank("DISCONNECTED","TIGER evidence is unavailable or a source contract is invalid. No operational state is inferred.");
     }
