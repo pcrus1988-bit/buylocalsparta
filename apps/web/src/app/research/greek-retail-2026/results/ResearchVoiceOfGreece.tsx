@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./ResultsWorkbench.module.css";
 
 /** Public-only, explicitly cleared Q18 editorial output.
@@ -44,7 +44,7 @@ const fmt=(value:number)=>value.toLocaleString("el-GR");
 const EMPTY_CATEGORIES:readonly PublishedVoiceCategory[]=[];
 const EMPTY_QUOTES:readonly PublishedVoice[]=[];
 const EMPTY_GEOGRAPHY:readonly PublishedVoiceGeography[]=[];
-export function ResearchVoiceOfGreece({isDemo,data}:{isDemo:boolean;data?:PublicVoices}){
+export function ResearchVoiceOfGreece({isDemo,data,isLivePreview=false}:{isDemo:boolean;data?:PublicVoices;isLivePreview?:boolean}){
  const dataset=isDemo?DEMO:data;
  const categories=dataset?.categories??EMPTY_CATEGORIES;
  const eligible=useMemo(()=>dataset?.quotes.filter(q=>q.text.trim().length>0&&categories.some(c=>c.key===q.category))??EMPTY_QUOTES,[dataset,categories]);
@@ -53,7 +53,26 @@ export function ResearchVoiceOfGreece({isDemo,data}:{isDemo:boolean;data?:Public
  const [round,setRound]=useState(0);
  const [filter,setFilter]=useState("");
  const [order,setOrder]=useState<PublishedVoice[]>([]);
- useEffect(()=>{setOrder(shuffle(eligible));setIndex(0);},[eligible,round]);
+ const previousRound=useRef(round);
+ useEffect(()=>{
+   // Preserve already-revealed quotes across 60-second data refreshes.
+   // New valid Q18 answers are shuffled into the unrevealed tail.
+   const restarted=previousRound.current!==round;
+   previousRound.current=round;
+   setOrder(before=>{
+     if(restarted || before.length===0) return shuffle(eligible);
+     const latest=new Map(eligible.map(quote=>[quote.id,quote] as const));
+     const retained=before.flatMap(quote=>{
+       const current=latest.get(quote.id);
+       return current?[current]:[];
+     });
+     const seen=new Set(retained.map(q=>q.id));
+     const added=eligible.filter(quote=>!seen.has(quote.id));
+     return added.length===0 && retained.length===before.length
+       ? retained : [...retained,...shuffle(added)];
+   });
+ },[eligible,round]);
+ useEffect(()=>{setIndex(value=>Math.min(value,order.length));},[order.length]);
  useEffect(()=>{
   if(!playing||order.length===0||index>=order.length)return;
   const handle=window.setTimeout(()=>setIndex(n=>Math.min(n+1,order.length)),950);
@@ -65,20 +84,20 @@ export function ResearchVoiceOfGreece({isDemo,data}:{isDemo:boolean;data?:Public
  return <section className={styles.voicePage} aria-label="Η φωνή της Ελλάδας">
   <div className={styles.voiceHeader}>
    <div><span className={styles.eyebrow}>Q18 · ΠΟΙΟΤΙΚΗ ΑΝΑΛΥΣΗ</span><h3>Η φωνή της Ελλάδας</h3>
-    <p>Οι λέξεις αποκτούν χώρο. Κάθε θεματική γεμίζει καθώς εμφανίζονται, μία προς μία, οι εγκεκριμένες και ανωνυμοποιημένες ελεύθερες απαντήσεις.</p>
+    <p>{isLivePreview?"Οι πραγματικές απαντήσεις Q18 εμφανίζονται μία προς μία, με τυχαία σειρά, στις θεματικές κατηγορίες που χρησιμοποιούνται ήδη στη διαχείριση. Πρόκειται για περιορισμένη εσωτερική προεπισκόπηση, όχι για εγκεκριμένα δημόσια αποσπάσματα.":"Οι λέξεις αποκτούν χώρο. Κάθε θεματική γεμίζει καθώς εμφανίζονται, μία προς μία, οι εγκεκριμένες και ανωνυμοποιημένες ελεύθερες απαντήσεις."}</p>
    </div>
    <div className={styles.voiceActions}>
     <button type="button" onClick={()=>setPlaying(v=>!v)} disabled={order.length===0}>{playing?"Παύση":"Αναπαραγωγή"}</button>
-    <button type="button" onClick={()=>{setRound(r=>r+1);setPlaying(true);}} disabled={order.length===0}>Νέα τυχαία σειρά ↻</button>
+    <button type="button" onClick={()=>{setIndex(0);setRound(r=>r+1);setPlaying(true);}} disabled={order.length===0}>Νέα τυχαία σειρά ↻</button>
    </div>
   </div>
   {isDemo&&<p className={styles.warning}>DEMO: Όλα τα εμφανιζόμενα κείμενα και πλήθη είναι αποκλειστικά κατασκευασμένα παραδείγματα. Καμία πραγματική απάντηση Q18 δεν φορτώνεται.</p>}
   <div className={styles.voiceControls}><label>Θεματική ενότητα
     <select value={filter} onChange={e=>setFilter(e.target.value)}><option value="">Όλες οι θεματικές</option>{categories.map(c=><option key={c.key} value={c.key}>{c.label}</option>)}</select>
-   </label><span aria-live="polite">{fmt(index)} / {fmt(order.length)} εγκεκριμένα αποσπάσματα που εμφανίστηκαν</span></div>
+   </label><span aria-live="polite">{fmt(index)} / {fmt(order.length)} {isLivePreview?"θεματικές εμφανίσεις από πραγματικές Q18 απαντήσεις":"εγκεκριμένα αποσπάσματα που εμφανίστηκαν"}</span></div>
   {!dataset||categories.length===0?<div className={styles.voiceUnavailable} role="status">
-    <strong>Αναμένεται η ελεγμένη ανώνυμη έκδοση της Q18.</strong>
-    <p>Οι κατηγορίες και τα αποσπάσματα ενεργοποιούνται μόνο μετά από έλεγχο επιλεξιμότητας, συναίνεσης όπου απαιτείται, ανωνυμοποίησης και έγκρισης δημοσίευσης. Δεν εμφανίζουμε τις ιδιωτικές απαντήσεις της διαχείρισης.</p>
+    <strong>{isLivePreview?"Δεν υπάρχουν διαθέσιμα επιλέξιμα κείμενα για την εσωτερική προεπισκόπηση.":"Αναμένεται η ελεγμένη ανώνυμη έκδοση της Q18."}</strong>
+    <p>{isLivePreview?"Η εσωτερική προβολή απαιτεί τον ίδιο περιορισμένο ρόλο που έχει πρόσβαση στις ακατέργαστες ελεύθερες απαντήσεις. Ανεπαρκείς ή μη διαθέσιμες εγγραφές δεν αντικαθίστανται με δεδομένα επίδειξης.":"Οι κατηγορίες και τα αποσπάσματα ενεργοποιούνται μόνο μετά από έλεγχο επιλεξιμότητας, συναίνεσης όπου απαιτείται, ανωνυμοποίησης και έγκρισης δημοσίευσης. Δεν εμφανίζουμε τις ιδιωτικές απαντήσεις της διαχείρισης."}</p>
    </div>:
    <div className={styles.voiceWall}>
     {shownCategories.map((cat,i)=><article key={cat.key} className={styles.voiceBucket}>
@@ -92,6 +111,6 @@ export function ResearchVoiceOfGreece({isDemo,data}:{isDemo:boolean;data?:Public
   {geo.length>0&&<div className={styles.voiceGeography}><h4>Θεματικές ανά νομό · μόνο συγκεντρωτικά στοιχεία</h4>
    <div className={styles.voiceGeoGrid}>{geo.map((g,i)=><div key={i}><strong>{g.area}</strong><span>{categories.find(c=>c.key===g.category)?.label??g.category}</span><b>{fmt(g.count)} αναφορές</b></div>)}</div>
   </div>}
-  <p className={styles.note}>Δεν συνδέουμε ποτέ εμφανιζόμενο απόσπασμα με νομό, κλάδο ή άλλο χαρακτηριστικό επιχείρησης. Οι γεωγραφικοί πίνακες επιτρέπονται μόνο ως ανεξάρτητα εγκεκριμένα συγκεντρωτικά σύνολα, με τουλάχιστον 30 επιλέξιμες απαντήσεις και 30 αναφορές στο εμφανιζόμενο κελί. Το πλήθος αναφορών δεν ισούται υποχρεωτικά με πλήθος συμμετεχόντων.</p>
+  <p className={styles.note}>{isLivePreview?"Τα κείμενα είναι πραγματικές, προσωρινές απαντήσεις που προβάλλονται μόνο σε εξουσιοδοτημένους διαχειριστές. Δεν έχουν λάβει ανθρώπινη έγκριση δημοσίευσης. ":""}Δεν συνδέουμε ποτέ εμφανιζόμενο απόσπασμα με νομό, κλάδο ή άλλο χαρακτηριστικό επιχείρησης. Οι γεωγραφικοί πίνακες επιτρέπονται μόνο ως ανεξάρτητα εγκεκριμένα συγκεντρωτικά σύνολα, με τουλάχιστον 30 επιλέξιμες απαντήσεις και 30 αναφορές στο εμφανιζόμενο κελί. Το πλήθος αναφορών δεν ισούται υποχρεωτικά με πλήθος συμμετεχόντων.</p>
  </section>;
 }

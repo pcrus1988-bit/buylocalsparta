@@ -261,7 +261,12 @@ export function ResearchResultsWorkbench({
     <h3>Heatmap Ελλάδας</h3><p>Εξερευνήστε τη χωρική κάλυψη ή επιλέξτε διαθέσιμους εγκεκριμένους περιφερειακούς δείκτες. Με το ίδιο γεωγραφικό υπόβαθρο της έρευνας.</p></div>
    <ResearchPublicationMap points={points} geography={geography} isDemo={demo}/>
   </section>}
-  {menu==="voices"&&<><div className={styles.voiceOpenLink}><Link href={demo?"/research/greek-retail-2026/results/Preview/voices":"/research/greek-retail-2026/results/voices"}>Άνοιγμα της «Φωνής της Ελλάδας» σε ξεχωριστή πλήρη σελίδα ↗</Link></div><ResearchVoiceOfGreece isDemo={demo} data={voices}/></>}
+  {menu==="voices"&&(mode==="live"
+    ? <section className={styles.voiceOpenLink} aria-label="Η φωνή της Ελλάδας — ζωντανή εσωτερική προεπισκόπηση">
+      <p>Οι πραγματικές απαντήσεις Q18 εμφανίζονται μόνο στη χωριστή, προστατευμένη εσωτερική σελίδα.</p>
+      <Link href="/research/greek-retail-2026/results/Preview/voices">Άνοιγμα ζωντανής «Φωνής της Ελλάδας» ↗</Link>
+     </section>
+    : <><div className={styles.voiceOpenLink}><Link href={demo?"/research/greek-retail-2026/results/Preview/voices":"/research/greek-retail-2026/results/voices"}>Άνοιγμα της «Φωνής της Ελλάδας» σε ξεχωριστή πλήρη σελίδα ↗</Link></div><ResearchVoiceOfGreece isDemo={demo} data={voices}/></>)}
   <footer className={styles.scientificFooter}>
    Η τελική έκδοση προβάλλει μόνο ελεγμένες συγκεντρωτικές εκτιμήσεις (ελάχιστο n 30).
    {mode==="live"?" Αυτή η εσωτερική προεπισκόπηση χρησιμοποιεί πραγματικές απαντήσεις, χωρίς τελική στάθμιση ή επιστημονικά διαστήματα εμπιστοσύνης.":" Η πιλοτική προεπισκόπηση χρησιμοποιεί αποκλειστικά κατασκευασμένα παραδείγματα."}
