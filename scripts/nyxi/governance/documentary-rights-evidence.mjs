@@ -1,14 +1,22 @@
 import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
 import { observe } from './attestation-ledger.mjs';
 
 const MAX_POLICY_BYTES = 8 * 1024 * 1024;
 const SHA = /^[0-9a-f]{64}$/;
-const safeHttps = value => {
+const isPublicHttpsMetadata = value => {
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password && !url.hash;
+    const host = url.hostname.toLowerCase().replace(/\.$/, '');
+    // Metadata-only guard: a network worker must ALSO check resolved IPs,
+    // redirects, access terms and DNS rebinding before any actual fetch.
+    return url.protocol === 'https:' && !url.username && !url.password &&
+      !url.hash && host.includes('.') &&
+      !isIP(host.replace(/^\[|\]$/g, '')) &&
+      !['.localhost', '.local', '.localdomain', '.internal'].some(s => host.endsWith(s));
   } catch { return false; }
 };
+const safeHttps = isPublicHttpsMetadata;
 
 /**
  * Metadata-only observation of exact policy-document bytes for INDEPENDENT
