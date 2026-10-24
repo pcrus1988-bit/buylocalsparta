@@ -4,6 +4,7 @@
  * No synthetic worker, message, task, acceptance or achievement state.
  */
 import "server-only";
+import {projectVerifiedPulls} from "./tiger-live-pr-evidence";
 
 export type TigerSourceState = "LIVE" | "STALE" | "DISCONNECTED" | "NOT CONFIGURED" | "NO ACTIVITY";
 export type TigerLiveEvent = {
@@ -157,16 +158,8 @@ function snapshotFromSources(state:RawState,transitions:RawEvent[],runs:unknown,
   for(const e of ciEvents.filter(e=>e.severity==="critical")){
     view.issues.push({id:e.id,title:"GitHub workflow failure",severity:"critical",evidenceUrl:e.evidenceUrl});
   }
-  const pulls=Array.isArray(prs)?prs as {number?:number;created_at?:string;html_url?:string;head?:{ref?:string};merged_at?:string}[]:[];
-  const prEvents:TigerLiveEvent[]=pulls.slice(0,60).flatMap(p=>{
-    const url=githubEvidence(p.html_url),occurredAt=dateOf(p.created_at);
-    if(!url||!occurredAt||!Number.isSafeInteger(p.number))return [];
-    const relatedEngine=p.head?.ref?.match(/(?:^|[-/])(e(?:0[1-9]|1[0-9]|20))(?:[-/]|$)/i)?.[1]?.toUpperCase();
-    return [{id:"gh:pr:"+p.number,schemaVersion:1 as const,cursor:0,occurredAt,receivedAt:observedAt,
-      eventType:"pr.created",severity:"info" as const,
-      summary:"Pull request #"+p.number+" created",evidenceUrl:url,
-      ...(engine(relatedEngine)?{engineId:relatedEngine}:{})}];
-  });
+  const {events:prEvents,achievements:prAchievements}=projectVerifiedPulls(prs,observedAt,githubEvidence);
+  view.achievements=[...view.achievements,...prAchievements].slice(0,8);
   view.verifiedPullRequests=prEvents.length;
   view.events=[...recorded,...ciEvents,...prEvents]
     .sort((a,b)=>Date.parse(b.occurredAt)-Date.parse(a.occurredAt)||a.id.localeCompare(b.id)).slice(0,120);
@@ -190,15 +183,35 @@ export async function getTigerLiveSnapshot():Promise<TigerSnapshot>{
   if(memo.promise)return memo.promise;
   memo.promise=(async()=>{
     try{
-      const [state,events,runs,prs]=await Promise.all([
+      // GitHub Actions, PRs and the AUTOPILOT ledger are independent read-only sources.
+      // A stale/empty ledger must not conceal real, separately verified PR/CI work.
+      const [stateResult,eventsResult,runsResult,prsResult]=await Promise.allSettled([
         jsonFile("runtime/state.json",STATE_BRANCH,token) as Promise<RawState>,
         eventFile(token),
         github("/actions/runs?per_page=35",token),
         github("/pulls?state=all&per_page=60",token)
-      ]);
-      return snapshotFromSources(state,events,runs,prs);
+      ]) as [PromiseSettledResult<RawState>,PromiseSettledResult<RawEvent[]>,
+        PromiseSettledResult<unknown>,PromiseSettledResult<unknown>];
+      if(stateResult.status==="rejected"&&runsResult.status==="rejected"&&prsResult.status==="rejected")
+        return blank("DISCONNECTED","GitHub evidence could not be verified. Check the private repository token and its read scopes.");
+      const complete=[stateResult,eventsResult,runsResult,prsResult].every(result=>result.status==="fulfilled");
+      const state=stateResult.status==="fulfilled"?stateResult.value:{schema_version:1,revision:0,tasks:{}};
+      const events=eventsResult.status==="fulfilled"?eventsResult.value:[];
+      const runs=runsResult.status==="fulfilled"?runsResult.value:{workflow_runs:[]};
+      const prs=prsResult.status==="fulfilled"?prsResult.value:[];
+      const view=snapshotFromSources(state,events,runs,prs);
+      if(!complete){
+        // Do not present a lease as a confirmed active AI worker if its evidence
+        // sources are incomplete. PR/CI records remain visible with their URLs.
+        view.source="STALE";
+        view.message="Partial GitHub evidence available. Worker status is unverified; inspect the source permissions and runtime ledger.";
+        view.agents=view.agents.map(agent=>({id:agent.id,name:agent.name,status:"offline"}));
+        view.activeWorkers=0;
+        view.runningTasks=0;
+      }
+      return view;
     }catch{
-      return blank("DISCONNECTED","TIGER evidence is unavailable or a source contract is invalid. No operational state is inferred.");
+      return blank("DISCONNECTED","TIGER source data failed validation. No worker activity is inferred.");
     }
   })();
   try{memo.value=await memo.promise;memo.at=Date.now();return memo.value;}
