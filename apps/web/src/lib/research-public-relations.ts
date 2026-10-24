@@ -151,7 +151,14 @@ export function computeResearchPublicRelations(
         if (result) {positiveB += r.finalWeight; successesB++;}
       }
     }
-    const suppressed = nA < MIN_PUBLIC_RELATION_ARM || nB < MIN_PUBLIC_RELATION_ARM || sumA <= 0 || sumB <= 0;
+    // Protect rare non-zero cells even when the overall group base exceeds 30.
+    // A zero count may be displayed as a zero proportion; a 1–4 person cell
+    // is withheld, including its exact group numerator, share and difference.
+    const rareCell = (n: number) => n > 0 && n < 5;
+    const suppressed = nA < MIN_PUBLIC_RELATION_ARM || nB < MIN_PUBLIC_RELATION_ARM ||
+      sumA <= 0 || sumB <= 0 ||
+      rareCell(successesA) || rareCell(nA-successesA) ||
+      rareCell(successesB) || rareCell(nB-successesB);
     const a = suppressed ? null : positiveA / sumA;
     const b = suppressed ? null : positiveB / sumB;
     return {
