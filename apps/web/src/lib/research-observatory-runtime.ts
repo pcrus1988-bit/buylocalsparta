@@ -1,7 +1,7 @@
 import postcodePoints from "../../public/research/greece-postcode-points.json";
 import sharp from "sharp";
 import { participationHeatField } from "./research-participation-density";
-import { summarizeGreekPrefectures } from "./research-geographic-core";
+import { summarizeResearchPostcodeCells } from "./research-postcode-geography";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -233,7 +233,7 @@ async function queryPublicResearchObservatory(): Promise<PublicResearchObservato
       }
       for (const row of rows.rows) {
         const key = text(row.id) + ":" + text(row.wave_id);
-        const mapped = summarizeGreekPrefectures(grouped.get(key) ?? []);
+        const mapped = summarizeResearchPostcodeCells(grouped.get(key) ?? []);
         const local = participationHeatField(grouped.get(key) ?? [], postcodePoints);
         const image = await sharp(Buffer.from(local.pixels), { raw: { width: local.width, height: local.height, channels: 4 } })
           .png().toBuffer();
