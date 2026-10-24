@@ -25,7 +25,7 @@ test("latest workflow outcome supersedes old failure",()=>{
 test("ongoing retry prevents stale workflow failure from appearing unresolved",()=>{
   const latest=latestWorkflowOutcomes([
     {name:"Build",status:"completed",conclusion:"failure",created_at:"2026-10-24T07:00:00Z"},
-    {name:"Build",status:"in_progress",conclusion:null,created_at:"2026-10-24T09:00:00Z"}
+    {name:"Build",status:"in_progress",conclusion:undefined,created_at:"2026-10-24T09:00:00Z"}
   ]);
   assert.equal(latest.length,1);
   assert.equal(latest[0].status,"in_progress");
