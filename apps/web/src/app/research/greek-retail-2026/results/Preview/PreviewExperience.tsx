@@ -252,6 +252,7 @@ export function ResearchResultsPreviewExperience() {
     </div>
 
     <ResearchResultsWorkbench mode="preview" geography={{
+      nationalStarted:GREECE_REGIONS.reduce((total,_,i)=>total+65+(i*53)%285,0),
       regions:GREECE_REGIONS.map((r,i)=>({key:r.key,label:r.label,started:65+(i*53)%285}))
     }}/>
     
