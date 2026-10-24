@@ -1,6 +1,6 @@
 import type { PublishedResearchEstimate } from "./research-survey-release";
-import { GREECE_REGIONS } from "./research-geographic-core";
-import { PUBLIC_RESULTS_METRICS } from "./research-public-results-sections";
+import { GREECE_REGIONS } from "./research-geographic-core.ts";
+import { PUBLIC_RESULTS_METRICS } from "./research-public-results-sections.ts";
 
 /** Minimal release-derived browser payload. Never ship raw survey answers or
  * suppressed/low-n estimates. One dimension per estimate (no false cross-filter).
