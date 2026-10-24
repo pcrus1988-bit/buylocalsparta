@@ -9,10 +9,10 @@ import { PUBLIC_RESULTS_METRICS, publicMetricLabel } from "./research-public-res
 import type { SafePublicResultPoint,InternalResearchGeographicCoverage } from "./research-public-results-data";
 
 const ALLOWED_METRICS = new Set<string>(PUBLIC_RESULTS_METRICS);
-const MIN_CELL_N = 30;
-// The restricted admin Preview may inspect descriptive single-county
-// aggregates at n>=10. This NEVER lowers thresholds for the public release.
-const MIN_INTERNAL_PREFECTURE_N = 10;
+const MIN_CELL_N = 1;
+// The authenticated research Preview displays descriptive aggregates even for n=1.
+// This does not change public-release privacy/disclosure gates.
+const MIN_INTERNAL_PREFECTURE_N = 1;
 const RESTRICTED = /experiment|exp01|amce|conjoint|randomized_profile|platform_choice/i;
 type Question = { code: string; kind: string; key: string; config: Record<string, unknown> };
 type Participant = { answers: Record<string, unknown>; regionCode: string; prefectureCode: string; sectorCode: string; sizeBand: string };
@@ -95,8 +95,8 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
       sizeBand: typeof answers.Q02 === "string" ? answers.Q02 : ""};
   });
 
-  // Expose only county/region labels and broad suppressed cohort bands.
-  // n<10 remains null, with no answer values, postcode, identity or raw rows.
+  // Expose only county/region labels and exact completed counts from n=1.
+  // No postcode, identity or raw response rows are sent to the browser.
   const countCoverage = (dimension:"regionCode"|"prefectureCode") => {
     const totals=new Map<string,number>();
     for(const person of people) {
