@@ -7,7 +7,8 @@ import { readFileSync } from "node:fs";
 const lookup = JSON.parse(readFileSync(
   new URL("./research-postcode-prefecture-map.json",import.meta.url),"utf8"
 )) as Record<string,readonly [string,string]>;
-const geoSource = readFileSync(new URL("./research-postcode-geography.ts",import.meta.url),"utf8");
+const geoSource = readFileSync(new URL("./research-postcode-geography-core.ts",import.meta.url),"utf8");
+const guardedSource=readFileSync(new URL("./research-postcode-geography.ts",import.meta.url),"utf8");
 const liveSource = readFileSync(new URL("./research-live-preview-data.ts",import.meta.url),"utf8");
 const voicesSource = readFileSync(new URL("./research-live-voices-preview.ts",import.meta.url),"utf8");
 const publishedSource = readFileSync(new URL("./research-survey-analysis.ts",import.meta.url),"utf8");
@@ -21,7 +22,7 @@ test("postcodes resolve to known geographic boundary keys and 13-region IDs",()=
   assert.ok(Object.values(lookup).every(item=>Array.isArray(item)&&item.length===2));
 });
 test("raw postcodes never pass through browser geography projections",()=>{
-  assert.match(geoSource,/import "server-only"/);
+  assert.match(guardedSource,/import "server-only"/);
   assert.match(geoSource,/postcodePrefectures/);
   assert.match(liveSource,/resolveResearchAdministrativeGeography\(row\.postcode,row\.prefecture\)/);
   assert.match(liveSource,/prefectureCode/);
