@@ -87,9 +87,9 @@ export function ResearchPublicationMap({
  internalCoverage?:InternalResearchGeographicCoverage;
 }){
  const [geo,setGeo]=useState<MapData|null>(null);
- const [granularity,setGranularity]=useState<"prefecture"|"region">(isDemo||internalCoverage?"prefecture":"region");
+ const [granularity]=useState<"prefecture"|"region">("prefecture");
  const [failed,setFailed]=useState(false);
- const [mode,setMode]=useState<"answers"|"participation">(internalCoverage?"participation":"answers");
+ const [mode,setMode]=useState<"answers"|"participation">("participation");
  const [questionId,setQuestionId]=useState("Q09");
  const [answerKey,setAnswerKey]=useState("customer_acquisition_sources.share.word_of_mouth");
  const [selected,setSelected]=useState("");
@@ -101,7 +101,7 @@ export function ResearchPublicationMap({
  useEffect(()=>{
   const c=new AbortController();
   setGeo(null);setFailed(false);
-  fetch(granularity==="prefecture"?"/research/greece-prefectures.geojson":"/research/greece-regions.geojson",{signal:c.signal}).then(r=>{
+  fetch("/research/greece-prefectures.geojson",{signal:c.signal}).then(r=>{
    if(!r.ok)throw Error("map unavailable");return r.json();
   }).then((x:MapData)=>{if(x.type!=="FeatureCollection"||!Array.isArray(x.features))throw Error("invalid geography");setGeo(x);})
    .catch((e:Error)=>{if(e.name!=="AbortError")setFailed(true);});
@@ -112,8 +112,8 @@ export function ResearchPublicationMap({
  const selectedKey=hasMetric?answer:"participation";
  const visibleAnswers=mapAnswers(question);
  const sectors=[...new Set(points.flatMap(p=>p.segment.sectorCode?[p.segment.sectorCode]:[]))].sort();
- const hasApprovedCrossSections=points.some(p=>p.segment.sectorCode&&p.segment.regionCode);
- const regionalApproved=new Set(points.filter(p=>typeof p.segment.regionCode==="string").map(p=>p.metricKey));
+ const hasApprovedCrossSections=points.some(p=>p.segment.sectorCode&&p.segment.prefectureCode);
+ const regionalApproved=new Set(points.filter(p=>typeof p.segment.prefectureCode==="string").map(p=>p.metricKey));
  const regionValues=useMemo(()=>{
   const byKey=new Map(internalCoverage?internalCoverage.regions.filter(x=>x.eligibleN!==null).map(x=>[x.key,x.eligibleN!] as const):(geography?.regions.map(x=>[x.key,x.started] as const)??[]));
   const regionPoints=points.filter(p=>p.metricKey===selectedKey&&typeof p.segment.regionCode==="string"&&
@@ -139,8 +139,8 @@ export function ResearchPublicationMap({
     n:selectedKey==="participation"&&!sector?participated.get(prefecture.key):published?.n??(synthetic!==undefined?80:undefined)};
   });
  },[points,selectedKey,isDemo,sector,geography,internalCoverage]);
- const currentValues=granularity==="prefecture"?prefectureValues:regionValues;
- const sampleBands=internalCoverage?(granularity==="prefecture"?internalCoverage.prefectures:internalCoverage.regions):[];
+ const currentValues=prefectureValues;
+ const sampleBands=internalCoverage?.prefectures??[];
  const coverageByKey=new Map(sampleBands.map(item=>[item.key,item] as const));
  const anyQA=sampleBands.filter(x=>x.band!=="none").length;
  const lowQA=sampleBands.filter(x=>x.band==="under10").length;
@@ -148,17 +148,17 @@ export function ResearchPublicationMap({
   const c=coverageByKey.get(key);
   if(!c)return "";
   if(c.band==="under10")return "Συμμετοχή · n<10 · χωρίς αριθμητικά ευρήματα";
-  if(c.band==="10to29")return "Μικρό δείγμα · n="+c.eligibleN+" · ενδεικτικό";
-  if(c.band==="30plus")return "Επαρκέστερο n="+c.eligibleN;
-  return "Χωρίς QA-επιλέξιμη συμμετοχή";
+  if(c.band==="10to29")return "Περιορισμένες απαντήσεις · n="+c.eligibleN+" · ενδεικτικό";
+  if(c.band==="30plus")return "Απαντήσεις n="+c.eligibleN;
+  return "Χωρίς ολοκληρωμένες απαντήσεις";
  };
- const names=granularity==="prefecture"?PREFECTURE_NAMES:regionNames;
+ const names=PREFECTURE_NAMES;
  const available=currentValues.filter(v=>v.value!==undefined&&v.n!==undefined);
  const nationalPoint=hasMetric&&!sector?nationalAnswerEstimate(points,selectedKey):undefined;
  const nationalStarted=internalCoverage?.includedTotal??nationalParticipationTotal(geography);
  const nationalValue=nationalPoint?.value;
- const regionalVisibleStarts=!hasMetric?regionValues.reduce((total,r)=>total+(r.value??0),0):undefined;
- const regionalCoverage=regionValues.filter(r=>r.value!==undefined&&r.n!==undefined).length;
+ const regionalVisibleStarts=!hasMetric?prefectureValues.reduce((total,r)=>total+(r.value??0),0):undefined;
+ const regionalCoverage=prefectureValues.filter(r=>r.value!==undefined&&r.n!==undefined).length;
  const questionPoint=points.find(p=>p.metricKey===selectedKey);
  const isProportion=hasMetric&&questionPoint?.format==="proportion";
  const domain=hasMetric?
@@ -187,10 +187,10 @@ export function ResearchPublicationMap({
  const formatDiff=(value:number|undefined)=>value===undefined?"—":
   (value>0?"+":"")+fmt(value)+(isProportion?" μ.π.":" "+domain.unit);
  const focused=currentValues.find(v=>v.key===selected);
- const density=!internalCoverage&&granularity==="region"&&selectedKey==="participation"&&geography?.densityImage?geography.densityImage:undefined;
+ const density=undefined; // County-level map deliberately never plots fine-grained postcode density.
  return <section aria-label="Διαδραστικός χάρτης Ελλάδας" className={styles.mapPanel}>
   <div className={styles.mapFilters}>
-   <label>Γεωγραφικό επίπεδο<select value={granularity} onChange={e=>{setGranularity(e.target.value as typeof granularity);setSelected("");}}><option value="prefecture">Νομοί (55 ιστορικές ενότητες)</option><option value="region">Περιφέρειες (13)</option></select></label>
+
    <label>Επίπεδο οπτικοποίησης
     <select value={mode} onChange={e=>{setMode(e.target.value as typeof mode);setSelected("");}}>
      <option value="answers">Απαντήσεις και δείκτες</option><option value="participation">Κάλυψη συμμετοχής</option>
@@ -206,7 +206,7 @@ export function ResearchPublicationMap({
    {hasMetric&&<label>2 · Επιλέξτε απάντηση / δείκτη
     <select value={selectedKey} onChange={e=>{setAnswerKey(e.target.value);setSelected("");}}>
      {visibleAnswers.map(item=><option value={item.key} key={item.key}>
-       {item.label}{!regionalApproved.has(item.key)&&!isDemo?" · χωρίς περιφερειακά στοιχεία":""}
+       {item.label}{!regionalApproved.has(item.key)&&!isDemo?" · χωρίς διαθέσιμα στοιχεία ανά νομό":""}
      </option>)}
     </select>
    </label>}
@@ -219,21 +219,21 @@ export function ResearchPublicationMap({
      <option value="name">Αλφαβητικά</option>
     </select>
    </label>
-   <label>Εστίαση σε {granularity==="prefecture"?"Νομό":"Περιφέρεια"}
+   <label>Εστίαση σε Νομό
     <select value={selected} onChange={e=>setSelected(e.target.value)}>
-     <option value="">Όλη η Ελλάδα</option>{(granularity==="prefecture"?GREECE_PREFECTURES:GREECE_REGIONS).map(r=>
+     <option value="">Όλη η Ελλάδα</option>{GREECE_PREFECTURES.map(r=>
        <option value={r.key} key={r.key}>{r.label}</option>)}
     </select>
    </label>
   </div>
   <div aria-live="polite" className={styles.mapQuestionSummary}>
    <div><span className={styles.mapQuestionCode}>{hasMetric?question.id:"ΚΑΛΥΨΗ"}</span>
-    <strong>{hasMetric?question.fullLabel:"Πού ξεκίνησαν τα ερωτηματολόγια;"}</strong>
-    <p>{hasMetric?question.note:internalCoverage?"Κάλυψη QA-επιλέξιμων ολοκληρωμένων απαντήσεων, ομαδοποιημένων ιδιωτικά μέσω Τ.Κ. Δεν πρόκειται για τελικές εκτιμήσεις.":"Η γεωγραφική κάλυψη καταγράφει ενάρξεις, όχι απαντήσεις ή τελικά ευρήματα."}</p>
+    <strong>{hasMetric?question.fullLabel:"Σε ποιους νομούς υποβλήθηκαν οι απαντήσεις;"}</strong>
+    <p>{hasMetric?question.note:internalCoverage?"Κάλυψη όλων των ολοκληρωμένων υποβληθεισών απαντήσεων της κύριας έρευνας ανά νομό, με ιδιωτική αντιστοίχιση Τ.Κ. Δεν πρόκειται για εκτίμηση του πληθυσμού επιχειρήσεων.":"Η γεωγραφική κάλυψη καταγράφει ενάρξεις, όχι απαντήσεις ή τελικά ευρήματα."}</p>
    </div>
    <div className={styles.mapQuestionStats}>
-    <b>{internalCoverage?anyQA:coverage} / {granularity==="prefecture"?GREECE_PREFECTURES.length:13}</b>
-    <span>{internalCoverage?"Με QA-επιλέξιμη συμμετοχή":"Με διαθέσιμη τιμή"}</span>
+    <b>{internalCoverage?anyQA:coverage} / {GREECE_PREFECTURES.length}</b>
+    <span>{internalCoverage?"Με ολοκληρωμένες απαντήσεις":"Με διαθέσιμη τιμή"}</span>
     {internalCoverage&&<small>{coverage} με αριθμητική τιμή · {lowQA} με n&lt;10</small>}
    </div>
   </div>
@@ -242,27 +242,26 @@ export function ResearchPublicationMap({
    <strong>{visibleAnswers.find(x=>x.key===selectedKey)?.label??"Μη διαθέσιμη επιλογή"}</strong>
    <small>{isProportion?"Ποσοστό επιχειρήσεων ανά γεωγραφική ενότητα":"Μέση τιμή ανά γεωγραφική ενότητα · "+domain.unit}</small>
   </div>}
-  <section className={styles.mapNationalOverview} aria-label="Σύνολο Ελλάδας και 13 Περιφέρειες" aria-live="polite">
+  <section className={styles.mapNationalOverview} aria-label="Σύνολο Ελλάδας και 55 νομοί" aria-live="polite">
    <div className={styles.nationalHeadline}>
     <span className={styles.nationalFlag}>ΕΛΛΑΔΑ · ΣΥΝΟΛΟ</span>
     <strong>{nationalDisplay}</strong>
-    <span>{hasMetric?"Πανελλαδική τιμή της επιλεγμένης απάντησης":internalCoverage?"100% των QA-επιλέξιμων απαντήσεων":"100% των καταγεγραμμένων ενάρξεων"}</span>
+    <span>{hasMetric?"Πανελλαδική τιμή της επιλεγμένης απάντησης":internalCoverage?"100% των ολοκληρωμένων απαντήσεων":"100% των καταγεγραμμένων ενάρξεων"}</span>
     <small>{hasMetric?nationalPoint?(internalCoverage?"Προκαταρκτική μη σταθμισμένη εκτίμηση · n=":"Εθνική σταθμισμένη εκτίμηση · n=")+nationalPoint.n.toLocaleString("el-GR"):
      "Δεν υπάρχει εγκεκριμένη πανελλαδική εκτίμηση για αυτή την επιλογή":
-     nationalStarted!==undefined?(internalCoverage?"Επιλέξιμες ολοκληρωμένες: ":"Σύνολο ενάρξεων: ")+nationalStarted.toLocaleString("el-GR"):
+     nationalStarted!==undefined?(internalCoverage?"Σύνολο ολοκληρωμένων: ":"Σύνολο ενάρξεων: ")+nationalStarted.toLocaleString("el-GR"):
       "Μη διαθέσιμη επαληθευμένη εθνική βάση"}</small>
     {hasMetric&&nationalPoint?.ciLower!==null&&nationalPoint?.ciLower!==undefined&&
      nationalPoint.ciUpper!==null&&nationalPoint.ciUpper!==undefined&&
      <small>95% ΔΕ: {legendValue(nationalPoint.ciLower)} – {legendValue(nationalPoint.ciUpper)}</small>}
    </div>
    <div className={styles.nationalDetails}>
-    <span className={styles.nationalTag}>ΔΙΑΣΠΑΣΗ ΑΝΑ ΠΕΡΙΦΕΡΕΙΑ</span>
-    <strong>{regionalCoverage} / 13 Περιφέρειες με {internalCoverage?"διαθέσιμες προκαταρκτικές τιμές":"εγκεκριμένες τιμές"}</strong>
-    <p>{hasMetric?"Κάθε ποσοστό βασίζεται στις απαντήσεις της αντίστοιχης Περιφέρειας, όχι σε μερίδιο του εθνικού συνόλου. Δεν αθροίζονται σε 100%.":
-     nationalCoverageNote(regionalCoverage,regionalVisibleStarts,nationalStarted)}</p>
+    <span className={styles.nationalTag}>ΑΠΑΝΤΗΣΕΙΣ ΑΝΑ ΝΟΜΟ</span>
+    <strong>{internalCoverage?anyQA:regionalCoverage} / 55 νομοί με {internalCoverage?"ολοκληρωμένες απαντήσεις":"διαθέσιμη τιμή"}</strong>
+    <p>{hasMetric?"Κάθε ποσοστό βασίζεται στις ολοκληρωμένες απαντήσεις του αντίστοιχου νομού. Τα ποσοστά των νομών δεν αθροίζονται σε 100%.":"Οι νομοί με λίγες ολοκληρωμένες απαντήσεις εμφανίζονται ως γεωγραφική κάλυψη χωρίς δημοσίευση μικρών κελιών. Η συνολική βάση περιλαμβάνει όλες τις ολοκληρωμένες απαντήσεις."}</p>
     {hasMetric&&nationalValue!==undefined&&<p>{internalCoverage?"Οι συγκρίσεις είναι περιγραφικές και μη σταθμισμένες· δεν αποτελούν στατιστικά τεστ.":"Η σύγκριση γίνεται με την ξεχωριστά σταθμισμένη εθνική εκτίμηση. Δεν αποτελεί από μόνη της έλεγχο στατιστικής σημαντικότητας."}</p>}
     <div className={styles.allRegionsGrid}>
-     {regionValues.map(cell=><div key={cell.key} className={styles.allRegionsRow}>
+     {prefectureValues.map(cell=><div key={cell.key} className={styles.allRegionsRow}>
       <span>{cell.label}</span><strong>{showGeoValue(cell)}</strong>
       {cell.value!==undefined&&hasMetric&&<small>n={cell.n??"—"} · Δ Ελλάδα {formatDiff(nationalDiff(cell.value))}</small>}
       {cell.value!==undefined&&!hasMetric&&<small>{Math.round(cell.value).toLocaleString("el-GR")} {internalCoverage?"QA απαντήσεις":"ενάρξεις"}</small>}
@@ -273,7 +272,7 @@ export function ResearchPublicationMap({
   {isDemo&&<div className={styles.demoStrip}>ΔΕΙΓΜΑ ΠΡΟΕΠΙΣΚΟΠΗΣΗΣ — Δεν απεικονίζονται πραγματικές συμμετοχές ή αποτελέσματα.</div>}
   <div className={styles.mapLayout}>
    <div className={styles.mapCanvas}>
-    <div className={styles.mapToolbar}><strong>{hasMetric?"Περιφερειακή εικόνα · "+question.id:"Πυκνότητα συμμετοχής"}</strong>
+    <div className={styles.mapToolbar}><strong>{hasMetric?"Περιφερειακή εικόνα · "+question.id:"Κατανομή ολοκληρωμένων απαντήσεων"}</strong>
      <label className={styles.mapLabelToggle}><input type="checkbox" checked={showLabels} onChange={e=>setShowLabels(e.target.checked)}/> Τιμές πάνω στον χάρτη</label>
      <div className={styles.mapZoom}>
       <button type="button" aria-label="Σμίκρυνση" disabled={zoom<=1} onClick={()=>setZoom(z=>Math.max(1,z/1.4))}>−</button>
@@ -284,7 +283,7 @@ export function ResearchPublicationMap({
     {failed?<p role="alert">Ο γεωγραφικός χάρτης δεν φορτώθηκε. Τα περιφερειακά δεδομένα εμφανίζονται στον πίνακα.</p>:
      !geo?<p role="status">Φόρτωση γεωγραφικού υποβάθρου…</p>:
      <svg viewBox={`${405-405/zoom} ${325-325/zoom} ${810/zoom} ${650/zoom}`}
-      role="img" aria-label={"Χάρτης Ελλάδας: "+(granularity==="prefecture"?"55 νομοί":"13 Περιφέρειες")+"· επιλέξτε περιοχή στον χάρτη ή στον πίνακα"}
+      role="img" aria-label="Χάρτης Ελλάδας: 55 νομοί · επιλέξτε νομό στον χάρτη ή στον πίνακα"
       className={styles.mapSvg}>
       <defs>
        <clipPath id="results-greece-land">{geo.features.map(f=><path key={f.properties.name} d={polygonPath(f.geometry)} fillRule="evenodd"/>)}</clipPath>
@@ -318,7 +317,7 @@ export function ResearchPublicationMap({
       })}
      </svg>}
     {internalCoverage&&<p role="note" style={{fontSize:12,color:"#385a41",lineHeight:1.7,margin:"14px 0"}}>
-      <strong>{anyQA} / {granularity==="prefecture"?55:13}</strong> γεωγραφικές ενότητες έχουν QA-επιλέξιμη συμμετοχή.
+      <strong>{anyQA} / {55}</strong> νομοί έχουν ολοκληρωμένες απαντήσεις.
       Η μπεζ σκίαση δείχνει n&lt;10, χωρίς δημοσίευση ακριβούς αριθμού ή αποτελέσματος.
       Τα αποτελέσματα n=10–29 είναι προκαταρκτικά, μη σταθμισμένα και μόνο για εσωτερική χρήση.
     </p>}
@@ -335,9 +334,9 @@ export function ResearchPublicationMap({
       </span></div>}
    </div>
    <div className={styles.mapSide}>
-    <label>Αναζήτηση {granularity==="prefecture"?"νομού":"Περιφέρειας"}<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder={granularity==="prefecture"?"π.χ. Λακωνία":"π.χ. Πελοπόννησος"}/></label>
+    <label>Αναζήτηση νομού<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="π.χ. Λακωνία"/></label>
     <div className={styles.regionList}>
-     <div className={styles.regionListHeader}><span>{granularity==="prefecture"?"Νομός":"Περιφέρεια"}</span><span>{hasMetric?"Επιλεγμένος δείκτης":"Μερίδιο ενάρξεων"}</span></div>
+     <div className={styles.regionListHeader}><span>Νομός</span><span>{hasMetric?"Επιλεγμένος δείκτης":"Μερίδιο ολοκληρωμένων απαντήσεων"}</span></div>
      {sorted.map(region=><button type="button" key={region.key} aria-pressed={selected===region.key}
        className={selected===region.key?styles.selectedRegion:styles.regionButton}
        onClick={()=>setSelected(s=>s===region.key?"":region.key)}>
@@ -350,22 +349,22 @@ export function ResearchPublicationMap({
     </div>
    </div>
   </div>
-  {hasMetric&&<p className={styles.note}>Το «Σύνολο Ελλάδας» προκύπτει μόνο από ξεχωριστή εγκεκριμένη πανελλαδική εκτίμηση, όχι από μέσο όρο των Περιφερειών. Τα ποσοστά ανά Περιφέρεια έχουν διαφορετικούς παρονομαστές και δεν αθροίζονται σε 100%.</p>}
+  {hasMetric&&<p className={styles.note}>Το «Σύνολο Ελλάδας» προκύπτει από όλες τις σχετικές ολοκληρωμένες απαντήσεις (στην εσωτερική προεπισκόπηση), ποτέ από άθροισμα ποσοστών νομών. Στη δημόσια έκδοση απαιτείται ανεξάρτητη εγκεκριμένη ανάλυση.</p>}
   {hasMetric?<p className={styles.note}>
    Η επιλογή διαφορετικής ερώτησης ή απάντησης επαναχρωματίζει τον χάρτη, ενημερώνει
-   την κλίμακα και αναταξινομεί τις Περιφέρειες από τον συγκεκριμένο δείκτη.
+   την κλίμακα και αναταξινομεί τους νομούς από τον συγκεκριμένο δείκτη.
    Οι τιμές εμφανίζονται απευθείας πάνω στις διαθέσιμες γεωγραφικές ενότητες.
    Τα ποσοστά χρησιμοποιούν σταθερή κλίμακα 0–100%, οι βαθμολογίες την επιστημονική τους κλίμακα.
-   {sector&&!hasApprovedCrossSections?" Δεν υπάρχει εγκεκριμένη περιφερειακή διασταύρωση για αυτόν τον κλάδο.":""}
-   {internalCoverage?" Στην εσωτερική live προεπισκόπηση οι μονοδιάστατοι δείκτες νομών με n≥10 είναι μόνο ενδεικτικοί και δεν έχουν έγκριση δημόσιας δημοσίευσης.":" Στις Περιφέρειες εμφανίζονται εγκεκριμένες συγκεντρωτικές εκτιμήσεις με n≥30, στους νομούς μόνο πρόσθετα εγκεκριμένα στοιχεία με n≥50."} {isDemo?"Η DEMO προεπισκόπηση νομών χρησιμοποιεί τεχνητές τιμές.":""}
-   Δεν χρησιμοποιούνται ιστορικοί κωδικοί νομών ως Περιφέρειες.
+   {sector&&!hasApprovedCrossSections?" Δεν υπάρχει διαθέσιμη διασταύρωση νομού και κλάδου.":""}
+   {internalCoverage?" Στην εσωτερική live προεπισκόπηση οι μονοδιάστατοι δείκτες νομών με n≥10 είναι μόνο ενδεικτικοί και δεν έχουν έγκριση δημόσιας δημοσίευσης.":" Στους νομούς εμφανίζονται μόνο ανεξάρτητα εγκεκριμένες δημοσιεύσιμες εκτιμήσεις με επαρκείς βάσεις."} {isDemo?"Η DEMO προεπισκόπηση νομών χρησιμοποιεί τεχνητές τιμές.":""}
+
    {available.length===0?" Δεν υπάρχουν ακόμη δημοσιεύσιμα περιφερειακά αποτελέσματα για αυτή την απάντηση.":""}
   </p>:<p className={styles.note}>
    Η συμμετοχή αποτυπώνει ενάρξεις ερωτηματολογίων και όχι απαντήσεις ή αποτελέσματα.
    Τα δεδομένα προέρχονται από δημοσίως διαθέσιμα γεωγραφικά συγκεντρωτικά στοιχεία, όχι από θέσεις συσκευών.
    {available.length===0?" Δεν διατίθενται προς το παρόν επαρκή δημοσιεύσιμα γεωγραφικά στοιχεία.":""}
   </p>}
-  <p className={styles.note}>Τα όρια των 55 ιστορικών νομών απεικονίζονται χωριστά από τις 13 διοικητικές Περιφέρειες. Καμία περιφερειακή τιμή δεν επιμερίζεται τεχνητά στους νομούς. Οι περιοχές χωρίς εγκεκριμένα δεδομένα μένουν γκρίζες.
+  <p className={styles.note}>Η μόνη γεωγραφική μονάδα είναι ο νομός. Η αντιστοίχιση πραγματοποιείται στο διακομιστή από τον Τ.Κ. και δεν αποκαλύπτει Τ.Κ. ή στοιχεία επιχειρήσεων. Οι περιοχές χωρίς διαθέσιμους δείκτες μένουν γκρίζες.
    Τα επιμέρους δεδομένα μικρών ομάδων δεν μεταφέρονται στον φυλλομετρητή.</p>
  </section>;
 }
