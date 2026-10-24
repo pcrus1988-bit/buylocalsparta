@@ -63,7 +63,7 @@ export default async function GreekRetailResultsPage() {
         <div className={previewStyles.status}>Τα τελικά αποτελέσματα δεν έχουν δημοσιευθεί ακόμη</div>
         <div className={styles.meta}>
           <Link href="/research/greek-retail-2026">← Επισκόπηση και πρόοδος της έρευνας</Link>
-          <Link href="/research/greek-retail-2026/methodology">Μεθοδολογία</Link><a href="#research-workbench">Εργαλεία, γραφήματα & χάρτης ↓</a>
+          <Link href="/research/greek-retail-2026/methodology">Μεθοδολογία</Link> <a href="#request-anonymized-data">Αίτηση ανωνυμοποιημένων δεδομένων ↓</a> <a href="#research-workbench">Εργαλεία, γραφήματα & χάρτης ↓</a>
         </div>
       </header>
 
@@ -191,7 +191,7 @@ export default async function GreekRetailResultsPage() {
       <p>Τα αποτελέσματα παρουσιάζονται μαζί με το μέγεθος του δείγματος και, όπου είναι διαθέσιμο, το 95% διάστημα εμπιστοσύνης.</p>
       <div className={styles.meta}>
         <Link href="/research/greek-retail-2026">← Επισκόπηση μελέτης</Link>
-        <Link href="/research/greek-retail-2026/methodology">Πώς έγινε η μελέτη</Link><a href="#research-workbench">Graph Explorer & Heatmap ↓</a>
+        <Link href="/research/greek-retail-2026/methodology">Πώς έγινε η μελέτη</Link> <a href="#request-anonymized-data">Αίτηση ανωνυμοποιημένων δεδομένων ↓</a> <a href="#research-workbench">Graph Explorer & Heatmap ↓</a>
       </div>
     </header>
 
