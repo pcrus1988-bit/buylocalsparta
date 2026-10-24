@@ -212,7 +212,7 @@ export function ResearchResultsWorkbench({
       </button>
     </article>
     <article><span className={styles.articleTag}>ΕΠΙΣΤΗΜΟΝΙΚΗ ΑΝΑΓΝΩΣΗ</span><h4>Τι μπορεί να συμπεράνει ο αναγνώστης;</h4>
-      <p>{sub.interpretation}</p><p>Διαθεσιμότητα: {chapterRows.length} / {activeMetricKeys.length} δείκτες στην επιλεγμένη ομάδα, με βάση τουλάχιστον n={minN}. Κάθε μέγεθος δείγματος και 95% ΔΕ εξετάζεται χωριστά.</p><p>Οι διαφορές παρουσιάζονται περιγραφικά· η στατιστική σημαντικότητα απαιτεί ξεχωριστό έλεγχο και όχι απλή επικάλυψη διαστημάτων.</p>
+      <p>{sub.interpretation}</p><p>Διαθεσιμότητα: {chapterRows.length} / {activeMetricKeys.length} δείκτες στην επιλεγμένη ομάδα, με βάση τουλάχιστον n={minN}. Κάθε πραγματική βάση απαντήσεων εξετάζεται χωριστά.</p><p>Οι διαφορές παρουσιάζονται περιγραφικά· η στατιστική σημαντικότητα απαιτεί ξεχωριστό έλεγχο και όχι απλή επικάλυψη διαστημάτων.</p>
     </article>
    </div>
   </>}
@@ -264,16 +264,16 @@ export function ResearchResultsWorkbench({
     <h4 style={{fontFamily:"Georgia,serif",fontSize:22,fontWeight:500,marginBottom:8}}>
      Πλήρης κατάλογος 55 νομών · διαθεσιμότητα δείκτη
     </h4>
-    <p className={styles.note}>Οι νομοί με δείγμα n&lt;10 εμφανίζονται ως περιοχές συμμετοχής χωρίς αριθμό.
+    <p className={styles.note}>Οι νομοί με λιγότερες από 10 ολοκληρωμένες απαντήσεις εμφανίζονται ως περιοχές συμμετοχής χωρίς αναλυτική τιμή.
      Οι τιμές n=10–29 είναι προσωρινές, περιγραφικές και δεν αποτελούν δημοσιεύσιμα συμπεράσματα.</p>
     <div className={styles.tableScroll}><table className={styles.table}>
-     <thead><tr><th>Νομός</th><th>Βάση δείγματος</th><th>Επιλεγμένος δείκτης</th></tr></thead>
+     <thead><tr><th>Νομός</th><th>Ολοκληρωμένες απαντήσεις (n)</th><th>Επιλεγμένος δείκτης</th></tr></thead>
      <tbody>{coverage.prefectures.map(county=>{
       const row=points.find(p=>p.metricKey===graphKey&&p.segment.prefectureCode===county.key&&Object.keys(p.segment).length===1&&p.n>=minN);
       return <tr key={county.key}>
        <td>{groupLabel(county.key,"prefectureCode")}</td>
        <td>{county.band==="under10"?"Κάλυψη, n<10":county.band==="none"?"Χωρίς επιλέξιμη συμμετοχή":
-         (county.eligibleN?.toLocaleString("el-GR")??"—")+(county.band==="10to29"?" · μικρό δείγμα":"")}</td>
+         (county.eligibleN?.toLocaleString("el-GR")??"—")+(county.band==="10to29"?"  · περιορισμένη βάση":"")}</td>
        <td>{row?format(row)+" · n="+row.n:"Δεν διατίθεται αξιόπιστη τιμή"}</td>
       </tr>;
      })}</tbody>
