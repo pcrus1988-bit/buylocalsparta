@@ -75,7 +75,7 @@ export async function renderResearchVoicesPdf(input: {
       {text:"Απαντήσεις: " + input.answers.length.toLocaleString("el-GR"),bold:true},
       {text:"Ημερομηνία: " + created,alignment:"right"}
     ],margin:[0,0,0,12]},
-    {text:"Οι θεματικές ετικέτες είναι μη αποκλειστικές, αυτόματες και διερευνητικές, όχι σταθμισμένα ποσοστά ή δημογραφικά στοιχεία. Μία απάντηση μπορεί να ανήκει σε περισσότερες ενότητες. Δεν περιλαμβάνονται ατομικές γεωγραφικές ή επιχειρησιακές ταυτότητες.",style:"method"},
+    {text:"Οι θεματικές ετικέτες είναι μη αποκλειστικές, αυτόματες και διερευνητικές, όχι σταθμισμένα ποσοστά ή δημογραφικά στοιχεία. Μία απάντηση μπορεί να ανήκει σε περισσότερες ενότητες. Δεν περιλαμβάνονται ατομικές γεωγραφικές ή επιχειρησιακές ταυτότητες. Έκδοση ταξινόμησης: "+input.taxonomyVersion,style:"method"},
     {text:"Θεματικές ενότητες",style:"section",margin:[0,17,0,8]},
     ...input.categories.filter(category=>category.count>0).map(category=>({
       text:category.label+"  ·  "+category.count.toLocaleString("el-GR")+" αναφορές",style:"categorySummary",margin:[0,0,0,4]
