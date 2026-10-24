@@ -108,6 +108,27 @@ export async function recordMaziLaunchGateReview(principal:SessionPrincipal,inpu
    !["verified","reopened"].includes(decision)||
    evidence.length<40||evidence.length>1200)
   throw Error("MAZI_LAUNCH_GATE_REVIEW_INVALID");
+ // The real-business E2E attestation cannot be asserted for an empty
+ // programme. Require a verifiably consumed invitation and approved legal
+ // entity linked to the exact same confirmed Auth account.
+ if(gateKey==="consenting_business_e2e"&&decision==="verified"){
+  const accepted=await getAdminPostgresRuntime().nativePool.query<{present:boolean}>(`
+   SELECT EXISTS(
+    SELECT 1
+    FROM public.mazi_invitation_acceptances acceptance
+    JOIN public.mazi_invitations invitation
+      ON invitation.id=acceptance.invitation_id AND invitation.status='consumed'
+    JOIN public.mazi_members member
+      ON member.user_id=acceptance.accepted_user_id
+       AND member.status='verified' AND member.identity_verified_at IS NOT NULL
+    JOIN public.mazi_membership_applications application
+      ON application.id=member.application_id AND application.status='approved'
+    WHERE member.gemi_number=invitation.recipient_gemi_number
+   ) AS present
+  `);
+  if(accepted.rows[0]?.present!==true)
+   throw Error("MAZI_REAL_BUSINESS_ADMISSION_NOT_VERIFIED");
+ }
  const result=await getAdminPostgresRuntime().nativePool.query<{id:string}>(`
   INSERT INTO public.mazi_launch_gate_reviews(
    gate_key,decision,evidence,actor_user_id
