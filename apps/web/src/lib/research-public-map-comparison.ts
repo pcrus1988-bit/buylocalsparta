@@ -14,7 +14,7 @@ export function nationalParticipationTotal(
  geography?:SafeParticipationGeography
 ):number|undefined {
  const value=geography?.nationalStarted;
- return Number.isSafeInteger(value)&&value!==undefined&&value>0?value:undefined;
+ return value!==undefined&&Number.isSafeInteger(value)&&value>0?value:undefined;
 }
 export function regionalParticipationShare(
  started:number|undefined,
