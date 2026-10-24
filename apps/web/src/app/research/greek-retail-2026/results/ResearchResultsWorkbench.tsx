@@ -55,6 +55,9 @@ export function ResearchResultsWorkbench({
  const [group,setGroup]=useState<GroupBy>("overall");
  const [level,setLevel]=useState("");
  const [compareTo,setCompareTo]=useState("");
+ const [crossSector,setCrossSector]=useState("");
+ const [crossRegion,setCrossRegion]=useState("");
+ const [crossRegionB,setCrossRegionB]=useState("");
  const [minN,setMinN]=useState(30);
  const [search,setSearch]=useState("");
  const [graphKey,setGraphKey]=useState("digital_readiness.mean");
@@ -66,6 +69,8 @@ export function ResearchResultsWorkbench({
  const chapter=PUBLIC_RESULTS_CHAPTERS.find(c=>c.id===chapterId)??PUBLIC_RESULTS_CHAPTERS[0]!;
  const sub=chapter.subchapters.find(s=>s.id===subId)??chapter.subchapters[0]!;
  const levels=useMemo(()=>[...new Set(points.flatMap(p=>typeof p.segment[group]==="string"?[p.segment[group]]:[]))].sort(),[points,group]);
+ const sectorValues=useMemo(()=>[...new Set(points.flatMap(p=>p.segment.sectorCode?[p.segment.sectorCode]:[]))].sort(),[points]);
+ const regionValues=useMemo(()=>GREECE_REGIONS.filter(r=>points.some(p=>p.segment.regionCode===r.key)).map(r=>r.key),[points]);
  const activeMetricKeys=sub.metrics.filter(k=>publicMetricLabel(k).toLowerCase().includes(search.toLowerCase())||k.toLowerCase().includes(search.toLowerCase()));
  const chapterRows=activeMetricKeys.map(key=>points.find(p=>p.metricKey===key&&matches(p,group,level)&&p.n>=minN))
   .filter((p):p is SafePublicResultPoint=>Boolean(p));
@@ -80,6 +85,13 @@ export function ResearchResultsWorkbench({
   const left=points.find(p=>p.metricKey===key&&matches(p,group,level)&&p.n>=minN);
   const right=points.find(p=>p.metricKey===key&&matches(p,group,compareTo)&&p.n>=minN);
   return left&&right&&left.format===right.format?[{key,left,right}]:[];
+ });
+ const crossRows=activeMetricKeys.flatMap(key=>{
+  if(!crossSector||!crossRegion)return [];
+  const find=(region:string)=>points.find(p=>p.metricKey===key&&p.n>=Math.max(50,minN)&&
+   p.segment.regionCode===region&&p.segment.sectorCode===crossSector);
+  const left=find(crossRegion),right=crossRegionB?find(crossRegionB):undefined;
+  return left?[{key,left,right}]:[];
  });
  const graphLevels=graphRows.map(row=>row.segment[graphDimension]??"");
  const graphLeft=graphRows.find(row=>graphCompareA&&row.segment[graphDimension]===graphCompareA);
@@ -166,6 +178,18 @@ export function ResearchResultsWorkbench({
     </tbody></table></div>:<p className={styles.empty}>Δεν υπάρχουν επαρκή, εγκεκριμένα κοινώς συγκρίσιμα στοιχεία για αυτό το ζεύγος.</p>}
     <p className={styles.note}>Οι διαφορές είναι περιγραφικές, όχι αυτόματες δοκιμές σημαντικότητας. Δεν υπολογίζονται συσχετίσεις ή κοινές διασταυρώσεις από περιθωριακά αποτελέσματα.</p>
    </section>}
+   <section className={styles.crossFilterPanel} aria-label="Διασταύρωση κλάδου και περιοχής">
+    <div className={styles.graphHeading}><h3>Κλάδος × γεωγραφία</h3><p>Εξειδικευμένη ανάλυση του ίδιου δείκτη ανά κλάδο και περιφέρεια, μόνο όταν η συγκεκριμένη διασταύρωση έχει εγκριθεί ανεξάρτητα.</p></div>
+    <div className={styles.filters}>
+     <label>Κλάδος<select value={crossSector} onChange={e=>setCrossSector(e.target.value)}><option value="">Επιλέξτε κλάδο</option>{sectorValues.map(v=><option key={v} value={v}>{groupLabel(v,"sectorCode")}</option>)}</select></label>
+     <label>Περιφέρεια Α<select value={crossRegion} onChange={e=>setCrossRegion(e.target.value)}><option value="">Επιλέξτε περιοχή</option>{regionValues.map(v=><option key={v} value={v}>{groupLabel(v,"regionCode")}</option>)}</select></label>
+     <label>Περιφέρεια Β (σύγκριση)<select value={crossRegionB} onChange={e=>setCrossRegionB(e.target.value)}><option value="">Καμία</option>{regionValues.filter(v=>v!==crossRegion).map(v=><option key={v} value={v}>{groupLabel(v,"regionCode")}</option>)}</select></label>
+    </div>
+    {crossSector&&crossRegion&&(crossRows.length?<div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Δείκτης</th><th>{groupLabel(crossRegion,"regionCode")}</th><th>{crossRegionB?groupLabel(crossRegionB,"regionCode"):"Βάση"}</th><th>Διαφορά</th></tr></thead><tbody>
+     {crossRows.map(({key,left,right})=><tr key={key}><td>{publicMetricLabel(key)}</td><td>{format(left)} · n={left.n}</td><td>{right?format(right)+" · n="+right.n:"n="+left.n}</td><td>{right&&right.format===left.format?difference(left,right):"—"}</td></tr>)}
+    </tbody></table></div>:<p className={styles.empty}>Δεν υπάρχει εγκεκριμένη εκτίμηση για τον επιλεγμένο συνδυασμό. Δεν ανασυνθέτουμε κλαδικές και γεωγραφικές τομές από ανεξάρτητα ποσοστά.</p>)}
+    <p className={styles.note}>Για δημοσίευση διπλής διασταύρωσης απαιτούνται ρητή επιστημονική έγκριση και n≥50 σε κάθε εμφανιζόμενο κελί· τυχόν μικρές ομάδες παραμένουν απόρρητες.</p>
+   </section>
    <div className={styles.analysisGrid}>
     <article><span className={styles.articleTag}>ΠΡΟΤΕΙΝΟΜΕΝΗ ΔΙΑΣΤΑΥΡΩΣΗ</span><h4>{sub.relation}</h4>
       <p>Η σχέση απαιτεί κοινή βάση ερωτώμενων και ξεχωριστό επιστημονικό υπολογισμό. Δεν μπορεί να εξαχθεί από δύο ανεξάρτητα ποσοστά.</p>
