@@ -22,7 +22,8 @@ export function ResearchResultsPreviewExperience({initial,geography}:{initial:Li
       if (!res.ok) throw new Error("LIVE_PREVIEW_UNAVAILABLE");
       const data: LiveGreekRetailPreview & {schema:string} = await res.json();
       if (data.schema!=="kontamou.research.live-preview.v1"
-          || !Array.isArray(data.points) || !Number.isSafeInteger(data.includedResponses)) {
+          || !Array.isArray(data.points) || !Number.isSafeInteger(data.includedResponses)
+          || !Array.isArray(data.coverage?.prefectures) || !Array.isArray(data.coverage?.regions)) {
         throw new Error("LIVE_PREVIEW_INVALID");
       }
       setSnapshot(data); setError(false);
