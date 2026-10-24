@@ -24,7 +24,13 @@ export function publicResultPoints(estimates: readonly PublishedResearchEstimate
     !METRIC_SET.has(e.metricKey) || RESTRICTED.test(e.metricKey) || RESTRICTED.test(e.method) ||
     RESTRICTED.test(String(e.metadata.experimentCode??""))) return [];
   const entries=Object.entries(e.segment);
-  if(entries.length>1 || entries.some(([key])=>!["regionCode","sectorCode","sizeBand"].includes(key)))return [];
+  // Bivariate cells are NEVER reconstructed from marginal figures.
+  // A publication reviewer must explicitly approve each sufficiently large cross-tab.
+  const isCross=entries.length===2&&entries.every(([key])=>["regionCode","sectorCode"].includes(key))&&
+   entries.some(([key])=>key==="regionCode")&&entries.some(([key])=>key==="sectorCode");
+  if(entries.length>2 || entries.some(([key])=>!["regionCode","sectorCode","sizeBand"].includes(key)) ||
+     (entries.length===2&&!isCross) ||
+     (isCross&&(e.unweightedN<50||e.metadata.publicCrossTabApproved!==true)))return [];
   if(entries.some(([_,value])=>typeof value!=="string"||!value.trim()))return [];
   // regionCode in the current frozen frame is a HISTORICAL prefecture code.
   // Only explicitly keyed administrative-region names may feed region heatmaps.
