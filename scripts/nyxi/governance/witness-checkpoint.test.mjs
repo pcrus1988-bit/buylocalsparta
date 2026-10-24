@@ -40,7 +40,7 @@ test('request rejects witness issue time before observed event',()=>{
 });
 test('even independently signed backdated checkpoint fails verification',()=>{
   const request={...makeCheckpoint().request,issued_at:'2026-10-23T09:12:59.000Z'};
-  const signingPayload='NYXI_AGENT1_EXTERNAL_WITNESS_V1\\n'+JSON.stringify(request);
+  const signingPayload='NYXI_AGENT1_EXTERNAL_WITNESS_V1\n'+JSON.stringify(request);
   const cp={request,signature_base64:sign(null,Buffer.from(signingPayload),privateKey).toString('base64')};
   assert.equal(check(chain,cp),false);
 });
