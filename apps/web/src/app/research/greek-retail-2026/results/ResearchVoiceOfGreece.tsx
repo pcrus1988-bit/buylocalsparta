@@ -87,7 +87,7 @@ export function ResearchVoiceOfGreece({isDemo,data,isLivePreview=false}:{isDemo:
     <p>{isLivePreview?"Οι πραγματικές απαντήσεις Q18 εμφανίζονται μία προς μία, με τυχαία σειρά, στις θεματικές κατηγορίες που χρησιμοποιούνται ήδη στη διαχείριση. Πρόκειται για περιορισμένη εσωτερική προεπισκόπηση, όχι για εγκεκριμένα δημόσια αποσπάσματα.":"Οι λέξεις αποκτούν χώρο. Κάθε θεματική γεμίζει καθώς εμφανίζονται, μία προς μία, οι εγκεκριμένες και ανωνυμοποιημένες ελεύθερες απαντήσεις."}</p>
    </div>
    <div className={styles.voiceActions}>
-    {!isDemo && dataset && eligible.length>0 && <a className={styles.voiceExport} href={isLivePreview?"/api/research/greek-retail-2026/results-preview-voices-export":"/api/research/greek-retail-2026/voices-export"} download aria-label={isLivePreview?"Εξαγωγή όλων των επιλέξιμων Q18 απαντήσεων σε εμπιστευτικό PDF":"Εξαγωγή όλων των εγκεκριμένων Q18 αποσπασμάτων σε PDF"}>↓ {isLivePreview?"Όλες οι απαντήσεις · PDF":"Εξαγωγή φωνών · PDF"}</a>}
+    {!isDemo && dataset && (isLivePreview ? categories.length>0 : eligible.length>0) && <a className={styles.voiceExport} href={isLivePreview?"/api/research/greek-retail-2026/results-preview-voices-export":"/api/research/greek-retail-2026/voices-export"} download aria-label={isLivePreview?"Εξαγωγή όλων των επιλέξιμων Q18 απαντήσεων σε εμπιστευτικό PDF":"Εξαγωγή όλων των εγκεκριμένων Q18 αποσπασμάτων σε PDF"}>↓ {isLivePreview?"Όλες οι απαντήσεις · PDF":"Εξαγωγή φωνών · PDF"}</a>}
     <button type="button" onClick={()=>setPlaying(v=>!v)} disabled={order.length===0}>{playing?"Παύση":"Αναπαραγωγή"}</button>
     <button type="button" onClick={()=>{setIndex(0);setRound(r=>r+1);setPlaying(true);}} disabled={order.length===0}>Νέα τυχαία σειρά ↻</button>
    </div>
