@@ -11,11 +11,11 @@ type RouteContext = Readonly<{ params: Promise<{ shard: string }> }>;
 
 function escapeXml(value: string): string {
   return value
-    .replaceAll("&", "&")
-    .replaceAll("<", "<")
-    .replaceAll(">", ">")
-    .replaceAll('"', """)
-    .replaceAll("'", "'");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
 }
 
 function safeLastModified(value: string | undefined): string | undefined {
