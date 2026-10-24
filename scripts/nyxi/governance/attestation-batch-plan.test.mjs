@@ -161,3 +161,20 @@ test('identical rights and retention scope allows separate snapshots under one a
   }
   assert.equal(plan([a,b]).length,2);
 });
+
+test('different source UUIDs cannot reuse an exact canonical URL in one attestation batch',()=>{
+  const a=make('a','e'), b=make('d','f');
+  b.source.canonical_url=a.source.canonical_url;
+  b.approval.asset_url=b.source.canonical_url;
+  b.approval.approved_final_url=b.source.canonical_url;
+  b.snapshot.final_url=b.source.canonical_url;
+  assert.throws(()=>plan([a,b]),/duplicate_source_canonical_url/);
+});
+test('canonical URL normalization catches host-case and default-port aliases across UUIDs',()=>{
+  const a=make('a','e'), b=make('d','f');
+  b.source.canonical_url='https://AUTHORITY.gov:443/a';
+  b.approval.asset_url=b.source.canonical_url;
+  b.approval.approved_final_url=b.source.canonical_url;
+  b.snapshot.final_url=b.source.canonical_url;
+  assert.throws(()=>plan([a,b]),/duplicate_source_canonical_url/);
+});
