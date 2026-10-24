@@ -133,3 +133,23 @@ test('valid leap day and explicit timezone offset are accepted',()=>{
 test('invalid timezone offset cannot extend acquisition authorization',()=>{
   fail(v=>v.approval.expires_at='2026-10-31T00:00:00+15:00','capture_outside_authorization');
 });
+
+
+test('percent-encoded traversal is rejected before private Storage lookup',()=>{
+  fail(v=>v.snapshot.storage_path=source.id+'/'+digest+'/original%2e%2e/private','invalid_private_storage_binding');
+});
+test('encoded path separator is rejected before private Storage lookup',()=>{
+  fail(v=>v.snapshot.storage_path=source.id+'/'+digest+'/original%2fprivate','invalid_private_storage_binding');
+});
+test('query and fragment delimiters cannot alter exact private Storage identity',()=>{
+  for(const suffix of ['original.html?download=1','original.html#version'])
+    fail(v=>v.snapshot.storage_path=source.id+'/'+digest+'/'+suffix,'invalid_private_storage_binding');
+});
+test('control characters are rejected from private Storage object paths',()=>{
+  fail(v=>v.snapshot.storage_path=source.id+'/'+digest+'/original\n.html','invalid_private_storage_binding');
+});
+test('ordinary content-addressed Storage paths remain valid',()=>{
+  const v=f();
+  v.snapshot.storage_path=source.id+'/'+digest+'/archive/2026-10-20_original.v1.html';
+  assert.equal(observe(v).type,'catalog_observed');
+});
