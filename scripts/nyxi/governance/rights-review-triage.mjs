@@ -50,7 +50,13 @@ export function buildRightsReviewQueue({ sources, approvals, snapshots, observed
     const canonicalUrl = new URL(source.canonical_url).href;
     if (canonicalUrls.has(canonicalUrl)) throw Error('duplicate_source_canonical_url');
     canonicalUrls.add(canonicalUrl);
-    if (typeof source.source_key === 'string' && source.source_key.trim()) {
+    // An explicitly malformed or blank key must not evade deduplication.
+    // Older metadata-only callers may omit the key; never treat a supplied
+    // empty/non-string key as a distinct source identity.
+    if (source.source_key !== undefined &&
+        (typeof source.source_key !== 'string' || !source.source_key.trim()))
+      throw Error('invalid_source_key');
+    if (typeof source.source_key === 'string') {
       const key = source.source_key.trim().toLowerCase();
       if (sourceKeys.has(key)) throw Error('duplicate_source_key');
       sourceKeys.add(key);
