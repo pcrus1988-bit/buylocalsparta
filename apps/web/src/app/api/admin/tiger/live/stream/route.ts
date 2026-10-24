@@ -32,7 +32,7 @@ export async function GET(request:Request){
           if(fingerprint!==last){
             controller.enqueue(encoder.encode("event: snapshot\ndata: "+JSON.stringify(snapshot)+"\n\n"));
             last=fingerprint;
-          }else controller.enqueue(encoder.encode(": heartbeat\n\n"));
+          }else controller.enqueue(encoder.encode("event: ping\ndata: {}\n\n"));
         }catch{if(!closed)controller.enqueue(encoder.encode("event: unavailable\ndata: {}\n\n"));}
       };
       await send();

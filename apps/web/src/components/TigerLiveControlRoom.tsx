@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect,useMemo,useRef,useState} from "react";
+import type {CSSProperties} from "react";
 import type {TigerLiveEvent,TigerSnapshot,TigerIssue,TigerWorker} from "../lib/tiger-live";
 
 const ROOMS:ReadonlyArray<{id:string;x:number;y:number;accent:string}>= [
@@ -27,7 +28,7 @@ function Evidence({url}:{url?:string}){
   return <a target="_blank" rel="noreferrer noopener" href={url}>View GitHub evidence ↗</a>;
 }
 function TigerFace({accent,working}:{accent:string;working:boolean}){
-  return <span className={"tiger-face "+(working?"tiger-face-active":"")} style={{"--tiger-accent":accent} as React.CSSProperties} aria-hidden="true">
+  return <span className={"tiger-face "+(working?"tiger-face-active":"")} style={{"--tiger-accent":accent} as CSSProperties} aria-hidden="true">
     <span className="tiger-ear left"/><span className="tiger-ear right"/>
     <span className="tiger-stripe central"/><span className="tiger-stripe left"/><span className="tiger-stripe right"/>
     <span className="tiger-eye left"/><span className="tiger-eye right"/>
@@ -61,6 +62,7 @@ export function TigerLiveControlRoom({initial}:{initial:TigerSnapshot}){
     };
     const onUnavailable=()=>setTransport("disconnected");
     s.addEventListener("snapshot",onSnapshot as EventListener);
+    s.addEventListener("ping",()=>{lastObserved.current=Date.now();setTransport("connected");});
     s.addEventListener("unavailable",onUnavailable);
     s.onerror=()=>setTransport("disconnected");
     const guard=setInterval(()=>{
@@ -148,7 +150,7 @@ export function TigerLiveControlRoom({initial}:{initial:TigerSnapshot}){
               const worker=snapshot.agents.find(a=>a.id===r.id);
               const active=canAnimate&&worker?.status==="working";
               const bubble=latestBubbles.get(r.id);
-              return <button key={r.id} className={"tiger-station "+(active?"working":"inactive")} style={{left:r.x+"%",top:r.y+"%","--desk-accent":r.accent} as React.CSSProperties}
+              return <button key={r.id} className={"tiger-station "+(active?"working":"inactive")} style={{left:r.x+"%",top:r.y+"%","--desk-accent":r.accent} as CSSProperties}
                 onClick={()=>inspectAgent(r.id)} aria-label={r.id+" "+worker?.name+" "+(active?"working":"offline")}>
                 <span className="tiger-station-monitor"><span className="tiger-monitor-glow"/></span>
                 <span className="tiger-station-desk"/>

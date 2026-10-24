@@ -121,7 +121,11 @@ function snapshotFromSources(state:RawState,transitions:RawEvent[],runs:unknown,
     const current=Number(task.lease.expires_at)>now && Number(task.lease.last_heartbeat_at)>now-180_000;
     if(!current)continue;
     view.runningTasks++;
-    const worker=view.agents.find(a=>a.id===task.lease?.owner);
+    const owner=task.lease.owner;
+    // AUTOPILOT lease owners may be role-prefixed worker IDs (for example A02:run-123).
+    // Only an explicit, syntactically bounded role prefix can light up a logical desk.
+    const roleId=typeof owner==="string" ? owner.match(/^(A(?:0[0-9]|10))(?::[A-Za-z0-9_.-]{1,100})?$/)?.[1] : undefined;
+    const worker=view.agents.find(a=>a.id===roleId);
     if(worker){worker.status="working";worker.taskId=taskId;worker.engineId=task.engine;
       worker.heartbeatAt=new Date(task.lease.last_heartbeat_at||0).toISOString();}
   }
