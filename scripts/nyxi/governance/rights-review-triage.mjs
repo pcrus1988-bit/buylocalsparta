@@ -1,15 +1,22 @@
 import { observe, isValidGovernanceTimestamp } from './attestation-ledger.mjs';
+import { isIP } from 'node:net';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHA = /^[0-9a-f]{64}$/;
 const validDate = isValidGovernanceTimestamp;
-const safeHttps = value => {
+const isPublicHttpsMetadata = value => {
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && Boolean(url.hostname) &&
-      !url.username && !url.password && !url.hash;
+    const host = url.hostname.toLowerCase().replace(/\.$/, '');
+    // Metadata-only guard: a network worker must ALSO check resolved IPs,
+    // redirects, access terms and DNS rebinding before any actual fetch.
+    return url.protocol === 'https:' && !url.username && !url.password &&
+      !url.hash && host.includes('.') &&
+      !isIP(host.replace(/^\[|\]$/g, '')) &&
+      !['.localhost', '.local', '.localdomain', '.internal'].some(s => host.endsWith(s));
   } catch { return false; }
 };
+const safeHttps = isPublicHttpsMetadata;
 const stable = rows => rows.sort((a, b) => a.id.localeCompare(b.id));
 
 /**
