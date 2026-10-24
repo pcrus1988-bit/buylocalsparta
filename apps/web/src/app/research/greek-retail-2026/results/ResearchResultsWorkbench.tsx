@@ -5,6 +5,7 @@ import { PUBLIC_RESULTS_CHAPTERS,PUBLIC_RESULTS_METRICS,publicMetricLabel } from
 import { demoResultPoints,type SafeParticipationGeography,type SafePublicResultPoint } from "../../../../lib/research-public-results-data";
 import { ResearchPublicationMap } from "./ResearchPublicationMap";
 import { ResearchVoiceOfGreece } from "./ResearchVoiceOfGreece";
+import type { PublicVoiceData } from "../../../../lib/research-public-voices-data";
 import { GREECE_REGIONS } from "../../../../lib/research-geographic-core";
 import styles from "./ResultsWorkbench.module.css";
 
@@ -39,11 +40,12 @@ const matches=(p:SafePublicResultPoint,dimension:GroupBy,level:string)=>
 function csvValue(s:string){const safe=/^[=+@\\-\\t\\r]/.test(s)?"'"+s:s;return '"'+safe.replaceAll('"','""')+'"';}
 
 export function ResearchResultsWorkbench({
- mode,points:publishedPoints=[],geography
+ mode,points:publishedPoints=[],geography,voices
 }:{
  mode:"preview"|"published"|"unpublished";
  points?:readonly SafePublicResultPoint[];
  geography?:SafeParticipationGeography;
+ voices?:PublicVoiceData;
 }){
  const demo=mode==="preview";
  const points=useMemo(()=>demo?demoResultPoints():publishedPoints,[demo,publishedPoints]);
@@ -227,7 +229,7 @@ export function ResearchResultsWorkbench({
     <h3>Heatmap Ελλάδας</h3><p>Εξερευνήστε τη χωρική κάλυψη ή επιλέξτε διαθέσιμους εγκεκριμένους περιφερειακούς δείκτες. Με το ίδιο γεωγραφικό υπόβαθρο της έρευνας.</p></div>
    <ResearchPublicationMap points={points} geography={geography} isDemo={demo}/>
   </section>}
-  {menu==="voices"&&<ResearchVoiceOfGreece isDemo={demo}/>}
+  {menu==="voices"&&<ResearchVoiceOfGreece isDemo={demo} data={voices}/>}
   <footer className={styles.scientificFooter}>
    Η τελική έκδοση προβάλλει μόνο ελεγμένες συγκεντρωτικές εκτιμήσεις (ελάχιστο n 30).
    Η πιλοτική προεπισκόπηση χρησιμοποιεί αποκλειστικά κατασκευασμένα παραδείγματα.
