@@ -154,6 +154,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/flash-sale",
   "/research/[slug]/t/[token]",
   "/research/simulation/[token]",
+  "/research/greek-retail-2026/results/Preview", // explicitly public-facing design preview, noindex / not a research release
   "/terms",
   "/join/apply",
   "/hubs/join/apply",
