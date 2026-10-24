@@ -3,6 +3,7 @@ import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { researchFieldworkOutcomeSummary } from "./research-survey-statistics";
+import { isPrivateExperimentEstimate, redactPrivateExperimentFromPublicMetadata } from "./research-experiment-publication-policy";
 
 const STUDY_SLUG = "greek-retail-2026";
 const PUBLIC_RESULTS_PATH = "/research/greek-retail-2026/results";
@@ -586,7 +587,7 @@ export async function buildGreekRetailRelease(
   `, [analysisRunId]);
 
   const varianceMethod = text(parameters.varianceMethod) || "not_estimated";
-  const methodology = {
+  const methodology = redactPrivateExperimentFromPublicMetadata({
     releaseVersion: version,
     study: {
       slug: text(study.slug),
@@ -783,9 +784,9 @@ export async function buildGreekRetailRelease(
         ? "Design-based variance has not been estimated for this release; confidence intervals and a conventional margin of sampling error are therefore not published."
         : "Design-aware confidence intervals use the recorded stratified sampling method with finite-population correction where the metric has complete observations within contributing strata. Intervals are withheld for unsupported post-hoc domains or insufficient stratum bases."
     ]
-  };
+  });
 
-  const estimates = estimatesResult.rows.map((row) => {
+  const estimates = estimatesResult.rows.filter((row) => !isPrivateExperimentEstimate(row)).map((row) => {
     const suppressed = Boolean(row.suppressed);
     return {
       metricKey: text(row.metric_key),
@@ -898,7 +899,7 @@ export async function researchReleaseArtifactIntegrity(
     ORDER BY metric_key,segment::text
   `, [release.analysis_run_id]);
 
-  const estimates = estimatesResult.rows.map((row) => {
+  const estimates = estimatesResult.rows.filter((row) => !isPrivateExperimentEstimate(row)).map((row) => {
     const suppressed = Boolean(row.suppressed);
     return {
       metricKey: text(row.metric_key),
@@ -923,7 +924,7 @@ export async function researchReleaseArtifactIntegrity(
     analysisRunId: text(release.analysis_run_id),
     waveId: text(release.wave_id),
     datasetSha256: text(release.dataset_sha256),
-    methodology: objectValue(release.methodology_json),
+    methodology: redactPrivateExperimentFromPublicMetadata(objectValue(release.methodology_json)),
     estimates
   };
   const storedSha256 = text(release.artifact_sha256);
@@ -979,8 +980,8 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
     waveId: text(row.wave_id),
     datasetSha256: text(row.dataset_sha256),
     artifactSha256: text(row.artifact_sha256),
-    methodology: objectValue(row.methodology_json),
-    estimates: estimatesResult.rows.map((estimate) => ({
+    methodology: redactPrivateExperimentFromPublicMetadata(objectValue(row.methodology_json)),
+    estimates: estimatesResult.rows.filter((estimate) => !isPrivateExperimentEstimate(estimate)).map((estimate) => ({
       metricKey: text(estimate.metric_key),
       segment: objectValue(estimate.segment),
       estimate: Boolean(estimate.suppressed) || estimate.estimate == null ? null : numberValue(estimate.estimate),
