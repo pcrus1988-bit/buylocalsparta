@@ -153,3 +153,11 @@ test('ordinary content-addressed Storage paths remain valid',()=>{
   v.snapshot.storage_path=source.id+'/'+digest+'/archive/2026-10-20_original.v1.html';
   assert.equal(observe(v).type,'catalog_observed');
 });
+
+test('local, IP-literal and internal source URLs cannot bind archived assets',()=>{
+  for (const url of ['https://127.0.0.1/document','https://[::1]/document',
+    'https://localhost/document','https://collector.internal/document']) {
+    fail(v=>{v.source.canonical_url=url;v.approval.asset_url=url;
+      v.approval.approved_final_url=url;v.snapshot.final_url=url},'exact_url_invalid');
+  }
+});
