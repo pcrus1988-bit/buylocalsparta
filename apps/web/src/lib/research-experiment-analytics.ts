@@ -1,6 +1,7 @@
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { experimentSelectionRate } from "./research-experiment-analytics-core";
 
 /**
  * Admin-only exploratory analysis of the randomized marketplace profiles.
@@ -37,19 +38,11 @@ export type ExperimentAnalytics = Readonly<{
 }>;
 
 const VALID_SLUG = /^[a-z0-9][a-z0-9-]{2,79}$/;
-const MIN_ATTRIBUTE_BASE = 30;
 const n = (value: unknown): number => {
   const result = Number(value ?? 0);
   return Number.isFinite(result) ? result : 0;
 };
 const t = (value: unknown): string => value == null ? "" : String(value);
-
-/** A missing or small denominator is not evidence of a zero selection rate. */
-export function experimentSelectionRate(chosen: number, exposed: number): number | null {
-  if (!Number.isSafeInteger(chosen) || !Number.isSafeInteger(exposed) ||
-      exposed < MIN_ATTRIBUTE_BASE || chosen < 0 || chosen > exposed) return null;
-  return Math.round((chosen / exposed) * 1000) / 10;
-}
 
 export async function researchExperimentAnalytics(
   principal: SessionPrincipal,
