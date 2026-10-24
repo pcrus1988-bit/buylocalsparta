@@ -21,7 +21,7 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
  const params=await searchParams;
  const pending=rows.filter(r=>r.status==="pending_review"||r.status==="registry_review_required");
  return <main className={s.stage}><div className={s.shell}>
-  <div className={s.breadcrumb}><Link href="/admin/mazi">ΚΟΝΤΑ ΜΟΥ / ΜΑΖΙ</Link><span>↗</span> ΑΙΤΗΣΕΙΣ ΑΦΜ</div>
+  <div className={s.breadcrumb}><Link href="/admin/mazi">ΚΟΝΤΑ ΜΟΥ / ΜΑΖΙ</Link><span>↗</span> ΑΙΤΗΣΕΙΣ ΑΦΜ <span>·</span><Link href="/admin/mazi/operations">Έλεγχος λειτουργίας ↗</Link></div>
   <header className={s.hero}><div>
    <p className={s.kicker}>SOLE SUPER ADMIN · VERIFIED BUSINESSES ONLY</p>
    <h1>ΜΑΖΙ<span className={s.dot}>.</span><em>Ενδιαφέρον</em></h1>
