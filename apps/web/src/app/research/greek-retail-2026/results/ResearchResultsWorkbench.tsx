@@ -46,7 +46,7 @@ function csvValue(s:string){const safe=/^[=+@\\-\\t\\r]/.test(s)?"'"+s:s;return 
 export function ResearchResultsWorkbench({
  mode,points:publishedPoints=[],geography,voices
 }:{
- mode:"preview"|"published"|"unpublished";
+ mode:"preview"|"live"|"published"|"unpublished";
  points?:readonly SafePublicResultPoint[];
  geography?:SafeParticipationGeography;
  voices?:PublicVoiceData;
@@ -116,7 +116,7 @@ export function ResearchResultsWorkbench({
    String(p.value),String(p.n),p.ciLower===null?"":String(p.ciLower),p.ciUpper===null?"":String(p.ciUpper)].map(csvValue).join(";"));
   const blob=new Blob(["\uFEFF"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
   const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");a.href=url;a.download=demo?"research-demo-graph.csv":"greek-retail-2026-approved-graph.csv";a.click();URL.revokeObjectURL(url);
+  const a=document.createElement("a");a.href=url;a.download=demo?"research-demo-graph.csv":mode==="live"?"greek-retail-2026-live-preview.csv":"greek-retail-2026-approved-graph.csv";a.click();URL.revokeObjectURL(url);
  };
  return <section id="research-workbench" className={styles.shell}>
   <header className={styles.heading}>
@@ -124,7 +124,7 @@ export function ResearchResultsWorkbench({
     <h2>Εξερευνήστε την έρευνα σε βάθος.</h2>
     <p>18 υποενότητες, δείκτες με τεκμηρίωση, αντιπαραβολή κλάδων και περιοχών, χάρτης και θεματικές φωνές της αγοράς.</p>
    </div>
-   <span className={demo?styles.demoFlag:styles.dataFlag}>{demo?"DEMO · ΕΝΔΕΙΚΤΙΚΑ":mode==="published"?"ΕΓΚΕΚΡΙΜΕΝΗ ΕΚΔΟΣΗ":"ΑΝΑΜΟΝΗ ΑΠΟΤΕΛΕΣΜΑΤΩΝ"}</span>
+   <span className={demo?styles.demoFlag:styles.dataFlag}>{demo?"DEMO · ΕΝΔΕΙΚΤΙΚΑ":mode==="live"?"LIVE · ΠΡΟΚΑΤΑΡΚΤΙΚΑ":mode==="published"?"ΕΓΚΕΚΡΙΜΕΝΗ ΕΚΔΟΣΗ":"ΑΝΑΜΟΝΗ ΑΠΟΤΕΛΕΣΜΑΤΩΝ"}</span>
   </header>
   <nav className={styles.menu} aria-label="Μενού αποτελεσμάτων">
    {([{id:"chapters",name:"Ερευνητικές ενότητες",icon:"01",detail:"6 κεφάλαια · 18 υποενότητες"},
@@ -254,7 +254,7 @@ export function ResearchResultsWorkbench({
       </div><strong>{format(p)}</strong><small>n={p.n}</small>
      </div>)}
     </div>}
-   <p className={styles.note}>Περιγραφικό γράφημα από δημοσιευμένα αποτελέσματα. Η επιλογή ομάδας δεν ανασυνθέτει διασταυρώσεις που δεν έχουν εκτιμηθεί. Στοιχεία με ανεπαρκή βάση δεν αποστέλλονται στο UI.</p>
+   <p className={styles.note}>{mode==="live"?"Προκαταρκτικό, μη σταθμισμένο γράφημα πραγματικών απαντήσεων.":"Περιγραφικό γράφημα από δημοσιευμένα αποτελέσματα."} Η επιλογή ομάδας δεν ανασυνθέτει διασταυρώσεις που δεν έχουν εκτιμηθεί. Στοιχεία με ανεπαρκή βάση δεν αποστέλλονται στο UI.</p>
   </section>}
   {menu==="map"&&<section className={styles.mapSection}>
    <div className={styles.graphHeading}><span className={styles.eyebrow}>ΓΕΩΓΡΑΦΙΚΟ ΠΑΡΑΤΗΡΗΤΗΡΙΟ</span>
@@ -264,7 +264,7 @@ export function ResearchResultsWorkbench({
   {menu==="voices"&&<><div className={styles.voiceOpenLink}><Link href={demo?"/research/greek-retail-2026/results/Preview/voices":"/research/greek-retail-2026/results/voices"}>Άνοιγμα της «Φωνής της Ελλάδας» σε ξεχωριστή πλήρη σελίδα ↗</Link></div><ResearchVoiceOfGreece isDemo={demo} data={voices}/></>}
   <footer className={styles.scientificFooter}>
    Η τελική έκδοση προβάλλει μόνο ελεγμένες συγκεντρωτικές εκτιμήσεις (ελάχιστο n 30).
-   Η πιλοτική προεπισκόπηση χρησιμοποιεί αποκλειστικά κατασκευασμένα παραδείγματα.
+   {mode==="live"?" Αυτή η εσωτερική προεπισκόπηση χρησιμοποιεί πραγματικές απαντήσεις, χωρίς τελική στάθμιση ή επιστημονικά διαστήματα εμπιστοσύνης.":" Η πιλοτική προεπισκόπηση χρησιμοποιεί αποκλειστικά κατασκευασμένα παραδείγματα."}
    Το ιδιωτικό πείραμα επιλογής πλατφόρμας δεν περιλαμβάνεται στο δημόσιο υλικό.
   </footer>
  </section>;
