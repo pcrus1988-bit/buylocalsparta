@@ -4,6 +4,7 @@ import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, hasAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { getAdminPostgresRuntime, getAdminResearchOverviewPostgresRuntime, getProductionPostgresRuntime, getPublicSurveyPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { researchReleaseArtifactIntegrity } from "./research-survey-release";
+import { GREEK_RETAIL_RESULTS_PUBLICATION_AT } from "./research-results-publication";
 import { evaluateResearchDeliverySafety, researchDeliveryReviewMilestones, RESEARCH_BOUNCE_POLICY_VERSION } from "./research-survey-delivery-safety";
 import {
   researchQualitySignals,
@@ -2299,9 +2300,14 @@ async function transitionResearchStudyInternal(
       }
       await client.query(`
         UPDATE research_release_snapshots
-        SET published_at=COALESCE(published_at,now())
+        SET published_at=COALESCE(published_at, GREATEST(now(),$2::timestamptz))
         WHERE id=$1
-      `, [release.id]);
+      `, [
+        release.id,
+        input.slug === GREEK_RETAIL_2026_SLUG
+          ? GREEK_RETAIL_RESULTS_PUBLICATION_AT
+          : "1970-01-01T00:00:00.000Z"
+      ]);
       await client.query(`
         UPDATE research_studies
         SET status='published',public_results_url=$2,updated_at=now()
