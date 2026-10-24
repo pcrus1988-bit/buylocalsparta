@@ -90,6 +90,7 @@ const CONTENT_OPERATOR_LINKS = new Map<string, { order: number; label?: string }
 const PLATFORM_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
   ["/admin/platform", { order: 0, label: "Overview" }],
   ["/admin/operations", { order: 1, label: "Health & Audit" }],
+  ["/admin/tiger/live", { order: 2, label: "TIGER LIVE" }],
   ["/admin/maintenance", { order: 2, label: "Jobs & Projections" }],
   ["/admin/shipping", { order: 3, label: "BOX NOW" }],
   ["/admin/activation", { order: 4, label: "Production Readiness" }]

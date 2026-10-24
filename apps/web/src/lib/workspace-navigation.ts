@@ -267,6 +267,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     links: [
       { label: "Overview", href: "/admin/platform", icon: "⚙", permission: "admin.audit.read" },
       { label: "Health & Audit", href: "/admin/operations", icon: "◉", permission: "admin.audit.read" },
+      { label: "🐯 TIGER LIVE", href: "/admin/tiger/live", icon: "◈", permission: "admin.audit.read" },
       { label: "Jobs", href: "/admin/maintenance", icon: "⋯", permission: "admin.audit.read" },
       { label: "Production Readiness", href: "/admin/activation", icon: "◈", permission: "admin.audit.read" },
       { label: "BOX NOW", href: "/admin/shipping", icon: "↗", permission: "fulfilment.write", contextHidden: true }
