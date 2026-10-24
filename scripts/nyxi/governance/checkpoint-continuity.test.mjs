@@ -50,8 +50,8 @@ test('untrusted injected anchor field rejected',()=>assert.equal(check(second,cp
 test('key rotation requires separately pinned key and anchor',()=>assert.equal(check(second,cp2,{pinnedPublicKey:otherKeys.publicKey}),false));
 test('substituted witness identity rejected',()=>assert.equal(check(second,cp2,{expectedWitnessId:'another-witness'}),false));
 test('signature from another private key rejected',()=>assert.equal(check(second,signed(second,'2026-10-23T09:01:00.000Z',otherKeys.privateKey)),false));
-test('nonmonotonic issued-at time rejected',()=>assert.equal(check(second,signed(second,'2026-10-23T08:01:00.000Z')),false));
-test('older issued-at time rejected',()=>assert.equal(check(second,signed(second,'2026-10-23T07:59:00.000Z')),false));
+test('nonmonotonic issued-at time cannot be signed',()=>assert.throws(()=>signed(second,'2026-10-23T08:01:00.000Z'),/invalid_witness_request/));
+test('older issued-at time cannot be signed',()=>assert.throws(()=>signed(second,'2026-10-23T07:59:00.000Z'),/invalid_witness_request/));
 test('altered prefix of appended chain rejected',()=>{
   const altered=structuredClone(second); altered[0].event.snapshot_sha256='f'.repeat(64);
   assert.equal(check(altered,cp2),false);
