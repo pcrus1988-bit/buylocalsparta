@@ -28,14 +28,43 @@ function visibleEstimate(raw: Estimate | undefined): raw is Estimate {
   return Boolean(raw && !raw.suppressed && raw.estimate !== null && Number.isFinite(raw.estimate) && raw.unweightedN >= 30);
 }
 const fallbackLabels: Record<string, string> = {
+  "business_financial_trends_12m.operating_costs.share.increased": "Αναφέρουν αύξηση λειτουργικών εξόδων",
+  "business_financial_trends_12m.profitability.share.decreased": "Αναφέρουν πτώση κερδοφορίας",
+  "business_financial_divergence.share.turnover_up_profit_down": "Αύξηση τζίρου αλλά πτώση κερδοφορίας",
+  "economic_viability_pressures.share.purchasing_power": "Μειωμένη αγοραστική δύναμη",
+  "economic_viability_pressures.share.suppliers": "Ανατιμήσεις προμηθευτών",
+  "economic_viability_pressures.share.liquidity": "Πίεση ρευστότητας",
+  "sales_channels.share.own_eshop": "Πραγματοποιούν πωλήσεις μέσω δικού τους e-shop",
+  "digital_sales_share.share.0": "Μηδενικό ποσοστό online λιανικών πωλήσεων",
+  "digital_capabilities.stock_sync.share.yes": "Πλήρης ψηφιακός συγχρονισμός αποθέματος",
+  "catalog_update_frequency.share.realtime": "Αυτόματη/σχεδόν άμεση ενημέρωση καταλόγου",
+  "first_online_sale_barriers.share.technical_skills": "Έλλειψη τεχνικών γνώσεων ως εμπόδιο",
+  "customer_acquisition_sources.share.word_of_mouth": "Απόκτηση πελατών από συστάσεις",
+  "customer_acquisition_sources.share.google": "Απόκτηση πελατών από Google",
+  "acquisition_difficulty_change.mean": "Δυσκολία απόκτησης νέου πελάτη (0–10)",
+  "local_customer_share.share.76_100": "76–100% πελάτες στην ίδια τοπική περιοχή",
+  "local_product_discovery_importance.mean": "Σημασία τοπικής online ανακάλυψης (1–5)",
+  "online_presence_local_store_impact.share.increased_some": "Μικρή αύξηση επισκέψεων λόγω online παρουσίας",
+  "operational_friction.stock.mean": "Δυσκολία στη διαχείριση αποθέματος (1–5)",
+  "operational_friction.acquisition.mean": "Δυσκολία στην εύρεση νέων πελατών (1–5)",
+  "operational_friction.admin.mean": "Δυσκολία στις διοικητικές διαδικασίες (1–5)",
+  "top_growth_barriers.share.acquisition": "Εύρεση πελατών στα 3 κορυφαία εμπόδια",
+  "top_growth_barriers.share.platform_cost": "Κόστος πλατφορμών στα 3 κορυφαία εμπόδια",
+  "sales_outlook.share.up_small": "Προσδοκία μικρής αύξησης πωλήσεων",
+  "sales_outlook.share.down_small": "Προσδοκία μικρής μείωσης πωλήσεων",
+  "investment_capacity_confidence_12m.share.unlikely": "Χαμηλή πιθανότητα χρηματοδότησης επενδύσεων",
+  "investment_intentions.share.none": "Δεν σχεδιάζουν σημαντική επένδυση",
+  "investment_intentions.share.erp": "Σχεδιάζουν επένδυση ERP/λογισμικού",
   "digital_readiness.mean": "Δείκτης ψηφιακής ετοιμότητας",
   "retail_friction.mean": "Δείκτης λειτουργικών δυσκολιών",
   "retail_confidence.mean": "Δείκτης επιχειρηματικής εμπιστοσύνης"
 };
 function evidenceLabel(estimate: Estimate) {
+  const override = fallbackLabels[estimate.metricKey];
+  if (override) return override;
   const explicit = estimate.metadata.label;
   if (typeof explicit === "string" && explicit.trim()) return explicit;
-  return fallbackLabels[estimate.metricKey] ?? estimate.metricKey.replaceAll("."," · ").replaceAll("_"," ");
+  return estimate.metricKey.replaceAll("."," · ").replaceAll("_"," ");
 }
 
 export function ResearchResultsChapters({estimates}:{estimates:readonly Estimate[]}) {
