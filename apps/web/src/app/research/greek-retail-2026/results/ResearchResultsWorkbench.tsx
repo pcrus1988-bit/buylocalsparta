@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo,useState } from "react";
+import Link from "next/link";
 import { PUBLIC_RESULTS_CHAPTERS,PUBLIC_RESULTS_METRICS,publicMetricLabel } from "../../../../lib/research-public-results-sections";
 import { demoResultPoints,type SafeParticipationGeography,type SafePublicResultPoint } from "../../../../lib/research-public-results-data";
 import { ResearchPublicationMap } from "./ResearchPublicationMap";
@@ -253,7 +254,7 @@ export function ResearchResultsWorkbench({
     <h3>Heatmap Ελλάδας</h3><p>Εξερευνήστε τη χωρική κάλυψη ή επιλέξτε διαθέσιμους εγκεκριμένους περιφερειακούς δείκτες. Με το ίδιο γεωγραφικό υπόβαθρο της έρευνας.</p></div>
    <ResearchPublicationMap points={points} geography={geography} isDemo={demo}/>
   </section>}
-  {menu==="voices"&&<ResearchVoiceOfGreece isDemo={demo} data={voices}/>}
+  {menu==="voices"&&<><div className={styles.voiceOpenLink}><Link href={demo?"/research/greek-retail-2026/results/Preview/voices":"/research/greek-retail-2026/results/voices"}>Άνοιγμα της «Φωνής της Ελλάδας» σε ξεχωριστή πλήρη σελίδα ↗</Link></div><ResearchVoiceOfGreece isDemo={demo} data={voices}/></>}
   <footer className={styles.scientificFooter}>
    Η τελική έκδοση προβάλλει μόνο ελεγμένες συγκεντρωτικές εκτιμήσεις (ελάχιστο n 30).
    Η πιλοτική προεπισκόπηση χρησιμοποιεί αποκλειστικά κατασκευασμένα παραδείγματα.
