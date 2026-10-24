@@ -34,3 +34,18 @@ test("SQL regexes have safe fixed source and valid Javascript equivalents", () =
     keys.add(c.key);
   }
 });
+
+test("tax, energy, rent and survival are separately discoverable", () => {
+  const tags = categorizeResearchFreeText("Θέλω να μπορώ να πάρω κι εγώ έναν μισθό. Το ρεύμα, το ενοίκιο και ο ΦΠΑ με πιέζουν.");
+  for (const tag of ["survival", "energy", "rent", "taxes"]) assert.ok(tags.includes(tag), tag);
+});
+
+test("tourism, local cooperation and safety are included", () => {
+  assert.ok(categorizeResearchFreeText("Στη σεζόν έχουμε τουρίστες").includes("tourism"));
+  assert.ok(categorizeResearchFreeText("Χρειάζονται συνεργασίες μεταξύ μικρών επιχειρήσεων").includes("cooperation"));
+  assert.ok(categorizeResearchFreeText("Οι κλοπές στα καταστήματα είναι πρόβλημα").includes("safety"));
+});
+
+test("the taxonomy does not infer a theme for an unrecognized sentence", () => {
+  assert.deepEqual(categorizeResearchFreeText("Μια σκέψη που δεν έχει συγκεκριμένη θεματολογία"), ["other"]);
+});
