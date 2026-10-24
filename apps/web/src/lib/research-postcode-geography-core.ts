@@ -8,8 +8,8 @@ import { GREECE_PREFECTURES } from "./research-prefectures";
  */
 const VALID_REGIONS = new Set<string>(GREECE_REGIONS.map(r=>r.key));
 const LABELS = new Map<string,string>(GREECE_PREFECTURES.map(p=>[p.key,p.label]));
-const CODES = new Set(GREECE_PREFECTURES.map(p=>p.key));
-const POSTCODE_MAP = postcodePrefectures as Record<string, readonly [string,string]>;
+const CODES = new Set<string>(GREECE_PREFECTURES.map(p=>p.key));
+const POSTCODE_MAP = postcodePrefectures as unknown as Record<string, readonly [string,string]>;
 
 /** For postal references missing from the point dataset, only use established
  * legacy source names. Do not infer a νομός from the first 2–3 digits alone.
