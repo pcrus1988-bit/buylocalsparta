@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import styles from "./Preview.module.css";
+import { ResearchResultsWorkbench } from "../ResearchResultsWorkbench";
+import { GREECE_REGIONS } from "../../../../../lib/research-geographic-core";
 
 type Metric = Readonly<{ label: string; value: string; detail: string }>;
 type Bar = Readonly<{ label: string; value: number }>;
@@ -229,7 +231,7 @@ export function ResearchResultsPreviewExperience() {
         <h1>Πίσω από τους αριθμούς, <em>η πραγματικότητα της αγοράς.</em></h1>
         <p>Έξι ενότητες. Μετρήσιμα ευρήματα. Διασταυρώσεις απαντήσεων. Επιστημονική ερμηνεία με σαφή όρια.</p>
         <div className={styles.heroActions}>
-          <a className={styles.primaryAction} href="#explore">Εξερεύνηση του σχεδιασμού <span aria-hidden="true">↗</span></a>
+          <a className={styles.primaryAction} href="#research-workbench">Εξερεύνηση του σχεδιασμού <span aria-hidden="true">↗</span></a>
           <Link href="/research/greek-retail-2026/results" className={styles.secondaryAction}>Επίσημη σελίδα αποτελεσμάτων</Link>
         </div>
       </div>
@@ -249,6 +251,10 @@ export function ResearchResultsPreviewExperience() {
       <span>Όλα τα ποσοστά, οι δείκτες, τα n, τα διαστήματα εμπιστοσύνης και οι διαφορές σε αυτή την προεπισκόπηση είναι κατασκευασμένα αποκλειστικά για να δείξουν τον σχεδιασμό. Δεν προέρχονται από την έρευνα.</span>
     </div>
 
+    <ResearchResultsWorkbench mode="preview" geography={{
+      regions:GREECE_REGIONS.map((r,i)=>({key:r.key,label:r.label,started:65+(i*53)%285}))
+    }}/>
+    
     <section id="explore" className={styles.explore} aria-labelledby="chapters-title">
       <div className={styles.sectionIntro}>
         <div><div className={styles.overline}>Η ΤΕΛΙΚΗ ΔΟΜΗ ΤΗΣ ΕΚΘΕΣΗΣ</div><h2 id="chapters-title">Έξι κεφάλαια. Μία ολοκληρωμένη εικόνα.</h2></div>

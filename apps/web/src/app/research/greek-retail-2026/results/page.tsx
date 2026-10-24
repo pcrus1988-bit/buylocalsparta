@@ -6,6 +6,9 @@ import styles from "../../../../components/ResearchSurveyPage.module.css";
 import previewStyles from "./ResultsPreview.module.css";
 import { getPublishedGreekRetailResults } from "../../../../lib/research-survey-release";
 import { governedStaticSeoMetadata } from "../../../../lib/seo-metadata";
+import { publicResearchStudy } from "../../../../lib/research-observatory-runtime";
+import { publicResultPoints, validRegionValue, type SafeParticipationGeography } from "../../../../lib/research-public-results-data";
+import { ResearchResultsWorkbench } from "./ResearchResultsWorkbench";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +61,7 @@ export default async function GreekRetailResultsPage() {
         <div className={previewStyles.status}>Τα τελικά αποτελέσματα δεν έχουν δημοσιευθεί ακόμη</div>
         <div className={styles.meta}>
           <Link href="/research/greek-retail-2026">← Επισκόπηση και πρόοδος της έρευνας</Link>
-          <Link href="/research/greek-retail-2026/methodology">Μεθοδολογία</Link>
+          <Link href="/research/greek-retail-2026/methodology">Μεθοδολογία</Link><a href="#research-workbench">Εργαλεία, γραφήματα & χάρτης ↓</a>
         </div>
       </header>
 
@@ -145,13 +148,33 @@ export default async function GreekRetailResultsPage() {
           </div>
         </section>
       </div>
+      <ResearchResultsWorkbench mode="unpublished" points={[]} />
       <SiteFooter />
     </main>;
   }
 
+  // Public reader is already gated by the immutable Athens publication cutoff.
+  // Only already-published and privacy-suppressed aggregate estimates reach the browser.
+  const safePoints = publicResultPoints(published.estimates);
+  let geography: SafeParticipationGeography | undefined;
+  try {
+    const publicStudy = await publicResearchStudy("greek-retail-2026");
+    const snapshot = publicStudy?.participationGeography;
+    if (snapshot) geography = {
+      // Participation starts are a separate data series from published results.
+      // Do not expose small regional cells through React Flight.
+      regions: snapshot.regions.filter(region => region.started >= 30)
+        .map(region => ({key:region.key,label:region.label,started:region.started})),
+      densityImage: snapshot.densityImage
+    };
+  } catch (cause) {
+    console.error("research_results_geography_unavailable",cause instanceof Error?cause.name:"UnknownError");
+  }
   const visible = published.estimates.filter((estimate) => !estimate.suppressed && estimate.estimate != null);
   const overall = visible.filter((estimate) => Object.keys(estimate.segment).length === 0);
-  const region = visible.filter((estimate) => typeof estimate.segment.regionCode === "string");
+  // Historical prefecture IDs must never be mislabeled as administrative regions.
+  const region = visible.filter((estimate) => typeof estimate.segment.regionCode === "string" &&
+    validRegionValue(estimate.segment.regionCode) && estimate.unweightedN >= 30);
   const sector = visible.filter((estimate) => typeof estimate.segment.sectorCode === "string");
 
   return <main className={styles.shell}>
@@ -163,10 +186,11 @@ export default async function GreekRetailResultsPage() {
       <p>Τα αποτελέσματα παρουσιάζονται μαζί με το μέγεθος του δείγματος και, όπου είναι διαθέσιμο, το 95% διάστημα εμπιστοσύνης.</p>
       <div className={styles.meta}>
         <Link href="/research/greek-retail-2026">← Επισκόπηση μελέτης</Link>
-        <Link href="/research/greek-retail-2026/methodology">Πώς έγινε η μελέτη</Link>
+        <Link href="/research/greek-retail-2026/methodology">Πώς έγινε η μελέτη</Link><a href="#research-workbench">Graph Explorer & Heatmap ↓</a>
       </div>
     </header>
 
+    <ResearchResultsWorkbench mode="published" points={safePoints} geography={geography} />
     <section className={styles.invalid}>
       <div className={styles.brand}>Πώς να διαβάσετε τους αριθμούς</div>
       <h2>Κοιτάξτε την τιμή μαζί με το n και το διάστημα εμπιστοσύνης.</h2>
