@@ -4,6 +4,7 @@
  * No synthetic worker, message, task, acceptance or achievement state.
  */
 import "server-only";
+import {verifyTigerLiveLedger} from "./tiger-live-integrity";
 import {latestWorkflowOutcomes,verifiedContractRun} from "./tiger-live-evidence";
 import {inspectTaskAllocations} from "./tiger-live-claims";
 import type {TigerTaskAllocation} from "./tiger-live-claims";
@@ -45,8 +46,8 @@ function githubEvidence(value:unknown):string|undefined {
   }catch{return undefined;}
 }
 type RawTask = {engine?:string;status?:string;lease?:{owner?:string;expires_at?:number;last_heartbeat_at?:number}|null;issue?:number;updated_at?:string|null};
-type RawState = {schema_version?:number;revision?:number;tasks?:Record<string,RawTask>;last_event?:unknown};
-type RawEvent = {seq?:number;at?:string;kind?:string;task_id?:string;owner?:string;evidence?:{pr_url?:string;ci_url?:string}};
+type RawState = {schema_version?:number;revision?:number;tasks?:Record<string,RawTask>;last_hash?:string;last_event?:unknown};
+type RawEvent = {seq?:number;at?:string;kind?:string;task_id?:string;owner?:string;hash?:string;previous_hash?:string;evidence?:{pr_url?:string;ci_url?:string}};
 const transitionKinds:Record<string,[string,TigerLiveEvent["severity"],string]> = {
   claimed:["task.claimed","info","Task claimed"],
   heartbeat:["worker.heartbeat","info","Worker lease heartbeat recorded"],
@@ -92,7 +93,7 @@ async function eventFile(token:string):Promise<RawEvent[]> {
   if(response.encoding!=="base64")throw new Error("TIGER_EVENTS_UNAVAILABLE");
   if((response.size??0)>900_000)throw new Error("TIGER_EVENTS_ARCHIVE_REQUIRED");
   const content=Buffer.from((response.content||"").replace(/\s/g,""),"base64").toString("utf8");
-  return content.split("\n").filter(Boolean).slice(-150).map(line=>JSON.parse(line) as RawEvent);
+  return content.split("\n").filter(Boolean).map(line=>JSON.parse(line) as RawEvent);
 }
 async function claimFiles(token:string):Promise<ReadonlyArray<{filename:string;content:unknown}>>{
   // Absence of the directory on the untouched revision-0 state branch is
@@ -250,6 +251,7 @@ export async function getTigerLiveSnapshot():Promise<TigerSnapshot>{
         github("/pulls?state=all&per_page=60",token),
         claimFiles(token)
       ]);
+      verifyTigerLiveLedger(state,events);
       return snapshotFromSources(state,events,runs,prs,claims);
     }catch{
       return blank("DISCONNECTED","TIGER evidence is unavailable or a source contract is invalid. No operational state is inferred.");
