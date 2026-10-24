@@ -35,6 +35,7 @@ const LEVEL_LABELS: Record<string, string> = {
   single_import: "Εφάπαξ εισαγωγή",
   automatic_sync: "Αυτόματος συγχρονισμός",
   listing_only: "Μόνο καταχώριση",
+  payments: "Διαχείριση πληρωμών",
   payments_shipping_returns: "Πληρωμές, αποστολές και επιστροφές",
   none: "Χωρίς συγχρονισμό",
   daily: "Καθημερινά",
@@ -54,7 +55,7 @@ export default async function ResearchAnalyticsPage({ params, searchParams }: {
   const filters = await searchParams;
   const root = "/admin/research/surveys/" + encodeURIComponent(slug);
 
-  let data: Awaited<ReturnType<typeof researchExperimentAnalytics>>;
+  let data: Awaited<ReturnType<typeof researchExperimentAnalytics>> | undefined;
   let unavailable = false;
   try {
     data = await researchExperimentAnalytics(principal, slug, filters);
