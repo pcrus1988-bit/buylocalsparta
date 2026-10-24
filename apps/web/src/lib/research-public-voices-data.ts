@@ -26,7 +26,7 @@ export function publicVoiceDataFromRelease(value:unknown):PublicVoiceData|undefi
     typeof source.approvedAt!=="string"||!/^20\d{2}-\d{2}-\d{2}T/.test(source.approvedAt))return undefined;
  const categories=asArray(source.categories).flatMap(value=>{
   const item=asRecord(value),key=simple(item.key,90),label=simple(item.label,140),n=count(item.count);
-  return key&&label&&n!==undefined?[{key,label,count:n}]:[];
+  return key&&label&&n!==undefined&&n>=30?[{key,label,count:n}]:[];
  }).filter((v,i,all)=>all.findIndex(item=>item.key===v.key)===i);
  const keys=new Set(categories.map(c=>c.key));
  const quotes=asArray(source.quotes).flatMap(value=>{
