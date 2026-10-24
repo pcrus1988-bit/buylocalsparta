@@ -231,7 +231,7 @@ export function ResearchResultsPreviewExperience() {
         <h1>Πίσω από τους αριθμούς, <em>η πραγματικότητα της αγοράς.</em></h1>
         <p>Έξι ενότητες. Μετρήσιμα ευρήματα. Διασταυρώσεις απαντήσεων. Επιστημονική ερμηνεία με σαφή όρια.</p>
         <div className={styles.heroActions}>
-          <a className={styles.primaryAction} href="#explore">Εξερεύνηση του σχεδιασμού <span aria-hidden="true">↗</span></a>
+          <a className={styles.primaryAction} href="#research-workbench">Εξερεύνηση του σχεδιασμού <span aria-hidden="true">↗</span></a>
           <Link href="/research/greek-retail-2026/results" className={styles.secondaryAction}>Επίσημη σελίδα αποτελεσμάτων</Link>
         </div>
       </div>
