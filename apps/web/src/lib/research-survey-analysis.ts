@@ -11,8 +11,9 @@ import {
   weightedClusteredDifferenceInMeans
 } from "./research-survey-statistics";
 import { scoreGreekRetail2026, type ResearchAnswerMap } from "./research-survey-model";
+import { computeResearchPublicRelations } from "./research-public-relations.ts";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v8";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v9";
 const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v2";
 const MIN_PUBLIC_BASE = 30;
 const VARIANCE_METHOD = "stratified_srs_fpc_v1";
@@ -929,6 +930,34 @@ export async function runGreekRetailAnalysis(
       ]);
       estimateCount += 1;
     }
+  }
+
+  // Exploratory relationships: calculated from the FINAL quality-approved
+  // weighted analysis cohort, never from drafts, pilot, or withdrawn responses.
+  // Withhold inferential confidence limits until a design-aware contrast
+  // variance estimator is separately validated for every subgroup.
+  for (const relation of computeResearchPublicRelations(weightedResponses)) {
+    await pool.query(`
+      INSERT INTO research_analysis_estimates (
+        analysis_run_id,metric_key,segment,estimate,standard_error,confidence_level,
+        ci_lower,ci_upper,unweighted_n,weighted_n,method,suppressed,metadata
+      )
+      VALUES ($1,$2,'{}'::jsonb,$3,NULL,NULL,NULL,NULL,$4,NULL,
+        'survey_weighted_exploratory_contrast_descriptive_v1',$5,$6::jsonb)
+    `, [
+      analysisRunId,
+      `relationship.${relation.id}.difference`,
+      relation.difference,
+      relation.sampleN,
+      relation.suppressed,
+      JSON.stringify({
+        ...relation.metadata,
+        codeVersion: ANALYSIS_CODE_VERSION,
+        weightVersion,
+        publicMinimumBase: MIN_PUBLIC_BASE
+      })
+    ]);
+    estimateCount += 1;
   }
 
   const experimentQuestion = questions.find(
