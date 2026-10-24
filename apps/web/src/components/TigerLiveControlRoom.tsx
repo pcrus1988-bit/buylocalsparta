@@ -2,7 +2,7 @@
 
 import {useEffect,useMemo,useRef,useState} from "react";
 import type {CSSProperties} from "react";
-import type {TigerLiveEvent,TigerSnapshot,TigerIssue,TigerWorker} from "../lib/tiger-live";
+import type {TigerLiveEvent,TigerSnapshot,TigerIssue,TigerWorker,TigerAllocation} from "../lib/tiger-live";
 
 const ROOMS:ReadonlyArray<{id:string;x:number;y:number;accent:string}>= [
   {id:"A01",x:19,y:17,accent:"#94a77f"},
@@ -22,6 +22,7 @@ type Inspect =
  | {kind:"agent";data:TigerWorker}
  | {kind:"event";data:TigerLiveEvent}
  | {kind:"issue";data:TigerIssue}
+ | {kind:"allocation";data:TigerAllocation}
  | {kind:"achievement";data:{id:string;title:string;evidenceUrl:string}};
 function Evidence({url}:{url?:string}){
   if(!url)return <span className="tiger-muted">No verifiable evidence link</span>;
@@ -103,6 +104,7 @@ export function TigerLiveControlRoom({initial}:{initial:TigerSnapshot}){
         <span className={"tiger-chip "+statusColor(connection)}><span className="tiger-status-dot"/>{connection}</span>
         <span className="tiger-chip">Agents <strong>{snapshot.activeWorkers}/11</strong></span>
         <span className="tiger-chip">Running <strong>{snapshot.runningTasks}</strong></span>
+        <span className="tiger-chip">Allocated <strong>{snapshot.allocations?.filter(c=>c.status==="allocated").length||0}</strong></span>
         <span className="tiger-chip">Blocked <strong>{snapshot.blockedTasks}</strong></span>
         <span className="tiger-chip">CI <strong>{snapshot.ciHealth}</strong></span>
         <span className="tiger-chip">Budget <strong>{snapshot.budgetStatus}</strong></span>
@@ -171,6 +173,13 @@ export function TigerLiveControlRoom({initial}:{initial:TigerSnapshot}){
           </div>
           <div className="tiger-office-caption">{snapshot.activeWorkers===0?"All agent workstations are idle/offline. No agent activity is being simulated.":"Active workstations require a valid lease and fresh heartbeat."}</div>
         </div>
+        {snapshot.allocations?.length>0&&<section className="tiger-allocation-strip" aria-label="Recorded engineering allocations">
+          <strong>RECORDED TASK ALLOCATIONS · NOT LIVE HEARTBEATS</strong>
+          <div>{snapshot.allocations.map(claim=><button key={claim.taskId} onClick={()=>setInspect({kind:"allocation",data:claim})}>
+            <span>{claim.engineId} · {claim.taskId}</span>
+            <b>{claim.status==="expired"?"EXPIRED · REVIEW REQUIRED":"ALLOCATED · NO WORKER HEARTBEAT"}</b>
+          </button>)}</div>
+        </section>}
         <div className="tiger-scene-footer">
           <div className="tiger-controls">
             <button onClick={()=>setPaused(v=>!v)}>{paused?"▶ Resume visuals":"Ⅱ Pause visuals"}</button>
@@ -213,6 +222,7 @@ export function TigerLiveControlRoom({initial}:{initial:TigerSnapshot}){
         {inspect.kind==="agent"?<><div className="tiger-inspector-avatar"><TigerFace accent="#d8b36b" working={canAnimate&&inspect.data.status==="working"}/></div><h2>{inspect.data.id} · {inspect.data.name}</h2><p>Verified state: <strong>{inspect.data.status}</strong></p><p>Task: {inspect.data.taskId||"None recorded"} · Engine: {inspect.data.engineId||"Unassigned"}</p><p>Heartbeat: {fmt(inspect.data.heartbeatAt)}</p><p>Logical agent roles are not permanent workers.</p></>:
           inspect.kind==="event"?<><h2>{inspect.data.summary}</h2><p>Type: {inspect.data.eventType} · Severity: {inspect.data.severity}</p><p>Agent: {inspect.data.agentId||"Not attributed"} · Engine: {inspect.data.engineId||"Not attributed"}</p><p>Task: {inspect.data.taskId||"Not recorded"}</p><p>Occurred: {fmt(inspect.data.occurredAt)}</p><p>Cursor: {inspect.data.cursor||"GitHub evidence source"}</p><Evidence url={inspect.data.evidenceUrl}/></>:
           inspect.kind==="issue"?<><h2>{inspect.data.title}</h2><p>Severity: {inspect.data.severity}</p><p>Task: {inspect.data.taskId||"GitHub Actions"}</p><p>Engine: {inspect.data.engineId||"System"}</p><Evidence url={inspect.data.evidenceUrl}/></>:
+          inspect.kind==="allocation"?<><h2>{inspect.data.taskId} · {inspect.data.status}</h2><p>Engine: {inspect.data.engineId}</p><p>Declared owner: {inspect.data.declaredOwner}</p><p>Created: {fmt(inspect.data.createdAt)}</p><p>Expires: {fmt(inspect.data.expiresAt)}</p><p>This GitHub document records a task allocation. It is not a verified heartbeat, proof of an active hosted AI worker, or production acceptance.</p><Evidence url={inspect.data.evidenceUrl}/></>:
           <><h2>{inspect.data.title}</h2><Evidence url={inspect.data.evidenceUrl}/></>}
       </section>
     </div>}
