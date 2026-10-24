@@ -35,17 +35,30 @@ export async function reviewMaziInterest(principal:SessionPrincipal,input:{
  try{
   await client.query("BEGIN");
   const row=await client.query<{
-   id:string;status:string;registry_lookup_status:string;gemi_number:string|null;
+   id:string;status:string;tax_number:string;registry_lookup_status:string;gemi_number:string|null;
    registry_checked_at:Date|null
   }>(`
-   SELECT id::text,status,registry_lookup_status,gemi_number,registry_checked_at
+   SELECT id::text,status,tax_number,registry_lookup_status,gemi_number,registry_checked_at
    FROM public.mazi_interest_applications WHERE id=$1::uuid
    FOR UPDATE
   `,[input.id]);
   const app=row.rows[0];
   if(!app||!["pending_review","registry_review_required"].includes(app.status))
    throw Error("MAZI_INTEREST_NOT_REVIEWABLE");
+  // A competing anonymous claim may be legitimate. Serialize approvals by
+  // AFM so two reviewers cannot approve conflicting representative claims.
+  await client.query(`
+   SELECT pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended($1::text,39128))
+  `,[app.tax_number]);
   if(input.decision==="approve"){
+   const pendingOther=await client.query<{present:boolean}>(`
+    SELECT EXISTS(SELECT 1 FROM public.mazi_interest_applications
+      WHERE tax_number=$1 AND id<>$2::uuid
+      AND status='approved_pending_invite') AS present
+   `,[app.tax_number,app.id]);
+   if(pendingOther.rows[0]?.present)throw Error("MAZI_COMPETING_APPROVED_CLAIM");
+
    if(app.registry_lookup_status!=="matched"||!app.gemi_number||
      !app.registry_checked_at||
      Date.now()-new Date(app.registry_checked_at).getTime()>7*86400000||

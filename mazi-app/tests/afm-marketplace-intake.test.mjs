@@ -11,7 +11,7 @@ const action=source("../../apps/web/src/app/admin/mazi/interest/actions.ts");
 
 test("unauthenticated AFM interest is NOT an account registration",()=>{
  assert.match(runtime,/resolveGemiCompanyByAfm\(candidate\.afm\)/);
- assert.match(runtime,/on conflict\(tax_number\) do nothing/);
+ assert.match(runtime,/on conflict\(tax_number,contact_email\) do nothing/);
  assert.doesNotMatch(runtime,/auth\.signUp|auth\.admin\.createUser|auth\.signInWithOtp/);
  assert.doesNotMatch(route,/SUPABASE_SERVICE_ROLE_KEY|setSession|createUser/);
  assert.match(route,/const MAZI_ORIGIN="https:\/\/mazi\.kontamou\.site"/);
@@ -42,6 +42,13 @@ test("Super Admin review requires independently verified representative and emai
  assert.match(review,/name="emailVerified"/);
  assert.match(review,/name="companyActiveVerified"/);
  assert.match(review,/Δεν έχει σταλεί πρόσκληση/);
+});
+test("competing applicants cannot squat an AFM or both be approved",()=>{
+ const followup=source("../sql/016_afm_competing_claims.sql");
+ assert.match(followup,/DROP CONSTRAINT mazi_interest_applications_tax_number_key/);
+ assert.match(followup,/ON public\.mazi_interest_applications\(tax_number,contact_email\)/);
+ assert.match(admin,/MAZI_COMPETING_APPROVED_CLAIM/);
+ assert.match(admin,/hashtextextended\(\$1::text,39128\)/);
 });
 test("no finance, membership or invitations are minted",()=>{
  for(const file of [runtime,route,admin,sql]){
