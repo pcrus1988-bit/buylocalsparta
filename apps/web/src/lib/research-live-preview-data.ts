@@ -9,10 +9,8 @@ import { PUBLIC_RESULTS_METRICS, publicMetricLabel } from "./research-public-res
 import type { SafePublicResultPoint,InternalResearchGeographicCoverage } from "./research-public-results-data";
 
 const ALLOWED_METRICS = new Set<string>(PUBLIC_RESULTS_METRICS);
-const MIN_CELL_N = 30;
-// The restricted admin Preview may inspect descriptive single-county
-// aggregates at n>=10. This NEVER lowers thresholds for the public release.
-const MIN_INTERNAL_PREFECTURE_N = 10;
+// All non-empty cohorts are included for private, administrator-only analysis.
+// These are raw respondent totals, not published estimates or population inference.
 const RESTRICTED = /experiment|exp01|amce|conjoint|randomized_profile|platform_choice/i;
 type Question = { code: string; kind: string; key: string; config: Record<string, unknown> };
 type Participant = { answers: Record<string, unknown>; regionCode: string; prefectureCode: string; sectorCode: string; sizeBand: string };
@@ -95,8 +93,9 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
       sizeBand: typeof answers.Q02 === "string" ? answers.Q02 : ""};
   });
 
-  // Expose only county/region labels and broad suppressed cohort bands.
-  // n<10 remains null, with no answer values, postcode, identity or raw rows.
+  // All completed responses count, including one-person cohorts. Never include
+  // postcode, respondent identity, raw answer text or contacts in the payload.
+  // Band labels describe uncertainty, NOT disclosure thresholds.
   const countCoverage = (dimension:"regionCode"|"prefectureCode") => {
     const totals=new Map<string,number>();
     for(const person of people) {
@@ -113,7 +112,7 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
     includedTotal:people.length,
     prefectures:GREECE_PREFECTURES.map(p=>{
       const n=countyCounts.get(p.key)??0;
-      return {key:p.key,band:band(n),eligibleN:n>=MIN_INTERNAL_PREFECTURE_N?n:null};
+      return {key:p.key,band:band(n),eligibleN:n};
     }),
     regions:GREECE_REGIONS.map(p=>{
       const n=regionCounts.get(p.key)??0;
@@ -238,7 +237,7 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
     });
     for (const cohort of cohorts) {
       const n=cohort.observations.length;
-      if (n<(cohort.segment.prefectureCode ? MIN_INTERNAL_PREFECTURE_N : MIN_CELL_N)) continue;
+      if (n === 0) continue;
       const estimate=cohort.observations.reduce((sum,item)=>sum+item.value,0)/n;
       if (!Number.isFinite(estimate)) continue;
       points.push({
