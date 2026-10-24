@@ -84,3 +84,9 @@ No real financial service, pooled payments, crowdfunding or grant distributions 
 - Application intake enforces MAZI web origin, bounded payload, honeypot and database-backed visitor/IP limits; response does not disclose prior applications for same AFM. An approved matching GEMI record is NOT proof of authority.
 - `/admin/mazi/interest` uses only marketplace Super Admin + CSRF + separately verified representation/email to approve an applicant for **pending invitation** or decline with immutable audit. Approval does NOT send an email, provision MAZI account, issue marketing credits or activate a fund.
 - After this marketplace stage is production-ready, independently ship the MAZI front-end AFM form and disable public Auth account creation. The single-use invitation issue/consumption workflow still requires implementation and real consenting acceptance.
+
+## 2026-10-23 · AFM-first public interest page (staged)
+- New `/interest` landing page is a real browser client of the existing marketplace `/api/mazi-interest` endpoint. It submits validated AFM, representative/contact data, accuracy confirmation and processing notice, with server-provided anti-abuse limits; the response never reveals whether an AFM was previously submitted.
+- Public home/header links now point to `/interest`. Existing members still use `/join` for email sign-in; `signInWithOtp` explicitly passes `shouldCreateUser:false` so unknown emails never create Supabase Auth identities.
+- This change **does not issue invitations or create members**. Super Admin review is still at `/admin/mazi/interest`; a real one-time invitation issue/redeem and legal-terms acceptance workflow remains an activation blocker for new membership.
+- Keep this rollout together with the marketplace intake endpoint; check CORS Origin, Vercel network identity, real GEMI adapter and a consenting business before publication. No financial activation, new subscriptions or ledgers.

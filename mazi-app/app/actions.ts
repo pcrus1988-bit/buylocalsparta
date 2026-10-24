@@ -1,7 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
 import { createClient } from "../lib/supabase/server";
-import { asText, validEmail, validateApplication, validateProposal } from "../lib/validation";
+import { asText, validEmail, validateProposal } from "../lib/validation";
 import {maziMemberRequest} from "../lib/mazi-api";
 
 const DESTINATION = "https://mazi.kontamou.site/auth/callback";
@@ -19,7 +19,7 @@ export async function emailSignIn(form:FormData) {
   if (!validEmail(email)) urlMessage("/join","invalid_email");
   const db=await createClient();
   const {error}=await db.auth.signInWithOtp({
-    email,options:{emailRedirectTo:DESTINATION,shouldCreateUser:true}
+    email,options:{emailRedirectTo:DESTINATION,shouldCreateUser:false}
   });
   if(error) urlMessage("/join","email_unavailable");
   redirect("/join?sent=1");
@@ -29,23 +29,6 @@ export async function signOut(){
   const db=await createClient();
   await db.auth.signOut();
   redirect("/");
-}
-
-export async function applyForMembership(form:FormData) {
-  await authenticated();
-  if (form.get("accept_privacy") !== "on") urlMessage("/members","privacy_required");
-  const input={
-    business_name:asText(form.get("business_name")),
-    representative_name:asText(form.get("representative_name")),
-    location:asText(form.get("location")),
-    sector:asText(form.get("sector")),
-    registry_number:asText(form.get("registry_number")).replace(/\s/g,"")||null,
-    description:asText(form.get("description"))
-  };
-  if(validateApplication(input)) urlMessage("/members","invalid_application");
-  const outcome=await maziMemberRequest("apply",{...input,accept_privacy:true});
-  if(!outcome.ok)urlMessage("/members",outcome.error==="already_applied"?"already_applied":"application_failed");
-  redirect("/members?notice=application_received");
 }
 
 export async function submitProposal(form:FormData) {
@@ -116,4 +99,25 @@ export async function answerMaziFollowup(form:FormData){
  const result=await maziMemberRequest("answer_followup",{followup_id,answer});
  if(!result.ok)urlMessage("/members","followup_not_available");
  redirect("/members?notice=followup_answered");
+}
+
+/**
+ * Distinct, explicit invitation acceptance. Only a confirmed Auth email that
+ * matches the reviewed interest can be admitted by the private SQL RPC.
+ * This action never activates a membership invoice, marketing credits or voting.
+ */
+export async function acceptMaziInvitation(form:FormData){
+ await authenticated();
+ const invitation_id=asText(form.get("invitation_id"));
+ const terms_version=asText(form.get("terms_version"));
+ if(!/^[0-9a-f-]{36}$/i.test(invitation_id)||
+    terms_version!=="mazi-invitation-terms-v1"||
+    form.get("accept_charter")!=="on"||
+    form.get("accept_processing")!=="on")
+   urlMessage("/onboarding","invitation_not_eligible");
+ const outcome=await maziMemberRequest("accept_invitation",{
+  invitation_id,terms_version,accept_charter:true,accept_processing:true
+ });
+ if(!outcome.ok)urlMessage("/onboarding","invitation_not_eligible");
+ redirect("/members?notice=invitation_accepted");
 }
