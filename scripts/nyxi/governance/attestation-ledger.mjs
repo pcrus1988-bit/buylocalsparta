@@ -69,7 +69,8 @@ function binding(source, approval, snapshot) {
     throw Error('invalid_snapshot_hash_or_size');
   const path = snapshot.storage_path;
   if (snapshot.storage_bucket !== 'nyxi-evidence' || typeof path !== 'string' ||
-      path.startsWith('/') || path.includes('\\') || path.split('/').some(x => !x || x === '.' || x === '..' || x.includes('\0')) ||
+      path.startsWith('/') || !/^[A-Za-z0-9._/-]+$/.test(path) ||
+      path.split('/').some(x => !x || x === '.' || x === '..') ||
       !path.startsWith(source.id + '/' + snapshot.sha256 + '/')) throw Error('invalid_private_storage_binding');
 }
 export function observe({source,approval,snapshot,originalBytes,observedAt,holdReason} = {}) {
