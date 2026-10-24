@@ -48,7 +48,10 @@ const CROSSWALK = new Map<string, GreekRegionKey>(
 );
 
 export function greekRegionForPrefecture(prefecture: string | null | undefined): GreekRegionKey | undefined {
-  return prefecture ? CROSSWALK.get(normalizedPrefecture(prefecture)) : undefined;
+  if (!prefecture) return undefined;
+  // Server-side postal aggregates already use canonical 13-region IDs.
+  if (GREECE_REGIONS.some(r=>r.key===prefecture)) return prefecture as GreekRegionKey;
+  return CROSSWALK.get(normalizedPrefecture(prefecture));
 }
 
 export type GeographicMapCell = Readonly<{ key: GreekRegionKey; label: string; respondents: number; answered: number; selected: number }>;
