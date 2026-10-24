@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./ResultsWorkbench.module.css";
 
 /** Public-only, explicitly cleared Q18 editorial output.
@@ -53,7 +53,26 @@ export function ResearchVoiceOfGreece({isDemo,data,isLivePreview=false}:{isDemo:
  const [round,setRound]=useState(0);
  const [filter,setFilter]=useState("");
  const [order,setOrder]=useState<PublishedVoice[]>([]);
- useEffect(()=>{setOrder(shuffle(eligible));setIndex(0);},[eligible,round]);
+ const previousRound=useRef(round);
+ useEffect(()=>{
+   // Preserve already-revealed quotes across 60-second data refreshes.
+   // New valid Q18 answers are shuffled into the unrevealed tail.
+   const restarted=previousRound.current!==round;
+   previousRound.current=round;
+   setOrder(before=>{
+     if(restarted || before.length===0) return shuffle(eligible);
+     const latest=new Map(eligible.map(quote=>[quote.id,quote] as const));
+     const retained=before.flatMap(quote=>{
+       const current=latest.get(quote.id);
+       return current?[current]:[];
+     });
+     const seen=new Set(retained.map(q=>q.id));
+     const added=eligible.filter(quote=>!seen.has(quote.id));
+     return added.length===0 && retained.length===before.length
+       ? retained : [...retained,...shuffle(added)];
+   });
+ },[eligible,round]);
+ useEffect(()=>{setIndex(value=>Math.min(value,order.length));},[order.length]);
  useEffect(()=>{
   if(!playing||order.length===0||index>=order.length)return;
   const handle=window.setTimeout(()=>setIndex(n=>Math.min(n+1,order.length)),950);
@@ -69,7 +88,7 @@ export function ResearchVoiceOfGreece({isDemo,data,isLivePreview=false}:{isDemo:
    </div>
    <div className={styles.voiceActions}>
     <button type="button" onClick={()=>setPlaying(v=>!v)} disabled={order.length===0}>{playing?"Παύση":"Αναπαραγωγή"}</button>
-    <button type="button" onClick={()=>{setRound(r=>r+1);setPlaying(true);}} disabled={order.length===0}>Νέα τυχαία σειρά ↻</button>
+    <button type="button" onClick={()=>{setIndex(0);setRound(r=>r+1);setPlaying(true);}} disabled={order.length===0}>Νέα τυχαία σειρά ↻</button>
    </div>
   </div>
   {isDemo&&<p className={styles.warning}>DEMO: Όλα τα εμφανιζόμενα κείμενα και πλήθη είναι αποκλειστικά κατασκευασμένα παραδείγματα. Καμία πραγματική απάντηση Q18 δεν φορτώνεται.</p>}
