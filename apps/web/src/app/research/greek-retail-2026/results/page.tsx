@@ -9,6 +9,7 @@ import { governedStaticSeoMetadata } from "../../../../lib/seo-metadata";
 import { publicResearchStudy } from "../../../../lib/research-observatory-runtime";
 import { publicResultPoints, validRegionValue, type SafeParticipationGeography } from "../../../../lib/research-public-results-data";
 import { ResearchResultsWorkbench } from "./ResearchResultsWorkbench";
+import { ResearchRawDataRequest } from "./ResearchRawDataRequest";
 import { publicVoiceDataFromRelease } from "../../../../lib/research-public-voices-data";
 
 export const dynamic = "force-dynamic";
@@ -150,6 +151,7 @@ export default async function GreekRetailResultsPage() {
         </section>
       </div>
       <ResearchResultsWorkbench mode="unpublished" points={[]} />
+      <ResearchRawDataRequest />
       <SiteFooter />
     </main>;
   }
@@ -276,6 +278,8 @@ export default async function GreekRetailResultsPage() {
       <h2>Κανένα αποτέλεσμα δεν πρέπει να διαβάζεται χωρίς το πλαίσιο της μελέτης.</h2>
       <p>Οι διαφορές μεταξύ ομάδων μπορεί να επηρεάζονται από το μέγεθος του δείγματος, τη σύνθεσή του και τις συνθήκες της περιόδου συλλογής. Η μεθοδολογία εξηγεί ποια συμπεράσματα υποστηρίζονται και ποια χρειάζονται προσοχή.</p>
     </section>
+
+    <ResearchRawDataRequest />
 
     <SiteFooter />
   </main>;
