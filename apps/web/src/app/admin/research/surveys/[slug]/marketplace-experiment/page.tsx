@@ -145,6 +145,24 @@ export default async function PrivateMarketplaceExperimentPage({
         </div>
       </section>
       <section className="shell vendor-section">
+        <h2>Selected pricing combinations</h2>
+        <p>Actual selections of A or B, grouped by commission and monthly fee.
+          Neither and unanswered choices are not price selections.</p>
+        <div className="workspace-queue-card" style={{overflowX:"auto"}}>
+          <table style={{width:"100%",textAlign:"left"}}>
+            <thead><tr><th>Commission</th>
+              {[0,29,69,129].map(fee=><th key={fee}>€{fee}/month</th>)}
+            </tr></thead>
+            <tbody>{[0,3,7,12].map(commission=><tr key={commission}>
+              <th>{commission}%</th>
+              {[0,29,69,129].map(fee=><td key={fee}>{
+                count(summary.pricingPairs.find(x=>x.commission===commission && x.monthlyFee===fee)?.chosen ?? 0)
+              }</td>)}
+            </tr>)}</tbody>
+          </table>
+        </div>
+      </section>
+      <section className="shell vendor-section">
         <h2>What features were actually selected?</h2>
         <p>
           For each attribute level, “Shown” counts how many randomized offers contained it.
