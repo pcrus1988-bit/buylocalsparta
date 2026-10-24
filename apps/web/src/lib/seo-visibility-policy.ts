@@ -266,7 +266,12 @@ export function vendorIndexEligible(vendor: PublicVendorDirectoryEntry, policy: 
   return vendor.directoryStatus === "partner" || researchVendorIndexEligibility(vendor, policy).eligible;
 }
 
-export const DEFAULT_PRODUCT_INDEX_SCORE = 5;
+// Temporarily raised from 5 → 6 while the domain is still young and Search Console
+// shows a large volume of product URLs in "Discovered / Crawled – currently not indexed".
+// Prefer stronger pages (meaningful description + image/identity) so Google can focus
+// crawl budget on higher-value documents. Revisit once indexed page count and local
+// authority improve.
+export const DEFAULT_PRODUCT_INDEX_SCORE = 6;
 
 /**
  * Search-quality gate layered above the existing public canonical admission rule.
