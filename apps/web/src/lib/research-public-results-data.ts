@@ -50,8 +50,25 @@ export function demoResultPoints():SafePublicResultPoint[]{
  for(const [index,key] of PUBLIC_RESULTS_METRICS.entries()){
   const format=key.includes(".share.")?"proportion" as const:"mean" as const;
   const scale=key==="digital_readiness.mean"||key==="retail_friction.mean"||key==="retail_confidence.mean"?100:5;
-  const base=key==="digital_readiness.mean"?54.8:key==="retail_friction.mean"?61.3:key==="retail_confidence.mean"?41.7:
-   format==="proportion"?0.20+((index*13)%55)/100:2.1+((index*7)%25)/10;
+  // Match the existing Preview design figures when the same indicator is shown
+  // twice. Every value below remains explicitly DEMO and is never queried from DB.
+  const sharedPreviewValues:Readonly<Record<string,number>>={
+   "digital_readiness.mean":54.8,
+   "retail_friction.mean":61.3,
+   "retail_confidence.mean":41.7,
+   "business_financial_trends_12m.operating_costs.share.increased":.724,
+   "business_financial_trends_12m.profitability.share.decreased":.581,
+   "business_financial_divergence.share.turnover_up_profit_down":.216,
+   "sales_channels.share.own_eshop":.386,
+   "digital_sales_share.share.0":.449,
+   "local_customer_share.share.76_100":.637,
+   "customer_acquisition_sources.share.word_of_mouth":.712,
+   "online_presence_local_store_impact.share.increased_some":.394,
+   "operational_friction.acquisition.mean":4.1,
+   "investment_intentions.share.none":.371
+  };
+  const base=sharedPreviewValues[key]??(format==="proportion"
+    ?0.20+((index*13)%55)/100:2.1+((index*7)%25)/10);
   const choices:[Record<string,string>,number][]=[[{},820]];
   for(const [dimension,keys] of [["regionCode",regionKeys],["sectorCode",sectors],["sizeBand",sizes]] as const){
    for(const [i,value] of keys.entries())choices.push([{[dimension]:value},64+(i*37)%160]);
