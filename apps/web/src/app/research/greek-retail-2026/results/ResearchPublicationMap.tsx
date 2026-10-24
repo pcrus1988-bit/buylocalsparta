@@ -8,7 +8,7 @@ import styles from "./ResultsWorkbench.module.css";
 
 type Feature={properties:{name:string};geometry:{type:string;coordinates:unknown}};
 type MapData={type:string;features:Feature[]};
-const names=new Map(GREECE_REGIONS.map(r=>[r.key,r.label]));
+const names=new Map<string,string>(GREECE_REGIONS.map(r=>[r.key,r.label]));
 function polygonPath(geometry:Feature["geometry"]):string{
  const draw=(ring:number[][])=>ring.length?
   "M"+ring.map(([lon,lat])=>`${(55+(lon-19)*65).toFixed(1)},${(18+(42-lat)*78).toFixed(1)}`).join("L")+"Z":"";
