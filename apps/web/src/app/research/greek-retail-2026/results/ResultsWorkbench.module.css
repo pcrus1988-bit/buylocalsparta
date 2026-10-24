@@ -164,3 +164,74 @@
 .voiceExport:hover{background:#f0d8a7;color:#132d21}
 .voiceExport:focus-visible{outline:3px solid #fff;outline-offset:3px}
 @media(max-width:660px){.voiceManifesto{font-size:24px!important}.voiceExport{width:100%;box-sizing:border-box}}
+
+/* Research county report: editorial paper + peer-review style comparison. */
+.countyReport{margin:20px 0 4px;color:#24432f}
+.countyReportHeader{padding:clamp(24px,3.4vw,42px);border-radius:18px;background:linear-gradient(115deg,#0e3426 0%,#22543b 76%,#326448 100%);color:#f8f5e9}
+.countyReportHeader .eyebrow{color:#d4c49b}
+.countyReportHeader h3{font:500 clamp(40px,6vw,65px)/1.08 Georgia,serif;letter-spacing:-.045em;margin:12px 0}
+.countyReportHeader p{max-width:790px;font-size:14px;line-height:1.85;color:#d4e4d5;margin:0}
+.countyReportHeader strong{color:#fff9e6}
+.countyPicker{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap;padding:20px 0 24px;border-bottom:1px solid #d8e4d7}
+.countyPicker label,.countyReportControls label{display:grid;gap:9px;font-size:11px;font-weight:850;color:#385f45}
+.countyPicker label{flex:1;min-width:min(100%,270px);max-width:510px}
+.countyPicker select,.countyReportControls select{width:100%;border:1px solid #bbcfbd;border-radius:11px;background:#fff;color:#204630;padding:13px 15px;font-size:13px;font-weight:650;box-sizing:border-box}
+.countyPicker>p{font-size:11px;line-height:1.65;color:#788b79;max-width:350px}
+.countyEmpty{padding:35px 25px;margin-top:18px;background:#f3f8f0;border:1px dashed #adc7b3;border-radius:15px}
+.countyEmpty strong{font:500 25px Georgia,serif;color:#1c4830}
+.countyEmpty p{line-height:1.8;max-width:770px;font-size:13px;color:#657e6c}
+.countyOverview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:20px 0}
+.countyOverview>div{padding:19px 16px;background:#f2f7ef;border:1px solid #deebdb;border-radius:13px;display:flex;flex-direction:column;min-width:0;gap:9px}
+.countyOverview>div:first-child{background:#234d35;color:#fff}
+.countyOverview span{font-size:9px;letter-spacing:.07em;font-weight:900;color:#748e78}
+.countyOverview>div:first-child span{color:#c2d8c5}
+.countyOverview strong{font:500 clamp(23px,2.5vw,34px)/1.12 Georgia,serif;letter-spacing:-.025em;color:#23513a;overflow-wrap:anywhere}
+.countyOverview>div:first-child strong{color:#fff6e8}
+.countyOverview small{font-size:10px;color:#778e7b;line-height:1.55}
+.countyOverview>div:first-child small{color:#cde0ce}
+.countyScientificSummary{background:#fffdf7;border:1px solid #e0dfce;border-radius:17px;padding:clamp(20px,3.5vw,35px);box-shadow:0 9px 30px rgba(50,66,38,.05)}
+.countySummaryHead h4{font:500 clamp(26px,3vw,34px)/1.19 Georgia,serif;color:#22482f;margin:12px 0}
+.countyScientificSummary>p,.countyMethodology>p{font-size:13px;line-height:1.8;color:#546d58;max-width:980px}
+.countyFindings{border-top:1px solid #e3e9dc;padding-top:20px;margin-top:22px}
+.countyFindings h5{font:500 21px Georgia,serif;margin:0 0 8px;color:#214d35}
+.countyFindings>p{font-size:11px;line-height:1.7;color:#6d826f}
+.countyFindings>div{display:grid;gap:7px;padding:14px 0;border-bottom:1px solid #e9eee5}
+.countyFindings>div strong{font-size:13px;color:#315640}
+.countyFindings>div span{font-size:13px;color:#315640}
+.countyFindings>div span b{color:#245f40}
+.countyFindings>div small{font-size:10px;color:#859788}
+.countyCaution{border-left:3px solid #b99663;padding:12px 17px;background:#f9f3e7}
+.countyReportControls{display:flex;flex-wrap:wrap;align-items:end;gap:21px;padding:22px 0}
+.countyReportControls>label:first-child{flex:1;min-width:200px;max-width:450px}
+.countyReportControls .countyCheck{display:flex;align-items:center;gap:10px;font-size:11px;padding:12px}
+.countyCheck input{accent-color:#1a613a;width:16px;height:16px}
+.countyChapters{display:grid;gap:18px}
+.countyChapter{border:1px solid #dfe8da;border-radius:16px;padding:22px;background:#fff}
+.countyChapterHeader{display:flex;align-items:center;gap:14px;padding-bottom:16px;border-bottom:1px solid #e6ede2}
+.countyChapterHeader>span{font:500 36px Georgia,serif;color:#9fb7a0}
+.countyChapterHeader>div{flex:1;min-width:0}
+.countyChapterHeader h4{font:500 23px Georgia,serif;color:#205137;margin:0 0 6px}
+.countyChapterHeader p{font-size:11px;color:#809083;margin:0}
+.countyChapterHeader>small{font-size:10px;color:#62806d}
+.countyNoMetrics,.countyChapterInterpretation{font-size:11px;line-height:1.75;color:#647869}
+.countyNoMetrics{padding:16px;background:#f4f7f0;border-radius:10px}
+.countyChapterInterpretation{border-top:1px solid #eef0ea;margin:15px 0 0;padding:16px 0 0}
+.countyTable{width:100%;border-collapse:collapse;font-size:12px;min-width:670px}
+.countyTable th,.countyTable td{padding:12px 10px;text-align:left;border-bottom:1px solid #e8eee7;vertical-align:middle}
+.countyTable thead th{font-size:10px;color:#6f8574;letter-spacing:.02em}
+.countyTable tbody th{font-weight:650;max-width:290px;color:#345f43}
+.countyTable tbody td{font-variant-numeric:tabular-nums;white-space:nowrap;color:#31543d}
+.countyTable td small{display:block;font-size:10px;color:#728678;margin:2px 0}
+.countyPairedBars{display:grid;gap:3px;margin-top:7px;max-width:175px}
+.countyPairedBars>i,.countyPairedBars>b{height:4px;border-radius:10px;display:block}
+.countyPairedBars>i{background:#2f8055}
+.countyPairedBars>b{background:#c5a26c}
+.countyDelta{font-weight:800;color:#245f43}.countyNeutral{color:#7c907f}
+.countyMethodology{margin:21px 0 0;padding:25px;background:#f1f6ee;border:1px solid #dce8d8;border-radius:15px}
+.countyMethodology h4{font:500 25px Georgia,serif;color:#244c35;margin:0 0 15px}
+.countyMethodology ol{padding-left:23px;margin:0;display:grid;gap:11px}
+.countyMethodology li{font-size:12px;line-height:1.8;color:#526e58;padding-left:4px}
+.countyMethodology>p{border-top:1px solid #d7e3d3;margin-top:20px;padding-top:15px;font-weight:700}
+@media(max-width:900px){.countyOverview{grid-template-columns:repeat(2,minmax(0,1fr))}.countyChapterHeader{flex-wrap:wrap}.countyChapterHeader>small{width:100%;padding-left:44px}}
+@media(max-width:550px){.countyOverview{grid-template-columns:1fr 1fr}.countyOverview>div{padding:13px}.countyOverview strong{font-size:23px}.countyPicker>p{margin:0}.countyChapter{padding:15px}.countyChapterHeader h4{font-size:20px}.countyReportControls{gap:7px}.countyReportControls label{width:100%}}
+@media print{.countyReportHeader,.countyOverview>div:first-child{-webkit-print-color-adjust:exact;print-color-adjust:exact}.countyPicker,.countyReportControls{display:none}.countyChapter{break-inside:avoid}.countyReport{color:#222}}
