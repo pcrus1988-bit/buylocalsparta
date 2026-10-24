@@ -1,5 +1,6 @@
 import { getAdminSession } from "../../../../../lib/admin-session";
 import { hasAdminPermission } from "../../../../../lib/admin-runtime";
+import { rawResearchAnswerAccess } from "../../../../../lib/research-survey-response-admin";
 import { getLiveGreekRetailPreview } from "../../../../../lib/research-live-preview-data";
 
 export const runtime = "nodejs";
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 /** Restricted to research administrators. Public results remain embargoed. */
 export async function GET() {
   const principal = await getAdminSession();
-  if (!principal || !hasAdminPermission(principal,"research.read")) {
+  if (!principal || !hasAdminPermission(principal,"research.read") || !rawResearchAnswerAccess(principal)) {
     return Response.json({error:"NOT_FOUND"},{status:404,headers:{"Cache-Control":"private, no-store"}});
   }
   try {

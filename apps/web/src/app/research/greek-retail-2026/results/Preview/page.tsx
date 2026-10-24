@@ -5,6 +5,7 @@ import { SiteFooter } from "../../../../../components/SiteFooter";
 import shell from "../../../../../components/ResearchSurveyPage.module.css";
 import { getAdminSession } from "../../../../../lib/admin-session";
 import { hasAdminPermission } from "../../../../../lib/admin-runtime";
+import { rawResearchAnswerAccess } from "../../../../../lib/research-survey-response-admin";
 import { getLiveGreekRetailPreview, type LiveGreekRetailPreview } from "../../../../../lib/research-live-preview-data";
 import { publicResearchStudy } from "../../../../../lib/research-observatory-runtime";
 import type { SafeParticipationGeography } from "../../../../../lib/research-public-results-data";
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
 /** Pre-release aggregate findings are confidential, including over React Flight. */
 export default async function GreekRetailResultsLivePreview() {
   const principal = await getAdminSession();
-  if (!principal || !hasAdminPermission(principal,"research.read")) notFound();
+  if (!principal || !hasAdminPermission(principal,"research.read") || !rawResearchAnswerAccess(principal)) notFound();
   let initial: LiveGreekRetailPreview | null = null;
   try {
     initial = await getLiveGreekRetailPreview();

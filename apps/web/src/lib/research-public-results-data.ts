@@ -12,7 +12,8 @@ export type SafePublicResultPoint = Readonly<{
  ciLower:number|null; ciUpper:number|null;
 }>;
 /** Restricted Preview only: non-public descriptive QA coverage by county.
- * Values below n=10 are never transmitted. Full postcode stays on server.
+ * Exact county counts from n=1 are visible only to authenticated research staff.
+ * Full postcode stays on server. Public disclosure rules are separate.
  */
 export type InternalResearchGeographicCoverage = Readonly<{
   includedTotal: number;

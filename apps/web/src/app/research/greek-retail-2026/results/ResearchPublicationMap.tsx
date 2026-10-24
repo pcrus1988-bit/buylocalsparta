@@ -147,7 +147,7 @@ export function ResearchPublicationMap({
  const coverageDescription=(key:string)=>{
   const c=coverageByKey.get(key);
   if(!c)return "";
-  if(c.band==="under10")return "Συμμετοχή · n<10 · χωρίς αριθμητικά ευρήματα";
+  if(c.band==="under10")return "Πολύ μικρή βάση · n="+c.eligibleN+" · περιγραφικό";
   if(c.band==="10to29")return "Περιορισμένες απαντήσεις · n="+c.eligibleN+" · ενδεικτικό";
   if(c.band==="30plus")return "Απαντήσεις n="+c.eligibleN;
   return "Χωρίς ολοκληρωμένες απαντήσεις";
