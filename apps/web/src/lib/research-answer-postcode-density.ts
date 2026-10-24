@@ -1,4 +1,3 @@
-import { greekRegionForPrefecture } from "./research-geographic-core";
 
 /** The exact same Greece projection, Gaussian blending and four-stop palette
  * used for the public study's fluid postcode-participation heatmap.
@@ -106,8 +105,8 @@ export function answerPostcodeHeatField(
   for(const row of rows) {
     const code=row.postcode.replace(/\s/g,"");
     const p=/^\d{5}$/.test(code)?lookup.get(code):undefined;
-    const region=greekRegionForPrefecture(row.prefecture);
-    if(!p||!region||(p.region&&p.region!==region)
+    const region=p?.region;
+    if(!p||!region
       ||!Number.isFinite(p.latitude)||!Number.isFinite(p.longitude)
       ||p.latitude<34||p.latitude>43||p.longitude<19||p.longitude>30){
       unmatchedAnswers+=row.matched;continue;
