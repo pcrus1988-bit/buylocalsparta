@@ -150,3 +150,10 @@
 /* Keep the full 13 Περιφέρειες visible instead of hiding the lower rows inside a nested scroller. */
 .mapSide{max-height:none}
 .mapSide .regionList{max-height:none;overflow:visible}
+
+/* Full thirteen-periphery distribution is always available, including on νομός view. */
+.allRegionsGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:9px}
+.allRegionsRow{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:3px;align-items:center;background:#fffdf7;border:1px solid #e0e9db;border-radius:9px;padding:9px 11px;color:#385b40;font-size:11px}
+.allRegionsRow>span{font-size:11px;line-height:1.35}.allRegionsRow>strong{font-size:13px;color:#22563a;white-space:nowrap}
+.allRegionsRow>small{grid-column:1/-1;font-size:9px;color:#788c7b}
+@media(max-width:650px){.allRegionsGrid{grid-template-columns:1fr}}
