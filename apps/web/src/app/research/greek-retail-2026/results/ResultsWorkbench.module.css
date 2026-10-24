@@ -84,3 +84,33 @@
  .mapSelectedAnswer{align-items:flex-start;flex-direction:column;gap:6px}
  .mapSelectedAnswer>small{margin-left:0}
 }
+
+/* A permanent national answer summary and the full 13-region distribution. */
+.mapNationalOverview{display:grid;grid-template-columns:minmax(230px,.85fr) minmax(0,1.15fr);gap:14px;margin:15px 0;padding:0}
+.nationalHeadline{display:flex;flex-direction:column;align-items:flex-start;gap:7px;border-radius:16px;background:linear-gradient(125deg,#153e2c,#246443);padding:20px 23px;color:#fff}
+.nationalFlag{font-size:10px;letter-spacing:.15em;font-weight:900;color:#dbd1a6}
+.nationalHeadline>strong{font:500 clamp(36px,4.2vw,57px)/1.06 Georgia,serif;letter-spacing:-.05em;color:#fff;margin:5px 0}
+.nationalHeadline>span:not(.nationalFlag){font-weight:750;font-size:12px;color:#f0f6ec}
+.nationalHeadline small{font-size:11px;line-height:1.5;color:#bed9c6}
+.nationalDetails{background:#f1f6ee;border-radius:16px;border:1px solid #dbe7d6;padding:20px 23px;display:flex;flex-direction:column;justify-content:center;gap:9px}
+.nationalTag{font-size:10px;letter-spacing:.12em;font-weight:900;color:#658b65}
+.nationalDetails>strong{font:500 21px/1.18 Georgia,serif;color:#255539}
+.nationalDetails>p{margin:0;font-size:11px;line-height:1.7;color:#637967}
+.regionListHeader{position:sticky;top:0;display:flex;justify-content:space-between;gap:8px;background:#fffefa;padding:8px 5px;border-bottom:1px solid #dde7d9;z-index:1;font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:#849585;font-weight:900}
+.regionalNumbers{display:flex;flex-direction:column;align-items:flex-end;gap:5px;min-width:100px;max-width:165px}
+.regionButton>.regionalNumbers>strong,.selectedRegion>.regionalNumbers>strong{font:800 12px/1.2 system-ui,sans-serif;white-space:normal;text-align:right}
+.regionalNumbers>small{font-size:9px;color:#768a7a;text-align:right;line-height:1.35}
+.regionButton,.selectedRegion{align-items:flex-start;min-height:42px}
+.regionButton>span:first-child,.selectedRegion>span:first-child{padding-top:2px;line-height:1.4}
+@media(max-width:670px){
+ .mapNationalOverview{grid-template-columns:1fr}
+ .nationalHeadline{padding:20px}
+ .nationalDetails{padding:17px}
+ .mapSide{max-height:none}
+ .regionList{max-height:none}
+ .regionalNumbers{max-width:45%}
+}
+
+/* Keep the full 13 Περιφέρειες visible instead of hiding the lower rows inside a nested scroller. */
+.mapSide{max-height:none}
+.mapSide .regionList{max-height:none;overflow:visible}
