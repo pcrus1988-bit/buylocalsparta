@@ -36,3 +36,11 @@ New snapshots (metadata only):
 
 Run the new regression suite: `node --test scripts/nyxi/governance/private-storage-attestation.test.mjs`.
 Keep the PR draft and publication HOLD. Independent original-byte production attestations, external key custody/root anchoring, immutable storage, documentary rights and independent human publication review remain outstanding.
+
+## 24 October 2026 ~06:15 Athens — pinned-prefix chronology guard
+
+`verifyWitnessContinuation` now rejects a previously pinned anchor whose `issued_at` predates **any** observation in its anchored prefix, even if the later successor is correctly signed and the chain itself is hash-consistent. Observations may be appended out of chronological order, so checking only the final row is insufficient. Two regression tests cover a backdated anchor and an out-of-order prefix; this does not independently verify that a supplied previous anchor came from a trustworthy witness store.
+
+Fresh **read-only** production checkpoint: **310** source registrations (historical 303 superseded), **232** private snapshots (+1), **2,789** private fragments (+8), **225** extraction runs (+1), **50** acquisition approvals, **0** publication approvals, **0** active reviewers, **0** public search documents. **7** archived snapshots lack extraction runs; **6** separately approved assets remain uncaptured. All 232 snapshot records have matching approval/source identity, capture window, exact final URL, private Storage catalog object and recorded byte size; zero duplicate recorded snapshot hash groups. These are catalog checks, **not** independent original-byte attestations.
+
+The new FDA snapshot `097a20da-fe73-496a-9624-c287ee4657cb` is bound to approval `212bf852-ea98-4772-840c-78dfd36ffd50`, with catalog SHA-256 `45ca52aa48fbb5d0c152b6683348829d594787b7b87eaa2b664e038327805c3a`, **42,096** recorded bytes, and an extraction-run record. This increases the FDA missing-retention-deadline impact from **100 to 101** snapshots (37 + 35 + 29). All **50** acquisition approvals still lack recognized documentary-rights SHA-256 anchors. No production write, new Agent 1 acquisition, publication grant, original-byte attestation, or independently pinned witness root is claimed. **HOLD** pending independent human review.
