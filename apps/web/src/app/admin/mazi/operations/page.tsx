@@ -2,7 +2,10 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {getAdminSession} from "../../../../lib/admin-session";
 import {isMaziSuperAdmin} from "../../../../lib/mazi-superadmin";
-import {maziOperationsSnapshot,type MaziOperationsSnapshot} from "../../../../lib/mazi-operations";
+import {maziOperationsSnapshot,maziLaunchGateStates,
+ type MaziOperationsSnapshot,type MaziLaunchGateKey,type MaziLaunchGateReview
+} from "../../../../lib/mazi-operations";
+import {reviewMaziLaunchGateAction} from "./actions";
 import s from "../mazi.module.css";
 
 export const dynamic="force-dynamic";
@@ -21,14 +24,42 @@ function OperationalIssue({title,count,description}:{
   <strong>{count.toLocaleString("el-GR")}</strong>
  </article>;
 }
-function ExternalGate({title,description}:{title:string;description:string}){
- return <article className={s.member}>
-  <div><strong>{title}</strong><span>{description}</span></div>
-  <span className={s.tag}>ΑΝΕΠΙΒΕΒΑΙΩΤΟ</span>
+function ExternalGate({title,description,gateKey,review,csrf}:{
+ title:string;description:string;gateKey:MaziLaunchGateKey;
+ review:MaziLaunchGateReview|undefined;csrf:string;
+}){
+ const verified=review?.decision==="verified";
+ return <article className={s.card}>
+  <div style={{flex:1}}>
+   <span className={s.tag}>{verified?"ΧΕΙΡΟΚΙΝΗΤΗ ΕΠΙΒΕΒΑΙΩΣΗ":"ΕΚΚΡΕΜΕΙ ΕΠΑΛΗΘΕΥΣΗ"}</span>
+   <h3>{title}</h3>
+   <p className={s.body}>{description}</p>
+   <p className={s.meta}>{review?
+    "Τελευταία απόφαση: "+new Date(review.recorded_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})+
+     " · "+(verified?"επιβεβαιώθηκε":"άνοιξε ξανά"):
+    "Δεν υπάρχει ακόμη υπογεγραμμένη απόφαση Super Admin."}</p>
+  </div>
+  <form action={reviewMaziLaunchGateAction} className={s.action}
+   style={{display:"grid",gap:10,minWidth:270,maxWidth:390}}>
+   <input type="hidden" name="csrf" value={csrf}/>
+   <input type="hidden" name="gate_key" value={gateKey}/>
+   <label className={s.tag} htmlFor={"gate-evidence-"+gateKey}>Τεκμηρίωση πραγματικού ελέγχου (40–1.200 χαρακτήρες)</label>
+   <textarea id={"gate-evidence-"+gateKey} name="evidence" required minLength={40} maxLength={1200} rows={4}
+    style={{font:"inherit",padding:12,border:"1px solid #adbdac"}}
+    placeholder="Ημερομηνία, ελεγμένο πεδίο, αποτέλεσμα και πού τηρείται το σχετικό αποδεικτικό. Μην προσθέτετε στοιχεία πελατών ή μυστικά."/>
+   <label style={{fontSize:12,display:"flex",gap:8,alignItems:"start"}}>
+    <input type="checkbox" name="affirmed"/>
+    <span>Επιβεβαιώνω ότι ολοκλήρωσα πραγματικά τον έλεγχο και έχω ελέγξιμα αποδεικτικά.</span>
+   </label>
+   <div className={s.buttons}>
+    <button type="submit" name="decision" value="verified" className={s.primary}>Καταχώριση επιβεβαίωσης</button>
+    <button type="submit" name="decision" value="reopened" className={s.secondary}>Επανέναρξη ελέγχου</button>
+   </div>
+  </form>
  </article>;
 }
 const date=(v:Date|null)=>v?new Date(v).toLocaleString("el-GR",{timeZone:"Europe/Athens"}):"Δεν υπάρχει καταγεγραμμένο γεγονός";
-export default async function MaziOperationsPage(){
+export default async function MaziOperationsPage({searchParams}:{searchParams:Promise<{notice?:string}>}){
  const principal=await getAdminSession();
  if(!principal)redirect("/admin/login");
  if(!isMaziSuperAdmin(principal))
@@ -38,13 +69,18 @@ export default async function MaziOperationsPage(){
     <Link href="/admin">Επιστροφή στη διαχείριση</Link>
   </section></main>;
  let state:MaziOperationsSnapshot|null=null;
- try{state=await maziOperationsSnapshot(principal);}catch{}
+ let gates:MaziLaunchGateReview[]=[];
+ try{[state,gates]=await Promise.all([
+  maziOperationsSnapshot(principal),maziLaunchGateStates(principal)
+ ]);}catch{}
  if(!state)return <main className={s.stage}><div className={s.shell}>
   <div className={s.breadcrumb}><Link href="/admin/mazi">ΜΑΖΙ</Link><span>↗</span><span>ΛΕΙΤΟΥΡΓΙΚΟΣ ΕΛΕΓΧΟΣ</span></div>
   <h1>Δεν είναι διαθέσιμα τα πραγματικά στοιχεία.</h1>
   <p>Δεν εμφανίζουμε προγενέστερα ή δοκιμαστικά νούμερα. Ελέγξτε τη σύνδεση με τη βάση και τον ενεργό Super Admin ρόλο.</p>
   <Link href="/admin/mazi">Επιστροφή στον χώρο διακυβέρνησης ↗</Link>
  </div></main>;
+ const {notice}=await searchParams;
+ const latestGate=(key:MaziLaunchGateKey)=>gates.find(gate=>gate.gate_key===key);
  const financeLocked=state.finance_enabled_cycles===0&&state.ledger_total===0&&
   state.grant_offers_total===0&&state.safe_founding_cycles===1;
  const auditCoherent=state.acceptances===state.invitations_consumed;
@@ -67,6 +103,8 @@ export default async function MaziOperationsPage(){
     <Link href="/admin/mazi">Διακυβέρνηση ↗</Link>
    </div>
   </header>
+  {notice==="gate_recorded"?<p className={s.notice} role="status">Η χειροκίνητη επαλήθευση καταχωρίστηκε στο αμετάβλητο ιστορικό. Δεν ενεργοποιήθηκε υπηρεσία ή πληρωμή.</p>:null}
+  {notice==="gate_not_saved"?<p className={s.notice} role="alert">Δεν καταχωρίστηκε απόφαση. Ελέγξτε τα αποδεικτικά, την επιβεβαίωση και τον ενεργό Super Admin ρόλο.</p>:null}
 
   <div className={s.stats}>
    <Metric index="01" title="ΕΝΔΙΑΦΕΡΟΝ" value={state.interest_total}
@@ -133,15 +171,18 @@ export default async function MaziOperationsPage(){
 
   <section className={s.section}><div className={s.sectionTop}>
    <div><p>04 / EXTERNAL RELEASE GATES</p><h2>Πριν από δημόσια ένταξη</h2></div>
-   <span>Οι παρακάτω έλεγχοι δεν πιστοποιούνται από τη βάση</span>
+   <span>Μόνο ανθρώπινες βεβαιώσεις, καμία αυτόματη ενεργοποίηση</span>
   </div>
    <div className={s.stack}>
-    <ExternalGate title="Supabase Auth email, SMTP και redirect"
-     description="Εκκρεμεί εξωτερική επιβεβαίωση χρόνου ισχύος OTP, προτύπων email, παραλαβής και επιτρεπόμενης διεύθυνσης callback."/>
-    <ExternalGate title="Νομικός έλεγχος και διατήρηση δεδομένων"
-     description="Εκκρεμεί ξεχωριστή έγκριση πριν από παραγωγική διάθεση της ροής εγγραφής και των μελλοντικών οικονομικών όρων."/>
-    <ExternalGate title="Πρώτη πραγματική δοκιμή ένταξης"
-     description="Απαιτείται επιχείρηση με ρητή βούληση, πραγματικό ΑΦΜ/ΓΕΜΗ, έλεγχο εκπροσώπου, email και ρητή αποδοχή. Δεν χρησιμοποιούνται εικονικές εγγραφές."/>
+    <ExternalGate gateKey="auth_email_delivery" review={latestGate("auth_email_delivery")} csrf={principal.csrfToken}
+     title="Supabase Auth email, SMTP και redirect"
+     description="Ελέγξτε τον πραγματικό χρόνο λήξης OTP, τις δύο φόρμες email, παράδοση SMTP και το callback allowlist στο ίδιο Supabase project."/>
+    <ExternalGate gateKey="legal_and_retention" review={latestGate("legal_and_retention")} csrf={principal.csrfToken}
+     title="Νομικός έλεγχος και διατήρηση δεδομένων"
+     description="Καταγράψτε τον πραγματικό νομικό έλεγχο, τις εκδόσεις όρων/ενημέρωσης και τον δημοσιευμένο χρόνο διατήρησης. Οι οικονομικοί όροι παραμένουν ανεξάρτητοι."/>
+    <ExternalGate gateKey="consenting_business_e2e" review={latestGate("consenting_business_e2e")} csrf={principal.csrfToken}
+     title="Πρώτη πραγματική δοκιμή ένταξης"
+     description="Μόνο με συναινούσα πραγματική επιχείρηση: ΑΦΜ, ΓΕΜΗ, εκπροσώπηση, email, προσωπική πρόσκληση και ρητή αποδοχή. Όχι εικονικά μέλη."/>
    </div>
   </section>
  </div></main>;
