@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHA = /^[0-9a-f]{64}$/;
@@ -23,7 +24,19 @@ const date = isValidGovernanceTimestamp;
 const bytes = x => Buffer.isBuffer(x) || x instanceof Uint8Array;
 const uuid = x => typeof x === 'string' && UUID.test(x);
 const sha = x => typeof x === 'string' && SHA.test(x);
-const safeUrl = x => { try { const u = new URL(x); return u.protocol === 'https:' && !u.username && !u.password && !u.hash; } catch { return false; } };
+const isPublicHttpsMetadata = value => {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/\.$/, '');
+    // Metadata-only guard: a network worker must ALSO check resolved IPs,
+    // redirects, access terms and DNS rebinding before any actual fetch.
+    return url.protocol === 'https:' && !url.username && !url.password &&
+      !url.hash && host.includes('.') &&
+      !isIP(host.replace(/^\[|\]$/g, '')) &&
+      !['.localhost', '.local', '.localdomain', '.internal'].some(s => host.endsWith(s));
+  } catch { return false; }
+};
+const safeUrl = isPublicHttpsMetadata;
 const reasons = new Set(['missing_retention','missing_rights_evidence','undecidable_scope','original_bytes_unavailable']);
 // Process-local capability: a byte-verified event must originate from observe().
 // This does NOT replace independent byte access or a trusted external witness.
