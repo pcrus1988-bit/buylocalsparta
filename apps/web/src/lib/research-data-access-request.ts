@@ -2,7 +2,8 @@
 export type ResearchDataAccessInquiry = Readonly<{ email: string; message: string }>;
 
 export class ResearchDataAccessInputError extends Error {
-  constructor(public readonly code: string, message: string) { super(message); }
+  readonly code: string;
+  constructor(code: string, message: string) { super(message); this.code = code; }
 }
 
 export function validateResearchDataAccessInquiry(value: unknown): ResearchDataAccessInquiry {
