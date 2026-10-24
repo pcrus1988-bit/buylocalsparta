@@ -53,8 +53,8 @@ test("release builder, checker and public reader all exclude EXP01", () => {
   const release = readFileSync(new URL("./research-survey-release.ts", import.meta.url),"utf8");
   assert.match(release,/const methodology = redactPrivateExperimentFromPublicMetadata/);
   assert.equal(
-    release.match(/estimatesResult\\.rows\\.filter\\(\\((?:row|estimate)\\) => !isPrivateExperimentEstimate/g)?.length,3
+    release.match(/estimatesResult\.rows\.filter\(\((?:row|estimate)\) => !isPrivateExperimentEstimate/g)?.length,3
   );
-  assert.match(release,/methodology: redactPrivateExperimentFromPublicMetadata\\(objectValue\\(release\\.methodology_json\\)\\)/);
-  assert.match(release,/methodology: redactPrivateExperimentFromPublicMetadata\\(objectValue\\(row\\.methodology_json\\)\\)/);
+  assert.match(release,/methodology: redactPrivateExperimentFromPublicMetadata\(objectValue\(release\.methodology_json\)\)/);
+  assert.match(release,/methodology: redactPrivateExperimentFromPublicMetadata\(objectValue\(row\.methodology_json\)\)/);
 });
