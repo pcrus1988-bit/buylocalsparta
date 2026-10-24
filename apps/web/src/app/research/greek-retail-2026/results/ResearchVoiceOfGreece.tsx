@@ -83,10 +83,11 @@ export function ResearchVoiceOfGreece({isDemo,data,isLivePreview=false}:{isDemo:
  const geo=(dataset?.geography??EMPTY_GEOGRAPHY).filter(g=>g.eligibleN>=30&&g.count>=30&&(!filter||g.category===filter));
  return <section className={styles.voicePage} aria-label="Η φωνή της Ελλάδας">
   <div className={styles.voiceHeader}>
-   <div><span className={styles.eyebrow}>Q18 · ΠΟΙΟΤΙΚΗ ΑΝΑΛΥΣΗ</span><h3>Η φωνή της Ελλάδας</h3>
+   <div><span className={styles.eyebrow}>Q18 · ΠΟΙΟΤΙΚΗ ΑΝΑΛΥΣΗ</span><p className={styles.voiceManifesto}>We asked one question. You answered. We listened. And decided to give your voice a place.</p><h3>Η φωνή της Ελλάδας</h3>
     <p>{isLivePreview?"Οι πραγματικές απαντήσεις Q18 εμφανίζονται μία προς μία, με τυχαία σειρά, στις θεματικές κατηγορίες που χρησιμοποιούνται ήδη στη διαχείριση. Πρόκειται για περιορισμένη εσωτερική προεπισκόπηση, όχι για εγκεκριμένα δημόσια αποσπάσματα.":"Οι λέξεις αποκτούν χώρο. Κάθε θεματική γεμίζει καθώς εμφανίζονται, μία προς μία, οι εγκεκριμένες και ανωνυμοποιημένες ελεύθερες απαντήσεις."}</p>
    </div>
    <div className={styles.voiceActions}>
+    {!isDemo && dataset && eligible.length>0 && <a className={styles.voiceExport} href={isLivePreview?"/api/research/greek-retail-2026/results-preview-voices-export":"/api/research/greek-retail-2026/voices-export"} download aria-label={isLivePreview?"Εξαγωγή όλων των επιλέξιμων Q18 απαντήσεων σε εμπιστευτικό PDF":"Εξαγωγή όλων των εγκεκριμένων Q18 αποσπασμάτων σε PDF"}>↓ {isLivePreview?"Όλες οι απαντήσεις · PDF":"Εξαγωγή φωνών · PDF"}</a>}
     <button type="button" onClick={()=>setPlaying(v=>!v)} disabled={order.length===0}>{playing?"Παύση":"Αναπαραγωγή"}</button>
     <button type="button" onClick={()=>{setIndex(0);setRound(r=>r+1);setPlaying(true);}} disabled={order.length===0}>Νέα τυχαία σειρά ↻</button>
    </div>
