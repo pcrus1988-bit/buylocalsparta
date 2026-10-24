@@ -157,3 +157,10 @@
 .allRegionsRow>span{font-size:11px;line-height:1.35}.allRegionsRow>strong{font-size:13px;color:#22563a;white-space:nowrap}
 .allRegionsRow>small{grid-column:1/-1;font-size:9px;color:#788c7b}
 @media(max-width:650px){.allRegionsGrid{grid-template-columns:1fr}}
+
+/* Q18 narrative and accessible PDF download, used by public + protected preview. */
+.voiceManifesto{max-width:980px!important;margin:17px 0 21px!important;color:#f6e8c7!important;font:400 clamp(21px,2.9vw,35px)/1.33 Georgia,"Times New Roman",serif!important;letter-spacing:-.015em;text-wrap:balance}
+.voiceExport{display:inline-flex;align-items:center;justify-content:center;text-align:center;min-height:39px;padding:10px 16px;border:1px solid #e9d5a7;border-radius:10px;background:#d9bb7d;color:#193a2b;text-decoration:none;font-size:12px;font-weight:850;line-height:1.35}
+.voiceExport:hover{background:#f0d8a7;color:#132d21}
+.voiceExport:focus-visible{outline:3px solid #fff;outline-offset:3px}
+@media(max-width:660px){.voiceManifesto{font-size:24px!important}.voiceExport{width:100%;box-sizing:border-box}}
