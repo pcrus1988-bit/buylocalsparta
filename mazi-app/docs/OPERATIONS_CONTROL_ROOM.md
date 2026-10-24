@@ -25,9 +25,9 @@ Each record has the gate name, `verified` or `reopened`, human-written evidence 
 
 ## Release sequence and validation
 
-1. Apply migration `018_superadmin_release_gate_reviews.sql` **only after reviewing and testing the schema**, to the same shared MAZI Supabase database. Do not apply it to a different FISCAL or development project.
-2. Verify the private table, RLS, no browser grants, append-only trigger and no membership/fund changes.
-3. Pass MAZI invitation/operations CI and full repository Production CI. Verify the marketplace preview build against `/admin/mazi/operations`.
+1. **Done (24 October 2026):** migration `018_superadmin_release_gate_reviews.sql` was applied to the existing shared MAZI Supabase database `eemihhfreggbigxejjhj`. Do not reapply it or apply it to another project.
+2. **Verified (24 October 2026):** RLS enabled; no table access by anon, authenticated or service_role; append-only trigger present; no membership, invitation, financial ledger or award changes, and zero review records.
+3. **MAZI-specific CI passed.** Marketplace preview built to READY from commit `5be64600`: `https://buylocalsparta-p7bvvvqgj-sp-business-lab.vercel.app/admin/mazi/operations`. Full repository Production CI must be verified separately. Preview is protected by Vercel SSO and requires a real marketplace Super Admin session to display private counts.
 4. Deploy the marketplace frontend only through an approved PR merge/release. Until deployment, this is **source-only**, even if the private table already exists.
 5. Confirm each human gate with appropriate real evidence. Do **not** auto-activate any financial or public-invitation feature even after all three are verified.
 
