@@ -4,7 +4,7 @@
  * readers, so adding an estimate/report later cannot silently publish it.
  */
 const PRIVATE_EXPERIMENT_MARKER =
-  /(?:\\bEXP01\\b|platform[_ -]?choice[_ -]?experiment|randomized[_ -]?profile|conjoint|experimentDiagnostics|randomizedExperimentExploratoryPublished)/i;
+  /(?:\bEXP01\b|platform[_ -]?choice[_ -]?experiment|randomized[_ -]?profile|conjoint|experimentDiagnostics|randomizedExperimentExploratoryPublished)/i;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
