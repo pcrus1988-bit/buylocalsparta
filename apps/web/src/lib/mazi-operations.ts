@@ -73,7 +73,7 @@ export type MaziLaunchGateKey=
  "auth_email_delivery"|"legal_and_retention"|"consenting_business_e2e";
 export type MaziLaunchGateDecision="verified"|"reopened";
 export type MaziLaunchGateReview={
- id:number;gate_key:MaziLaunchGateKey;decision:MaziLaunchGateDecision;
+ id:string;gate_key:MaziLaunchGateKey;decision:MaziLaunchGateDecision;
  evidence:string;recorded_at:Date;
 };
 const allowedGateKeys=new Set<MaziLaunchGateKey>([
@@ -82,7 +82,7 @@ const allowedGateKeys=new Set<MaziLaunchGateKey>([
 export async function maziLaunchGateStates(principal:SessionPrincipal):Promise<MaziLaunchGateReview[]>{
  await marketplaceMaziActor(principal);
  const result=await getAdminPostgresRuntime().nativePool.query<MaziLaunchGateReview>(
-  "SELECT DISTINCT ON (gate_key) id,gate_key,decision,evidence,recorded_at FROM public.mazi_launch_gate_reviews ORDER BY gate_key,recorded_at DESC,id DESC LIMIT 3"
+  "SELECT DISTINCT ON (gate_key) id::text,gate_key,decision,evidence,recorded_at FROM public.mazi_launch_gate_reviews ORDER BY gate_key,recorded_at DESC,id DESC LIMIT 3"
  );
  return result.rows;
 }
@@ -93,7 +93,7 @@ export async function maziLaunchGateStates(principal:SessionPrincipal):Promise<M
 export async function maziLaunchGateHistory(principal:SessionPrincipal):Promise<MaziLaunchGateReview[]>{
  await marketplaceMaziActor(principal);
  const result=await getAdminPostgresRuntime().nativePool.query<MaziLaunchGateReview>(
-  "SELECT id,gate_key,decision,evidence,recorded_at FROM public.mazi_launch_gate_reviews ORDER BY recorded_at DESC,id DESC LIMIT 30"
+  "SELECT id::text,gate_key,decision,evidence,recorded_at FROM public.mazi_launch_gate_reviews ORDER BY recorded_at DESC,id DESC LIMIT 30"
  );
  return result.rows;
 }
