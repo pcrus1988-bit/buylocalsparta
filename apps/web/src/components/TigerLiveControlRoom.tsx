@@ -104,6 +104,7 @@ export function TigerLiveControlRoom({initial}:{initial:TigerSnapshot}){
         <span className="tiger-chip">Agents <strong>{snapshot.activeWorkers}/11</strong></span>
         <span className="tiger-chip">Running <strong>{snapshot.runningTasks}</strong></span>
         <span className="tiger-chip">Blocked <strong>{snapshot.blockedTasks}</strong></span>
+        <span className="tiger-chip">PR candidates <strong>{snapshot.engines.filter(e=>e.candidatePr).length}</strong></span>
         <span className="tiger-chip">CI <strong>{snapshot.ciHealth}</strong></span>
         <span className="tiger-chip">Budget <strong>{snapshot.budgetStatus}</strong></span>
       </div>
@@ -118,12 +119,13 @@ export function TigerLiveControlRoom({initial}:{initial:TigerSnapshot}){
         <div className="tiger-engine-list">
           {snapshot.engines.map(engine=><button key={engine.id} className={"tiger-engine "+(filterEngine===engine.id?"selected":"")} onClick={()=>setFilterEngine(filterEngine===engine.id?"":engine.id)}>
             <span className="tiger-engine-number">{engine.id}</span>
-            <span className="tiger-engine-body"><strong>{engine.name}</strong><small>{engine.taskId||"No recorded task"}</small></span>
+            <span className="tiger-engine-body"><strong>{engine.name}</strong><small>{engine.taskId||"No recorded task"}</small>{engine.candidatePr&&<small>Open {engine.candidatePr.draft?"draft ":""}PR #{engine.candidatePr.number} · development candidate</small>}</span>
             <span className={"tiger-engine-state "+(engine.status==="blocked"?"blocked":engine.status==="ready"?"ready":engine.status==="accepted"?"accepted":"")}>{engine.status}</span>
           </button>)}
         </div>
         {filterEngine&&<div className="tiger-engine-inspection"><strong>{filterEngine} · Selected</strong><span>{snapshot.engines.find(e=>e.id===filterEngine)?.status}</span>
           <a target="_blank" rel="noreferrer noopener" href={snapshot.engines.find(e=>e.id===filterEngine)?.issueUrl||"https://github.com/pcrus1988-bit/Tiger-2-0/issues"}>GitHub issue / lineage ↗</a>
+          {snapshot.engines.find(e=>e.id===filterEngine)?.candidatePr&&<a target="_blank" rel="noreferrer noopener" href={snapshot.engines.find(e=>e.id===filterEngine)?.candidatePr?.url}>Open PR candidate · NOT accepted ↗</a>}
           <button onClick={()=>setFilterEngine("")}>Clear engine filter ×</button></div>}
       </aside>
 

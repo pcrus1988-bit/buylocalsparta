@@ -36,3 +36,7 @@ This feature is a GitHub evidence consumer, **not** a second orchestrator. Its u
 4. Trigger a real AUTOPILOT transition in an isolated runner; validate provenance, event and state cursor, worker heartbeat and UI update.
 5. Test disconnection, reconnection, browser sleep, stale lease, role mismatch, Android 2D fallback and reduced motion. No visual-demo content may masquerade as reality.
 6. Obtain explicit owner approval before production merge/deployment. Production deployment is **not approved**.
+
+## Open engine PR candidates (read-only, not worker state)
+
+The engineering-room engine cards also display open, same-repository PR candidates when GitHub verifies a matching E01–E20 title/branch, current open state, numeric PR URL and commit SHA. The server fetches GitHub open PRs independently of the historical activity feed, so an older draft can still appear. A PR is labelled **development candidate**, never working, accepted, reviewed or deployed. Logical A00–A10 stations remain offline without the verified AUTOPILOT lease and heartbeat. The engine task status remains authoritative and unchanged. No new write scopes or API model credentials are used.

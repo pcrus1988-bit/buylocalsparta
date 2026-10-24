@@ -4,6 +4,8 @@
  * No synthetic worker, message, task, acceptance or achievement state.
  */
 import "server-only";
+import {openEngineCandidates} from "./tiger-live-candidates";
+import type {TigerEngineCandidate} from "./tiger-live-candidates";
 import {latestWorkflowOutcomes,verifiedContractRun} from "./tiger-live-evidence";
 
 export type TigerSourceState = "LIVE" | "STALE" | "DISCONNECTED" | "NOT CONFIGURED" | "NO ACTIVITY";
@@ -14,7 +16,7 @@ export type TigerLiveEvent = {
   evidenceUrl?:string; correlationId?:string;
 };
 export type TigerWorker = { id:string; name:string; status:"offline"|"idle"|"working"|"blocked"; taskId?:string; engineId?:string; heartbeatAt?:string };
-export type TigerEngine = { id:string; name:string; status:string; taskId?:string; issueUrl?:string };
+export type TigerEngine = { id:string; name:string; status:string; taskId?:string; issueUrl?:string; candidatePr?:TigerEngineCandidate };
 export type TigerIssue = { id:string; title:string; severity:"warning"|"critical"; engineId?:string; taskId?:string; evidenceUrl?:string; owner?:string };
 export type TigerSnapshot = {
   schemaVersion:1; source:TigerSourceState; observedAt:string|null; lastVerifiedUpdate:string|null;
@@ -102,7 +104,7 @@ function dateOf(input:unknown):string|null{
   if(typeof input!=="string"||!Number.isFinite(Date.parse(input)))return null;
   return new Date(input).toISOString();
 }
-function snapshotFromSources(state:RawState,transitions:RawEvent[],runs:unknown,prs:unknown):TigerSnapshot {
+function snapshotFromSources(state:RawState,transitions:RawEvent[],runs:unknown,prs:unknown,openPrs:unknown):TigerSnapshot {
   const now=Date.now(), observedAt=new Date(now).toISOString(), view=blank("NO ACTIVITY","Source reachable; no verified active logical agents.");
   view.observedAt=observedAt;
   if(state.schema_version!==1||!Number.isSafeInteger(state.revision)||!state.tasks)throw new Error("TIGER_STATE_SCHEMA_MISMATCH");
@@ -131,6 +133,8 @@ function snapshotFromSources(state:RawState,transitions:RawEvent[],runs:unknown,
     if(worker){worker.status="working";worker.taskId=taskId;worker.engineId=task.engine;
       worker.heartbeatAt=new Date(task.lease.last_heartbeat_at||0).toISOString();}
   }
+  const candidates=openEngineCandidates(openPrs);
+  view.engines=view.engines.map(e=>({...e,candidatePr:candidates.get(e.id)}));
   view.activeWorkers=view.agents.filter(a=>a.status==="working").length;
   const recorded=transitions.map(e=>mapTigerTransition(e,observedAt)).filter((e):e is TigerLiveEvent=>e!==null&&e.cursor<=view.cursor);
   const workflowRuns=(runs as {workflow_runs?:unknown[]})?.workflow_runs;
@@ -186,7 +190,8 @@ function snapshotFromSources(state:RawState,transitions:RawEvent[],runs:unknown,
   }else if(allTasks.some(([,task])=>["claimed","running","tested","reviewed"].includes(task.status||""))){
     view.source="STALE";view.message="Active task state exists but no fresh verified worker heartbeat.";
   }else{
-    view.source="NO ACTIVITY";view.message="GitHub evidence is reachable; no workers are currently verified as active.";
+    view.source="NO ACTIVITY";view.message="GitHub evidence is reachable; no workers are currently verified as active."+
+      (candidates.size>0?" "+candidates.size+" engines have open PR candidates; these are development evidence, not active agents.":"");
   }
   return view;
 }
@@ -198,13 +203,14 @@ export async function getTigerLiveSnapshot():Promise<TigerSnapshot>{
   if(memo.promise)return memo.promise;
   memo.promise=(async()=>{
     try{
-      const [state,events,runs,prs]=await Promise.all([
+      const [state,events,runs,prs,openPrs]=await Promise.all([
         jsonFile("runtime/state.json",STATE_BRANCH,token) as Promise<RawState>,
         eventFile(token),
         github("/actions/runs?per_page=35",token),
-        github("/pulls?state=all&per_page=60",token)
+        github("/pulls?state=all&per_page=60",token),
+        github("/pulls?state=open&sort=updated&direction=desc&per_page=100",token)
       ]);
-      return snapshotFromSources(state,events,runs,prs);
+      return snapshotFromSources(state,events,runs,prs,openPrs);
     }catch{
       return blank("DISCONNECTED","TIGER evidence is unavailable or a source contract is invalid. No operational state is inferred.");
     }
