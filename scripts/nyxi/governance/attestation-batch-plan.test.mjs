@@ -68,3 +68,21 @@ test('prototype-bearing record rejected',()=>{
 });
 test('missing observedAt cannot be used to produce a plan',()=>
   assert.throws(()=>plan([make()],{}),/invalid_observed_at/));
+
+test('aggregate byte budget rejects distinct snapshots even when each fits individually',()=>{
+  const a=make('a','e'), b=make('d','f');
+  assert.throws(()=>plan([a,b],{...opts,maxBytes:200}),/attestation_batch_total_bytes_exceeded/);
+});
+test('identical duplicate snapshot does not consume aggregate budget twice',()=>{
+  const a=make('a','e'), b=make('d','f');
+  const result=plan([a,a,b],{...opts,maxBytes:240});
+  assert.equal(result.length,2);
+});
+test('aggregate byte budget accepts exact boundary',()=>{
+  assert.equal(plan([make('a','e'),make('d','f')],{...opts,maxBytes:240}).length,2);
+});
+test('equal content hashes with contradictory byte lengths fail before Storage handoff',()=>{
+  const a=make('a','e'), b=make('d','e');
+  b.snapshot.byte_length=121;
+  assert.throws(()=>plan([a,b]),/conflicting_content_hash_byte_length/);
+});
