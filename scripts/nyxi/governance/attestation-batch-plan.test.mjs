@@ -86,3 +86,35 @@ test('equal content hashes with contradictory byte lengths fail before Storage h
   b.snapshot.byte_length=121;
   assert.throws(()=>plan([a,b]),/conflicting_content_hash_byte_length/);
 });
+
+test('same approval UUID cannot authorize different source identities in one batch',()=>{
+  const a=make('a','e'), b=make('d','f');
+  // Both records pass individual acquisition binding, but reuse approval b...
+  assert.equal(a.approval.id,b.approval.id);
+  assert.throws(()=>plan([a,b]),/conflicting_approval_identity/);
+});
+test('same source UUID cannot be rebound to another canonical URL in one batch',()=>{
+  const a=make('a','e'), b=make('a','f');
+  b.snapshot.id=uuid('d');
+  b.approval.id=uuid('f');
+  b.snapshot.provenance.asset_approval_id=b.approval.id;
+  b.source.canonical_url='https://authority.gov/other';
+  b.approval.asset_url=b.source.canonical_url;
+  b.approval.approved_final_url=b.source.canonical_url;
+  b.snapshot.final_url=b.source.canonical_url;
+  assert.throws(()=>plan([a,b]),/conflicting_source_identity/);
+});
+test('same approval UUID cannot silently change authorization expiry',()=>{
+  const a=make('a','e'), b=make('a','f');
+  b.snapshot.id=uuid('d');
+  b.snapshot.storage_path=b.source.id+'/'+b.snapshot.sha256+'/original.html';
+  b.approval.expires_at='2026-11-30T00:00:00Z';
+  assert.throws(()=>plan([a,b]),/conflicting_approval_identity/);
+});
+test('same source can have distinct approved assets with distinct approval UUIDs',()=>{
+  const a=make('a','e'), b=make('a','f');
+  b.snapshot.id=uuid('d');
+  b.approval.id=uuid('f');
+  b.snapshot.provenance.asset_approval_id=b.approval.id;
+  assert.equal(plan([a,b]).length,2);
+});
