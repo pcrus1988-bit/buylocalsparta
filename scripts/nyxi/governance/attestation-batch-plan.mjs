@@ -30,6 +30,9 @@ export function planPrivateAttestationBatch(records, { observedAt, maxBytes = MA
   // URL, source, authorization scope or capture window. Every individual
   // record could otherwise pass observe() while the batch contradicts itself.
   const sourceIdentities = new Map(), approvalIdentities = new Map();
+  // Canonical URL is a source identity across UUIDs too. A duplicate URL
+  // cannot silently inherit a separate acquisition approval in one batch.
+  const canonicalSourceIds = new Map();
   for (const record of records) {
     if (!plain(record) || !plain(record.source) || !plain(record.approval) ||
         !plain(record.snapshot) || !plain(record.snapshot.provenance))
@@ -43,6 +46,11 @@ export function planPrivateAttestationBatch(records, { observedAt, maxBytes = MA
     if (knownSource !== undefined && knownSource !== sourceIdentity)
       throw Error('conflicting_source_identity');
     sourceIdentities.set(source.id, sourceIdentity);
+    const canonicalUrl = new URL(source.canonical_url).href;
+    const knownUrlOwner = canonicalSourceIds.get(canonicalUrl);
+    if (knownUrlOwner !== undefined && knownUrlOwner !== source.id)
+      throw Error('duplicate_source_canonical_url');
+    canonicalSourceIds.set(canonicalUrl, source.id);
 
     // One approval UUID cannot carry conflicting rights or retention scope
     // inside a batch, even if both snapshots independently pass capture checks.
