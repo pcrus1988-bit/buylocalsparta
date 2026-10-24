@@ -11,11 +11,11 @@ type RouteContext = Readonly<{ params: Promise<{ shard: string }> }>;
 
 function escapeXml(value: string): string {
   return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
+    .replaceAll("&", "&")
+    .replaceAll("<", "<")
+    .replaceAll(">", ">")
+    .replaceAll('"', """)
+    .replaceAll("'", "'");
 }
 
 function safeLastModified(value: string | undefined): string | undefined {
@@ -30,12 +30,21 @@ function emptySitemap(): string {
     + 'xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"></urlset>';
 }
 
+function hasMeaningfulDescription(value: string | undefined): boolean {
+  return Boolean(value && value.trim().length >= 60);
+}
+
 /**
  * Product + image sitemap.
  *
  * Admission uses the bounded sitemap projection from product-sitemap-inventory.
  * It consumes the public read model plus the incremental live-availability overlay,
  * avoiding repeated scans of the full live offer graph when Google fetches shards.
+ *
+ * While the domain is still building authority, sitemap promotion is intentionally
+ * stricter than page-level indexability: products without a meaningful public
+ * description are omitted from the sitemap so Google can focus crawl budget on
+ * stronger documents. Those pages can still be indexed if discovered via links.
  */
 export async function GET(_request: Request, { params }: RouteContext): Promise<Response> {
   const { shard: shardSegment } = await params;
@@ -94,6 +103,10 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
     });
     if (!control.sitemapAllowed) return [];
 
+    // Young-domain phase: do not actively advertise thin product pages in the sitemap.
+    // Page-level indexability remains governed by productIndexEligibility + entity policy.
+    if (!hasMeaningfulDescription(product.description)) return [];
+
     const url = new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString();
     // Prefer the governed supplier URL directly. During recovery the local image
     // proxy has produced intermittent Next runtime packaging failures and DB
@@ -122,8 +135,8 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
         `      <image:loc>${escapeXml(entry.imageUrl)}</image:loc>`,
         "    </image:image>"
       ] : []),
-      "    <changefreq>daily</changefreq>",
-      "    <priority>0.75</priority>",
+      "    <changefreq>weekly</changefreq>",
+      "    <priority>0.65</priority>",
       "  </url>"
     ].join("\n")),
     "</urlset>"
