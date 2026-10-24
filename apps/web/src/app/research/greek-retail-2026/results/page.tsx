@@ -184,7 +184,7 @@ export default async function GreekRetailResultsPage() {
       <p>Τα αποτελέσματα παρουσιάζονται μαζί με το μέγεθος του δείγματος και, όπου είναι διαθέσιμο, το 95% διάστημα εμπιστοσύνης.</p>
       <div className={styles.meta}>
         <Link href="/research/greek-retail-2026">← Επισκόπηση μελέτης</Link>
-        <Link href="/research/greek-retail-2026/methodology">Πώς έγινε η μελέτη</Link>
+        <Link href="/research/greek-retail-2026/methodology">Πώς έγινε η μελέτη</Link><a href="#research-workbench">Graph Explorer & Heatmap ↓</a>
       </div>
     </header>
 
