@@ -3,7 +3,7 @@
 import { useMemo,useState } from "react";
 import Link from "next/link";
 import { PUBLIC_RESULTS_CHAPTERS,PUBLIC_RESULTS_METRICS,publicMetricLabel } from "../../../../lib/research-public-results-sections";
-import { demoResultPoints,type SafeParticipationGeography,type SafePublicResultPoint } from "../../../../lib/research-public-results-data";
+import { demoResultPoints,type SafeParticipationGeography,type SafePublicResultPoint,type InternalResearchGeographicCoverage } from "../../../../lib/research-public-results-data";
 import { ResearchPublicationMap } from "./ResearchPublicationMap";
 import { ResearchVoiceOfGreece } from "./ResearchVoiceOfGreece";
 import type { PublicVoiceData } from "../../../../lib/research-public-voices-data";
@@ -44,11 +44,12 @@ const matches=(p:SafePublicResultPoint,dimension:GroupBy,level:string)=>
 function csvValue(s:string){const safe=/^[=+@\\-\\t\\r]/.test(s)?"'"+s:s;return '"'+safe.replaceAll('"','""')+'"';}
 
 export function ResearchResultsWorkbench({
- mode,points:publishedPoints=[],geography,voices
+ mode,points:publishedPoints=[],geography,coverage,voices
 }:{
  mode:"preview"|"live"|"published"|"unpublished";
  points?:readonly SafePublicResultPoint[];
  geography?:SafeParticipationGeography;
+ coverage?:InternalResearchGeographicCoverage;
  voices?:PublicVoiceData;
 }){
  const demo=mode==="preview";
@@ -63,7 +64,7 @@ export function ResearchResultsWorkbench({
  const [crossRegion,setCrossRegion]=useState("");
  const [crossRegionB,setCrossRegionB]=useState("");
  const [crossGeography,setCrossGeography]=useState<"regionCode"|"prefectureCode">("regionCode");
- const [minN,setMinN]=useState(30);
+ const [minN,setMinN]=useState(mode==="live"?10:30);
  const [search,setSearch]=useState("");
  const [graphKey,setGraphKey]=useState("digital_readiness.mean");
  const [graphDimension,setGraphDimension]=useState<GroupBy>("sectorCode");
@@ -73,10 +74,13 @@ export function ResearchResultsWorkbench({
  const [graphOrder,setGraphOrder]=useState<SortMode>("high");
  const chapter=PUBLIC_RESULTS_CHAPTERS.find(c=>c.id===chapterId)??PUBLIC_RESULTS_CHAPTERS[0]!;
  const sub=chapter.subchapters.find(s=>s.id===subId)??chapter.subchapters[0]!;
- const levels=useMemo(()=>[...new Set(points.flatMap(p=>typeof p.segment[group]==="string"?[p.segment[group]]:[]))].sort(),[points,group]);
+ const levels=useMemo(()=>group==="prefectureCode"&&coverage
+  ? coverage.prefectures.map(p=>p.key)
+  : [...new Set(points.flatMap(p=>typeof p.segment[group]==="string"?[p.segment[group]]:[]))].sort(),
+  [points,group,coverage]);
  const sectorValues=useMemo(()=>[...new Set(points.flatMap(p=>p.segment.sectorCode?[p.segment.sectorCode]:[]))].sort(),[points]);
  const regionValues=useMemo(()=>GREECE_REGIONS.filter(r=>points.some(p=>p.segment.regionCode===r.key)).map(r=>r.key),[points]);
- const prefectureValues=useMemo(()=>GREECE_PREFECTURES.filter(r=>points.some(p=>p.segment.prefectureCode===r.key)).map(r=>r.key),[points]);
+ const prefectureValues=useMemo(()=>coverage?coverage.prefectures.map(p=>p.key):GREECE_PREFECTURES.filter(r=>points.some(p=>p.segment.prefectureCode===r.key)).map(r=>r.key),[points,coverage]);
  const areas=crossGeography==="prefectureCode"?prefectureValues:regionValues;
  const activeMetricKeys=sub.metrics.filter(k=>publicMetricLabel(k).toLowerCase().includes(search.toLowerCase())||k.toLowerCase().includes(search.toLowerCase()));
  const chapterRows=activeMetricKeys.map(key=>points.find(p=>p.metricKey===key&&matches(p,group,level)&&p.n>=minN))
@@ -137,6 +141,14 @@ export function ResearchResultsWorkbench({
       <b>{tab.icon}</b><span><strong>{tab.name}</strong><small>{tab.detail}</small></span>
     </button>)}
   </nav>
+  {mode==="live"&&<div className={styles.warning} role="note">
+   <strong>ΓΕΩΓΡΑΦΙΚΗ ΚΑΛΥΨΗ ΚΑΙ ΠΟΙΟΤΗΤΑ ΔΕΙΓΜΑΤΟΣ.</strong>
+   Στη ζωντανή εσωτερική προεπισκόπηση οι νομοί με τουλάχιστον 10 επιλέξιμες απαντήσεις
+   μπορούν να εμφανίσουν μόνο περιγραφικά, μη σταθμισμένα ποσοστά. Για n=10–29 τα
+   αποτελέσματα είναι ασταθή, δεν πρέπει να δημοσιεύονται ή να ερμηνεύονται ως
+   αντιπροσωπευτικά. Οι υπόλοιποι νομοί παραμένουν ορατοί ως κάλυψη χωρίς αριθμούς απαντήσεων.
+   Οι δημόσιες στατιστικές διατηρούν τον κανόνα n≥30 και τους πρόσθετους ελέγχους δημοσίευσης.
+  </div>}
   {demo&&<div className={styles.warning}><strong>ΔΕΔΟΜΕΝΑ ΕΠΙΔΕΙΞΗΣ.</strong> Όλοι οι αριθμοί, οι συσχετισμοί και οι γεωγραφικές κατανομές παρακάτω είναι αποκλειστικά παραδείγματα σχεδίασης και όχι στοιχεία της έρευνας.</div>}
   {menu==="chapters"&&<>
    <div className={styles.chapterGrid} role="group" aria-label="Επιλογή κεφαλαίου">
@@ -164,7 +176,7 @@ export function ResearchResultsWorkbench({
      <option value="">Χωρίς σύγκριση</option>{levels.filter(v=>v!==level).map(v=><option key={v} value={v}>{groupLabel(v,group)}</option>)}
     </select></label>}
     <label>Ελάχιστη βάση n<select value={minN} onChange={e=>setMinN(Number(e.target.value))}>
-     <option value="30">30</option><option value="50">50</option><option value="100">100</option><option value="200">200</option>
+     {mode==="live"&&<option value="10">10 · ενδεικτικό / μόνο Preview</option>}<option value="30">30</option><option value="50">50</option><option value="100">100</option><option value="200">200</option>
     </select></label>
     <label>Αναζήτηση δείκτη<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="π.χ. κόστος"/></label>
    </div>
@@ -229,7 +241,7 @@ export function ResearchResultsWorkbench({
      <option value="bars">Οριζόντιες μπάρες</option><option value="dots">Γράφημα κουκκίδων</option><option value="table">Πίνακας δεδομένων</option>
     </select></label>
     <label>Ελάχιστο n<select value={minN} onChange={e=>setMinN(Number(e.target.value))}>
-     {[30,50,100,200].map(n=><option key={n} value={n}>{n}</option>)}
+     {(mode==="live"?[10,30,50,100,200]:[30,50,100,200]).map(n=><option key={n} value={n}>{n}</option>)}
     </select></label>
    </div>
    <div className={styles.filters}><label>Εστίαση Α<select value={graphCompareA} onChange={e=>setGraphCompareA(e.target.value)}><option value="">Όλες οι ομάδες</option>{graphLevels.map(v=><option key={v} value={v}>{groupLabel(v,graphDimension)}</option>)}</select></label><label>Εστίαση Β<select value={graphCompareB} onChange={e=>setGraphCompareB(e.target.value)}><option value="">Καμία</option>{graphLevels.filter(v=>v!==graphCompareA).map(v=><option key={v} value={v}>{groupLabel(v,graphDimension)}</option>)}</select></label></div>
@@ -259,7 +271,7 @@ export function ResearchResultsWorkbench({
   {menu==="map"&&<section className={styles.mapSection}>
    <div className={styles.graphHeading}><span className={styles.eyebrow}>ΓΕΩΓΡΑΦΙΚΟ ΠΑΡΑΤΗΡΗΤΗΡΙΟ</span>
     <h3>Heatmap Ελλάδας</h3><p>Εξερευνήστε τη χωρική κάλυψη ή επιλέξτε διαθέσιμους εγκεκριμένους περιφερειακούς δείκτες. Με το ίδιο γεωγραφικό υπόβαθρο της έρευνας.</p></div>
-   <ResearchPublicationMap points={points} geography={geography} isDemo={demo}/>
+   <ResearchPublicationMap points={points} geography={geography} isDemo={demo} internalCoverage={mode==="live"?coverage:undefined}/>
   </section>}
   {menu==="voices"&&(mode==="live"
     ? <section className={styles.voiceOpenLink} aria-label="Η φωνή της Ελλάδας — ζωντανή εσωτερική προεπισκόπηση">
