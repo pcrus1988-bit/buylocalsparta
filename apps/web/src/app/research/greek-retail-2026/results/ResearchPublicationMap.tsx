@@ -17,6 +17,31 @@ function polygonPath(geometry:Feature["geometry"]):string{
  return "";
 }
 const fmt=(n:number)=>n.toLocaleString("el-GR",{maximumFractionDigits:1});
+const compactRegion:Record<string,string>={
+ "EAST MACEDONIA AND THRACE":"Αν. Μακ. & Θράκη","CENTRAL MACEDONIA":"Κ. Μακεδονία",
+ "THESSALY":"Θεσσαλία","NORTH AEGEAN":"Β. Αιγαίο","SOUTH AEGEAN":"Ν. Αιγαίο",
+ "CENTRAL GREECE":"Στερεά","WESTERN GREECE":"Δ. Ελλάδα","PELOPONNESE":"Πελοπόννησος",
+ "ATTICA":"Αττική","WEST MACEDONIA":"Δ. Μακεδονία","EPIRUS":"Ήπειρος",
+ "IONIAN ISLANDS":"Ιόνια","CRETE":"Κρήτη"
+};
+/** Anchor labels inside the largest polygon, not a bbox covering outlying islands. */
+function featureAnchor(geometry:Feature["geometry"]):{x:number;y:number}{
+ const rings=geometry.type==="Polygon"?(geometry.coordinates as number[][][]): 
+  geometry.type==="MultiPolygon"?(geometry.coordinates as number[][][][]).flatMap(p=>p):[];
+ const ring=[...rings].sort((a,b)=>area(b)-area(a))[0]??[];
+ if(!ring.length)return{x:400,y:325};
+ let twice=0,cx=0,cy=0;
+ for(let i=0;i<ring.length;i++){
+  const p=ring[i]!,q=ring[(i+1)%ring.length]!;
+  const cross=p[0]!*q[1]!-q[0]!*p[1]!;
+  twice+=cross;cx+=(p[0]!+q[0]!)*cross;cy+=(p[1]!+q[1]!)*cross;
+ }
+ const lon=Math.abs(twice)>0.0000001?cx/(3*twice):ring[0]![0]!;
+ const lat=Math.abs(twice)>0.0000001?cy/(3*twice):ring[0]![1]!;
+ return{x:55+(lon-19)*65,y:18+(42-lat)*78};
+}
+function area(ring:number[][]){let total=0;for(let i=0;i<ring.length;i++){const a=ring[i]!,b=ring[(i+1)%ring.length]!;total+=a[0]!*b[1]!-b[0]!*a[1]!;}return Math.abs(total);}
+
 type Palette=Readonly<{from:readonly number[];to:readonly number[];label:string}>;
 const PALETTES:Readonly<Record<string,Palette>>={
  economy:{from:[252,234,211],to:[161,64,43],label:"Οικονομία"},
@@ -57,6 +82,8 @@ export function ResearchPublicationMap({
  const [answerKey,setAnswerKey]=useState("customer_acquisition_sources.share.word_of_mouth");
  const [selected,setSelected]=useState("");
  const [sort,setSort]=useState("high");
+ const [showLabels,setShowLabels]=useState(true);
+ const [sector,setSector]=useState("");
  const [zoom,setZoom]=useState(1);
  const [search,setSearch]=useState("");
  useEffect(()=>{
@@ -71,10 +98,13 @@ export function ResearchPublicationMap({
  const hasMetric=mode==="answers";
  const selectedKey=hasMetric?answer:"participation";
  const visibleAnswers=mapAnswers(question);
+ const sectors=[...new Set(points.flatMap(p=>p.segment.sectorCode?[p.segment.sectorCode]:[]))].sort();
+ const hasApprovedCrossSections=points.some(p=>p.segment.sectorCode&&p.segment.regionCode);
  const regionalApproved=new Set(points.filter(p=>typeof p.segment.regionCode==="string").map(p=>p.metricKey));
  const regionValues=useMemo(()=>{
   const byKey=new Map(geography?.regions.map(x=>[x.key,x.started])??[]);
-  const regionPoints=points.filter(p=>p.metricKey===selectedKey&&typeof p.segment.regionCode==="string");
+  const regionPoints=points.filter(p=>p.metricKey===selectedKey&&typeof p.segment.regionCode==="string"&&
+   (sector?p.segment.sectorCode===sector:!p.segment.sectorCode));
   const byOutcome=new Map(regionPoints.map(p=>[p.segment.regionCode,p.value]));
   const byN=new Map(regionPoints.map(p=>[p.segment.regionCode,p.n]));
   return GREECE_REGIONS.map(region=>({
@@ -82,7 +112,7 @@ export function ResearchPublicationMap({
    value:selectedKey==="participation"?byKey.get(region.key):byOutcome.get(region.key),
    n:selectedKey==="participation"?byKey.get(region.key):byN.get(region.key)
   }));
- },[geography,points,selectedKey]);
+ },[geography,points,selectedKey,sector]);
  const available=regionValues.filter(v=>v.value!==undefined&&v.n!==undefined);
  const questionPoint=points.find(p=>p.metricKey===selectedKey);
  const isProportion=hasMetric&&questionPoint?.format==="proportion";
@@ -124,6 +154,9 @@ export function ResearchPublicationMap({
      </option>)}
     </select>
    </label>}
+   {hasMetric&&<label>Κλάδος (όπου έχει εγκριθεί διασταύρωση)<select value={sector} onChange={e=>{setSector(e.target.value);setSelected("");}}>
+     <option value="">Όλοι οι κλάδοι</option>{sectors.map(v=><option key={v} value={v}>{v.replaceAll("_"," ")}</option>)}
+    </select></label>}
    <label>Ταξινόμηση Περιφερειών
     <select value={sort} onChange={e=>setSort(e.target.value)}>
      <option value="high">Υψηλότερες τιμές</option><option value="low">Χαμηλότερες τιμές</option>
@@ -153,6 +186,7 @@ export function ResearchPublicationMap({
   <div className={styles.mapLayout}>
    <div className={styles.mapCanvas}>
     <div className={styles.mapToolbar}><strong>{hasMetric?"Περιφερειακή εικόνα · "+question.id:"Πυκνότητα συμμετοχής"}</strong>
+     <label className={styles.mapLabelToggle}><input type="checkbox" checked={showLabels} onChange={e=>setShowLabels(e.target.checked)}/> Τιμές πάνω στον χάρτη</label>
      <div className={styles.mapZoom}>
       <button type="button" aria-label="Σμίκρυνση" disabled={zoom<=1} onClick={()=>setZoom(z=>Math.max(1,z/1.4))}>−</button>
       <button type="button" aria-label="Μεγέθυνση" disabled={zoom>=3.5} onClick={()=>setZoom(z=>Math.min(3.5,z*1.4))}>+</button>
@@ -180,6 +214,18 @@ export function ResearchPublicationMap({
       })}
       {density&&<image href={density} x="0" y="0" width="810" height="650" preserveAspectRatio="none"
         clipPath="url(#results-greece-land)" pointerEvents="none"/>}
+      {showLabels&&geo.features.map(feature=>{
+       const cell=regionValues.find(r=>r.key===feature.properties.name);
+       if(!cell||cell.value===undefined||cell.n===undefined)return null;
+       const anchor=featureAnchor(feature.geometry);
+       return <g key={"label:"+feature.properties.name} transform={"translate("+anchor.x+" "+anchor.y+")"}
+         className={styles.mapValueOverlay} pointerEvents="none" aria-hidden="true">
+        <rect x="-48" y="-19" width="96" height="38" rx="8" fill="#fffdf6" fillOpacity=".95" stroke="#9cb7a0" strokeWidth=".8"/>
+        <text textAnchor="middle" y="-6" fontSize="9" fontWeight="700" fill="#315d43">{compactRegion[cell.key]??cell.label}</text>
+        <text textAnchor="middle" y="9" fontSize="14" fontWeight="900" fill="#164f32">{legendValue(cell.value)}</text>
+        <title>{cell.label}: {legendValue(cell.value)} · n={cell.n}</title>
+       </g>;
+      })}
      </svg>}
     <div className={styles.legend}><span>{legendValue(domain.minimum)}</span>
      <span className={styles.colorRamp}
@@ -204,7 +250,9 @@ export function ResearchPublicationMap({
   {hasMetric?<p className={styles.note}>
    Η επιλογή διαφορετικής ερώτησης ή απάντησης επαναχρωματίζει τον χάρτη, ενημερώνει
    την κλίμακα και αναταξινομεί τις Περιφέρειες από τον συγκεκριμένο δείκτη.
+   Οι τιμές εμφανίζονται απευθείας πάνω στις διαθέσιμες γεωγραφικές ενότητες.
    Τα ποσοστά χρησιμοποιούν σταθερή κλίμακα 0–100%, οι βαθμολογίες την επιστημονική τους κλίμακα.
+   {sector&&!hasApprovedCrossSections?" Δεν υπάρχει εγκεκριμένη περιφερειακή διασταύρωση για αυτόν τον κλάδο.":""}
    Εμφανίζονται μόνο εγκεκριμένες συγκεντρωτικές εκτιμήσεις ανά Περιφέρεια με n≥30.
    Δεν χρησιμοποιούνται ιστορικοί κωδικοί νομών ως Περιφέρειες.
    {available.length===0?" Δεν υπάρχουν ακόμη δημοσιεύσιμα περιφερειακά αποτελέσματα για αυτή την απάντηση.":""}
@@ -213,7 +261,7 @@ export function ResearchPublicationMap({
    Τα δεδομένα προέρχονται από δημοσίως διαθέσιμα γεωγραφικά συγκεντρωτικά στοιχεία, όχι από θέσεις συσκευών.
    {available.length===0?" Δεν διατίθενται προς το παρόν επαρκή δημοσιεύσιμα γεωγραφικά στοιχεία.":""}
   </p>}
-  <p className={styles.note}>Γεωγραφικά όρια: ίδιο υπόβαθρο 13 Περιφερειών με τον υπάρχοντα χάρτη της έρευνας.
+  <p className={styles.note}>Γεωγραφικά όρια: ίδιο υπόβαθρο 13 διοικητικών Περιφερειών με τον υπάρχοντα χάρτη της έρευνας. Οι νομοί απαιτούν διαφορετικό, επιβεβαιωμένο γεωγραφικό υπόβαθρο και εγκεκριμένα δεδομένα αναλυμένα σε επίπεδο νομού· δεν παρουσιάζουμε τιμές Περιφέρειας ως δήθεν τιμές νομού.
    Τα επιμέρους δεδομένα μικρών ομάδων δεν μεταφέρονται στον φυλλομετρητή.</p>
  </section>;
 }
