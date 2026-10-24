@@ -39,6 +39,7 @@ export default async function GreekRetailResultsLivePreview() {
       regions: location.regions.filter(r=>r.started>=30).map(r=>({
         key:r.key,label:r.label,started:r.started
       })),
+      prefectures: location.prefectures?.filter(p=>p.started>=30).map(p=>({key:p.key,label:p.label,started:p.started})),
       densityImage: location.densityImage
     };
   } catch (error) {
