@@ -65,3 +65,41 @@ export async function maziOperationsSnapshot(principal:SessionPrincipal):Promise
  if(result.rows.length!==1)throw Error("MAZI_OPERATIONS_UNAVAILABLE");
  return result.rows[0];
 }
+
+/** Each verification is a real, revocable-in-effect human assertion.
+ * Prior records stay immutable as part of the audit trail.
+ */
+export type MaziLaunchGateKey=
+ "auth_email_delivery"|"legal_and_retention"|"consenting_business_e2e";
+export type MaziLaunchGateDecision="verified"|"reopened";
+export type MaziLaunchGateReview={
+ gate_key:MaziLaunchGateKey;decision:MaziLaunchGateDecision;recorded_at:Date
+};
+const allowedGateKeys=new Set<MaziLaunchGateKey>([
+ "auth_email_delivery","legal_and_retention","consenting_business_e2e"
+]);
+export async function maziLaunchGateStates(principal:SessionPrincipal):Promise<MaziLaunchGateReview[]>{
+ await marketplaceMaziActor(principal);
+ const result=await getAdminPostgresRuntime().nativePool.query<MaziLaunchGateReview>(
+  "SELECT DISTINCT ON (gate_key) gate_key,decision,recorded_at FROM public.mazi_launch_gate_reviews ORDER BY gate_key,recorded_at DESC,id DESC LIMIT 3"
+ );
+ return result.rows;
+}
+
+export async function recordMaziLaunchGateReview(principal:SessionPrincipal,input:{
+ gateKey:string;decision:string;evidence:string;
+}):Promise<void>{
+ const actor=await marketplaceMaziActor(principal);
+ const {gateKey,decision}=input;
+ const evidence=input.evidence.trim();
+ if(!allowedGateKeys.has(gateKey as MaziLaunchGateKey)||
+   !["verified","reopened"].includes(decision)||
+   evidence.length<40||evidence.length>1200)
+  throw Error("MAZI_LAUNCH_GATE_REVIEW_INVALID");
+ const result=await getAdminPostgresRuntime().nativePool.query<{id:string}>(`
+  INSERT INTO public.mazi_launch_gate_reviews(
+   gate_key,decision,evidence,actor_user_id
+  ) VALUES($1,$2,$3,$4::uuid) RETURNING id::text
+ `,[gateKey,decision,evidence,actor]);
+ if(result.rowCount!==1)throw Error("MAZI_LAUNCH_GATE_REVIEW_NOT_SAVED");
+}
