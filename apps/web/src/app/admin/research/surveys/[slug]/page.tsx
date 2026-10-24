@@ -9,6 +9,7 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, Wor
 import { hasAdminPermission } from "../../../../../lib/admin-runtime";
 import { formatResearchAthensDateTime } from "../../../../../lib/research-survey-timestamps.ts";
 import { getAdminSession } from "../../../../../lib/admin-session";
+import { canViewPrivateResearchExperiment } from "../../../../../lib/research-experiment-admin";
 import { GREEK_RETAIL_2026_SLUG, researchSurveyAdminCohortOverview, researchSurveyAdminFastOverview } from "../../../../../lib/research-survey-runtime";
 
 export const metadata: Metadata = {
@@ -183,6 +184,7 @@ export default async function ResearchSurveyOverviewPage({ params }: {
         <Link prefetch={false} className="button button-secondary" href="/admin/research/surveys">All surveys</Link>
         <Link prefetch={false} className="button" href={root + "/barometer"}>Live Barometer</Link>
         <Link prefetch={false} className="button" href={root + "/behaviour"}>Participant Behaviour Analytics · New</Link>
+        {slug === GREEK_RETAIL_2026_SLUG && canViewPrivateResearchExperiment(principal) && <Link prefetch={false} className="button button-secondary" href={root + "/marketplace-experiment"}>Private Marketplace Choices</Link>}
         <Link prefetch={false} className="button button-secondary" href={root + "/workflow?phase=pilot"}>Guided Pilot</Link>
         <Link prefetch={false} className="button button-secondary" href={root + "/workflow?phase=main"}>Main study steps</Link>
         <Link prefetch={false} className="button button-secondary" href="/admin/research/handbook">Admin handbook</Link>
