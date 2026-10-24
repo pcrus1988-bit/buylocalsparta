@@ -110,3 +110,7 @@
  .regionList{max-height:none}
  .regionalNumbers{max-width:45%}
 }
+
+/* Keep the full 13 Περιφέρειες visible instead of hiding the lower rows inside a nested scroller. */
+.mapSide{max-height:none}
+.mapSide .regionList{max-height:none;overflow:visible}
