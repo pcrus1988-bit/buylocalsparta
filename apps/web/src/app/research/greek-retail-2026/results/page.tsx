@@ -7,7 +7,7 @@ import previewStyles from "./ResultsPreview.module.css";
 import { getPublishedGreekRetailResults } from "../../../../lib/research-survey-release";
 import { governedStaticSeoMetadata } from "../../../../lib/seo-metadata";
 import { publicResearchStudy } from "../../../../lib/research-observatory-runtime";
-import { publicResultPoints, type SafeParticipationGeography } from "../../../../lib/research-public-results-data";
+import { publicResultPoints, validRegionValue, type SafeParticipationGeography } from "../../../../lib/research-public-results-data";
 import { ResearchResultsWorkbench } from "./ResearchResultsWorkbench";
 
 export const dynamic = "force-dynamic";
@@ -172,7 +172,9 @@ export default async function GreekRetailResultsPage() {
   }
   const visible = published.estimates.filter((estimate) => !estimate.suppressed && estimate.estimate != null);
   const overall = visible.filter((estimate) => Object.keys(estimate.segment).length === 0);
-  const region = visible.filter((estimate) => typeof estimate.segment.regionCode === "string");
+  // Historical prefecture IDs must never be mislabeled as administrative regions.
+  const region = visible.filter((estimate) => typeof estimate.segment.regionCode === "string" &&
+    validRegionValue(estimate.segment.regionCode) && estimate.unweightedN >= 30);
   const sector = visible.filter((estimate) => typeof estimate.segment.sectorCode === "string");
 
   return <main className={styles.shell}>
