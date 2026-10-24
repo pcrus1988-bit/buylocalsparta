@@ -179,7 +179,7 @@ export function ResearchPublicationMap({
    {hasMetric&&<label>Κλάδος (όπου έχει εγκριθεί διασταύρωση)<select value={sector} onChange={e=>{setSector(e.target.value);setSelected("");}}>
      <option value="">Όλοι οι κλάδοι</option>{sectors.map(v=><option key={v} value={v}>{v.replaceAll("_"," ")}</option>)}
     </select></label>}
-   <label>Ταξινόμηση Περιφερειών
+   <label>Ταξινόμηση περιοχών
     <select value={sort} onChange={e=>setSort(e.target.value)}>
      <option value="high">Υψηλότερες τιμές</option><option value="low">Χαμηλότερες τιμές</option>
      <option value="name">Αλφαβητικά</option>
@@ -237,14 +237,14 @@ export function ResearchPublicationMap({
       {density&&<image href={density} x="0" y="0" width="810" height="650" preserveAspectRatio="none"
         clipPath="url(#results-greece-land)" pointerEvents="none"/>}
       {showLabels&&geo.features.map(feature=>{
-       const cell=regionValues.find(r=>r.key===feature.properties.name);
+       const cell=currentValues.find(r=>r.key===feature.properties.name);
        if(!cell||cell.value===undefined||cell.n===undefined)return null;
        const anchor=featureAnchor(feature.geometry);
        return <g key={"label:"+feature.properties.name} transform={"translate("+anchor.x+" "+anchor.y+")"}
          className={styles.mapValueOverlay} pointerEvents="none" aria-hidden="true">
-        <rect x="-48" y="-19" width="96" height="38" rx="8" fill="#fffdf6" fillOpacity=".95" stroke="#9cb7a0" strokeWidth=".8"/>
-        <text textAnchor="middle" y="-6" fontSize="9" fontWeight="700" fill="#315d43">{compactRegion[cell.key]??cell.label}</text>
-        <text textAnchor="middle" y="9" fontSize="14" fontWeight="900" fill="#164f32">{legendValue(cell.value)}</text>
+        <rect x={granularity==="prefecture"?-33:-48} y={granularity==="prefecture"?-15:-19} width={granularity==="prefecture"?66:96} height={granularity==="prefecture"?30:38} rx="8" fill="#fffdf6" fillOpacity=".95" stroke="#9cb7a0" strokeWidth=".8"/>
+        <text textAnchor="middle" y={granularity==="prefecture"?-4:-6} fontSize={granularity==="prefecture"?7:9} fontWeight="700" fill="#315d43">{granularity==="prefecture"?cell.label.slice(0,11):compactRegion[cell.key]??cell.label}</text>
+        <text textAnchor="middle" y={granularity==="prefecture"?8:9} fontSize={granularity==="prefecture"?11:14} fontWeight="900" fill="#164f32">{legendValue(cell.value)}</text>
         <title>{cell.label}: {legendValue(cell.value)} · n={cell.n}</title>
        </g>;
       })}
@@ -258,7 +258,7 @@ export function ResearchPublicationMap({
      <span>{display(focused.value)}{hasMetric&&focused.n!==undefined?" · n="+focused.n:""}</span></div>}
    </div>
    <div className={styles.mapSide}>
-    <label>Αναζήτηση {granularity==="prefecture"?"νομού":"Περιφέρειας"}<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="π.χ. Πελοπόννησος"/></label>
+    <label>Αναζήτηση {granularity==="prefecture"?"νομού":"Περιφέρειας"}<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder={granularity==="prefecture"?"π.χ. Λακωνία":"π.χ. Πελοπόννησος"}/></label>
     <div className={styles.regionList}>
      {sorted.map(region=><button type="button" key={region.key} aria-pressed={selected===region.key}
        className={selected===region.key?styles.selectedRegion:styles.regionButton}
