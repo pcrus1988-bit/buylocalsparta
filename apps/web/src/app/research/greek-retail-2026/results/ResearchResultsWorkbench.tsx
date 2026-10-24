@@ -7,21 +7,18 @@ import { demoResultPoints,type SafeParticipationGeography,type SafePublicResultP
 import { ResearchPublicationMap } from "./ResearchPublicationMap";
 import { ResearchVoiceOfGreece } from "./ResearchVoiceOfGreece";
 import type { PublicVoiceData } from "../../../../lib/research-public-voices-data";
-import { GREECE_REGIONS } from "../../../../lib/research-geographic-core";
 import { GREECE_PREFECTURES } from "../../../../lib/research-prefectures";
 import styles from "./ResultsWorkbench.module.css";
 
-type GroupBy="overall"|"sectorCode"|"sizeBand"|"regionCode"|"prefectureCode";
+type GroupBy="overall"|"sectorCode"|"sizeBand"|"prefectureCode";
 type Menu="chapters"|"graphs"|"map"|"voices";
 type SortMode="high"|"low"|"label";
 const options:ReadonlyArray<Readonly<{id:GroupBy;title:string}>>=[
  {id:"overall",title:"Σύνολο Ελλάδας"},
  {id:"sectorCode",title:"Κατά κλάδο"},
  {id:"sizeBand",title:"Κατά μέγεθος"},
- {id:"regionCode",title:"Περιφέρειες"},
  {id:"prefectureCode",title:"Νομοί"}
 ];
-const regionLabels:Record<string,string>=Object.fromEntries(GREECE_REGIONS.map(r=>[r.key,r.label]));
 const prefectureLabels:Record<string,string>=Object.fromEntries(GREECE_PREFECTURES.map(r=>[r.key,r.label]));
 const sectorLabels:Record<string,string>={
  food_groceries:"Τρόφιμα & παντοπωλεία",fashion_footwear:"Ένδυση & υπόδηση",
@@ -33,7 +30,7 @@ const sizeLabels:Record<string,string>={"1":"1 εργαζόμενος","2_4":"2�
  "20_49":"20–49 εργαζόμενοι","50_plus":"50+ εργαζόμενοι"};
 const groupLabel=(value:string,key:GroupBy)=>key==="sectorCode"
  ? sectorLabels[value]??value.replaceAll("_"," "):key==="sizeBand"
- ? sizeLabels[value]??value:key==="regionCode"?(regionLabels[value]??value):key==="prefectureCode"?(prefectureLabels[value]??value):"Σύνολο";
+ ? sizeLabels[value]??value:key==="prefectureCode"?(prefectureLabels[value]??value):"Σύνολο";
 const format=(point:SafePublicResultPoint)=>point.format==="proportion"
  ?new Intl.NumberFormat("el-GR",{style:"percent",maximumFractionDigits:1}).format(point.value)
  :new Intl.NumberFormat("el-GR",{maximumFractionDigits:1}).format(point.value);
@@ -63,11 +60,10 @@ export function ResearchResultsWorkbench({
  const [crossSector,setCrossSector]=useState("");
  const [crossRegion,setCrossRegion]=useState("");
  const [crossRegionB,setCrossRegionB]=useState("");
- const [crossGeography,setCrossGeography]=useState<"regionCode"|"prefectureCode">("regionCode");
  const [minN,setMinN]=useState(mode==="live"?10:30);
  const [search,setSearch]=useState("");
  const [graphKey,setGraphKey]=useState("digital_readiness.mean");
- const [graphDimension,setGraphDimension]=useState<GroupBy>("sectorCode");
+ const [graphDimension,setGraphDimension]=useState<GroupBy>("prefectureCode");
  const [graphCompareA,setGraphCompareA]=useState("");
  const [graphCompareB,setGraphCompareB]=useState("");
  const [graphKind,setGraphKind]=useState<"bars"|"dots"|"table">("bars");
@@ -79,9 +75,8 @@ export function ResearchResultsWorkbench({
   : [...new Set(points.flatMap(p=>typeof p.segment[group]==="string"?[p.segment[group]]:[]))].sort(),
   [points,group,coverage]);
  const sectorValues=useMemo(()=>[...new Set(points.flatMap(p=>p.segment.sectorCode?[p.segment.sectorCode]:[]))].sort(),[points]);
- const regionValues=useMemo(()=>GREECE_REGIONS.filter(r=>points.some(p=>p.segment.regionCode===r.key)).map(r=>r.key),[points]);
  const prefectureValues=useMemo(()=>coverage?coverage.prefectures.map(p=>p.key):GREECE_PREFECTURES.filter(r=>points.some(p=>p.segment.prefectureCode===r.key)).map(r=>r.key),[points,coverage]);
- const areas=crossGeography==="prefectureCode"?prefectureValues:regionValues;
+ const areas=prefectureValues;
  const activeMetricKeys=sub.metrics.filter(k=>publicMetricLabel(k).toLowerCase().includes(search.toLowerCase())||k.toLowerCase().includes(search.toLowerCase()));
  const chapterRows=activeMetricKeys.map(key=>points.find(p=>p.metricKey===key&&matches(p,group,level)&&p.n>=minN))
   .filter((p):p is SafePublicResultPoint=>Boolean(p));
@@ -99,8 +94,8 @@ export function ResearchResultsWorkbench({
  });
  const crossRows=activeMetricKeys.flatMap(key=>{
   if(!crossSector||!crossRegion)return [];
-  const find=(region:string)=>points.find(p=>p.metricKey===key&&p.n>=Math.max(50,minN)&&
-   p.segment[crossGeography]===region&&p.segment.sectorCode===crossSector);
+  const find=(region:string)=>points.find(p=>p.metricKey===key&&p.n>=(mode==="live"?10:Math.max(50,minN))&&
+   p.segment.prefectureCode===region&&p.segment.sectorCode===crossSector);
   const left=find(crossRegion),right=crossRegionB?find(crossRegionB):undefined;
   return left?[{key,left,right}]:[];
  });
@@ -142,12 +137,12 @@ export function ResearchResultsWorkbench({
     </button>)}
   </nav>
   {mode==="live"&&<div className={styles.warning} role="note">
-   <strong>ΓΕΩΓΡΑΦΙΚΗ ΚΑΛΥΨΗ ΚΑΙ ΠΟΙΟΤΗΤΑ ΔΕΙΓΜΑΤΟΣ.</strong>
-   Στη ζωντανή εσωτερική προεπισκόπηση οι νομοί με τουλάχιστον 10 επιλέξιμες απαντήσεις
+   <strong>ΟΛΕΣ ΟΙ ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΑΠΑΝΤΗΣΕΙΣ · ΑΝΑ ΝΟΜΟ.</strong>
+   Στη ζωντανή εσωτερική προεπισκόπηση περιλαμβάνεται το σύνολο των ολοκληρωμένων απαντήσεων. Οι νομοί με τουλάχιστον 10 υποβληθείσες απαντήσεις
    μπορούν να εμφανίσουν μόνο περιγραφικά, μη σταθμισμένα ποσοστά. Για n=10–29 τα
    αποτελέσματα είναι ασταθή, δεν πρέπει να δημοσιεύονται ή να ερμηνεύονται ως
    αντιπροσωπευτικά. Οι υπόλοιποι νομοί παραμένουν ορατοί ως κάλυψη χωρίς αριθμούς απαντήσεων.
-   Οι δημόσιες στατιστικές διατηρούν τον κανόνα n≥30 και τους πρόσθετους ελέγχους δημοσίευσης.
+   Η βάση n είναι ο πραγματικός αριθμός ολοκληρωμένων απαντήσεων, όχι τυχαίο δείγμα τους. Οι δημόσιες στατιστικές υπόκεινται σε ξεχωριστή QA και έλεγχο ιδιωτικότητας.
   </div>}
   {demo&&<div className={styles.warning}><strong>ΔΕΔΟΜΕΝΑ ΕΠΙΔΕΙΞΗΣ.</strong> Όλοι οι αριθμοί, οι συσχετισμοί και οι γεωγραφικές κατανομές παρακάτω είναι αποκλειστικά παραδείγματα σχεδίασης και όχι στοιχεία της έρευνας.</div>}
   {menu==="chapters"&&<>
@@ -175,9 +170,9 @@ export function ResearchResultsWorkbench({
     {group!=="overall"&&<label>2η ομάδα / σύγκριση<select value={compareTo} onChange={e=>setCompareTo(e.target.value)}>
      <option value="">Χωρίς σύγκριση</option>{levels.filter(v=>v!==level).map(v=><option key={v} value={v}>{groupLabel(v,group)}</option>)}
     </select></label>}
-    <label>Ελάχιστη βάση n<select value={minN} onChange={e=>setMinN(Number(e.target.value))}>
-     {mode==="live"&&<option value="10">10 · ενδεικτικό / μόνο Preview</option>}<option value="30">30</option><option value="50">50</option><option value="100">100</option><option value="200">200</option>
-    </select></label>
+    {mode!=="live"&&<label>Ελάχιστη βάση n<select value={minN} onChange={e=>setMinN(Number(e.target.value))}>
+     {[30,50,100,200].map(n=><option value={n} key={n}>{n}</option>)}
+    </select></label>}
     <label>Αναζήτηση δείκτη<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="π.χ. κόστος"/></label>
    </div>
    {group!=="overall"&&!level&&<p className={styles.info}>Επιλέξτε κλάδο, γεωγραφική περιοχή ή μέγεθος και προαιρετικά δεύτερη ομάδα για άμεση σύγκριση. Οι ταυτόχρονες τομές κλάδου × νομού θα διατίθενται μόνο εφόσον υπάρχει ξεχωριστή ελεγμένη και δημοσιεύσιμη εκτίμηση, όχι με συνδυασμό ανεξάρτητων ποσοστών.</p>}
@@ -198,17 +193,16 @@ export function ResearchResultsWorkbench({
     <p className={styles.note}>Οι διαφορές είναι περιγραφικές, όχι αυτόματες δοκιμές σημαντικότητας. Δεν υπολογίζονται συσχετίσεις ή κοινές διασταυρώσεις από περιθωριακά αποτελέσματα.</p>
    </section>}
    <section className={styles.crossFilterPanel} aria-label="Διασταύρωση κλάδου και περιοχής">
-    <div className={styles.graphHeading}><h3>Κλάδος × γεωγραφία</h3><p>Εξειδικευμένη ανάλυση του ίδιου δείκτη ανά κλάδο και περιφέρεια, μόνο όταν η συγκεκριμένη διασταύρωση έχει εγκριθεί ανεξάρτητα.</p></div>
+    <div className={styles.graphHeading}><h3>Κλάδος × γεωγραφία</h3><p>Εξειδικευμένη ανάλυση του ίδιου δείκτη ανά κλάδο και νομό, μόνο όπου υπάρχουν αρκετές πραγματικές απαντήσεις και οι απαραίτητες εγκρίσεις.</p></div>
     <div className={styles.filters}>
-     <label>Γεωγραφική μονάδα<select value={crossGeography} onChange={e=>{setCrossGeography(e.target.value as typeof crossGeography);setCrossRegion("");setCrossRegionB("");}}><option value="regionCode">Περιφέρεια</option><option value="prefectureCode">Νομός</option></select></label>
      <label>Κλάδος<select value={crossSector} onChange={e=>setCrossSector(e.target.value)}><option value="">Επιλέξτε κλάδο</option>{sectorValues.map(v=><option key={v} value={v}>{groupLabel(v,"sectorCode")}</option>)}</select></label>
-     <label>Περιοχή Α<select value={crossRegion} onChange={e=>setCrossRegion(e.target.value)}><option value="">Επιλέξτε περιοχή</option>{areas.map(v=><option key={v} value={v}>{groupLabel(v,crossGeography)}</option>)}</select></label>
-     <label>Περιοχή Β (σύγκριση)<select value={crossRegionB} onChange={e=>setCrossRegionB(e.target.value)}><option value="">Καμία</option>{areas.filter(v=>v!==crossRegion).map(v=><option key={v} value={v}>{groupLabel(v,crossGeography)}</option>)}</select></label>
+     <label>Περιοχή Α<select value={crossRegion} onChange={e=>setCrossRegion(e.target.value)}><option value="">Επιλέξτε περιοχή</option>{areas.map(v=><option key={v} value={v}>{groupLabel(v,"prefectureCode")}</option>)}</select></label>
+     <label>Περιοχή Β (σύγκριση)<select value={crossRegionB} onChange={e=>setCrossRegionB(e.target.value)}><option value="">Καμία</option>{areas.filter(v=>v!==crossRegion).map(v=><option key={v} value={v}>{groupLabel(v,"prefectureCode")}</option>)}</select></label>
     </div>
-    {crossSector&&crossRegion&&(crossRows.length?<div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Δείκτης</th><th>{groupLabel(crossRegion,crossGeography)}</th><th>{crossRegionB?groupLabel(crossRegionB,crossGeography):"Βάση"}</th><th>Διαφορά</th></tr></thead><tbody>
+    {crossSector&&crossRegion&&(crossRows.length?<div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Δείκτης</th><th>{groupLabel(crossRegion,"prefectureCode")}</th><th>{crossRegionB?groupLabel(crossRegionB,"prefectureCode"):"Βάση"}</th><th>Διαφορά</th></tr></thead><tbody>
      {crossRows.map(({key,left,right})=><tr key={key}><td>{publicMetricLabel(key)}</td><td>{format(left)} · n={left.n}</td><td>{right?format(right)+" · n="+right.n:"n="+left.n}</td><td>{right&&right.format===left.format?difference(left,right):"—"}</td></tr>)}
     </tbody></table></div>:<p className={styles.empty}>Δεν υπάρχει εγκεκριμένη εκτίμηση για τον επιλεγμένο συνδυασμό. Δεν ανασυνθέτουμε κλαδικές και γεωγραφικές τομές από ανεξάρτητα ποσοστά.</p>)}
-    <p className={styles.note}>Για δημοσίευση διπλής διασταύρωσης απαιτούνται ρητή επιστημονική έγκριση και n≥50 σε κάθε εμφανιζόμενο κελί· τυχόν μικρές ομάδες παραμένουν απόρρητες.</p>
+    <p className={styles.note}>{mode==="live"?"Εσωτερικές περιγραφικές διασταυρώσεις όλων των ολοκληρωμένων απαντήσεων με n≥10 για προστασία των συμμετεχόντων. Δεν τεκμηριώνουν αντιπροσωπευτικότητα.":"Για δημοσίευση διπλής διασταύρωσης απαιτούνται ρητή επιστημονική έγκριση και n≥50 σε κάθε εμφανιζόμενο κελί."}</p>
    </section>
    <div className={styles.analysisGrid}>
     <article><span className={styles.articleTag}>ΠΡΟΤΕΙΝΟΜΕΝΗ ΔΙΑΣΤΑΥΡΩΣΗ</span><h4>{sub.relation}</h4>
@@ -240,9 +234,9 @@ export function ResearchResultsWorkbench({
     <label>Απεικόνιση<select value={graphKind} onChange={e=>setGraphKind(e.target.value as typeof graphKind)}>
      <option value="bars">Οριζόντιες μπάρες</option><option value="dots">Γράφημα κουκκίδων</option><option value="table">Πίνακας δεδομένων</option>
     </select></label>
-    <label>Ελάχιστο n<select value={minN} onChange={e=>setMinN(Number(e.target.value))}>
-     {(mode==="live"?[10,30,50,100,200]:[30,50,100,200]).map(n=><option key={n} value={n}>{n}</option>)}
-    </select></label>
+    {mode!=="live"&&<label>Ελάχιστο n<select value={minN} onChange={e=>setMinN(Number(e.target.value))}>
+     {[30,50,100,200].map(n=><option key={n} value={n}>{n}</option>)}
+    </select></label>}
    </div>
    <div className={styles.filters}><label>Εστίαση Α<select value={graphCompareA} onChange={e=>setGraphCompareA(e.target.value)}><option value="">Όλες οι ομάδες</option>{graphLevels.map(v=><option key={v} value={v}>{groupLabel(v,graphDimension)}</option>)}</select></label><label>Εστίαση Β<select value={graphCompareB} onChange={e=>setGraphCompareB(e.target.value)}><option value="">Καμία</option>{graphLevels.filter(v=>v!==graphCompareA).map(v=><option key={v} value={v}>{groupLabel(v,graphDimension)}</option>)}</select></label></div>
    {graphLeft&&graphRight&&graphLeft!==graphRight&&<p className={styles.compareInsight}>Α: <strong>{format(graphLeft)}</strong> (n={graphLeft.n}) · Β: <strong>{format(graphRight)}</strong> (n={graphRight.n}) · Διαφορά Α − Β: <strong>{difference(graphLeft,graphRight)}</strong></p>}
@@ -289,7 +283,7 @@ export function ResearchResultsWorkbench({
   </section>}
   {menu==="map"&&<section className={styles.mapSection}>
    <div className={styles.graphHeading}><span className={styles.eyebrow}>ΓΕΩΓΡΑΦΙΚΟ ΠΑΡΑΤΗΡΗΤΗΡΙΟ</span>
-    <h3>Heatmap Ελλάδας</h3><p>Εξερευνήστε τη χωρική κάλυψη ή επιλέξτε διαθέσιμους εγκεκριμένους περιφερειακούς δείκτες. Με το ίδιο γεωγραφικό υπόβαθρο της έρευνας.</p></div>
+    <h3>Heatmap Ελλάδας</h3><p>Εξερευνήστε τις ολοκληρωμένες απαντήσεις ανά νομό ή επιλέξτε διαθέσιμους δείκτες από πραγματικές απαντήσεις.</p></div>
    <ResearchPublicationMap points={points} geography={geography} isDemo={demo} internalCoverage={mode==="live"?coverage:undefined}/>
   </section>}
   {menu==="voices"&&(mode==="live"
