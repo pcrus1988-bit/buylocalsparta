@@ -247,7 +247,7 @@ export function ResearchPublicationMap({
     <span className={styles.nationalFlag}>ΕΛΛΑΔΑ · ΣΥΝΟΛΟ</span>
     <strong>{nationalDisplay}</strong>
     <span>{hasMetric?"Πανελλαδική τιμή της επιλεγμένης απάντησης":internalCoverage?"100% των QA-επιλέξιμων απαντήσεων":"100% των καταγεγραμμένων ενάρξεων"}</span>
-    <small>{hasMetric?nationalPoint?"Εθνική σταθμισμένη εκτίμηση · n="+nationalPoint.n.toLocaleString("el-GR"):
+    <small>{hasMetric?nationalPoint?(internalCoverage?"Προκαταρκτική μη σταθμισμένη εκτίμηση · n=":"Εθνική σταθμισμένη εκτίμηση · n=")+nationalPoint.n.toLocaleString("el-GR"):
      "Δεν υπάρχει εγκεκριμένη πανελλαδική εκτίμηση για αυτή την επιλογή":
      nationalStarted!==undefined?(internalCoverage?"Επιλέξιμες ολοκληρωμένες: ":"Σύνολο ενάρξεων: ")+nationalStarted.toLocaleString("el-GR"):
       "Μη διαθέσιμη επαληθευμένη εθνική βάση"}</small>
@@ -257,10 +257,10 @@ export function ResearchPublicationMap({
    </div>
    <div className={styles.nationalDetails}>
     <span className={styles.nationalTag}>ΔΙΑΣΠΑΣΗ ΑΝΑ ΠΕΡΙΦΕΡΕΙΑ</span>
-    <strong>{regionalCoverage} / 13 Περιφέρειες με εγκεκριμένες τιμές</strong>
+    <strong>{regionalCoverage} / 13 Περιφέρειες με {internalCoverage?"διαθέσιμες προκαταρκτικές τιμές":"εγκεκριμένες τιμές"}</strong>
     <p>{hasMetric?"Κάθε ποσοστό βασίζεται στις απαντήσεις της αντίστοιχης Περιφέρειας, όχι σε μερίδιο του εθνικού συνόλου. Δεν αθροίζονται σε 100%.":
      nationalCoverageNote(regionalCoverage,regionalVisibleStarts,nationalStarted)}</p>
-    {hasMetric&&nationalValue!==undefined&&<p>Η σύγκριση γίνεται με την ξεχωριστά σταθμισμένη εθνική εκτίμηση. Δεν αποτελεί από μόνη της έλεγχο στατιστικής σημαντικότητας.</p>}
+    {hasMetric&&nationalValue!==undefined&&<p>{internalCoverage?"Οι συγκρίσεις είναι περιγραφικές και μη σταθμισμένες· δεν αποτελούν στατιστικά τεστ.":"Η σύγκριση γίνεται με την ξεχωριστά σταθμισμένη εθνική εκτίμηση. Δεν αποτελεί από μόνη της έλεγχο στατιστικής σημαντικότητας."}</p>}
     <div className={styles.allRegionsGrid}>
      {regionValues.map(cell=><div key={cell.key} className={styles.allRegionsRow}>
       <span>{cell.label}</span><strong>{showGeoValue(cell)}</strong>
@@ -317,6 +317,11 @@ export function ResearchPublicationMap({
        </g>;
       })}
      </svg>}
+    {internalCoverage&&<p role="note" style={{fontSize:12,color:"#385a41",lineHeight:1.7,margin:"14px 0"}}>
+      <strong>{anyQA} / {granularity==="prefecture"?55:13}</strong> γεωγραφικές ενότητες έχουν QA-επιλέξιμη συμμετοχή.
+      Η μπεζ σκίαση δείχνει n<10, χωρίς δημοσίευση ακριβούς αριθμού ή αποτελέσματος.
+      Τα αποτελέσματα n=10–29 είναι προκαταρκτικά, μη σταθμισμένα και μόνο για εσωτερική χρήση.
+    </p>}
     <div className={styles.legend}><span>{legendValue(domain.minimum)}</span>
      <span className={styles.colorRamp}
        style={{background:"linear-gradient(90deg,"+rgb(palette.from)+","+rgb(palette.to)+")"}}/>
@@ -352,7 +357,7 @@ export function ResearchPublicationMap({
    Οι τιμές εμφανίζονται απευθείας πάνω στις διαθέσιμες γεωγραφικές ενότητες.
    Τα ποσοστά χρησιμοποιούν σταθερή κλίμακα 0–100%, οι βαθμολογίες την επιστημονική τους κλίμακα.
    {sector&&!hasApprovedCrossSections?" Δεν υπάρχει εγκεκριμένη περιφερειακή διασταύρωση για αυτόν τον κλάδο.":""}
-   Στις Περιφέρειες εμφανίζονται εγκεκριμένες συγκεντρωτικές εκτιμήσεις με n≥30, στους νομούς μόνο πρόσθετα εγκεκριμένα στοιχεία με n≥50. Η προεπισκόπηση νομών χρησιμοποιεί αποκλειστικά τεχνητές τιμές.
+   {internalCoverage?" Στην εσωτερική live προεπισκόπηση οι μονοδιάστατοι δείκτες νομών με n≥10 είναι μόνο ενδεικτικοί και δεν έχουν έγκριση δημόσιας δημοσίευσης.":" Στις Περιφέρειες εμφανίζονται εγκεκριμένες συγκεντρωτικές εκτιμήσεις με n≥30, στους νομούς μόνο πρόσθετα εγκεκριμένα στοιχεία με n≥50."} {isDemo?"Η DEMO προεπισκόπηση νομών χρησιμοποιεί τεχνητές τιμές.":""}
    Δεν χρησιμοποιούνται ιστορικοί κωδικοί νομών ως Περιφέρειες.
    {available.length===0?" Δεν υπάρχουν ακόμη δημοσιεύσιμα περιφερειακά αποτελέσματα για αυτή την απάντηση.":""}
   </p>:<p className={styles.note}>
