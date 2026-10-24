@@ -45,3 +45,7 @@
 @media(max-width:770px){.hero{grid-template-columns:1fr;padding:28px}.heroGraphic{transform:none}.sectionIntro{flex-direction:column;align-items:start;gap:10px}.sectionIntro>p{max-width:700px}.twoColumns{grid-template-columns:1fr}.scientificInner{grid-template-columns:1fr;gap:12px}.bottom{align-items:start;flex-direction:column}}
 @media(max-width:510px){.hero{padding:22px;border-radius:19px}.hero h1{font-size:41px}.heroText>p{font-size:13px}.demoRibbon{display:grid;gap:6px;margin-bottom:35px}.chapterPicker{grid-template-columns:1fr;gap:9px}.picker,.pickerActive{min-height:74px;padding:12px}.report{border-radius:18px;padding:17px}.reportHeader h2{font-size:31px}.chapterBadge{font-size:31px}.metricsGrid{grid-template-columns:1fr}.mainMetric{grid-column:auto}.metric,.mainMetric{min-height:150px;padding:18px}.compareGrid{grid-template-columns:1fr}.relationOverview{align-items:start;flex-direction:column}.delta{align-items:start}.relationTabs{display:grid}.sectionLabel>small{margin-left:0}.scientificInner{padding:20px}.bottom{padding-top:34px}.heroActions{width:100%}.heroActions a{width:100%;text-align:center;justify-content:center}}
 @media(prefers-reduced-motion:reduce){.picker,.pickerActive{transition:none}}
+
+.explore{scroll-margin-top:30px}
+.barRow{min-width:0}
+.scientificLeft,.scientificRight{min-width:0}
