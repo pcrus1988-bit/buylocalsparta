@@ -8,18 +8,21 @@ import { ResearchPublicationMap } from "./ResearchPublicationMap";
 import { ResearchVoiceOfGreece } from "./ResearchVoiceOfGreece";
 import type { PublicVoiceData } from "../../../../lib/research-public-voices-data";
 import { GREECE_REGIONS } from "../../../../lib/research-geographic-core";
+import { GREECE_PREFECTURES } from "../../../../lib/research-prefectures";
 import styles from "./ResultsWorkbench.module.css";
 
-type GroupBy="overall"|"sectorCode"|"sizeBand"|"regionCode";
+type GroupBy="overall"|"sectorCode"|"sizeBand"|"regionCode"|"prefectureCode";
 type Menu="chapters"|"graphs"|"map"|"voices";
 type SortMode="high"|"low"|"label";
 const options:ReadonlyArray<Readonly<{id:GroupBy;title:string}>>=[
  {id:"overall",title:"Σύνολο Ελλάδας"},
  {id:"sectorCode",title:"Κατά κλάδο"},
  {id:"sizeBand",title:"Κατά μέγεθος"},
- {id:"regionCode",title:"Γεωγραφική ομάδα"}
+ {id:"regionCode",title:"Περιφέρειες"},
+ {id:"prefectureCode",title:"Νομοί"}
 ];
 const regionLabels:Record<string,string>=Object.fromEntries(GREECE_REGIONS.map(r=>[r.key,r.label]));
+const prefectureLabels:Record<string,string>=Object.fromEntries(GREECE_PREFECTURES.map(r=>[r.key,r.label]));
 const sectorLabels:Record<string,string>={
  food_groceries:"Τρόφιμα & παντοπωλεία",fashion_footwear:"Ένδυση & υπόδηση",
  home_living:"Σπίτι & είδη οικιακής χρήσης",retail_intermediation:"Εμπορικοί διαμεσολαβητές",
@@ -30,7 +33,7 @@ const sizeLabels:Record<string,string>={"1":"1 εργαζόμενος","2_4":"2�
  "20_49":"20–49 εργαζόμενοι","50_plus":"50+ εργαζόμενοι"};
 const groupLabel=(value:string,key:GroupBy)=>key==="sectorCode"
  ? sectorLabels[value]??value.replaceAll("_"," "):key==="sizeBand"
- ? sizeLabels[value]??value:key==="regionCode"?(regionLabels[value]??value):"Σύνολο";
+ ? sizeLabels[value]??value:key==="regionCode"?(regionLabels[value]??value):key==="prefectureCode"?(prefectureLabels[value]??value):"Σύνολο";
 const format=(point:SafePublicResultPoint)=>point.format==="proportion"
  ?new Intl.NumberFormat("el-GR",{style:"percent",maximumFractionDigits:1}).format(point.value)
  :new Intl.NumberFormat("el-GR",{maximumFractionDigits:1}).format(point.value);
@@ -59,6 +62,7 @@ export function ResearchResultsWorkbench({
  const [crossSector,setCrossSector]=useState("");
  const [crossRegion,setCrossRegion]=useState("");
  const [crossRegionB,setCrossRegionB]=useState("");
+ const [crossGeography,setCrossGeography]=useState<"regionCode"|"prefectureCode">("regionCode");
  const [minN,setMinN]=useState(30);
  const [search,setSearch]=useState("");
  const [graphKey,setGraphKey]=useState("digital_readiness.mean");
@@ -72,6 +76,8 @@ export function ResearchResultsWorkbench({
  const levels=useMemo(()=>[...new Set(points.flatMap(p=>typeof p.segment[group]==="string"?[p.segment[group]]:[]))].sort(),[points,group]);
  const sectorValues=useMemo(()=>[...new Set(points.flatMap(p=>p.segment.sectorCode?[p.segment.sectorCode]:[]))].sort(),[points]);
  const regionValues=useMemo(()=>GREECE_REGIONS.filter(r=>points.some(p=>p.segment.regionCode===r.key)).map(r=>r.key),[points]);
+ const prefectureValues=useMemo(()=>GREECE_PREFECTURES.filter(r=>points.some(p=>p.segment.prefectureCode===r.key)).map(r=>r.key),[points]);
+ const areas=crossGeography==="prefectureCode"?prefectureValues:regionValues;
  const activeMetricKeys=sub.metrics.filter(k=>publicMetricLabel(k).toLowerCase().includes(search.toLowerCase())||k.toLowerCase().includes(search.toLowerCase()));
  const chapterRows=activeMetricKeys.map(key=>points.find(p=>p.metricKey===key&&matches(p,group,level)&&p.n>=minN))
   .filter((p):p is SafePublicResultPoint=>Boolean(p));
@@ -90,7 +96,7 @@ export function ResearchResultsWorkbench({
  const crossRows=activeMetricKeys.flatMap(key=>{
   if(!crossSector||!crossRegion)return [];
   const find=(region:string)=>points.find(p=>p.metricKey===key&&p.n>=Math.max(50,minN)&&
-   p.segment.regionCode===region&&p.segment.sectorCode===crossSector);
+   p.segment[crossGeography]===region&&p.segment.sectorCode===crossSector);
   const left=find(crossRegion),right=crossRegionB?find(crossRegionB):undefined;
   return left?[{key,left,right}]:[];
  });
@@ -182,11 +188,12 @@ export function ResearchResultsWorkbench({
    <section className={styles.crossFilterPanel} aria-label="Διασταύρωση κλάδου και περιοχής">
     <div className={styles.graphHeading}><h3>Κλάδος × γεωγραφία</h3><p>Εξειδικευμένη ανάλυση του ίδιου δείκτη ανά κλάδο και περιφέρεια, μόνο όταν η συγκεκριμένη διασταύρωση έχει εγκριθεί ανεξάρτητα.</p></div>
     <div className={styles.filters}>
+     <label>Γεωγραφική μονάδα<select value={crossGeography} onChange={e=>{setCrossGeography(e.target.value as typeof crossGeography);setCrossRegion("");setCrossRegionB("");}}><option value="regionCode">Περιφέρεια</option><option value="prefectureCode">Νομός</option></select></label>
      <label>Κλάδος<select value={crossSector} onChange={e=>setCrossSector(e.target.value)}><option value="">Επιλέξτε κλάδο</option>{sectorValues.map(v=><option key={v} value={v}>{groupLabel(v,"sectorCode")}</option>)}</select></label>
-     <label>Περιφέρεια Α<select value={crossRegion} onChange={e=>setCrossRegion(e.target.value)}><option value="">Επιλέξτε περιοχή</option>{regionValues.map(v=><option key={v} value={v}>{groupLabel(v,"regionCode")}</option>)}</select></label>
-     <label>Περιφέρεια Β (σύγκριση)<select value={crossRegionB} onChange={e=>setCrossRegionB(e.target.value)}><option value="">Καμία</option>{regionValues.filter(v=>v!==crossRegion).map(v=><option key={v} value={v}>{groupLabel(v,"regionCode")}</option>)}</select></label>
+     <label>Περιοχή Α<select value={crossRegion} onChange={e=>setCrossRegion(e.target.value)}><option value="">Επιλέξτε περιοχή</option>{areas.map(v=><option key={v} value={v}>{groupLabel(v,crossGeography)}</option>)}</select></label>
+     <label>Περιοχή Β (σύγκριση)<select value={crossRegionB} onChange={e=>setCrossRegionB(e.target.value)}><option value="">Καμία</option>{areas.filter(v=>v!==crossRegion).map(v=><option key={v} value={v}>{groupLabel(v,crossGeography)}</option>)}</select></label>
     </div>
-    {crossSector&&crossRegion&&(crossRows.length?<div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Δείκτης</th><th>{groupLabel(crossRegion,"regionCode")}</th><th>{crossRegionB?groupLabel(crossRegionB,"regionCode"):"Βάση"}</th><th>Διαφορά</th></tr></thead><tbody>
+    {crossSector&&crossRegion&&(crossRows.length?<div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Δείκτης</th><th>{groupLabel(crossRegion,crossGeography)}</th><th>{crossRegionB?groupLabel(crossRegionB,crossGeography):"Βάση"}</th><th>Διαφορά</th></tr></thead><tbody>
      {crossRows.map(({key,left,right})=><tr key={key}><td>{publicMetricLabel(key)}</td><td>{format(left)} · n={left.n}</td><td>{right?format(right)+" · n="+right.n:"n="+left.n}</td><td>{right&&right.format===left.format?difference(left,right):"—"}</td></tr>)}
     </tbody></table></div>:<p className={styles.empty}>Δεν υπάρχει εγκεκριμένη εκτίμηση για τον επιλεγμένο συνδυασμό. Δεν ανασυνθέτουμε κλαδικές και γεωγραφικές τομές από ανεξάρτητα ποσοστά.</p>)}
     <p className={styles.note}>Για δημοσίευση διπλής διασταύρωσης απαιτούνται ρητή επιστημονική έγκριση και n≥50 σε κάθε εμφανιζόμενο κελί· τυχόν μικρές ομάδες παραμένουν απόρρητες.</p>
