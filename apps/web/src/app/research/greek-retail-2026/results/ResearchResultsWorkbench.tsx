@@ -5,13 +5,14 @@ import Link from "next/link";
 import { PUBLIC_RESULTS_CHAPTERS,PUBLIC_RESULTS_METRICS,publicMetricLabel } from "../../../../lib/research-public-results-sections";
 import { demoResultPoints,type SafeParticipationGeography,type SafePublicResultPoint,type InternalResearchGeographicCoverage } from "../../../../lib/research-public-results-data";
 import { ResearchPublicationMap } from "./ResearchPublicationMap";
+import { ResearchCountyReport } from "./ResearchCountyReport";
 import { ResearchVoiceOfGreece } from "./ResearchVoiceOfGreece";
 import type { PublicVoiceData } from "../../../../lib/research-public-voices-data";
 import { GREECE_PREFECTURES } from "../../../../lib/research-prefectures";
 import styles from "./ResultsWorkbench.module.css";
 
 type GroupBy="overall"|"sectorCode"|"sizeBand"|"prefectureCode";
-type Menu="chapters"|"graphs"|"map"|"voices";
+type Menu="chapters"|"graphs"|"map"|"county"|"voices";
 type SortMode="high"|"low"|"label";
 const options:ReadonlyArray<Readonly<{id:GroupBy;title:string}>>=[
  {id:"overall",title:"Σύνολο Ελλάδας"},
@@ -129,7 +130,8 @@ export function ResearchResultsWorkbench({
    {([{id:"chapters",name:"Ερευνητικές ενότητες",icon:"01",detail:"6 κεφάλαια · 18 υποενότητες"},
       {id:"graphs",name:"Graph Explorer",icon:"02",detail:"Γραφήματα & πίνακες"},
       {id:"map",name:"Heatmap Ελλάδας",icon:"03",detail:"Διαδραστικός χάρτης"},
-      {id:"voices",name:"Η φωνή της Ελλάδας",icon:"04",detail:"Q18 · Θεματικές & μαρτυρίες"}] as const).map(tab=>
+      {id:"county",name:"Νομός",icon:"04",detail:"Επιστημονική αναφορά ανά νομό"},
+      {id:"voices",name:"Η φωνή της Ελλάδας",icon:"05",detail:"Q18 · Θεματικές & μαρτυρίες"}] as const).map(tab=>
     <button key={tab.id} type="button" aria-current={menu===tab.id?"page":undefined}
      aria-pressed={menu===tab.id} onClick={()=>setMenu(tab.id)}
      className={menu===tab.id?styles.menuActive:styles.menuButton}>
@@ -286,6 +288,7 @@ export function ResearchResultsWorkbench({
     <h3>Heatmap Ελλάδας</h3><p>Εξερευνήστε τις ολοκληρωμένες απαντήσεις ανά νομό ή επιλέξτε διαθέσιμους δείκτες από πραγματικές απαντήσεις.</p></div>
    <ResearchPublicationMap points={points} geography={geography} isDemo={demo} internalCoverage={mode==="live"?coverage:undefined}/>
   </section>}
+  {menu==="county"&&<ResearchCountyReport points={points} coverage={mode==="live"?coverage:undefined} mode={mode}/>}
   {menu==="voices"&&(mode==="live"
     ? <section className={styles.voiceOpenLink} aria-label="Η φωνή της Ελλάδας — ζωντανή εσωτερική προεπισκόπηση">
       <p>Οι πραγματικές απαντήσεις Q18 εμφανίζονται μόνο στη χωριστή, προστατευμένη εσωτερική σελίδα.</p>
