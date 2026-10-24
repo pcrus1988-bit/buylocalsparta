@@ -55,7 +55,7 @@ function demoRegionOffset(key:string,index:number,scale:number,proportion:boolea
  return signed*(proportion?.48:scale===100?31:1.65);
 }
 export function demoResultPoints():SafePublicResultPoint[]{
- const regionKeys=GREECE_REGIONS.map(x=>x.key);
+ const regionKeys:string[]=GREECE_REGIONS.map(x=>x.key);
  const sectors=["food_groceries","fashion_footwear","home_living","retail_intermediation","health_beauty"];
  const sizes=["1","2_4","5_9","10_19"];
  const result:SafePublicResultPoint[]=[];
