@@ -147,10 +147,10 @@ export function ResearchPublicationMap({
  const coverageDescription=(key:string)=>{
   const c=coverageByKey.get(key);
   if(!c)return "";
-  if(c.band==="under10")return "Συμμετοχή · n<10 · χωρίς αριθμητικά ευρήματα";
+  if(c.band==="under10")return "Ολοκληρωμένες απαντήσεις: "+c.eligibleN+" · μικρή βάση";
   if(c.band==="10to29")return "Περιορισμένες απαντήσεις · n="+c.eligibleN+" · ενδεικτικό";
   if(c.band==="30plus")return "Απαντήσεις n="+c.eligibleN;
-  return "Χωρίς ολοκληρωμένες απαντήσεις";
+  return "Ολοκληρωμένες απαντήσεις: 0";
  };
  const names=PREFECTURE_NAMES;
  const available=currentValues.filter(v=>v.value!==undefined&&v.n!==undefined);
@@ -234,7 +234,7 @@ export function ResearchPublicationMap({
    <div className={styles.mapQuestionStats}>
     <b>{internalCoverage?anyQA:coverage} / {GREECE_PREFECTURES.length}</b>
     <span>{internalCoverage?"Με ολοκληρωμένες απαντήσεις":"Με διαθέσιμη τιμή"}</span>
-    {internalCoverage&&<small>{coverage} με αριθμητική τιμή · {lowQA} με n&lt;10</small>}
+    {internalCoverage&&<small>{coverage} με τιμή δείκτη · {lowQA} νομοί με 1–9 απαντήσεις (προβάλλονται οι ακριβείς αριθμοί)</small>}
    </div>
   </div>
   {hasMetric&&<div className={styles.mapSelectedAnswer}>
@@ -258,7 +258,7 @@ export function ResearchPublicationMap({
    <div className={styles.nationalDetails}>
     <span className={styles.nationalTag}>ΑΠΑΝΤΗΣΕΙΣ ΑΝΑ ΝΟΜΟ</span>
     <strong>{internalCoverage?anyQA:regionalCoverage} / 55 νομοί με {internalCoverage?"ολοκληρωμένες απαντήσεις":"διαθέσιμη τιμή"}</strong>
-    <p>{hasMetric?"Κάθε ποσοστό βασίζεται στις ολοκληρωμένες απαντήσεις του αντίστοιχου νομού. Τα ποσοστά των νομών δεν αθροίζονται σε 100%.":"Οι νομοί με λίγες ολοκληρωμένες απαντήσεις εμφανίζονται ως γεωγραφική κάλυψη χωρίς δημοσίευση μικρών κελιών. Η συνολική βάση περιλαμβάνει όλες τις ολοκληρωμένες απαντήσεις."}</p>
+    <p>{hasMetric?"Κάθε ποσοστό βασίζεται στις ολοκληρωμένες απαντήσεις του αντίστοιχου νομού. Τα ποσοστά των νομών δεν αθροίζονται σε 100%.":"Όλοι οι νομοί εμφανίζουν τον ακριβή αριθμό ολοκληρωμένων απαντήσεων, ακόμη και n=0 ή n=1. Αυτό δεν σημαίνει ότι μπορούν να δημοσιευθούν ατομικές επιλογές από πολύ μικρές ομάδες."}</p>
     {hasMetric&&nationalValue!==undefined&&<p>{internalCoverage?"Οι συγκρίσεις είναι περιγραφικές και μη σταθμισμένες· δεν αποτελούν στατιστικά τεστ.":"Η σύγκριση γίνεται με την ξεχωριστά σταθμισμένη εθνική εκτίμηση. Δεν αποτελεί από μόνη της έλεγχο στατιστικής σημαντικότητας."}</p>}
     <div className={styles.allRegionsGrid}>
      {prefectureValues.map(cell=><div key={cell.key} className={styles.allRegionsRow}>
@@ -291,7 +291,7 @@ export function ResearchPublicationMap({
       {geo.features.map(feature=>{
        const region=currentValues.find(x=>x.key===feature.properties.name);
        const status=coverageByKey.get(feature.properties.name);
-       const fill=region&&region.value!==undefined?heat(region.value,domain,palette):
+       const fill=status?.band==="none"?"#e4e8e1":region&&region.value!==undefined?heat(region.value,domain,palette):
         status?.band==="under10"?"#eadbb6":status&&status.band!=="none"?"#d1dfd1":"#e4e8e1";
        return <path key={feature.properties.name} d={polygonPath(feature.geometry)}
         fill={density?"#eaf0e5":fill} stroke="#8ca99a" strokeWidth={1.1/zoom}
@@ -305,7 +305,7 @@ export function ResearchPublicationMap({
         clipPath="url(#results-greece-land)" pointerEvents="none"/>}
       {showLabels&&geo.features.map(feature=>{
        const cell=currentValues.find(r=>r.key===feature.properties.name);
-       if(!cell||cell.value===undefined||cell.n===undefined)return null;
+       if(!cell||cell.value===undefined||cell.n===undefined||(!hasMetric&&cell.value===0))return null;
        const anchor=featureAnchor(feature.geometry);
        return <g key={"label:"+feature.properties.name} transform={"translate("+anchor.x+" "+anchor.y+")"}
          className={styles.mapValueOverlay} pointerEvents="none" aria-hidden="true">
@@ -318,8 +318,8 @@ export function ResearchPublicationMap({
      </svg>}
     {internalCoverage&&<p role="note" style={{fontSize:12,color:"#385a41",lineHeight:1.7,margin:"14px 0"}}>
       <strong>{anyQA} / {55}</strong> νομοί έχουν ολοκληρωμένες απαντήσεις.
-      Η μπεζ σκίαση δείχνει n&lt;10, χωρίς δημοσίευση ακριβούς αριθμού ή αποτελέσματος.
-      Τα αποτελέσματα n=10–29 είναι προκαταρκτικά, μη σταθμισμένα και μόνο για εσωτερική χρήση.
+      Όλα τα πλήθη απαντήσεων (ακόμη και 0–9) εμφανίζονται ακριβώς στον πίνακα και στην επιλογή νομού.
+      Η μπεζ σκίαση ξεχωρίζει τις πολύ μικρές βάσεις. Τα ποσοστά απαντήσεων μικρών ομάδων δεν εκτίθενται ώστε να προστατεύεται η ιδιωτικότητα.
     </p>}
     <div className={styles.legend}><span>{legendValue(domain.minimum)}</span>
      <span className={styles.colorRamp}
@@ -356,7 +356,7 @@ export function ResearchPublicationMap({
    Οι τιμές εμφανίζονται απευθείας πάνω στις διαθέσιμες γεωγραφικές ενότητες.
    Τα ποσοστά χρησιμοποιούν σταθερή κλίμακα 0–100%, οι βαθμολογίες την επιστημονική τους κλίμακα.
    {sector&&!hasApprovedCrossSections?" Δεν υπάρχει διαθέσιμη διασταύρωση νομού και κλάδου.":""}
-   {internalCoverage?" Στην εσωτερική live προεπισκόπηση οι μονοδιάστατοι δείκτες νομών με n≥10 είναι μόνο ενδεικτικοί και δεν έχουν έγκριση δημόσιας δημοσίευσης.":" Στους νομούς εμφανίζονται μόνο ανεξάρτητα εγκεκριμένες δημοσιεύσιμες εκτιμήσεις με επαρκείς βάσεις."} {isDemo?"Η DEMO προεπισκόπηση νομών χρησιμοποιεί τεχνητές τιμές.":""}
+   {internalCoverage?" Στην εσωτερική live προεπισκόπηση όλοι οι αριθμοί ολοκληρωμένων απαντήσεων ανά νομό είναι ακριβείς, χωρίς ελάχιστο n. Οι εμφανιζόμενοι δείκτες είναι περιγραφικοί και δεν αποτελούν έγκριση δημόσιας δημοσίευσης.":" Στους νομούς εμφανίζονται μόνο ανεξάρτητα εγκεκριμένες δημοσιεύσιμες εκτιμήσεις με επαρκείς βάσεις."} {isDemo?"Η DEMO προεπισκόπηση νομών χρησιμοποιεί τεχνητές τιμές.":""}
 
    {available.length===0?" Δεν υπάρχουν ακόμη δημοσιεύσιμα περιφερειακά αποτελέσματα για αυτή την απάντηση.":""}
   </p>:<p className={styles.note}>
