@@ -72,3 +72,23 @@ test('unsigned checkpoint cannot produce a verified anchor',()=>{
 test('truncated chain cannot produce a verified anchor',()=>{
   assert.throws(()=>checkpointAnchor([],cp1,keys.publicKey,witnessId),/invalid_checkpoint_anchor/);
 });
+
+test('backdated independently pinned anchor cannot precede its observed prefix',()=>{
+  const backdated={...anchor,issued_at:'2026-10-23T07:59:59.000Z'};
+  assert.equal(check(second,cp2,{previousAnchor:backdated}),false);
+});
+test('anchored prefix checks every observation even when append times are out of order',()=>{
+  const late=append([],event('2026-10-23T08:05:00Z'));
+  const outOfOrder=append(late,event('2026-10-23T08:00:00Z'));
+  const witness=signed(outOfOrder,'2026-10-23T08:06:00.000Z');
+  const pinned=checkpointAnchor(outOfOrder,witness,keys.publicKey,witnessId);
+  const successor=append(outOfOrder,event('2026-10-23T09:00:00Z'));
+  const signedSuccessor=signed(successor,'2026-10-23T09:01:00.000Z');
+  assert.equal(verifyWitnessContinuation(successor,signedSuccessor,{
+    pinnedPublicKey:keys.publicKey,expectedWitnessId:witnessId,previousAnchor:pinned
+  }),true);
+  assert.equal(verifyWitnessContinuation(successor,signedSuccessor,{
+    pinnedPublicKey:keys.publicKey,expectedWitnessId:witnessId,
+    previousAnchor:{...pinned,issued_at:'2026-10-23T08:02:00.000Z'}
+  }),false);
+});
