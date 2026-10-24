@@ -12,6 +12,7 @@ export type SafePublicResultPoint = Readonly<{
  ciLower:number|null; ciUpper:number|null;
 }>;
 export type SafeParticipationGeography = Readonly<{
+ nationalStarted?:number;
  regions: readonly Readonly<{key:string;label:string;started:number}>[];
  densityImage?:string;
 }>;
