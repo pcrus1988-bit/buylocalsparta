@@ -5,7 +5,7 @@ import { planPrivateAttestationBatch } from './attestation-batch-plan.mjs';
 const uuid = c => c.repeat(8)+'-'+c.repeat(4)+'-'+c.repeat(4)+'-'+c.repeat(4)+'-'+c.repeat(12);
 const sha = c => c.repeat(64);
 const make = (c='a', digest='e') => {
-  const id=uuid(c), approvalId=uuid('b'), hash=sha(digest);
+  const id=uuid(c), approvalId=uuid(c==='a'?'b':'f'), hash=sha(digest);
   return {source:{id,canonical_url:'https://authority.gov/'+c},
     approval:{id:approvalId,source_id:id,asset_url:'https://authority.gov/'+c,
       approved_final_url:'https://authority.gov/'+c,acquisition_authorized:true,
@@ -89,7 +89,9 @@ test('equal content hashes with contradictory byte lengths fail before Storage h
 
 test('same approval UUID cannot authorize different source identities in one batch',()=>{
   const a=make('a','e'), b=make('d','f');
-  // Both records pass individual acquisition binding, but reuse approval b...
+  // Both records pass individual acquisition binding, but reuse approval b.
+  b.approval.id=a.approval.id;
+  b.snapshot.provenance.asset_approval_id=b.approval.id;
   assert.equal(a.approval.id,b.approval.id);
   assert.throws(()=>plan([a,b]),/conflicting_approval_identity/);
 });
