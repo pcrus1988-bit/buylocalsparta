@@ -8,6 +8,7 @@ const page=read("../../apps/web/src/app/admin/mazi/operations/page.tsx");
 const governance=read("../../apps/web/src/app/admin/mazi/page.tsx");
 const action=read("../../apps/web/src/app/admin/mazi/operations/actions.ts");
 const sql=read("../sql/018_superadmin_release_gate_reviews.sql");
+const readiness=read("../../apps/web/src/lib/mazi-readiness.ts");
 const readOnlySnapshot=aggregate.slice(0,aggregate.indexOf("/** Each verification"));
 const review=read("../../apps/web/src/app/admin/mazi/interest/page.tsx");
 
@@ -80,4 +81,31 @@ test("manual release gates record immutable authorization and never launch money
  assert.match(page,/name="decision" value="reopened"/);
  assert.match(page,/Δεν ενεργοποιήθηκε υπηρεσία ή πληρωμή/);
  assert.doesNotMatch(sql,/UPDATE public\.mazi_(?:members|cycles|fund_ledger|grant_award_offers)/);
+});
+
+test("release readiness needs real checks, intact admission and locked financial records",()=>{
+ assert.match(readiness,/assessMaziReleaseReadiness\(/);
+ assert.match(readiness,/state\.finance_enabled_cycles===0&&state\.ledger_total===0&&/);
+ assert.match(readiness,/state\.grant_offers_total===0&&state\.safe_founding_cycles===1/);
+ assert.match(readiness,/state\.acceptances===state\.invitations_consumed/);
+ assert.match(readiness,/invitations_delivery_unconfirmed\+/);
+ assert.match(readiness,/invitations_delivery_failed\+state\.invitations_expired_unconsumed/);
+ assert.match(readiness,/auth_email_delivery.*legal_and_retention.*consenting_business_e2e/s);
+ assert.match(readiness,/manualReleaseStillRequired:true/);
+ assert.match(page,/assessment\.prerequisitesRecorded/);
+ assert.match(page,/απαιτεί ξεχωριστή έγκριση/);
+ assert.match(page,/assessment\.blockers\.map/);
+ assert.doesNotMatch(readiness,/UPDATE public\.|INSERT INTO public\.|fetch\(|\.post\(/);
+});
+
+test("immutable release history is only read following persisted Super Admin authorization",()=>{
+ assert.match(aggregate,/export async function maziLaunchGateHistory/);
+ assert.match(aggregate,/ORDER BY recorded_at DESC,id DESC LIMIT 30/);
+ assert.match(aggregate,/SELECT id::text,gate_key,decision,evidence,recorded_at/);
+ assert.match(page,/maziLaunchGateHistory\(principal\)/);
+ assert.match(page,/gateHistory\.map\(item=>/);
+ assert.match(page,/item\.evidence/);
+ assert.match(page,/Δεν υπάρχουν ακόμη βεβαιώσεις/);
+ assert.match(page,/Μην καταχωρίζετε προσωπικά δεδομένα/);
+ assert.doesNotMatch(page,/NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY/);
 });
