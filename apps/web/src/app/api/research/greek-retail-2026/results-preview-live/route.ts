@@ -1,6 +1,6 @@
-import { getAdminSession } from "../../../../../../../lib/admin-session";
-import { hasAdminPermission } from "../../../../../../../lib/admin-runtime";
-import { getLiveGreekRetailPreview } from "../../../../../../../lib/research-live-preview-data";
+import { getAdminSession } from "../../../../../lib/admin-session";
+import { hasAdminPermission } from "../../../../../lib/admin-runtime";
+import { getLiveGreekRetailPreview } from "../../../../../lib/research-live-preview-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
