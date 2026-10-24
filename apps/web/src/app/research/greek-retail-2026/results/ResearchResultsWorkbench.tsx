@@ -60,7 +60,7 @@ export function ResearchResultsWorkbench({
  const [crossSector,setCrossSector]=useState("");
  const [crossRegion,setCrossRegion]=useState("");
  const [crossRegionB,setCrossRegionB]=useState("");
- const [minN,setMinN]=useState(mode==="live"?10:30);
+ const [minN,setMinN]=useState(30); // Publication-only filtering; live Preview has no lower n bound.
  const [search,setSearch]=useState("");
  const [graphKey,setGraphKey]=useState("digital_readiness.mean");
  const [graphDimension,setGraphDimension]=useState<GroupBy>("prefectureCode");
@@ -78,23 +78,23 @@ export function ResearchResultsWorkbench({
  const prefectureValues=useMemo(()=>coverage?coverage.prefectures.map(p=>p.key):GREECE_PREFECTURES.filter(r=>points.some(p=>p.segment.prefectureCode===r.key)).map(r=>r.key),[points,coverage]);
  const areas=prefectureValues;
  const activeMetricKeys=sub.metrics.filter(k=>publicMetricLabel(k).toLowerCase().includes(search.toLowerCase())||k.toLowerCase().includes(search.toLowerCase()));
- const chapterRows=activeMetricKeys.map(key=>points.find(p=>p.metricKey===key&&matches(p,group,level)&&p.n>=minN))
+ const chapterRows=activeMetricKeys.map(key=>points.find(p=>p.metricKey===key&&matches(p,group,level)&&(mode==="live"||p.n>=minN)))
   .filter((p):p is SafePublicResultPoint=>Boolean(p));
- const graphRows=useMemo(()=>points.filter(p=>p.metricKey===graphKey&&matches(p,graphDimension,"")&&p.n>=minN).sort((a,b)=>
+ const graphRows=useMemo(()=>points.filter(p=>p.metricKey===graphKey&&matches(p,graphDimension,"")&&(mode==="live"||p.n>=minN)).sort((a,b)=>
   graphOrder==="label"?groupLabel(a.segment[graphDimension]??"",graphDimension).localeCompare(groupLabel(b.segment[graphDimension]??"",graphDimension),"el"):
   graphOrder==="high"?b.value-a.value:a.value-b.value
- ).slice(0,40),[points,graphKey,graphDimension,graphOrder,minN]);
+ ),[points,graphKey,graphDimension,graphOrder,minN,mode]);
  const graphMaximum=graphRows.length?Math.max(...graphRows.map(r=>r.value),.0001):1;
  const comparable=group!=="overall"&&Boolean(level)&&Boolean(compareTo)&&level!==compareTo;
  const comparison=activeMetricKeys.flatMap(key=>{
   if(!comparable)return [];
-  const left=points.find(p=>p.metricKey===key&&matches(p,group,level)&&p.n>=minN);
-  const right=points.find(p=>p.metricKey===key&&matches(p,group,compareTo)&&p.n>=minN);
+  const left=points.find(p=>p.metricKey===key&&matches(p,group,level)&&(mode==="live"||p.n>=minN));
+  const right=points.find(p=>p.metricKey===key&&matches(p,group,compareTo)&&(mode==="live"||p.n>=minN));
   return left&&right&&left.format===right.format?[{key,left,right}]:[];
  });
  const crossRows=activeMetricKeys.flatMap(key=>{
   if(!crossSector||!crossRegion)return [];
-  const find=(region:string)=>points.find(p=>p.metricKey===key&&p.n>=(mode==="live"?10:Math.max(50,minN))&&
+  const find=(region:string)=>points.find(p=>p.metricKey===key&&(mode==="live"||p.n>=Math.max(50,minN))&&
    p.segment.prefectureCode===region&&p.segment.sectorCode===crossSector);
   const left=find(crossRegion),right=crossRegionB?find(crossRegionB):undefined;
   return left?[{key,left,right}]:[];
@@ -137,12 +137,13 @@ export function ResearchResultsWorkbench({
     </button>)}
   </nav>
   {mode==="live"&&<div className={styles.warning} role="note">
-   <strong>ΟΛΕΣ ΟΙ ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΑΠΑΝΤΗΣΕΙΣ · ΑΝΑ ΝΟΜΟ.</strong>
-   Στη ζωντανή εσωτερική προεπισκόπηση περιλαμβάνεται το σύνολο των ολοκληρωμένων απαντήσεων. Οι νομοί με τουλάχιστον 10 υποβληθείσες απαντήσεις
-   μπορούν να εμφανίσουν μόνο περιγραφικά, μη σταθμισμένα ποσοστά. Για n=10–29 τα
-   αποτελέσματα είναι ασταθή, δεν πρέπει να δημοσιεύονται ή να ερμηνεύονται ως
-   αντιπροσωπευτικά. Οι υπόλοιποι νομοί παραμένουν ορατοί ως κάλυψη χωρίς αριθμούς απαντήσεων.
-   Η βάση n είναι ο πραγματικός αριθμός ολοκληρωμένων απαντήσεων, όχι τυχαίο δείγμα τους. Οι δημόσιες στατιστικές υπόκεινται σε ξεχωριστή QA και έλεγχο ιδιωτικότητας.
+   <strong>ΠΛΗΡΗΣ ΑΡΙΘΜΗΤΙΚΗ ΔΙΑΦΑΝΕΙΑ · ΑΝΕΞΑΡΤΗΤΑ ΑΠΟ n.</strong>
+   Στην προστατευμένη εσωτερική προεπισκόπηση εμφανίζονται όλες οι ολοκληρωμένες απαντήσεις
+   και όλοι οι μη κενoί νομοί/κλάδοι, ακόμη και με μία απάντηση. Δεν εφαρμόζεται
+   ελάχιστη βάση εμφάνισης. Κάθε ποσοστό έχει τον πραγματικό παρονομαστή n.
+   Όταν n=1 ή n=2, οι τιμές είναι εξαιρετικά ασταθείς και δεν αντιπροσωπεύουν τις ελληνικές επιχειρήσεις.
+   Δεν περιλαμβάνονται στοιχεία ταυτότητας, ταχυδρομικοί κώδικες ή ατομικές μαρτυρίες στις κατανομές.
+   Η δημόσια έκδοση εξακολουθεί να απαιτεί ξεχωριστό έλεγχο ιδιωτικότητας και δημοσίευσης.
   </div>}
   {demo&&<div className={styles.warning}><strong>ΔΕΔΟΜΕΝΑ ΕΠΙΔΕΙΞΗΣ.</strong> Όλοι οι αριθμοί, οι συσχετισμοί και οι γεωγραφικές κατανομές παρακάτω είναι αποκλειστικά παραδείγματα σχεδίασης και όχι στοιχεία της έρευνας.</div>}
   {menu==="chapters"&&<>
@@ -202,7 +203,7 @@ export function ResearchResultsWorkbench({
     {crossSector&&crossRegion&&(crossRows.length?<div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Δείκτης</th><th>{groupLabel(crossRegion,"prefectureCode")}</th><th>{crossRegionB?groupLabel(crossRegionB,"prefectureCode"):"Βάση"}</th><th>Διαφορά</th></tr></thead><tbody>
      {crossRows.map(({key,left,right})=><tr key={key}><td>{publicMetricLabel(key)}</td><td>{format(left)} · n={left.n}</td><td>{right?format(right)+" · n="+right.n:"n="+left.n}</td><td>{right&&right.format===left.format?difference(left,right):"—"}</td></tr>)}
     </tbody></table></div>:<p className={styles.empty}>Δεν υπάρχει εγκεκριμένη εκτίμηση για τον επιλεγμένο συνδυασμό. Δεν ανασυνθέτουμε κλαδικές και γεωγραφικές τομές από ανεξάρτητα ποσοστά.</p>)}
-    <p className={styles.note}>{mode==="live"?"Εσωτερικές περιγραφικές διασταυρώσεις όλων των ολοκληρωμένων απαντήσεων με n≥10 για προστασία των συμμετεχόντων. Δεν τεκμηριώνουν αντιπροσωπευτικότητα.":"Για δημοσίευση διπλής διασταύρωσης απαιτούνται ρητή επιστημονική έγκριση και n≥50 σε κάθε εμφανιζόμενο κελί."}</p>
+    <p className={styles.note}>{mode==="live"?"Εσωτερικές περιγραφικές διασταυρώσεις από όλες τις ολοκληρωμένες απαντήσεις, χωρίς ελάχιστο n. Οι μονοπρόσωπες ομάδες δεν επιτρέπουν ασφαλή γενίκευση ή δημόσια κοινοποίηση.":"Για δημοσίευση διπλής διασταύρωσης απαιτούνται ρητή επιστημονική έγκριση και n≥50 σε κάθε εμφανιζόμενο κελί."}</p>
    </section>
    <div className={styles.analysisGrid}>
     <article><span className={styles.articleTag}>ΠΡΟΤΕΙΝΟΜΕΝΗ ΔΙΑΣΤΑΥΡΩΣΗ</span><h4>{sub.relation}</h4>
@@ -212,7 +213,7 @@ export function ResearchResultsWorkbench({
       </button>
     </article>
     <article><span className={styles.articleTag}>ΕΠΙΣΤΗΜΟΝΙΚΗ ΑΝΑΓΝΩΣΗ</span><h4>Τι μπορεί να συμπεράνει ο αναγνώστης;</h4>
-      <p>{sub.interpretation}</p><p>Διαθεσιμότητα: {chapterRows.length} / {activeMetricKeys.length} δείκτες στην επιλεγμένη ομάδα, με βάση τουλάχιστον n={minN}. Κάθε πραγματική βάση απαντήσεων εξετάζεται χωριστά.</p><p>Οι διαφορές παρουσιάζονται περιγραφικά· η στατιστική σημαντικότητα απαιτεί ξεχωριστό έλεγχο και όχι απλή επικάλυψη διαστημάτων.</p>
+      <p>{sub.interpretation}</p><p>Διαθεσιμότητα: {chapterRows.length} / {activeMetricKeys.length} δείκτες στην επιλεγμένη ομάδα. {mode==="live"?"Στην εσωτερική προβολή δεν εφαρμόζεται ελάχιστο n.":"Ελάχιστη βάση δημοσίευσης: n="+minN+"."} Κάθε πραγματική βάση απαντήσεων εξετάζεται χωριστά.</p><p>Οι διαφορές παρουσιάζονται περιγραφικά· η στατιστική σημαντικότητα απαιτεί ξεχωριστό έλεγχο και όχι απλή επικάλυψη διαστημάτων.</p>
     </article>
    </div>
   </>}
@@ -264,17 +265,17 @@ export function ResearchResultsWorkbench({
     <h4 style={{fontFamily:"Georgia,serif",fontSize:22,fontWeight:500,marginBottom:8}}>
      Πλήρης κατάλογος 55 νομών · διαθεσιμότητα δείκτη
     </h4>
-    <p className={styles.note}>Οι νομοί με λιγότερες από 10 ολοκληρωμένες απαντήσεις εμφανίζονται ως περιοχές συμμετοχής χωρίς αναλυτική τιμή.
-     Οι τιμές n=10–29 είναι προσωρινές, περιγραφικές και δεν αποτελούν δημοσιεύσιμα συμπεράσματα.</p>
+    <p className={styles.note}>Εμφανίζονται όλοι οι νομοί και οι πραγματικές ολοκληρωμένες απαντήσεις τους (n),
+     χωρίς ελάχιστο όριο. Οι ενδεικτικοί δείκτες ακόμη και με n=1 είναι μόνο για εσωτερική χρήση,
+     όχι δημοσιεύσιμα ή αντιπροσωπευτικά συμπεράσματα.</p>
     <div className={styles.tableScroll}><table className={styles.table}>
      <thead><tr><th>Νομός</th><th>Ολοκληρωμένες απαντήσεις (n)</th><th>Επιλεγμένος δείκτης</th></tr></thead>
      <tbody>{coverage.prefectures.map(county=>{
-      const row=points.find(p=>p.metricKey===graphKey&&p.segment.prefectureCode===county.key&&Object.keys(p.segment).length===1&&p.n>=minN);
+      const row=points.find(p=>p.metricKey===graphKey&&p.segment.prefectureCode===county.key&&Object.keys(p.segment).length===1&&(mode==="live"||p.n>=minN));
       return <tr key={county.key}>
        <td>{groupLabel(county.key,"prefectureCode")}</td>
-       <td>{county.band==="under10"?"Κάλυψη, n<10":county.band==="none"?"Χωρίς επιλέξιμη συμμετοχή":
-         (county.eligibleN?.toLocaleString("el-GR")??"—")+(county.band==="10to29"?"  · περιορισμένη βάση":"")}</td>
-       <td>{row?format(row)+" · n="+row.n:"Δεν διατίθεται αξιόπιστη τιμή"}</td>
+       <td>{county.eligibleN.toLocaleString("el-GR")}{county.band==="under10"?" · πολύ μικρή βάση":""}</td>
+       <td>{row?format(row)+" · n="+row.n:county.eligibleN===0?"Χωρίς ολοκληρωμένες απαντήσεις":"Δεν απαντήθηκε η συγκεκριμένη ερώτηση"}</td>
       </tr>;
      })}</tbody>
     </table></div>
@@ -293,7 +294,7 @@ export function ResearchResultsWorkbench({
      </section>
     : <><div className={styles.voiceOpenLink}><Link href={demo?"/research/greek-retail-2026/results/Preview/voices":"/research/greek-retail-2026/results/voices"}>Άνοιγμα της «Φωνής της Ελλάδας» σε ξεχωριστή πλήρη σελίδα ↗</Link></div><ResearchVoiceOfGreece isDemo={demo} data={voices}/></>)}
   <footer className={styles.scientificFooter}>
-   Η τελική έκδοση προβάλλει μόνο ελεγμένες συγκεντρωτικές εκτιμήσεις (ελάχιστο n 30).
+   Η επίσημη δημόσια έκδοση προβάλλει μόνο ελεγμένες, εγκεκριμένες συγκεντρωτικές εκτιμήσεις με προστασία ιδιωτικότητας.
    {mode==="live"?" Αυτή η εσωτερική προεπισκόπηση χρησιμοποιεί πραγματικές απαντήσεις, χωρίς τελική στάθμιση ή επιστημονικά διαστήματα εμπιστοσύνης.":" Η πιλοτική προεπισκόπηση χρησιμοποιεί αποκλειστικά κατασκευασμένα παραδείγματα."}
    Το ιδιωτικό πείραμα επιλογής πλατφόρμας δεν περιλαμβάνεται στο δημόσιο υλικό.
   </footer>
