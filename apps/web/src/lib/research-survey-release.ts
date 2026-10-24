@@ -3,6 +3,7 @@ import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { researchFieldworkOutcomeSummary } from "./research-survey-statistics";
+import { GREEK_RETAIL_RESULTS_PUBLICATION_AT } from "./research-results-publication";
 
 const STUDY_SLUG = "greek-retail-2026";
 const PUBLIC_RESULTS_PATH = "/research/greek-retail-2026/results";
@@ -569,6 +570,18 @@ export async function buildGreekRetailRelease(
       && !resolvedProtocolEventIds.has(event.id)
   );
 
+  // EXP01 is retained in private analysis but excluded from every public
+  // research artifact and from published method summaries.
+  const publicProtocolEvents = protocolEvents.filter((event) =>
+    !/EXP01|platform_choice_experiment|randomized[_ -]?profile/i.test(
+      [event.title,event.description,event.rationale,event.impactAssessment,event.correctiveAction].join(" ")
+    )
+  );
+  const publicProtocolEventIds = new Set(publicProtocolEvents.map((event) => event.id));
+  const publicUnresolvedEvents = unresolvedMaterialProtocolEvents.filter(
+    (event) => publicProtocolEventIds.has(event.id)
+  );
+
   const fieldworkOutcome = researchFieldworkOutcomeSummary(
     numberValue(counts.selected),
     latestDispositionCounts
@@ -582,6 +595,8 @@ export async function buildGreekRetailRelease(
            unweighted_n,weighted_n,method,suppressed,metadata
     FROM research_analysis_estimates
     WHERE analysis_run_id=$1
+      AND method <> 'randomized_profile_amce_clustered_v1'
+      AND metric_key NOT LIKE 'platform_choice_experiment.%'
     ORDER BY metric_key,segment::text
   `, [analysisRunId]);
 
@@ -601,7 +616,9 @@ export async function buildGreekRetailRelease(
       version: text(study.instrument_version),
       contentSha256: text(study.instrument_sha256),
       consentStatementVersion: text(study.consent_statement_version),
-      questions: instrumentQuestions.rows.map((row) => ({
+      questions: instrumentQuestions.rows
+        .filter((row) => text(row.code) !== "EXP01" && text(row.question_type) !== "experiment")
+        .map((row) => ({
         code: text(row.code),
         sectionCode: text(row.section_code),
         position: numberValue(row.position),
@@ -615,9 +632,9 @@ export async function buildGreekRetailRelease(
     },
     protocolEvidence: {
       schema: "kontamou.research.protocol-event.v1",
-      eventCount: protocolEvents.length,
-      unresolvedMaterialOrCriticalCount: unresolvedMaterialProtocolEvents.length,
-      events: protocolEvents
+      eventCount: publicProtocolEvents.length,
+      unresolvedMaterialOrCriticalCount: publicUnresolvedEvents.length,
+      events: publicProtocolEvents
     },
     analysisPlan: {
       version: text(study.analysis_plan_version),
@@ -625,7 +642,9 @@ export async function buildGreekRetailRelease(
       status: text(study.analysis_plan_status),
       contentSha256: text(study.analysis_plan_sha256),
       lockedAt: study.analysis_plan_locked_at ?? null,
-      plan: objectValue(study.analysis_plan_json)
+      // The locked plan contains internal EXP01 material; only its provenance
+      // fingerprint is public. The full plan remains accessible in Admin.
+      planAccess: "governed_internal"
     },
     recruitment: {
       templates: recruitmentTemplates.rows.map((row) => ({
@@ -759,17 +778,13 @@ export async function buildGreekRetailRelease(
       completedAt: study.analysis_completed_at ?? null,
       varianceMethod,
       publicMinimumBase: numberValue(parameters.publicMinimumBase) || 30,
-      weightDiagnostics: objectValue(parameters.weightDiagnostics),
-      experimentDiagnostics: objectValue(parameters.experimentDiagnostics)
+      weightDiagnostics: objectValue(parameters.weightDiagnostics)
     },
     disclosure: {
       smallBaseSuppression: true,
       confidenceIntervalsPublished: varianceMethod !== "not_estimated",
       conventionalMarginOfErrorPublished: false,
-      prespecifiedAnalysisPlanPublished: true,
-      randomizedExperimentExploratoryPublished: estimatesResult.rows.some(
-        (row) => text(row.method) === "randomized_profile_amce_clustered_v1" && !Boolean(row.suppressed)
-      )
+      prespecifiedAnalysisPlanFingerprintPublished: true
     },
     limitations: [
       "The sampling frame depends on the frozen G.E.MI. source snapshot and the contact points available for that frame.",
@@ -778,7 +793,6 @@ export async function buildGreekRetailRelease(
       "Non-response adjustment is performed within the governed sampling strata.",
       "Reminder and reissue emails are counted as contact attempts only; they reuse the canonical invite identity and therefore do not inflate sent-invitation or response-rate denominators.",
       "The locked pre-fieldwork analysis plan distinguishes pre-specified primary and secondary analyses from explicitly exploratory pairwise comparisons; later analytical additions must be labelled rather than silently back-dated into the plan.",
-      "The optional EXP01 randomized profile experiment is analyzed only as exploratory evidence. Its attribute-level contrasts were added after the locked analysis plan, are labelled not preregistered, and use respondent-clustered weighted uncertainty rather than the descriptive stratified-SRS variance estimator.",
       varianceMethod === "not_estimated"
         ? "Design-based variance has not been estimated for this release; confidence intervals and a conventional margin of sampling error are therefore not published."
         : "Design-aware confidence intervals use the recorded stratified sampling method with finite-population correction where the metric has complete observations within contributing strata. Intervals are withheld for unsupported post-hoc domains or insufficient stratum bases."
@@ -895,6 +909,8 @@ export async function researchReleaseArtifactIntegrity(
            unweighted_n,weighted_n,method,suppressed,metadata
     FROM research_analysis_estimates
     WHERE analysis_run_id=$1
+      AND method <> 'randomized_profile_amce_clustered_v1'
+      AND metric_key NOT LIKE 'platform_choice_experiment.%'
     ORDER BY metric_key,segment::text
   `, [release.analysis_run_id]);
 
@@ -954,13 +970,15 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
     JOIN research_studies s ON s.id=rs.study_id
     JOIN research_waves w ON w.id=rs.wave_id AND w.study_id=s.id
     WHERE rs.published_at IS NOT NULL
+      AND rs.published_at <= now()
+      AND (s.slug <> $3::text OR now() >= $2::timestamptz)
       AND (w.slug=$1 OR (s.slug=$1 AND w.is_current))
     ORDER BY
       CASE WHEN w.slug=$1 THEN 0 ELSE 1 END,
       rs.published_at DESC,
       rs.created_at DESC
     LIMIT 1
-  `, [slug]);
+  `, [slug, GREEK_RETAIL_RESULTS_PUBLICATION_AT, STUDY_SLUG]);
   const row = release.rows[0];
   if (!row) return undefined;
 
@@ -969,6 +987,8 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
            unweighted_n,weighted_n,method,suppressed,metadata
     FROM research_analysis_estimates
     WHERE analysis_run_id=$1
+      AND method <> 'randomized_profile_amce_clustered_v1'
+      AND metric_key NOT LIKE 'platform_choice_experiment.%'
     ORDER BY metric_key,segment::text
   `, [row.analysis_run_id]);
 

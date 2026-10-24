@@ -88,6 +88,7 @@ const researchRootCronConfig = JSON.parse(readFileSync("vercel.json", "utf8")) a
 const researchWebCronConfig = JSON.parse(readFileSync("apps/web/vercel.json", "utf8")) as { crons?: Array<{path:string;schedule:string}> };
 
 const release = readFileSync("apps/web/src/lib/research-survey-release.ts", "utf8");
+const publicationSchedule = readFileSync("apps/web/src/lib/research-results-publication.ts", "utf8");
 const researchMail = readFileSync("apps/web/src/lib/research-survey-mail.ts", "utf8");
 const sesEvents = readFileSync("apps/web/src/lib/research-survey-ses-events.ts", "utf8");
 const quality = readFileSync("apps/web/src/lib/research-survey-quality.ts", "utf8");
@@ -700,12 +701,20 @@ if (
   !researchPrivacyPage.includes("Η συμμετοχή στην έρευνα είναι ξεχωριστή από την εμπορική επικοινωνία.") &&
   !researchPrivacyPage.includes("Η συμμετοχή στην έρευνα δεν αποτελεί συγκατάθεση για marketing.")
 ) errors.push("dedicated research privacy boundary is missing");
-if (!release.includes("experimentDiagnostics: objectValue(parameters.experimentDiagnostics)")) errors.push("release does not freeze experiment diagnostics");
-if (!release.includes("randomizedExperimentExploratoryPublished")) errors.push("release experimental disclosure flag missing");
+if (release.includes("experimentDiagnostics: objectValue(parameters.experimentDiagnostics)")) errors.push("private EXP01 diagnostics exposed in public release");
+if (release.includes("randomizedExperimentExploratoryPublished")) errors.push("private EXP01 disclosure flag exposed in public release");
+if (!release.includes("method <> 'randomized_profile_amce_clustered_v1'")) errors.push("EXP01 estimates are not excluded from the public release");
+if (!release.includes('text(row.code) !== "EXP01"')) errors.push("EXP01 questionnaire item exposed in public release");
+if (!release.includes('planAccess: "governed_internal"')) errors.push("internal experiment analysis plan may leak in public release");
+if (!publicationSchedule.includes("2026-10-31T22:00:01.000Z")) errors.push("Greek Retail publication cutoff is not November 1 at 00:00:01 Athens");
+if (!surveyRuntime.includes("GREATEST(now(),$2::timestamptz)")) errors.push("release publication timestamp can precede Athens cutoff");
+if (!release.includes("rs.published_at <= now()")) errors.push("future releases are visible to public readers");
+if (!release.includes("now() >= $2::timestamptz")) errors.push("research release bypasses hard publication cutoff");
+if (!jobs.includes("published_at <= now()")) errors.push("results notifications can precede public release cutoff");
 
 if (!release.includes("analysisPlan: {")) errors.push("release does not freeze the preregistered analysis plan");
 if (!release.includes("analysis_plan_sha256")) errors.push("release does not freeze the analysis-plan fingerprint");
-if (!release.includes("prespecifiedAnalysisPlanPublished: true")) errors.push("release disclosure does not identify preregistration");
+if (!release.includes("prespecifiedAnalysisPlanFingerprintPublished: true")) errors.push("release does not publish the locked analysis-plan fingerprint");
 if (!release.includes("weightDiagnostics: objectValue(parameters.weightDiagnostics)")) errors.push("release does not freeze weighting diagnostics");
 
 if (!analysis.includes("normal95ConfidenceInterval")) errors.push("analysis confidence interval bridge missing");
@@ -730,7 +739,7 @@ if (!releaseRoute.includes("Content-Disposition")) errors.push("canonical releas
 if (!release.includes("RESEARCH_RELEASE_REQUIRES_QA_RESOLUTION")) errors.push("release QA gate missing");
 if (!release.includes("confidenceIntervalsPublished")) errors.push("release disclosure contract missing");
 if (!release.includes("emailContactabilityRate")) errors.push("release does not freeze frame contactability");
-if (!release.includes("questions: instrumentQuestions.rows.map")) errors.push("release does not freeze exact questionnaire");
+if (!release.includes("questions: instrumentQuestions.rows")) errors.push("release does not preserve public questionnaire provenance");
 if (!release.includes("recruitmentTemplates.rows.map")) errors.push("release does not freeze recruitment copy");
 if (!release.includes("latestDispositionCounts")) errors.push("release does not freeze final sample dispositions");
 if (!release.includes("completionRateOfSent")) errors.push("release does not freeze explicit fieldwork denominators");

@@ -71,8 +71,8 @@ export default async function GreekRetailResultsPage() {
           </article>
           <article className={previewStyles.dateCard}>
             <span className={previewStyles.label}>Προγραμματισμένη δημοσίευση αποτελεσμάτων</span>
-            <strong><time dateTime="2026-11-01">1 Νοεμβρίου 2026</time></strong>
-            <p>Κυριακή. Η δημοσίευση προϋποθέτει την ολοκλήρωση των ελέγχων ποιότητας και της τελικής ανάλυσης.</p>
+            <strong><time dateTime="2026-11-01T00:00:01+02:00">1 Νοεμβρίου 2026 · 00:00:01</time></strong>
+            <p>Κυριακή, 00:00:01 ώρα Ελλάδας. Η αυτόματη δημοσίευση πραγματοποιείται μόνο εφόσον έχει ολοκληρωθεί και επαληθευτεί η τελική ανάλυση.</p>
           </article>
         </div>
 
