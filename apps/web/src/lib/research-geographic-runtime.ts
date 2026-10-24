@@ -1,7 +1,8 @@
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { summarizeGreekPrefectures, type GreekRegionKey } from "./research-geographic-core";
+import { summarizeResearchPostcodeCells, resolveResearchAdministrativeGeography } from "./research-postcode-geography";
+import { GREECE_PREFECTURES } from "./research-prefectures";
 
 type Choice = Readonly<{ key: string; label: string }>;
 type Question = Readonly<{ code: string; label: string; type: string; options: readonly Choice[] }>;
@@ -20,8 +21,8 @@ export type ResearchGeographicDashboard = Readonly<{
   kads: readonly Choice[];
   prefectureOptions: readonly Choice[];
   municipalities: readonly Choice[];
-  regions: ReturnType<typeof summarizeGreekPrefectures>["regions"];
-  prefectures: ReturnType<typeof summarizeGreekPrefectures>["prefectures"];
+  regions: ReturnType<typeof summarizeResearchPostcodeCells>["regions"];
+  prefectures: ReturnType<typeof summarizeResearchPostcodeCells>["prefectures"];
   unresolved: number;
   total: number;
   answered: number;
@@ -140,7 +141,7 @@ export async function researchGeographicMap(
     ?? question?.options[0]?.key ?? "";
   const chosenQuestionId = text(qResult.rows.find(row => row.code === question?.code)?.id);
   const sectors = sectorsResult.rows.map(row => ({ key: text(row.value), label: SECTOR_LABELS[text(row.value)] ?? text(row.value) }));
-  const prefectureOptions = prefectureResult.rows.map(row => ({ key: text(row.value), label: text(row.value) }));
+  const prefectureOptions = GREECE_PREFECTURES.map(row=>({key:row.key,label:row.label}));
   const municipalities = municipalityResult.rows.map(row => ({ key: text(row.value), label: text(row.label) || text(row.value) }));
   const kads = kadResult.rows.map(row => ({ key: text(row.code), label: text(row.code) }));
   const sector = sectors.some(s => s.key === input.sector) ? clean(input.sector) : "";
@@ -150,7 +151,7 @@ export async function researchGeographicMap(
   const region = clean(input.region, 50);
   const rows = await pool.query<SqlRow>([
     "WITH base AS (",
-    " SELECT r.id,COALESCE(fu.sampling_attributes->>'prefecture','') AS prefecture",
+    " SELECT r.id,COALESCE(fu.sampling_attributes->>'prefecture','') AS prefecture, COALESCE(fu.sampling_attributes->>'postcode','') AS postcode",
     " FROM research_responses r",
     " JOIN research_invites i ON i.id=r.invite_id",
     " JOIN research_sample_units su ON su.id=i.sample_unit_id",
@@ -162,22 +163,26 @@ export async function researchGeographicMap(
     " AND ($7::text='' OR COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb) ? $7::text)",
     " AND ($8::text='' OR fu.sampling_attributes->>'municipalityId'=$8)",
     ")",
-    "SELECT b.prefecture,count(*)::integer AS respondents,",
+    "SELECT b.prefecture,b.postcode,count(*)::integer AS respondents,",
     "count(a.answer)::integer AS answered,",
     "count(a.answer) FILTER (WHERE (",
     "CASE WHEN jsonb_typeof(a.answer)='array' THEN a.answer ? $10::text",
     "ELSE a.answer #>> '{}' = $10::text END))::integer AS selected",
     "FROM base b LEFT JOIN research_answers a ON a.response_id=b.id AND a.question_id=$9::uuid",
-    "GROUP BY b.prefecture ORDER BY respondents DESC"
+    "GROUP BY b.prefecture,b.postcode ORDER BY respondents DESC"
   ].join("\n"), [
     st.study_id, st.instrument_id, mode === "draft" ? "in_progress" : "completed", phase,
-    sector, prefecture, kad, municipality, chosenQuestionId || null, answer
+    sector, "", kad, municipality, chosenQuestionId || null, answer
   ]);
   const aggregated = rows.rows.map(row => ({
-    prefecture: text(row.prefecture), respondents: integer(row.respondents),
+    prefecture: text(row.prefecture), postcode: text(row.postcode), respondents: integer(row.respondents),
     answered: integer(row.answered), selected: integer(row.selected)
   }));
-  const mapped = summarizeGreekPrefectures(aggregated);
+  // Geography filters are applied AFTER postcode resolution, not against an
+  // occasionally incorrect historical GEMI prefecture string.
+  const assigned=aggregated.filter(row=>!prefecture ||
+    resolveResearchAdministrativeGeography(row.postcode,row.prefecture).prefectureCode===prefecture);
+  const mapped = summarizeResearchPostcodeCells(assigned);
   const filters: ResearchMapFilters = {
     mode, phase, metric, question: question?.code ?? "", answer,
     sector, kad, prefecture, municipality, region
@@ -194,8 +199,8 @@ export async function researchGeographicMap(
     title: text(st.title), capturedAt: new Date().toISOString(), filters,
     questions: availableQuestions, sectors, prefectureOptions, municipalities, kads,
     regions: mapped.regions, prefectures: mapped.prefectures, unresolved: mapped.unresolved,
-    total: aggregated.reduce((n, row) => n + row.respondents, 0),
-    answered: aggregated.reduce((n, row) => n + row.answered, 0),
-    selected: aggregated.reduce((n, row) => n + row.selected, 0)
+    total: assigned.reduce((n, row) => n + row.respondents, 0),
+    answered: assigned.reduce((n, row) => n + row.answered, 0),
+    selected: assigned.reduce((n, row) => n + row.selected, 0)
   };
 }
