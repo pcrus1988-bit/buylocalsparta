@@ -9,8 +9,10 @@ import { PUBLIC_RESULTS_METRICS, publicMetricLabel } from "./research-public-res
 import type { SafePublicResultPoint,InternalResearchGeographicCoverage } from "./research-public-results-data";
 
 const ALLOWED_METRICS = new Set<string>(PUBLIC_RESULTS_METRICS);
-// All non-empty cohorts are included for private, administrator-only analysis.
-// These are raw respondent totals, not published estimates or population inference.
+// Every completed response contributes to geographical coverage counts, including n=1.
+// Answer-level rates remain suppressed in small groups to prevent singling out.
+const MIN_CELL_N = 30;
+const MIN_COUNTY_ANSWER_N = 10;
 const RESTRICTED = /experiment|exp01|amce|conjoint|randomized_profile|platform_choice/i;
 type Question = { code: string; kind: string; key: string; config: Record<string, unknown> };
 type Participant = { answers: Record<string, unknown>; regionCode: string; prefectureCode: string; sectorCode: string; sizeBand: string };
@@ -237,7 +239,7 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
     });
     for (const cohort of cohorts) {
       const n=cohort.observations.length;
-      if (n === 0) continue;
+      if (n < (cohort.segment.prefectureCode ? MIN_COUNTY_ANSWER_N : MIN_CELL_N)) continue;
       const estimate=cohort.observations.reduce((sum,item)=>sum+item.value,0)/n;
       if (!Number.isFinite(estimate)) continue;
       points.push({
