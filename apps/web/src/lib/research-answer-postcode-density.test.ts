@@ -44,9 +44,10 @@ test("all answers contribute to counts even when finer groups are suppressed",()
     {postcode:"99999",prefecture:"ΑΤΤΙΚΗΣ",answered:7,matched:5},
     {postcode:"11142",prefecture:"ΛΑΚΩΝΙΑΣ",answered:9,matched:6}
   ],locations);
-  assert.equal(output.mappedAnswers,13);
-  assert.equal(output.unmatchedAnswers,11);
-  assert.equal(output.detailMatched+output.privacyCoarsenedOrNotRendered,13);
+  // Postcode wins when the old GEMI prefecture disagrees with its location.
+  assert.equal(output.mappedAnswers,19);
+  assert.equal(output.unmatchedAnswers,5);
+  assert.equal(output.detailMatched+output.privacyCoarsenedOrNotRendered,19);
 });
 
 test("local prevalence uses answered denominator instead of absolute selected density",()=>{

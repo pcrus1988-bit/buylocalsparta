@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { resolveResearchAdministrativeGeography } from "./research-postcode-geography-core";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import {
@@ -30,7 +31,9 @@ type ResponseRow = Readonly<{
   responseId: string;
   stratumId: string;
   stratumCode: string;
-  regionCode: string;
+  regionCode: string; // Frozen frame: must remain unchanged for weighting.
+  administrativeRegionCode: string;
+  prefectureCode: string;
   sectorCode: string;
   baseWeight: number;
 }>;
@@ -127,7 +130,8 @@ function segmentsFor(observations: readonly Observation[]): Array<Readonly<{
     { segment: {}, observations: [...observations] }
   ];
   const dimensions: Array<readonly [string, (response: WeightedResponse) => string]> = [
-    ["regionCode", (response) => response.regionCode],
+    ["regionCode", (response) => response.administrativeRegionCode],
+    ["prefectureCode", (response) => response.prefectureCode],
     ["sectorCode", (response) => response.sectorCode],
     ["sizeBand", (response) => typeof response.answers.Q02 === "string" ? response.answers.Q02 : ""]
   ];
@@ -151,7 +155,8 @@ function designResponsesForSegment(
   segment: Record<string, string>,
   responses: readonly WeightedResponse[]
 ): readonly WeightedResponse[] {
-  if (segment.regionCode) return responses.filter((response) => response.regionCode === segment.regionCode);
+  if (segment.regionCode) return responses.filter((response) => response.administrativeRegionCode === segment.regionCode);
+  if (segment.prefectureCode) return responses.filter((response) => response.prefectureCode === segment.prefectureCode);
   if (segment.sectorCode) return responses.filter((response) => response.sectorCode === segment.sectorCode);
   if (segment.sizeBand) {
     return responses.filter((response) => (
@@ -550,6 +555,8 @@ export async function runGreekRetailAnalysis(
       COALESCE(su.stratum_id,ctx.stratum_id) AS stratum_id,
       st.code AS stratum_code,
       COALESCE(fu.region_code,ctx.region_code,'unknown') AS region_code,
+      COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,
+      COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),ctx.source_prefecture,'') AS source_prefecture,
       COALESCE(fu.sector_code,ctx.sector_code,'unknown') AS sector_code,
       COALESCE(su.base_weight,ctx.base_weight) AS base_weight
     FROM research_responses r
@@ -573,6 +580,8 @@ export async function runGreekRetailAnalysis(
     stratumId: text(row.stratum_id),
     stratumCode: text(row.stratum_code),
     regionCode: text(row.region_code),
+    administrativeRegionCode: resolveResearchAdministrativeGeography(row.postcode,row.source_prefecture).regionCode,
+    prefectureCode: resolveResearchAdministrativeGeography(row.postcode,row.source_prefecture).prefectureCode,
     sectorCode: text(row.sector_code),
     baseWeight: numberValue(row.base_weight)
   }));
@@ -852,6 +861,8 @@ export async function runGreekRetailAnalysis(
       responseId: response.responseId,
       stratumId: response.stratumId,
       regionCode: response.regionCode,
+      administrativeRegionCode: response.administrativeRegionCode,
+      prefectureCode: response.prefectureCode,
       sectorCode: response.sectorCode,
       finalWeight: Number(response.finalWeight.toFixed(10)),
       answers: response.answers,
@@ -875,7 +886,8 @@ export async function runGreekRetailAnalysis(
       if (result.estimate === undefined) continue;
       const unweightedN = segment.observations.length;
       const suppressed = unweightedN < MIN_PUBLIC_BASE;
-      const domainVarianceUnsupported = Boolean(segment.segment.sizeBand);
+      // Postcode geographies are descriptive domains, not original design strata.
+      const domainVarianceUnsupported = Boolean(segment.segment.sizeBand || segment.segment.regionCode || segment.segment.prefectureCode);
       const designResponses = designResponsesForSegment(segment.segment, weightedResponses);
       const variance = domainVarianceUnsupported
         ? { reason: "unsupported_non_stratification_domain" as const }
@@ -922,6 +934,9 @@ export async function runGreekRetailAnalysis(
           ...spec.metadata,
           weightVersion,
           publicMinimumBase: MIN_PUBLIC_BASE,
+          geographicSource: (segment.segment.regionCode || segment.segment.prefectureCode)
+            ? "postcode_administrative_crosswalk_v1" : undefined,
+          publicPrefectureApproved: false,
           varianceMethod: standardError === undefined ? "withheld" : VARIANCE_METHOD,
           varianceWithheldReason: standardError === undefined ? variance.reason ?? "unavailable" : null,
           finitePopulationCorrection: standardError !== undefined

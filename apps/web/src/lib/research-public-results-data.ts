@@ -14,6 +14,7 @@ export type SafePublicResultPoint = Readonly<{
 export type SafeParticipationGeography = Readonly<{
  nationalStarted?:number;
  regions: readonly Readonly<{key:string;label:string;started:number}>[];
+ prefectures?:readonly Readonly<{key:string;label:string;started:number}>[];
  densityImage?:string;
 }>;
 const RESTRICTED = /exp01|experiment|randomized_profile|platform_choice|conjoint|amce/i;

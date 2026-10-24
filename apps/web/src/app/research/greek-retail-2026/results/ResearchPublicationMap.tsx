@@ -127,15 +127,17 @@ export function ResearchPublicationMap({
  },[geography,points,selectedKey,sector]);
  const prefectureValues=useMemo(()=>{
   const nationwide=points.find(p=>p.metricKey===selectedKey&&Object.keys(p.segment).length===0);
+  const participated=new Map(geography?.prefectures?.map(p=>[p.key,p.started])??[]);
   return GREECE_PREFECTURES.map(prefecture=>{
    const published=points.find(p=>p.metricKey===selectedKey&&p.segment.prefectureCode===prefecture.key&&
     (sector?p.segment.sectorCode===sector:!p.segment.sectorCode));
    const synthetic=isDemo&&selectedKey!=="participation"&&nationwide&&!sector?
     demoValue(selectedKey,prefecture.key,nationwide.value,nationwide.format==="proportion"):undefined;
    return {key:prefecture.key,label:prefecture.label,
-    value:published?.value??synthetic,n:published?.n??(synthetic!==undefined?80:undefined)};
+    value:selectedKey==="participation"&&!sector?participated.get(prefecture.key):published?.value??synthetic,
+    n:selectedKey==="participation"&&!sector?participated.get(prefecture.key):published?.n??(synthetic!==undefined?80:undefined)};
   });
- },[points,selectedKey,isDemo,sector]);
+ },[points,selectedKey,isDemo,sector,geography]);
  const currentValues=granularity==="prefecture"?prefectureValues:regionValues;
  const names=granularity==="prefecture"?PREFECTURE_NAMES:regionNames;
  const available=currentValues.filter(v=>v.value!==undefined&&v.n!==undefined);
@@ -291,7 +293,7 @@ export function ResearchPublicationMap({
          className={styles.mapValueOverlay} pointerEvents="none" aria-hidden="true">
         <rect x={granularity==="prefecture"?-33:-48} y={granularity==="prefecture"?-15:-19} width={granularity==="prefecture"?66:96} height={granularity==="prefecture"?30:38} rx="8" fill="#fffdf6" fillOpacity=".95" stroke="#9cb7a0" strokeWidth=".8"/>
         <text textAnchor="middle" y={granularity==="prefecture"?-4:-6} fontSize={granularity==="prefecture"?7:9} fontWeight="700" fill="#315d43">{granularity==="prefecture"?cell.label.slice(0,11):compactRegion[cell.key]??cell.label}</text>
-        <text textAnchor="middle" y={granularity==="prefecture"?8:9} fontSize={granularity==="prefecture"?11:14} fontWeight="900" fill="#164f32">{!hasMetric&&granularity==="region"?showGeoValue(cell):legendValue(cell.value)}</text>
+        <text textAnchor="middle" y={granularity==="prefecture"?8:9} fontSize={granularity==="prefecture"?11:14} fontWeight="900" fill="#164f32">{!hasMetric?showGeoValue(cell):legendValue(cell.value)}</text>
         <title>{cell.label}: {legendValue(cell.value)} · n={cell.n}</title>
        </g>;
       })}

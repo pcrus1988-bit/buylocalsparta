@@ -1,4 +1,3 @@
-import { greekRegionForPrefecture } from "./research-geographic-core.ts";
 
 type PostcodePoint = Readonly<{ postcode: string; region?: string; latitude: number; longitude: number }>;
 type LocationRow = Readonly<{ postcode: string; prefecture: string; started: number }>;
@@ -16,8 +15,8 @@ export function participationHeatField(rows: readonly LocationRow[], points: rea
   for (const row of rows) {
     const code = row.postcode.replace(/\s/g, "");
     const point = /^[0-9]{5}$/.test(code) ? lookup.get(code) : undefined;
-    const region = greekRegionForPrefecture(row.prefecture);
-    if (!point || !region || (point.region && point.region !== region) || !Number.isFinite(point.latitude)
+    // The validated postcode reference, not the legacy GEMI prefecture, owns location.
+    if (!point || !point.region || !Number.isFinite(point.latitude)
       || !Number.isFinite(point.longitude) || point.latitude < 34 || point.latitude > 43
       || point.longitude < 19 || point.longitude > 30) { unmatched += row.started; continue; }
     const x = (55 + (point.longitude - 19) * 65) / pixelSize;

@@ -4,6 +4,7 @@ import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { assertAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { rawResearchAnswerAccess } from "./research-survey-response-admin";
+import { resolveResearchAdministrativeGeography } from "./research-postcode-geography";
 import {
   RESEARCH_FREE_TEXT_CATEGORIES,
   RESEARCH_FREE_TEXT_OTHER,
@@ -48,7 +49,8 @@ export async function getLiveGreekRetailVoices(principal: SessionPrincipal): Pro
     )
     SELECT a.answer #>> '{}' AS answer_text,
       COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),
-               NULLIF(ctx.source_prefecture,''),'') AS prefecture
+               NULLIF(ctx.source_prefecture,''),'') AS prefecture,
+      COALESCE(fu.sampling_attributes->>'postcode','') AS postcode
     FROM research_answers a
     JOIN research_responses r ON r.id=a.response_id
     JOIN research_studies s ON s.id=r.study_id AND s.slug='greek-retail-2026'
@@ -70,7 +72,7 @@ export async function getLiveGreekRetailVoices(principal: SessionPrincipal): Pro
     const content = String(row.answer_text ?? "").trim();
     return {
       text: content,
-      prefecture: String(row.prefecture ?? ""),
+      prefecture: resolveResearchAdministrativeGeography(row.postcode,row.prefecture).prefectureLabel,
       categories: categorizeResearchFreeText(content)
     };
   });

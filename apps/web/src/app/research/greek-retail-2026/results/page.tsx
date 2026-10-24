@@ -167,6 +167,7 @@ export default async function GreekRetailResultsPage() {
       // Do not expose small regional cells through React Flight.
       regions: snapshot.regions.filter(region => region.started >= 30)
         .map(region => ({key:region.key,label:region.label,started:region.started})),
+      prefectures: snapshot.prefectures?.filter(p=>p.started>=30).map(p=>({key:p.key,label:p.label,started:p.started})),
       densityImage: snapshot.densityImage
     };
   } catch (cause) {
