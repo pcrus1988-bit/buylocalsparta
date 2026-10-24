@@ -3,7 +3,7 @@
 import { useEffect,useMemo,useState } from "react";
 import { GREECE_REGIONS } from "../../../../lib/research-geographic-core";
 import { GREECE_PREFECTURES,PREFECTURE_NAMES } from "../../../../lib/research-prefectures";
-import type { SafePublicResultPoint,SafeParticipationGeography } from "../../../../lib/research-public-results-data";
+import type { SafePublicResultPoint,SafeParticipationGeography,InternalResearchGeographicCoverage } from "../../../../lib/research-public-results-data";
 import { PUBLIC_MAP_QUESTIONS,mapAnswers,mapLegendDomain,mapColorStrength,safeMapSelection } from "../../../../lib/research-public-map-questions";
 import styles from "./ResultsWorkbench.module.css";
 import {
@@ -79,16 +79,17 @@ function heat(value:number|undefined,domain:{minimum:number;maximum:number},pale
 }
 
 export function ResearchPublicationMap({
- points,geography,isDemo
+ points,geography,isDemo,internalCoverage
 }:{
  points:readonly SafePublicResultPoint[];
  geography?:SafeParticipationGeography;
  isDemo:boolean;
+ internalCoverage?:InternalResearchGeographicCoverage;
 }){
  const [geo,setGeo]=useState<MapData|null>(null);
- const [granularity,setGranularity]=useState<"prefecture"|"region">(isDemo?"prefecture":"region");
+ const [granularity,setGranularity]=useState<"prefecture"|"region">(isDemo||internalCoverage?"prefecture":"region");
  const [failed,setFailed]=useState(false);
- const [mode,setMode]=useState<"answers"|"participation">("answers");
+ const [mode,setMode]=useState<"answers"|"participation">(internalCoverage?"participation":"answers");
  const [questionId,setQuestionId]=useState("Q09");
  const [answerKey,setAnswerKey]=useState("customer_acquisition_sources.share.word_of_mouth");
  const [selected,setSelected]=useState("");
@@ -114,7 +115,7 @@ export function ResearchPublicationMap({
  const hasApprovedCrossSections=points.some(p=>p.segment.sectorCode&&p.segment.regionCode);
  const regionalApproved=new Set(points.filter(p=>typeof p.segment.regionCode==="string").map(p=>p.metricKey));
  const regionValues=useMemo(()=>{
-  const byKey=new Map(geography?.regions.map(x=>[x.key,x.started])??[]);
+  const byKey=new Map(internalCoverage?internalCoverage.regions.filter(x=>x.eligibleN!==null).map(x=>[x.key,x.eligibleN!] as const):(geography?.regions.map(x=>[x.key,x.started] as const)??[]));
   const regionPoints=points.filter(p=>p.metricKey===selectedKey&&typeof p.segment.regionCode==="string"&&
    (sector?p.segment.sectorCode===sector:!p.segment.sectorCode));
   const byOutcome=new Map(regionPoints.map(p=>[p.segment.regionCode,p.value]));
@@ -124,10 +125,10 @@ export function ResearchPublicationMap({
    value:selectedKey==="participation"?byKey.get(region.key):byOutcome.get(region.key),
    n:selectedKey==="participation"?byKey.get(region.key):byN.get(region.key)
   }));
- },[geography,points,selectedKey,sector]);
+ },[geography,internalCoverage,points,selectedKey,sector]);
  const prefectureValues=useMemo(()=>{
   const nationwide=points.find(p=>p.metricKey===selectedKey&&Object.keys(p.segment).length===0);
-  const participated=new Map(geography?.prefectures?.map(p=>[p.key,p.started])??[]);
+  const participated=new Map(internalCoverage?internalCoverage.prefectures.filter(p=>p.eligibleN!==null).map(p=>[p.key,p.eligibleN!] as const):(geography?.prefectures?.map(p=>[p.key,p.started] as const)??[]));
   return GREECE_PREFECTURES.map(prefecture=>{
    const published=points.find(p=>p.metricKey===selectedKey&&p.segment.prefectureCode===prefecture.key&&
     (sector?p.segment.sectorCode===sector:!p.segment.sectorCode));
@@ -137,12 +138,12 @@ export function ResearchPublicationMap({
     value:selectedKey==="participation"&&!sector?participated.get(prefecture.key):published?.value??synthetic,
     n:selectedKey==="participation"&&!sector?participated.get(prefecture.key):published?.n??(synthetic!==undefined?80:undefined)};
   });
- },[points,selectedKey,isDemo,sector,geography]);
+ },[points,selectedKey,isDemo,sector,geography,internalCoverage]);
  const currentValues=granularity==="prefecture"?prefectureValues:regionValues;
  const names=granularity==="prefecture"?PREFECTURE_NAMES:regionNames;
  const available=currentValues.filter(v=>v.value!==undefined&&v.n!==undefined);
  const nationalPoint=hasMetric&&!sector?nationalAnswerEstimate(points,selectedKey):undefined;
- const nationalStarted=nationalParticipationTotal(geography);
+ const nationalStarted=internalCoverage?.includedTotal??nationalParticipationTotal(geography);
  const nationalValue=nationalPoint?.value;
  const regionalVisibleStarts=!hasMetric?regionValues.reduce((total,r)=>total+(r.value??0),0):undefined;
  const regionalCoverage=regionValues.filter(r=>r.value!==undefined&&r.n!==undefined).length;
@@ -174,7 +175,7 @@ export function ResearchPublicationMap({
  const formatDiff=(value:number|undefined)=>value===undefined?"—":
   (value>0?"+":"")+fmt(value)+(isProportion?" μ.π.":" "+domain.unit);
  const focused=currentValues.find(v=>v.key===selected);
- const density=granularity==="region"&&selectedKey==="participation"&&geography?.densityImage?geography.densityImage:undefined;
+ const density=!internalCoverage&&granularity==="region"&&selectedKey==="participation"&&geography?.densityImage?geography.densityImage:undefined;
  return <section aria-label="Διαδραστικός χάρτης Ελλάδας" className={styles.mapPanel}>
   <div className={styles.mapFilters}>
    <label>Γεωγραφικό επίπεδο<select value={granularity} onChange={e=>{setGranularity(e.target.value as typeof granularity);setSelected("");}}><option value="prefecture">Νομοί (55 ιστορικές ενότητες)</option><option value="region">Περιφέρειες (13)</option></select></label>
