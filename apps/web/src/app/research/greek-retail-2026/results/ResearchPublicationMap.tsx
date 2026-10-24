@@ -6,6 +6,10 @@ import { GREECE_PREFECTURES,PREFECTURE_NAMES } from "../../../../lib/research-pr
 import type { SafePublicResultPoint,SafeParticipationGeography } from "../../../../lib/research-public-results-data";
 import { PUBLIC_MAP_QUESTIONS,mapAnswers,mapLegendDomain,mapColorStrength,safeMapSelection } from "../../../../lib/research-public-map-questions";
 import styles from "./ResultsWorkbench.module.css";
+import {
+ nationalAnswerEstimate,nationalParticipationTotal,regionalParticipationShare,
+ mapNationalDifference,nationalCoverageNote
+} from "../../../../lib/research-public-map-comparison";
 
 type Feature={properties:{name:string;name_greek?:string};geometry:{type:string;coordinates:unknown}};
 type MapData={type:string;features:Feature[]};
@@ -135,6 +139,11 @@ export function ResearchPublicationMap({
  const currentValues=granularity==="prefecture"?prefectureValues:regionValues;
  const names=granularity==="prefecture"?PREFECTURE_NAMES:regionNames;
  const available=currentValues.filter(v=>v.value!==undefined&&v.n!==undefined);
+ const nationalPoint=hasMetric&&!sector?nationalAnswerEstimate(points,selectedKey):undefined;
+ const nationalStarted=nationalParticipationTotal(geography);
+ const nationalValue=nationalPoint?.value;
+ const regionalVisibleStarts=!hasMetric?regionValues.reduce((total,r)=>total+(r.value??0),0):undefined;
+ const regionalCoverage=regionValues.filter(r=>r.value!==undefined&&r.n!==undefined).length;
  const questionPoint=points.find(p=>p.metricKey===selectedKey);
  const isProportion=hasMetric&&questionPoint?.format==="proportion";
  const domain=hasMetric?
@@ -152,6 +161,16 @@ export function ResearchPublicationMap({
    return sort==="low"?a.value-b.value:b.value-a.value;
   });
  const display=(v:number|undefined)=>v===undefined?"Δεν υπάρχουν εγκεκριμένα δεδομένα":legendValue(v);
+ const nationalDisplay=hasMetric?display(nationalValue):nationalStarted!==undefined?"100%":"Μη διαθέσιμο";
+ const regionalParticipationValue=(v:number|undefined)=>regionalParticipationShare(v,nationalStarted);
+ const showGeoValue=(cell:{value:number|undefined})=>
+  cell.value===undefined?"Χωρίς δημοσιεύσιμα στοιχεία":
+  hasMetric?display(cell.value):
+  regionalParticipationValue(cell.value)!==undefined?fmt(regionalParticipationValue(cell.value)!*100)+"%":"Χωρίς εθνική βάση";
+ const nationalDiff=(value:number|undefined)=>hasMetric?
+  mapNationalDifference(value,nationalValue,isProportion):undefined;
+ const formatDiff=(value:number|undefined)=>value===undefined?"—":
+  (value>0?"+":"")+fmt(value)+(isProportion?" μ.π.":" "+domain.unit);
  const focused=currentValues.find(v=>v.key===selected);
  const density=granularity==="region"&&selectedKey==="participation"&&geography?.densityImage?geography.densityImage:undefined;
  return <section aria-label="Διαδραστικός χάρτης Ελλάδας" className={styles.mapPanel}>
@@ -204,6 +223,34 @@ export function ResearchPublicationMap({
    <strong>{visibleAnswers.find(x=>x.key===selectedKey)?.label??"Μη διαθέσιμη επιλογή"}</strong>
    <small>{isProportion?"Ποσοστό επιχειρήσεων ανά γεωγραφική ενότητα":"Μέση τιμή ανά γεωγραφική ενότητα · "+domain.unit}</small>
   </div>}
+  <section className={styles.mapNationalOverview} aria-label="Σύνολο Ελλάδας και 13 Περιφέρειες" aria-live="polite">
+   <div className={styles.nationalHeadline}>
+    <span className={styles.nationalFlag}>ΕΛΛΑΔΑ · ΣΥΝΟΛΟ</span>
+    <strong>{nationalDisplay}</strong>
+    <span>{hasMetric?"Πανελλαδική τιμή της επιλεγμένης απάντησης":"100% των καταγεγραμμένων ενάρξεων"}</span>
+    <small>{hasMetric?nationalPoint?"Εθνική σταθμισμένη εκτίμηση · n="+nationalPoint.n.toLocaleString("el-GR"):
+     "Δεν υπάρχει εγκεκριμένη πανελλαδική εκτίμηση για αυτή την επιλογή":
+     nationalStarted!==undefined?"Σύνολο ενάρξεων: "+nationalStarted.toLocaleString("el-GR"):
+      "Μη διαθέσιμη επαληθευμένη εθνική βάση"}</small>
+    {hasMetric&&nationalPoint?.ciLower!==null&&nationalPoint?.ciLower!==undefined&&
+     nationalPoint.ciUpper!==null&&nationalPoint.ciUpper!==undefined&&
+     <small>95% ΔΕ: {legendValue(nationalPoint.ciLower)} – {legendValue(nationalPoint.ciUpper)}</small>}
+   </div>
+   <div className={styles.nationalDetails}>
+    <span className={styles.nationalTag}>ΔΙΑΣΠΑΣΗ ΑΝΑ ΠΕΡΙΦΕΡΕΙΑ</span>
+    <strong>{regionalCoverage} / 13 Περιφέρειες με εγκεκριμένες τιμές</strong>
+    <p>{hasMetric?"Κάθε ποσοστό βασίζεται στις απαντήσεις της αντίστοιχης Περιφέρειας, όχι σε μερίδιο του εθνικού συνόλου. Δεν αθροίζονται σε 100%.":
+     nationalCoverageNote(regionalCoverage,regionalVisibleStarts,nationalStarted)}</p>
+    {hasMetric&&nationalValue!==undefined&&<p>Η σύγκριση γίνεται με την ξεχωριστά σταθμισμένη εθνική εκτίμηση. Δεν αποτελεί από μόνη της έλεγχο στατιστικής σημαντικότητας.</p>}
+    <div className={styles.allRegionsGrid}>
+     {regionValues.map(cell=><div key={cell.key} className={styles.allRegionsRow}>
+      <span>{cell.label}</span><strong>{showGeoValue(cell)}</strong>
+      {cell.value!==undefined&&hasMetric&&<small>n={cell.n??"—"} · Δ Ελλάδα {formatDiff(nationalDiff(cell.value))}</small>}
+      {cell.value!==undefined&&!hasMetric&&<small>{Math.round(cell.value).toLocaleString("el-GR")} ενάρξεις</small>}
+     </div>)}
+    </div>
+   </div>
+  </section>
   {isDemo&&<div className={styles.demoStrip}>ΔΕΙΓΜΑ ΠΡΟΕΠΙΣΚΟΠΗΣΗΣ — Δεν απεικονίζονται πραγματικές συμμετοχές ή αποτελέσματα.</div>}
   <div className={styles.mapLayout}>
    <div className={styles.mapCanvas}>
@@ -244,7 +291,7 @@ export function ResearchPublicationMap({
          className={styles.mapValueOverlay} pointerEvents="none" aria-hidden="true">
         <rect x={granularity==="prefecture"?-33:-48} y={granularity==="prefecture"?-15:-19} width={granularity==="prefecture"?66:96} height={granularity==="prefecture"?30:38} rx="8" fill="#fffdf6" fillOpacity=".95" stroke="#9cb7a0" strokeWidth=".8"/>
         <text textAnchor="middle" y={granularity==="prefecture"?-4:-6} fontSize={granularity==="prefecture"?7:9} fontWeight="700" fill="#315d43">{granularity==="prefecture"?cell.label.slice(0,11):compactRegion[cell.key]??cell.label}</text>
-        <text textAnchor="middle" y={granularity==="prefecture"?8:9} fontSize={granularity==="prefecture"?11:14} fontWeight="900" fill="#164f32">{legendValue(cell.value)}</text>
+        <text textAnchor="middle" y={granularity==="prefecture"?8:9} fontSize={granularity==="prefecture"?11:14} fontWeight="900" fill="#164f32">{!hasMetric&&granularity==="region"?showGeoValue(cell):legendValue(cell.value)}</text>
         <title>{cell.label}: {legendValue(cell.value)} · n={cell.n}</title>
        </g>;
       })}
@@ -255,20 +302,29 @@ export function ResearchPublicationMap({
      <span>{legendValue(domain.maximum)}</span><span className={styles.legendNoData}>■ χωρίς δημοσιεύσιμα δεδομένα</span>
     </div>
     {focused&&<div className={styles.regionFocus}><strong>{focused.label}</strong>
-     <span>{display(focused.value)}{hasMetric&&focused.n!==undefined?" · n="+focused.n:""}</span></div>}
+     <span>{showGeoValue(focused)}
+       {!hasMetric&&focused.value!==undefined?" · "+Math.round(focused.value).toLocaleString("el-GR")+" ενάρξεις":""}
+       {hasMetric&&focused.n!==undefined?" · n="+focused.n:""}
+       {hasMetric&&nationalDiff(focused.value)!==undefined?" · Δ έναντι Ελλάδας "+formatDiff(nationalDiff(focused.value)):""}
+      </span></div>}
    </div>
    <div className={styles.mapSide}>
     <label>Αναζήτηση {granularity==="prefecture"?"νομού":"Περιφέρειας"}<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder={granularity==="prefecture"?"π.χ. Λακωνία":"π.χ. Πελοπόννησος"}/></label>
     <div className={styles.regionList}>
+     <div className={styles.regionListHeader}><span>{granularity==="prefecture"?"Νομός":"Περιφέρεια"}</span><span>{hasMetric?"Επιλεγμένος δείκτης":"Μερίδιο ενάρξεων"}</span></div>
      {sorted.map(region=><button type="button" key={region.key} aria-pressed={selected===region.key}
        className={selected===region.key?styles.selectedRegion:styles.regionButton}
        onClick={()=>setSelected(s=>s===region.key?"":region.key)}>
       <span><i style={{background:region.value===undefined?"#d9dfd6":heat(region.value,domain,palette)}}/>{region.label}</span>
-      <strong>{display(region.value)}</strong>
+      <span className={styles.regionalNumbers}><strong>{showGeoValue(region)}</strong>
+        {hasMetric&&region.value!==undefined&&<small>n={region.n??"—"} · Ελλάδα {formatDiff(nationalDiff(region.value))}</small>}
+        {!hasMetric&&region.value!==undefined&&<small>{Math.round(region.value).toLocaleString("el-GR")} ενάρξεις</small>}
+      </span>
      </button>)}
     </div>
    </div>
   </div>
+  {hasMetric&&<p className={styles.note}>Το «Σύνολο Ελλάδας» προκύπτει μόνο από ξεχωριστή εγκεκριμένη πανελλαδική εκτίμηση, όχι από μέσο όρο των Περιφερειών. Τα ποσοστά ανά Περιφέρεια έχουν διαφορετικούς παρονομαστές και δεν αθροίζονται σε 100%.</p>}
   {hasMetric?<p className={styles.note}>
    Η επιλογή διαφορετικής ερώτησης ή απάντησης επαναχρωματίζει τον χάρτη, ενημερώνει
    την κλίμακα και αναταξινομεί τις Περιφέρειες από τον συγκεκριμένο δείκτη.
