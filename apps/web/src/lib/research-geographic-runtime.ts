@@ -87,7 +87,7 @@ export async function researchGeographicMap(
   const phase = input.phase === "pilot" ? "pilot" : "main";
   const metric = input.metric === "share" ? "share" : "density";
 
-  const [qResult, sectorsResult, prefectureResult, municipalityResult, kadResult] = await Promise.all([
+  const [qResult, sectorsResult, municipalityResult, kadResult] = await Promise.all([
     pool.query<SqlRow>([
       "SELECT id,code,prompt_el,question_type,config FROM research_questions",
       "WHERE instrument_id=$1 AND question_type IN ('single','multi','scale')",
@@ -99,14 +99,6 @@ export async function researchGeographicMap(
       "JOIN research_sample_units su ON su.id=i.sample_unit_id",
       "JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
       "WHERE r.study_id=$1 AND NULLIF(fu.sector_code,'') IS NOT NULL ORDER BY 1 LIMIT 40"
-    ].join("\n"), [st.study_id]),
-    pool.query<SqlRow>([
-      "SELECT DISTINCT fu.sampling_attributes->>'prefecture' AS value FROM research_responses r",
-      "JOIN research_invites i ON i.id=r.invite_id",
-      "JOIN research_sample_units su ON su.id=i.sample_unit_id",
-      "JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
-      "WHERE r.study_id=$1 AND NULLIF(fu.sampling_attributes->>'prefecture','') IS NOT NULL",
-      "ORDER BY 1 LIMIT 100"
     ].join("\n"), [st.study_id]),
     pool.query<SqlRow>([
       "SELECT DISTINCT fu.sampling_attributes->>'municipalityId' AS value,",
