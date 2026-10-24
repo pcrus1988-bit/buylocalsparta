@@ -20,6 +20,7 @@ type Measure = { metricKey: string; format: "proportion" | "mean"; observations:
 export type LiveGreekRetailPreview = Readonly<{
   capturedAt: string;
   includedResponses: number;
+  pendingQualityReview: number;
   coverage: InternalResearchGeographicCoverage;
   points: readonly SafePublicResultPoint[];
 }>;
@@ -62,6 +63,7 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
       COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),ctx.source_prefecture,'') AS prefecture,
       COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,
       COALESCE(fu.sector_code, ctx.sector_code, '') AS sector_code,
+      quality.decision AS quality_decision,
       COALESCE(jsonb_object_agg(q.code, a.answer)
         FILTER (WHERE a.id IS NOT NULL AND q.question_type NOT IN ('text','experiment')
           AND q.code !~* '(exp01|experiment)'), '{}'::jsonb) AS answers
@@ -76,10 +78,14 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
     LEFT JOIN research_questions q ON q.id=a.question_id
     WHERE r.wave_id=s.current_wave_id
       AND r.status='completed' AND r.withdrawn_at IS NULL
-      AND quality.decision='include'
-    GROUP BY r.id,fu.sampling_attributes,ctx.source_prefecture,fu.sector_code,ctx.sector_code
+      AND (quality.decision IS NULL OR quality.decision <> 'exclude')
+    GROUP BY r.id,fu.sampling_attributes,ctx.source_prefecture,fu.sector_code,ctx.sector_code,quality.decision
   `);
 
+  // Preliminary dashboard includes the entire set of completed, non-withdrawn
+  // main-wave respondents, including pending quality review. It is not a
+  // random sample of the respondents; no extrapolation to Greek businesses.
+  const pendingQualityReview = result.rows.filter(row=>row.quality_decision!=="include").length;
   const people: Participant[] = result.rows.map(row => {
     const answers = object(row.answers);
     const location = resolveResearchAdministrativeGeography(row.postcode,row.prefecture);
@@ -228,5 +234,5 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
       });
     }
   }
-  return {capturedAt:new Date().toISOString(),includedResponses:people.length,coverage,points};
+  return {capturedAt:new Date().toISOString(),includedResponses:people.length,pendingQualityReview,coverage,points};
 }
