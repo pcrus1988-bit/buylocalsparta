@@ -225,7 +225,7 @@ export function ResearchResultsWorkbench({
   {menu==="graphs"&&<section className={styles.graphPane} aria-labelledby="graph-explorer-heading">
    <div className={styles.graphHeading}><span className={styles.eyebrow}>ΕΥΕΛΙΚΤΗ ΟΠΤΙΚΟΠΟΙΗΣΗ</span>
     <h3 id="graph-explorer-heading">Graph Explorer</h3>
-    <p>Δείτε έναν εγκεκριμένο δείκτη ανά διαθέσιμη ομάδα. Οι διαφορετικές κλίμακες δεν αναμειγνύονται στο ίδιο γράφημα.</p>
+    <p>{mode==="live"?"Δείτε τα προκαταρκτικά, μη σταθμισμένα αποτελέσματα ανά ομάδα και την πλήρη γεωγραφική κάλυψη.":"Δείτε έναν εγκεκριμένο δείκτη ανά διαθέσιμη ομάδα."} Οι διαφορετικές κλίμακες δεν αναμειγνύονται στο ίδιο γράφημα.</p>
    </div>
    <div className={styles.filters}>
     <label>Δείκτης<select value={graphKey} onChange={e=>setGraphKey(e.target.value)}>
@@ -266,6 +266,25 @@ export function ResearchResultsWorkbench({
       </div><strong>{format(p)}</strong><small>n={p.n}</small>
      </div>)}
     </div>}
+   {mode==="live"&&graphDimension==="prefectureCode"&&coverage&&<section aria-label="Κάλυψη όλων των 55 νομών" style={{marginTop:24}}>
+    <h4 style={{fontFamily:"Georgia,serif",fontSize:22,fontWeight:500,marginBottom:8}}>
+     Πλήρης κατάλογος 55 νομών · διαθεσιμότητα δείκτη
+    </h4>
+    <p className={styles.note}>Οι νομοί με δείγμα n&lt;10 εμφανίζονται ως περιοχές συμμετοχής χωρίς αριθμό.
+     Οι τιμές n=10–29 είναι προσωρινές, περιγραφικές και δεν αποτελούν δημοσιεύσιμα συμπεράσματα.</p>
+    <div className={styles.tableScroll}><table className={styles.table}>
+     <thead><tr><th>Νομός</th><th>Βάση δείγματος</th><th>Επιλεγμένος δείκτης</th></tr></thead>
+     <tbody>{coverage.prefectures.map(county=>{
+      const row=points.find(p=>p.metricKey===graphKey&&p.segment.prefectureCode===county.key&&Object.keys(p.segment).length===1&&p.n>=minN);
+      return <tr key={county.key}>
+       <td>{groupLabel(county.key,"prefectureCode")}</td>
+       <td>{county.band==="under10"?"Κάλυψη, n<10":county.band==="none"?"Χωρίς επιλέξιμη συμμετοχή":
+         (county.eligibleN??"—").toLocaleString("el-GR")+(county.band==="10to29"?" · μικρό δείγμα":"")}</td>
+       <td>{row?format(row)+" · n="+row.n:"Δεν διατίθεται αξιόπιστη τιμή"}</td>
+      </tr>;
+     })}</tbody>
+    </table></div>
+   </section>}
    <p className={styles.note}>{mode==="live"?"Προκαταρκτικό, μη σταθμισμένο γράφημα πραγματικών απαντήσεων.":"Περιγραφικό γράφημα από δημοσιευμένα αποτελέσματα."} Η επιλογή ομάδας δεν ανασυνθέτει διασταυρώσεις που δεν έχουν εκτιμηθεί. Στοιχεία με ανεπαρκή βάση δεν αποστέλλονται στο UI.</p>
   </section>}
   {menu==="map"&&<section className={styles.mapSection}>
