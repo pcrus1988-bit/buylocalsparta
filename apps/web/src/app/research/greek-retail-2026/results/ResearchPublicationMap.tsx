@@ -234,7 +234,7 @@ export function ResearchPublicationMap({
    <div className={styles.mapQuestionStats}>
     <b>{internalCoverage?anyQA:coverage} / {granularity==="prefecture"?GREECE_PREFECTURES.length:13}</b>
     <span>{internalCoverage?"Με QA-επιλέξιμη συμμετοχή":"Με διαθέσιμη τιμή"}</span>
-    {internalCoverage&&<small>{coverage} με αριθμητική τιμή · {lowQA} με n<10</small>}
+    {internalCoverage&&<small>{coverage} με αριθμητική τιμή · {lowQA} με n&lt;10</small>}
    </div>
   </div>
   {hasMetric&&<div className={styles.mapSelectedAnswer}>
@@ -319,7 +319,7 @@ export function ResearchPublicationMap({
      </svg>}
     {internalCoverage&&<p role="note" style={{fontSize:12,color:"#385a41",lineHeight:1.7,margin:"14px 0"}}>
       <strong>{anyQA} / {granularity==="prefecture"?55:13}</strong> γεωγραφικές ενότητες έχουν QA-επιλέξιμη συμμετοχή.
-      Η μπεζ σκίαση δείχνει n<10, χωρίς δημοσίευση ακριβούς αριθμού ή αποτελέσματος.
+      Η μπεζ σκίαση δείχνει n&lt;10, χωρίς δημοσίευση ακριβούς αριθμού ή αποτελέσματος.
       Τα αποτελέσματα n=10–29 είναι προκαταρκτικά, μη σταθμισμένα και μόνο για εσωτερική χρήση.
     </p>}
     <div className={styles.legend}><span>{legendValue(domain.minimum)}</span>
