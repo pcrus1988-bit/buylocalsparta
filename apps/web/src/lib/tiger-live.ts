@@ -4,6 +4,7 @@
  * No synthetic worker, message, task, acceptance or achievement state.
  */
 import "server-only";
+import {latestWorkflowOutcomes,verifiedContractRun} from "./tiger-live-evidence";
 
 export type TigerSourceState = "LIVE" | "STALE" | "DISCONNECTED" | "NOT CONFIGURED" | "NO ACTIVITY";
 export type TigerLiveEvent = {
@@ -137,12 +138,13 @@ function snapshotFromSources(state:RawState,transitions:RawEvent[],runs:unknown,
   const recent=workflowRuns.slice(0,35) as {id?:number;status?:string;conclusion?:string;created_at?:string;updated_at?:string;html_url?:string;name?:string}[];
   view.ciHealth=recent[0]?.status==="in_progress"||recent[0]?.status==="queued"?"running":
     recent[0]?.conclusion==="success"?"passing":recent[0]?.conclusion==="failure"?"failing":"unknown";
-  view.achievements=recent
-    .filter(r=>r.status==="completed"&&r.conclusion==="success"&&
-      r.name==="TIGER isolated contract and legacy reuse verification"&&
-      Number.isSafeInteger(r.id)&&githubEvidence(r.html_url))
-    .slice(0,5)
-    .map(r=>({id:"validated-ci:"+r.id,title:"TIGER isolated contract verification passed",evidenceUrl:githubEvidence(r.html_url)!}));
+  const verifiedContract=verifiedContractRun(recent);
+  const milestoneEvidence=githubEvidence(verifiedContract?.html_url);
+  view.achievements=milestoneEvidence ? [{
+    id:"verified:tiger-isolated-contract-ci",
+    title:"TIGER isolated contract verification passed",
+    evidenceUrl:milestoneEvidence
+  }] : [];
   const ciEvents:TigerLiveEvent[]=recent.flatMap(r=>{
     const url=githubEvidence(r.html_url), occurredAt=dateOf(r.updated_at||r.created_at);
     if(!url||!occurredAt||!Number.isSafeInteger(r.id))return [];
@@ -154,8 +156,14 @@ function snapshotFromSources(state:RawState,transitions:RawEvent[],runs:unknown,
       summary:bad?"GitHub workflow failed":good?"GitHub workflow completed successfully":"GitHub workflow "+(r.status==="queued"?"queued":"in progress"),
       evidenceUrl:url}];
   });
-  for(const e of ciEvents.filter(e=>e.severity==="critical")){
-    view.issues.push({id:e.id,title:"GitHub workflow failure",severity:"critical",evidenceUrl:e.evidenceUrl});
+  // Historical failed runs remain in the event feed. Only the latest state of
+  // each workflow may appear as a currently unresolved CI issue.
+  for(const latest of latestWorkflowOutcomes(recent).filter(r=>r.status==="completed"&&r.conclusion==="failure")){
+    const url=githubEvidence(latest.html_url);
+    if(url) view.issues.push({
+      id:"active-ci:"+latest.name,title:"Latest GitHub workflow failed: "+latest.name,
+      severity:"critical",evidenceUrl:url
+    });
   }
   const pulls=Array.isArray(prs)?prs as {number?:number;created_at?:string;html_url?:string;head?:{ref?:string};merged_at?:string}[]:[];
   const prEvents:TigerLiveEvent[]=pulls.slice(0,60).flatMap(p=>{
