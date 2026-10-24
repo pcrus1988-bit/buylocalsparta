@@ -20,7 +20,7 @@ test("a contrast uses actual respondent weights, not unweighted percentages",() 
   const records = [
     ...Array.from({length:30},(_,i)=>({
       finalWeight:i===0?30:1, answers:{
-        Q21:{operating_costs:"increased",profitability:i===0?"decreased":"stable"}
+        Q21:{operating_costs:"increased",profitability:i<8?"decreased":"stable"}
       }
     })),
     ...Array.from({length:30},(_,i)=>({
@@ -35,9 +35,9 @@ test("a contrast uses actual respondent weights, not unweighted percentages",() 
   assert.equal(result.sampleN,60);
   assert.equal(result.metadata.groupAN,30);
   assert.equal(result.metadata.groupBN,30);
-  assert.equal(result.metadata.groupAPositiveN,1);
+  assert.equal(result.metadata.groupAPositiveN,8);
   assert.equal(result.metadata.groupBPositiveN,15);
-  assert.ok(Math.abs(result.difference! -(30/59-0.5))<1e-12);
+  assert.ok(Math.abs(result.difference! -(37/59-0.5))<1e-12);
   assert.equal(result.metadata.uncertaintyWithheldReason,"design_based_contrast_variance_not_validated");
   assert.equal(result.metadata.preregistered,false);
 });
@@ -53,6 +53,21 @@ test("subgroups with fewer than 30 valid answers are suppressed without leaking 
   assert.equal(result.metadata.groupAShare,null);
   assert.equal(result.metadata.groupBShare,null);
   assert.equal(result.metadata.groupAN,null);
+});
+
+test("non-zero outcome cells smaller than five are withheld despite adequate group bases",() => {
+  const records=[
+    ...Array.from({length:30},(_,i)=>({finalWeight:1,answers:{
+      Q21:{operating_costs:"increased",profitability:i<3?"decreased":"stable"}
+    }})),
+    ...Array.from({length:30},(_,i)=>({finalWeight:1,answers:{
+      Q21:{operating_costs:"stable",profitability:i<20?"decreased":"stable"}
+    }}))
+  ];
+  const result=computeResearchPublicRelations(records).find(x=>x.id==="costs-and-profit")!;
+  assert.equal(result.suppressed,true);
+  assert.equal(result.metadata.groupAShare,null);
+  assert.equal(result.metadata.groupAPositiveN,null);
 });
 
 test("explicit unknown, refusal and missing outcome are never coded as negative",() => {
