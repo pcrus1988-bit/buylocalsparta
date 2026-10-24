@@ -461,3 +461,15 @@ test('captured approvals are not represented as uncaptured acquisition candidate
   assert.equal(q.metadata_eligible_uncaptured_approval_count,0);
   assert.equal(q.entries[0].uncaptured_acquisition_metadata_eligible,false);
 });
+
+test('uncaptured local or internal sources cannot enter acquisition queue',()=>{
+  for (const url of ['https://localhost/nail','https://127.0.0.1/nail',
+    'https://[::1]/nail','https://collector.internal/nail']) {
+    const x=make();x.snapshots=[];x.sources[0].canonical_url=url;
+    assert.throws(()=>buildRightsReviewQueue(x),/invalid_source_canonical_url/);
+  }
+});
+test('private-network policy URLs are held for independent review',()=>{
+  const x=make();x.approvals[0].rights_policy_url='https://127.0.0.1/rights';
+  assert.ok(buildRightsReviewQueue(x).entries[0].blockers.includes('missing_or_invalid_policy_url'));
+});
