@@ -4,6 +4,7 @@ import Link from "next/link";
 import { SiteFooter } from "../../../../components/SiteFooter";
 import styles from "../../../../components/ResearchSurveyPage.module.css";
 import previewStyles from "./ResultsPreview.module.css";
+import { ResearchResultsChapters } from "./ResultsChapters";
 import { getPublishedGreekRetailResults } from "../../../../lib/research-survey-release";
 import { governedStaticSeoMetadata } from "../../../../lib/seo-metadata";
 
@@ -104,12 +105,12 @@ export default async function GreekRetailResultsPage() {
           <h2 id="preview-contents">Τι θα περιλαμβάνουν τα αποτελέσματα</h2>
           <p>Η παρουσίαση σχεδιάζεται ώστε να συνδέει τα συνολικά ευρήματα με την καθημερινή εμπειρία των μικρών και μεσαίων επιχειρήσεων.</p>
           <div className={previewStyles.topics}>
-            <article className={previewStyles.topic}><strong>Κόστος και οικονομικές πιέσεις</strong><p>Λειτουργικά έξοδα, φορολογικές και άλλες οικονομικές επιβαρύνσεις, ρευστότητα και βιωσιμότητα.</p></article>
-            <article className={previewStyles.topic}><strong>Ψηφιακή ωριμότητα</strong><p>Ηλεκτρονικό εμπόριο, ψηφιακά εργαλεία, εμπόδια και ανάγκες υποστήριξης.</p></article>
-            <article className={previewStyles.topic}><strong>Τοπική αγορά και πελάτες</strong><p>Σχέση με την τοπική κοινωνία, αλλαγές στην κατανάλωση και συνθήκες ανταγωνισμού.</p></article>
-            <article className={previewStyles.topic}><strong>Εργασία και μέλλον</strong><p>Ανάγκες προσωπικού, προσδοκίες, προκλήσεις και προτάσεις των επιχειρήσεων.</p></article>
-            <article className={previewStyles.topic}><strong>Περιοχές, κλάδοι και μέγεθος</strong><p>Συγκρίσεις ανά γεωγραφική ενότητα, κλάδο/ΚΑΔ και χαρακτηριστικά επιχείρησης, όπου το δείγμα το επιτρέπει.</p></article>
-            <article className={previewStyles.topic}><strong>Διαδραστικά γραφήματα και χάρτες</strong><p>Οπτικοποιήσεις με σαφή μεγέθη δείγματος, μεθοδολογία και προστασία από την αναγνώριση συμμετεχόντων.</p></article>
+            <article className={previewStyles.topic}><strong>01 · Οικονομικές πιέσεις και βιωσιμότητα</strong><p>Κερδοφορία, κόστος, ρευστότητα και οικονομικές πιέσεις σε διαφορετικά μεγέθη επιχειρήσεων.</p></article>
+            <article className={previewStyles.topic}><strong>02 · Ψηφιακή ετοιμότητα</strong><p>Συστήματα, e-shop, ηλεκτρονικές πωλήσεις και σχέση με την επιχειρηματική προοπτική.</p></article>
+            <article className={previewStyles.topic}><strong>03 · Πελάτες και τοπική αγορά</strong><p>Εύρεση πελατών, τοπική εξάρτηση και αυτοαναφερόμενη επίδραση της online παρουσίας.</p></article>
+            <article className={previewStyles.topic}><strong>04 · Λειτουργικές δυσκολίες</strong><p>Απόθεμα, διαχείριση προϊόντων, διοικητικές διαδικασίες και εμπόδια ανάπτυξης.</p></article>
+            <article className={previewStyles.topic}><strong>05 · Εμπιστοσύνη, επενδύσεις και ανάπτυξη</strong><p>Προσδοκίες πωλήσεων, επενδυτικά σχέδια και δυνατότητα χρηματοδότησης.</p></article>
+            <article className={previewStyles.topic}><strong>06 · Ανισότητες ανά περιοχή, κλάδο και μέγεθος</strong><p>Συγκρίσεις και διασταυρώσεις με τεκμηριωμένη επάρκεια δείγματος και δήλωση αβεβαιότητας.</p></article>
           </div>
           <p className={previewStyles.note}>Οι τελικές ενότητες και αναλύσεις εξαρτώνται από την ποιότητα και την επάρκεια των πραγματικών απαντήσεων. Δεν προδικάζουμε ευρήματα ή διαφορές μεταξύ ομάδων.</p>
         </section>
@@ -150,9 +151,16 @@ export default async function GreekRetailResultsPage() {
   }
 
   const visible = published.estimates.filter((estimate) => !estimate.suppressed && estimate.estimate != null);
-  const overall = visible.filter((estimate) => Object.keys(estimate.segment).length === 0);
-  const region = visible.filter((estimate) => typeof estimate.segment.regionCode === "string");
-  const sector = visible.filter((estimate) => typeof estimate.segment.sectorCode === "string");
+  const primaryKeys = new Set(["digital_readiness.mean","retail_friction.mean","retail_confidence.mean"]);
+  const overall = visible.filter((estimate) =>
+    Object.keys(estimate.segment).length === 0 && primaryKeys.has(estimate.metricKey)
+  );
+  const region = visible.filter((estimate) =>
+    typeof estimate.segment.regionCode === "string" && primaryKeys.has(estimate.metricKey)
+  );
+  const sector = visible.filter((estimate) =>
+    typeof estimate.segment.sectorCode === "string" && primaryKeys.has(estimate.metricKey)
+  );
 
   return <main className={styles.shell}>
     <ResearchPublicNavigation active="results" studySlug="greek-retail-2026" />
@@ -160,7 +168,7 @@ export default async function GreekRetailResultsPage() {
       <div className={styles.brand}>KONTA MOY · ΑΠΟΤΕΛΕΣΜΑΤΑ ΕΡΕΥΝΑΣ</div>
       <span>Ελληνικό Λιανεμπόριο 2026</span>
       <h1>Αποτελέσματα</h1>
-      <p>Τα αποτελέσματα παρουσιάζονται μαζί με το μέγεθος του δείγματος και, όπου είναι διαθέσιμο, το 95% διάστημα εμπιστοσύνης.</p>
+      <p>Τα αποτελέσματα οργανώνονται σε έξι επιστημονικές ενότητες, με αριθμητικά ευρήματα, συγκρίσεις ομάδων και σαφή δήλωση αβεβαιότητας.</p>
       <div className={styles.meta}>
         <Link href="/research/greek-retail-2026">← Επισκόπηση μελέτης</Link>
         <Link href="/research/greek-retail-2026/methodology">Πώς έγινε η μελέτη</Link>
@@ -176,7 +184,7 @@ export default async function GreekRetailResultsPage() {
 
     <section className={styles.invalid}>
       <div className={styles.brand}>Κύρια αποτελέσματα</div>
-      <h2>Βασικοί δείκτες</h2>
+      <h2>Οι τρεις κεντρικοί δείκτες</h2>
       {overall.length === 0
         ? <p>Δεν υπάρχουν διαθέσιμα κύρια αποτελέσματα.</p>
         : <div style={{ display: "grid", gap: 18 }}>
@@ -194,6 +202,8 @@ export default async function GreekRetailResultsPage() {
           </article>)}
         </div>}
     </section>
+
+    <ResearchResultsChapters estimates={published.estimates} />
 
     {region.length > 0 && <section className={styles.invalid}>
       <div className={styles.brand}>Ανά περιοχή</div>
