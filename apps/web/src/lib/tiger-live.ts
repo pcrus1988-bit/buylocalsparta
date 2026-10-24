@@ -136,6 +136,12 @@ function snapshotFromSources(state:RawState,transitions:RawEvent[],runs:unknown,
   const recent=workflowRuns.slice(0,35) as {id?:number;status?:string;conclusion?:string;created_at?:string;updated_at?:string;html_url?:string;name?:string}[];
   view.ciHealth=recent[0]?.status==="in_progress"||recent[0]?.status==="queued"?"running":
     recent[0]?.conclusion==="success"?"passing":recent[0]?.conclusion==="failure"?"failing":"unknown";
+  view.achievements=recent
+    .filter(r=>r.status==="completed"&&r.conclusion==="success"&&
+      r.name==="TIGER isolated contract and legacy reuse verification"&&
+      Number.isSafeInteger(r.id)&&githubEvidence(r.html_url))
+    .slice(0,5)
+    .map(r=>({id:"validated-ci:"+r.id,title:"TIGER isolated contract verification passed",evidenceUrl:githubEvidence(r.html_url)!}));
   const ciEvents:TigerLiveEvent[]=recent.flatMap(r=>{
     const url=githubEvidence(r.html_url), occurredAt=dateOf(r.updated_at||r.created_at);
     if(!url||!occurredAt||!Number.isSafeInteger(r.id))return [];

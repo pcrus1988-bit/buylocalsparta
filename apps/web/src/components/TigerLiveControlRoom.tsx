@@ -77,7 +77,7 @@ export function TigerLiveControlRoom({initial}:{initial:TigerSnapshot}){
     const now=Date.now();
     const result=new Map<string,TigerLiveEvent>();
     for(const event of snapshot.events){
-      if((event.eventType!=="agent.message"&&event.eventType!=="agent.handoff")||
+      if(!["agent.message","agent.handoff","task.claimed","task.running","task.tested","task.reviewed","task.submitted","task.failed"].includes(event.eventType)||
         !event.agentId||result.has(event.agentId)||Math.abs(now-Date.parse(event.occurredAt))>18000)continue;
       result.set(event.agentId,event);
     }
@@ -161,7 +161,7 @@ export function TigerLiveControlRoom({initial}:{initial:TigerSnapshot}){
                 {index===0&&<span className="tiger-station-spark" aria-hidden="true"/>}
               </button>;
             })}
-            {canAnimate&&snapshot.events.filter(e=>e.eventType==="agent.handoff"&&e.agentId&&e.relatedAgentId&&Math.abs(Date.now()-Date.parse(e.occurredAt))<18000).slice(0,1).map(e=><button className="tiger-handoff-packet" key={e.id} onClick={()=>setInspect({kind:"event",data:e})}>↗ {e.agentId} → {e.relatedAgentId}</button>)}
+            {canAnimate&&snapshot.events.filter(e=>["agent.handoff","task.claimed"].includes(e.eventType)&&e.agentId&&Math.abs(Date.now()-Date.parse(e.occurredAt))<18000).slice(0,1).map(e=><button className="tiger-handoff-packet" key={e.id} onClick={()=>setInspect({kind:"event",data:e})}>↗ {e.eventType==="task.claimed"?"Task claimed by "+e.agentId:e.agentId+" → "+e.relatedAgentId}</button>)}
             <button className={"tiger-world-wall tiger-issue-wall "+(snapshot.issues.some(i=>i.severity==="critical")?"alert":"")} onClick={()=>issues[0]&&setInspect({kind:"issue",data:issues[0]})}>
               <span>ISSUE WALL</span><b>{snapshot.issues.length}</b><small>Recorded blockers & failures</small>
             </button>
