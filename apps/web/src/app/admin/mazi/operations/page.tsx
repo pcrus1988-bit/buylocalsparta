@@ -134,6 +134,7 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
     <div style={{minWidth:235}}>
      <p className={s.meta}>Οικονομική δικλίδα: {assessment.financeLocked?"κλειδωμένη":"ΑΠΟΚΛΙΣΗ"}</p>
      <p className={s.meta}>Συμφωνία αποδοχών: {assessment.invitationAuditCoherent?"ναι":"ΑΝΑΝΤΙΣΤΟΙΧΙΑ"}</p>
+     <p className={s.meta}>Πραγματική επαληθευμένη ένταξη: {assessment.realBusinessAdmissionObserved?"παρατηρήθηκε":"ΔΕΝ ΠΑΡΑΤΗΡΗΘΗΚΕ"}</p>
      <p className={s.meta}>Εκκρεμότητες εντάξεων: {assessment.admissionExceptions}</p>
      <p className={s.meta}><strong>Δημοσίευση παραγωγής: απαιτεί ξεχωριστή έγκριση</strong></p>
     </div>
