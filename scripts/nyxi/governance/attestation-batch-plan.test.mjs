@@ -120,3 +120,44 @@ test('same source can have distinct approved assets with distinct approval UUIDs
   b.snapshot.provenance.asset_approval_id=b.approval.id;
   assert.equal(plan([a,b]).length,2);
 });
+
+
+const sameApprovalTwoCaptures = () => {
+  const a=make('a','e'), b=make('a','f');
+  b.snapshot.id=uuid('d');
+  return [a,b];
+};
+test('same approval UUID cannot silently change retention deadline',()=>{
+  const [a,b]=sameApprovalTwoCaptures();
+  a.approval.retention_until='2026-11-01T00:00:00Z';
+  b.approval.retention_until='2026-11-02T00:00:00Z';
+  assert.throws(()=>plan([a,b]),/conflicting_approval_identity/);
+});
+test('same approval UUID cannot silently change policy URL',()=>{
+  const [a,b]=sameApprovalTwoCaptures();
+  a.approval.rights_policy_url='https://authority.gov/rights-v1';
+  b.approval.rights_policy_url='https://authority.gov/rights-v2';
+  assert.throws(()=>plan([a,b]),/conflicting_approval_identity/);
+});
+test('same approval UUID cannot silently substitute documentary rights hash',()=>{
+  const [a,b]=sameApprovalTwoCaptures();
+  a.approval.metadata={rights_policy_sha256:sha('1')};
+  b.approval.metadata={rights_policy_sha256:sha('2')};
+  assert.throws(()=>plan([a,b]),/conflicting_approval_identity/);
+});
+test('same approval UUID cannot silently expand mirroring scope',()=>{
+  const [a,b]=sameApprovalTwoCaptures();
+  a.approval.mirror_authorized=false;
+  b.approval.mirror_authorized=true;
+  assert.throws(()=>plan([a,b]),/conflicting_approval_identity/);
+});
+test('identical rights and retention scope allows separate snapshots under one approval',()=>{
+  const [a,b]=sameApprovalTwoCaptures();
+  for(const row of [a,b]){
+    row.approval.retention_until='2026-11-01T00:00:00Z';
+    row.approval.rights_policy_url='https://authority.gov/rights-v1';
+    row.approval.metadata={rights_policy_sha256:sha('1')};
+    row.approval.mirror_authorized=false;
+  }
+  assert.equal(plan([a,b]).length,2);
+});
