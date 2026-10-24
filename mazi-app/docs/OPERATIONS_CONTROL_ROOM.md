@@ -23,6 +23,35 @@ Each record has the gate name, `verified` or `reopened`, human-written evidence 
 
 **These manual reviews are a record of human claims, not an independent test of SMTP, legal compliance, payment readiness or production deployment authorization.** Updating them never merges code, changes Vercel settings, enables billing or gives members voting rights. Each review can be superseded by a later append-only `reopened` entry.
 
+## Live launch-readiness assessment and evidence history
+
+The Super Admin control page presents a *diagnostic*, not a publish button.
+It derives prerequisites from real aggregate database rows and the latest
+immutable review for each of the three required gates. A `reopened` review
+supersedes an earlier `verified` record even when earlier records are kept.
+The chronological view displays up to 30 historic attestations and their
+text evidence **only** to the already authorized Super Admin.
+
+A release cannot be flagged `prerequisitesRecorded` unless:
+- The zero-funded founding cycle and all financial locks remain intact (no
+  live fund ledger entries, award offers or activated financing cycles).
+- Consumed individual invitations and their immutable acceptances agree.
+- No stale ΓΕΜΗ, unresolved delivery, failed delivery or expired unused
+  invitation remains in the monitored queues.
+- All three latest release-gate decisions are `verified`.
+- At least one verified real member and a recorded, consumed invitation
+  acceptance exist. Additionally, the `consenting_business_e2e` decision
+  itself is **blocked server-side** until a real approved membership
+  application, verified legal entity, immutable invitation acceptance and
+  corresponding consumed invitation can be joined in the production
+  database. An empty MAZI system cannot satisfy this gate.
+
+Even when these conditions all hold, `manualReleaseStillRequired=true`
+remains unconditional. The analysis never sends invitations, merges code,
+enables subscription charging, activates grant allocation or deploys
+the public domain. The manual release requires a separate explicit
+production approval.
+
 ## Release sequence and validation
 
 1. **Done (24 October 2026):** migration `018_superadmin_release_gate_reviews.sql` was applied to the existing shared MAZI Supabase database `eemihhfreggbigxejjhj`. Do not reapply it or apply it to another project.
