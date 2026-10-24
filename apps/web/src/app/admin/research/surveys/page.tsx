@@ -6,6 +6,7 @@ import { WorkspaceEmptyState, WorkspaceSectionHeading, WorkspaceStatusBadge } fr
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { researchSurveyAdminIndexOverview } from "../../../../lib/research-survey-runtime";
+import { canViewPrivateResearchExperiment } from "../../../../lib/research-experiment-admin";
 import { formatResearchAthensDateTime } from "../../../../lib/research-survey-timestamps.ts";
 
 export const metadata: Metadata = {
@@ -83,6 +84,7 @@ export default async function ResearchSurveysAdminPage() {
                     <Link prefetch={false} className="button button-secondary" href={root + "/questions"}>Questions</Link>
                     <Link prefetch={false} className="button button-secondary" href={root + "/evaluation"}>Evaluation</Link>
                     <Link prefetch={false} className="button" href={root + "/behaviour"}>Participant Behaviour Analytics · New</Link>
+                    {study.slug === "greek-retail-2026" && canViewPrivateResearchExperiment(principal) && <Link prefetch={false} className="button button-secondary" href={root + "/marketplace-experiment"}>Private EXP01 · Choice analytics</Link>}
                   </div>
                 </article>;
               })}
