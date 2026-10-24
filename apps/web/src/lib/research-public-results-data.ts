@@ -11,6 +11,22 @@ export type SafePublicResultPoint = Readonly<{
  segment: Readonly<Record<string,string>>; n:number;
  ciLower:number|null; ciUpper:number|null;
 }>;
+/** Restricted Preview only: non-public descriptive QA coverage by county.
+ * Values below n=10 are never transmitted. Full postcode stays on server.
+ */
+export type InternalResearchGeographicCoverage = Readonly<{
+  includedTotal: number;
+  prefectures: readonly Readonly<{
+    key:string;
+    band:"none"|"under10"|"10to29"|"30plus";
+    eligibleN:number|null;
+  }>[];
+  regions: readonly Readonly<{
+    key:string;
+    band:"none"|"under10"|"10to29"|"30plus";
+    eligibleN:number|null;
+  }>[];
+}>;
 export type SafeParticipationGeography = Readonly<{
  nationalStarted?:number;
  regions: readonly Readonly<{key:string;label:string;started:number}>[];
