@@ -3,6 +3,14 @@
 **Candidate:** PR #1760, SQL migrations 016–017. Draft marketplace and MAZI website code is not production-active merely because it is committed.
 The existing founding needs-assessment round stays zero-funded. Membership invoicing, fund custody, marketing credits, award payout and automatic voting eligibility remain disabled.
 
+## Development status — 24 October 2026
+- **MAZI Edge gateway v9 ACTIVE:** lightweight authenticated `admission_status` now available, with the same JWT validation and legacy open-apply rejection.
+- **Private schema:** migrations 016 (invitations), 017 (45-minute cap), and 018 (append-only Super Admin launch-gate review) applied to shared Supabase project `eemihhfreggbigxejjhj`. Migration 018 has RLS enabled, no direct anon/authenticated/service_role table grants, an immutability trigger and zero review records.
+- **Source-only admin:** implemented live `/admin/mazi/operations` read-only aggregate dashboard plus optional, authorized human sign-off/reopening of email, legal, and consenting-business tests. The latest protected marketplace preview built READY at `https://buylocalsparta-p7bvvvqgj-sp-business-lab.vercel.app/admin/mazi/operations`.
+- **MAZI-specific CI:** passed; full Production CI of the newest candidate must be checked independently before merge.
+- **No business or funding activation:** zero live MAZI interest applications, invitations, verified members, fund ledger entries and award offers. All these processes remain genuinely inactive until launch gates are cleared and the PR is deliberately merged.
+- Detailed operational implementation: `mazi-app/docs/OPERATIONS_CONTROL_ROOM.md`.
+
 ## Live activation record — 23 October 2026
 - **LIVE:** SQL 016 invitation/acceptance model and 017 hard 45-minute invitation-expiry cap applied to shared Supabase project `eemihhfreggbigxejjhj`; confirmed RLS blocks direct anon/authenticated access.
 - **LIVE:** `mazi-member-api` Edge gateway v8; JWT validated using Supabase Auth `getUser` before nonpublic operations, open `apply` returns 403.
@@ -24,7 +32,7 @@ The existing founding needs-assessment round stays zero-funded. Membership invoi
 - Run CI `MAZI Invite-only Admission Acceptance` to completion, including npm tests, Next typecheck and build. Run the marketplace build on the same commit.
 - Legal review of terms, GDPR notices, controller role, retention and funding structure before any external onboarding campaign.
 - Both migrations 016 and 017 are already applied: in Supabase `eemihhfreggbigxejjhj`, verify their migration history and schema, without reapplying them. Verify the two tables, RLS, no direct anon/authenticated grants, and RPC EXECUTE restricted to service_role. Do not alter existing membership or grants.
-- The matched `mazi-member-api` v8 is deployed; deploy current source containing minimal `admission_status` only after CI. It must continue to reject unauthenticated calls and open `apply`. Verify its new `invitation_state` and `accept_invitation` operations and that legacy `apply` returns 403.
+- The matched `mazi-member-api` v9 is deployed and read-back verified. Verify its `admission_status`/invitation operations and JWT check before release. It must continue to reject unauthenticated calls and open `apply`. Verify its new `invitation_state` and `accept_invitation` operations and that legacy `apply` returns 403.
 - Verify marketplace server's `SUPABASE_URL` resolves to exactly `https://eemihhfreggbigxejjhj.supabase.co` and its server-only `SUPABASE_SERVICE_ROLE_KEY` belongs to that project. Optional dedicated `MAZI_SUPABASE_URL`/`MAZI_SUPABASE_SERVICE_ROLE_KEY` may override. Never expose admin keys via `NEXT_PUBLIC_`.
 - Confirm the actual Auth Email OTP Expiration is **at least 45 minutes** (default is one hour) and the MAZI invitation's server-issued 45-minute database cap is respected. Never claim longer validity than Auth.
 - Confirm BOTH Auth templates (new-user Invite and existing-account Magic Link / OTP) produce a usable link to MAZI, and are configured for custom SMTP. Numeric-only OTP templates require a separate code-entry UI and must not be used for the current flow.
