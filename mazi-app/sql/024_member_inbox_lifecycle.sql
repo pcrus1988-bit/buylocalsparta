@@ -11,16 +11,12 @@ alter table public.mazi_listing_inquiries
 -- Backfill on the actual data, never seed synthetic conversations.
 update public.mazi_listing_inquiries i
 set last_message_at=latest.created_at,last_message_user_id=latest.member_user_id
-from lateral (
- select inquiry_id,created_at,member_user_id
+from (
+ select distinct on (inquiry_id) inquiry_id,created_at,member_user_id
  from public.mazi_inquiry_messages
- order by created_at desc,id desc
+ order by inquiry_id,created_at desc,id desc
 ) latest
-where latest.inquiry_id=i.id and not exists (
- select 1 from public.mazi_inquiry_messages newer
- where newer.inquiry_id=i.id and
-  (newer.created_at,newer.id)>(latest.created_at,latest.inquiry_id)
-) and i.last_message_at is null;
+where latest.inquiry_id=i.id and i.last_message_at is null;
 
 -- An append is permitted only in an open conversation by an approved KYB member.
 -- The parent row is locked so closing and replying cannot race.
