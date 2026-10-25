@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { S3ObjectStorage, type StoredObjectListItem } from "@buy-local-sparta/object-storage";
-import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { adminMailThreadKey, buildAdminMailRawMime, htmlToText, parseAdminMailMime, type AdminMailAddress, type ParsedAdminMail } from "./admin-mail-mime";
 import { renderAdminMailHtml, type AdminMailFormat } from "./admin-mail-template";
 import { sendRawSesEmail, sesMailConfigFromEnv, type SesMailConfig } from "./admin-mail-ses";
@@ -145,7 +145,7 @@ export function adminMailConfiguration(env: NodeJS.ProcessEnv = process.env): Re
 export async function syncAdminInboundMail(input: { maxNew?: number } = {}): Promise<{ indexed: number; scanned: number; failed: number }> {
   const config = resolveMailConfig();
   const storage = inboundStorage(config);
-  const pool = getProductionPostgresRuntime().sqlPool;
+  const pool = getAdminPostgresRuntime().sqlPool;
   const maxNew = Math.max(1, Math.min(100, Math.floor(input.maxNew ?? MAX_SYNC_NEW)));
   const scope = `${config.bucket}:${config.prefix || "/"}`;
   const cursor = await pool.query<{ continuation_token: string | null }>(
@@ -276,7 +276,7 @@ export async function adminMailWorkspace(
     };
   }
 
-  const pool = getProductionPostgresRuntime().sqlPool;
+  const pool = getAdminPostgresRuntime().sqlPool;
   const mailboxPredicate = mailbox === "all" ? "" : adminMailMailboxPredicate(2);
   const mailboxParams: unknown[] = mailbox === "all" ? [principal.userId] : [principal.userId, mailbox];
   const metricsResult = await pool.query<SqlRow>(`
@@ -354,16 +354,12 @@ export async function adminMailWorkspace(
     OFFSET $${offsetParam}
   `, listParams);
 
-  let messages = list.rows.map(projectSummary);
+  const messages = list.rows.map(projectSummary);
   const selectedId = input.selectedId && messages.some((message) => message.id === input.selectedId)
     ? input.selectedId
     : messages[0]?.id;
-  const selectedSummary = messages.find((message) => message.id === selectedId);
-  const selectedUnread = Boolean(selectedSummary && selectedSummary.direction === "incoming" && !selectedSummary.isRead);
-  if (selectedSummary && selectedUnread) {
-    await markAdminMailRead(principal, selectedSummary.id, true);
-    messages = messages.map((message) => message.id === selectedSummary.id ? { ...message, isRead: true } : message);
-  }
+  // A GET that previews mail must never silently mutate read state.
+  // The UI's CSRF-protected read/unread actions handle explicit changes.
   let thread: readonly AdminMailThreadMessage[] = [];
   if (selectedId) {
     const selected = await pool.query<{ thread_key: string }>("SELECT thread_key FROM admin_mail_messages WHERE public_id=$1 LIMIT 1", [selectedId]);
@@ -406,7 +402,7 @@ export async function adminMailWorkspace(
     },
     metrics: {
       inbox: Number(metric.inbox || 0),
-      unread: Math.max(0, Number(metric.unread || 0) - (selectedUnread && !selectedSummary?.archived && !selectedSummary?.deleted ? 1 : 0)),
+      unread: Number(metric.unread || 0),
       sent: Number(metric.sent || 0),
       starred: Number(metric.starred || 0),
       archived: Number(metric.archived || 0),
@@ -459,7 +455,7 @@ export async function getAdminMailAttachment(
 ): Promise<{ filename: string; contentType: string; bytes: Uint8Array }> {
   void principal;
   if (!Number.isSafeInteger(attachmentIndex) || attachmentIndex < 0 || attachmentIndex > 100) throw new Error("Invalid attachment index");
-  const pool = getProductionPostgresRuntime().sqlPool;
+  const pool = getAdminPostgresRuntime().sqlPool;
   const result = await pool.query<{ direction: string; s3_object_key: string | null; virus_verdict: string | null }>(
     "SELECT direction,s3_object_key,virus_verdict FROM admin_mail_messages WHERE public_id=$1 LIMIT 1",
     [publicId]
@@ -512,7 +508,7 @@ export async function sendAdminMail(
   const html = renderAdminMailHtml({ format, text, html: input.html, locale: input.locale });
 
   const attachments = await normalizeOutgoingAttachments(input.attachments || []);
-  const pool = getProductionPostgresRuntime().sqlPool;
+  const pool = getAdminPostgresRuntime().sqlPool;
   let inReplyTo: string | undefined;
   let references: readonly string[] = [];
   let threadKey: string | undefined;
@@ -693,7 +689,7 @@ async function persistInbound(parsed: ParsedAdminMail, object: StoredObjectListI
   const spamVerdict = parsed.headers["x-ses-spam-verdict"]?.trim() || undefined;
   const virusVerdict = parsed.headers["x-ses-virus-verdict"]?.trim() || undefined;
   const bodyText = parsed.text?.trim() || "(No readable text body.)";
-  await getProductionPostgresRuntime().sqlPool.query(`
+  await getAdminPostgresRuntime().sqlPool.query(`
     INSERT INTO admin_mail_messages (
       public_id,direction,provider,transport_key,s3_object_key,rfc_message_id,in_reply_to,reference_ids,thread_key,
       from_address,to_addresses,cc_addresses,bcc_addresses,reply_to,subject,preview,body_text,has_attachments,attachment_count,attachments,
@@ -743,7 +739,7 @@ async function upsertStateMany(
 ): Promise<void> {
   const ids = [...new Set(publicIds)].slice(0, 120);
   if (!ids.length) return;
-  const pool = getProductionPostgresRuntime().sqlPool;
+  const pool = getAdminPostgresRuntime().sqlPool;
   const result = await pool.query(`
     INSERT INTO admin_mail_state (message_id,user_public_id,is_read,is_starred,archived_at,deleted_at,updated_at)
     SELECT m.id,
