@@ -171,7 +171,10 @@ const specs=new Map([
   ["παξιμαδι",["kg",/παξιμαδ|rusk/u]],
   ["σπαγγετινι",["kg",/σπαγγετιν|spaghettini/u]],
   ["νυφαδες καλαμποκιου",["kg",/νιφαδ.*καλαμποκ|καλαμποκ.*νιφαδ|corn flakes/u]],
-  ["φυσικο μεταλλικο νερο",["l",/φυσικ.*μεταλλικ.*νερ|νερ.*φυσικ.*μεταλλικ|natural mineral water/u]],
+  // The public source category includes a separately labelled "Επιτραπέζιο"
+  // water family. Accept that exact family without equating it to mineral,
+  // sparkling, flavoured or other bottled-water preparations.
+  ["φυσικο μεταλλικο νερο",["l",/φυσικ.*μεταλλικ.*νερ|νερ.*φυσικ.*μεταλλικ|natural mineral water|(?=.*νερο)(?=.*επιτραπεζιο)/u]],
   ["πατατακια",["kg",/πατατακ|τσιπς|chips?/u]],
   ["μουσταρδα",["kg",/μουσταρδ|mustard/u]],
   ["μαρμελαδα",["kg",/μαρμελαδ|jam/u]],
@@ -300,6 +303,10 @@ function accepted(p){
   // Exact cross-brand family matching is necessary, but not sufficient.
   if(["πουλερικα","πατατες"].includes(category)&&
      /πανε|παναρισ|marinat|μαριναρ|seasoned|καρυκευ|μπαχαρ|spiced|προτηγαν|prefried|pre-fried|προψημεν|breaded|battered|wedge|σφην|sticks|τηγανιτ|προετοιμασμεν/u.test(title))return false;
+  // "Επιτραπέζιο" sits inside the source's broader mineral-water category.
+  // Nothing here approves carbonated, flavoured or vitamin-enriched variants.
+  if(category==="φυσικο μεταλλικο νερο"&&/επιτραπεζιο/u.test(title)&&
+     /ανθρακουχ|μεs+γευση|αρωματ|λεμον|πορτοκαλ|βιταμιν|sparkling|carbonated|flavou|flavor/u.test(title))return false;
   // Dried beans are not ready meals, canned beans or cooked pulses.
   // Source "Φασόλια" contains multiple preparations; matching the type words
   // alone must never override contradictory processing indicators.
