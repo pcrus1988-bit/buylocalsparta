@@ -14,7 +14,7 @@ export default function HomePage() {
         <span className="eyebrow light"><span className="signal"/> Η ΝΕΑ ΣΥΛΛΟΓΙΚΗ ΔΥΝΑΜΗ ΤΩΝ ΜΙΚΡΩΝ</span>
         <h1>Μόνος παλεύεις.<br/><em>Μαζί</em> αλλάζουμε τα πράγματα.</h1>
         <p className="hero-intro">Μια νέα πρωτοβουλία για τις ανεξάρτητες ελληνικές επιχειρήσεις. Ενώνουμε πόρους, ιδέες και ανθρώπους — για να αποκτήσουμε δυνατότητες που μόνοι μας δεν έχουμε.</p>
-        <div className="hero-actions"><Link className="button peach" href="/fund">Γνώρισε το Ταμείο <span aria-hidden="true">↗</span></Link><Link className="text-link white" href="/join">Συνδέσου στο ΜΑΖΙ <span aria-hidden="true">↗</span></Link></div>
+        <div className="hero-actions"><Link className="button peach" href="/fund">Γνώρισε το Ταμείο <span aria-hidden="true">↗</span></Link><Link className="text-link white" href="/interest">Εκδήλωσε ενδιαφέρον <span aria-hidden="true">↗</span></Link></div>
         <p className="hero-note">Δεχόμαστε πραγματικές αιτήσεις ενδιαφέροντος. Δεν υπάρχουν ακόμη συνδρομές, δεσμεύσεις ή χρηματοδοτήσεις.</p>
       </div>
       <div className="hero-art" aria-label="Αφηρημένη σύνθεση συμβολίζει τις ανεξάρτητες επιχειρήσεις που ενώνονται" role="img">
@@ -44,10 +44,10 @@ export default function HomePage() {
         <span className="proposal-quote">Πρώτα γνωριζόμαστε. Έπειτα οργανώνουμε συλλογικά τις ανάγκες μας.</span>
         <p>Η ιδρυτική διαδικασία δέχεται πραγματικές αιτήσεις ενδιαφέροντος. Μετά τον έλεγχο της επιχείρησης και του ΓΕΜΗ, μπορείς να συμμετέχεις στους κύκλους που είναι ανοιχτοί για υποβολές. Σήμερα δεν υπάρχει ενεργή χρηματοδότηση.</p>
         <div className="proposal-bottom"><span className="round-star">✳</span><p>Χωρίς κληρώσεις.<br/>Χωρίς εικονικά κεφάλαια.<br/>Με πραγματική λογοδοσία.</p></div>
-        <Link className="button dark" href="/join">Κάνε αίτηση ενδιαφέροντος ↗</Link>
+        <Link className="button dark" href="/interest">Κάνε αίτηση ενδιαφέροντος ↗</Link>
       </div>
     </section>
     <section className="section quote-section"><div className="shell quote-grid"><span className="quote-mark">“</span><div><blockquote>Όταν η επιχείρηση του διπλανού μας γίνεται πιο δυνατή, μια ολόκληρη τοπική οικονομία μπορεί να προχωρήσει.</blockquote><span className="eyebrow light">Η ΦΙΛΟΣΟΦΙΑ ΤΟΥ ΜΑΖΙ</span></div></div></section>
-    <section className="section shell closer"><span className="eyebrow">04 / ΞΕΚΙΝΑΜΕ ΑΠΟ ΤΙΣ ΑΡΧΕΣ</span><h2>Δεν ζητάμε απλώς να μας εμπιστευτείς. <em>Θέλουμε να χτίσουμε τους λόγους.</em></h2><p>Ισότιμη ψήφος, ελεγμένες προτάσεις, σαφείς κανόνες, ανεξάρτητη διαχείριση. Πριν διαχειριστούμε οποιοδήποτε κοινό ποσό, θέτουμε τις δικλίδες που θα το προστατεύουν.</p><div className="closer-actions"><Link href="/charter" className="button dark">Διάβασε τις αρχές <span aria-hidden="true">↗</span></Link><Link href="/join" className="text-link">Σύνδεση επιχείρησης →</Link></div></section>
+    <section className="section shell closer"><span className="eyebrow">04 / ΞΕΚΙΝΑΜΕ ΑΠΟ ΤΙΣ ΑΡΧΕΣ</span><h2>Δεν ζητάμε απλώς να μας εμπιστευτείς. <em>Θέλουμε να χτίσουμε τους λόγους.</em></h2><p>Ισότιμη ψήφος, ελεγμένες προτάσεις, σαφείς κανόνες, ανεξάρτητη διαχείριση. Πριν διαχειριστούμε οποιοδήποτε κοινό ποσό, θέτουμε τις δικλίδες που θα το προστατεύουν.</p><div className="closer-actions"><Link href="/charter" className="button dark">Διάβασε τις αρχές <span aria-hidden="true">↗</span></Link><Link href="/interest" className="text-link">Εκδήλωση ενδιαφέροντος →</Link></div></section>
   </main>;
 }

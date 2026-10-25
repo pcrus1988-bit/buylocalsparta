@@ -38,7 +38,7 @@ export async function GET(request: Request) {
   if (code && !hash) {
     const { error } = await db.auth.exchangeCodeForSession(code);
     verified = !error;
-  } else if (hash && (type === "email" || type === "magiclink") && !code) {
+  } else if (hash && (type === "email" || type === "magiclink" || type === "invite") && !code) {
     const { error } = await db.auth.verifyOtp({ token_hash: hash, type });
     verified = !error;
   }

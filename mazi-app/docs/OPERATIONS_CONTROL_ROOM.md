@@ -1,0 +1,63 @@
+# MAZI — Super Admin operational control and accountable release reviews
+
+Location after the marketplace PR is deployed:
+- `/admin/mazi/operations` (reads private live data; only the existing KONTA MOY Super Admin)
+- Linked from `/admin/mazi` and `/admin/mazi/interest`
+
+## Live operational facts (never mocks)
+
+- Anonymous and member visitors cannot load the operational report. It verifies both the logged-in marketplace Super Admin role and its still-active persisted database role.
+- The report reads **aggregate counts only**, no AFM, email, representative names, Auth tokens or private review notes.
+- It reports: interest queue, approved prospects whose ΓΕΜΗ checks are over 7 days old; invitation lifecycle, pending delivery older than 10 minutes, provider delivery failure and expired unused links; consumed/acceptance integrity; accepted members and verified identities, voting rights, proposals/ballots; audit-event totals.
+- Financial safety explicitly checks the real founding needs-assessment cycle, all nonzero/finance-enabled cycles, fund ledger entries and grant-award offers. If any financial data appears unexpectedly, the page displays an alert, not a fictional €0 guarantee.
+- It fails closed if database access or role verification fails, never displaying cached or invented values.
+
+## Manual, immutable release reviews (migration 018)
+
+The append-only private table `public.mazi_launch_gate_reviews` records:
+- `auth_email_delivery`: actual project-specific Auth OTP expiry, email templates, SMTP and callback URL.
+- `legal_and_retention`: genuine counsel/legal approval, versioned privacy/terms and published data-retention policy.
+- `consenting_business_e2e`: a real business's consent-based AFM → ΓΕΜΗ → representative and email verification → individual invite → explicit nonfinancial acceptance.
+
+Each record has the gate name, `verified` or `reopened`, human-written evidence of 40–1200 characters, the persisted actor user ID, and database-recorded timestamp. UPDATE/DELETE is rejected. Only the existing marketplace Super Admin can create records via a CSRF-checked server action; no grant is made to anon, authenticated or service_role roles. Do not include AFM, email addresses, participant PII, tokens, credentials or signed legal documents in the free-text evidence—reference secure internal evidence locations instead.
+
+**These manual reviews are a record of human claims, not an independent test of SMTP, legal compliance, payment readiness or production deployment authorization.** Updating them never merges code, changes Vercel settings, enables billing or gives members voting rights. Each review can be superseded by a later append-only `reopened` entry.
+
+## Live launch-readiness assessment and evidence history
+
+The Super Admin control page presents a *diagnostic*, not a publish button.
+It derives prerequisites from real aggregate database rows and the latest
+immutable review for each of the three required gates. A `reopened` review
+supersedes an earlier `verified` record even when earlier records are kept.
+The chronological view displays up to 30 historic attestations and their
+text evidence **only** to the already authorized Super Admin.
+
+A release cannot be flagged `prerequisitesRecorded` unless:
+- The zero-funded founding cycle and all financial locks remain intact (no
+  live fund ledger entries, award offers or activated financing cycles).
+- Consumed individual invitations and their immutable acceptances agree.
+- No stale ΓΕΜΗ, unresolved delivery, failed delivery or expired unused
+  invitation remains in the monitored queues.
+- All three latest release-gate decisions are `verified`.
+- At least one verified real member and a recorded, consumed invitation
+  acceptance exist. Additionally, the `consenting_business_e2e` decision
+  itself is **blocked server-side** until a real approved membership
+  application, verified legal entity, immutable invitation acceptance and
+  corresponding consumed invitation can be joined in the production
+  database. An empty MAZI system cannot satisfy this gate.
+
+Even when these conditions all hold, `manualReleaseStillRequired=true`
+remains unconditional. The analysis never sends invitations, merges code,
+enables subscription charging, activates grant allocation or deploys
+the public domain. The manual release requires a separate explicit
+production approval.
+
+## Release sequence and validation
+
+1. **Done (24 October 2026):** migration `018_superadmin_release_gate_reviews.sql` was applied to the existing shared MAZI Supabase database `eemihhfreggbigxejjhj`. Do not reapply it or apply it to another project.
+2. **Verified (24 October 2026):** RLS enabled; no table access by anon, authenticated or service_role; append-only trigger present; no membership, invitation, financial ledger or award changes, and zero review records.
+3. **MAZI-specific CI passed.** Marketplace preview built to READY from commit `5be64600`: `https://buylocalsparta-p7bvvvqgj-sp-business-lab.vercel.app/admin/mazi/operations`. Full repository Production CI must be verified separately. Preview is protected by Vercel SSO and requires a real marketplace Super Admin session to display private counts.
+4. Deploy the marketplace frontend only through an approved PR merge/release. Until deployment, this is **source-only**, even if the private table already exists.
+5. Confirm each human gate with appropriate real evidence. Do **not** auto-activate any financial or public-invitation feature even after all three are verified.
+
+Source: `apps/web/src/lib/mazi-operations.ts`, `apps/web/src/app/admin/mazi/operations/`, `mazi-app/sql/018_superadmin_release_gate_reviews.sql`, `mazi-app/tests/operations-control-contract.test.mjs`.
