@@ -7,6 +7,7 @@ export type MaziInterestRow={
  id:string;tax_number:string;gemi_number:string|null;registry_legal_name:string|null;
  registry_company_status:string|null;registry_city:string|null;
  registry_checked_at:Date|null;registry_lookup_status:string;
+ registry_evidence_source:string;
  representative_name:string;contact_email:string;application_note:string;
  status:string;submitted_at:Date;review_reason:string|null;
  representation_verified_at:Date|null;business_contact_verified_at:Date|null
@@ -21,11 +22,12 @@ export async function maziInterestReviewQueue(principal:SessionPrincipal){
    COALESCE(r.city,i.registry_city) AS registry_city,
    COALESCE(r.checked_at,i.registry_checked_at) AS registry_checked_at,
    CASE WHEN r.id IS NOT NULL THEN 'matched' ELSE i.registry_lookup_status END AS registry_lookup_status,
+   COALESCE(r.source,'application_snapshot') AS registry_evidence_source,
    i.representative_name,i.contact_email,i.application_note,i.status,
    i.submitted_at,i.review_reason,i.representation_verified_at,i.business_contact_verified_at
   FROM public.mazi_interest_applications i
   LEFT JOIN LATERAL (
-   SELECT id,gemi_number,legal_name,company_status,city,checked_at
+   SELECT id,gemi_number,legal_name,company_status,city,checked_at,source
    FROM public.mazi_interest_registry_rechecks
    WHERE interest_id=i.id ORDER BY checked_at DESC,id DESC LIMIT 1
   ) r ON true
