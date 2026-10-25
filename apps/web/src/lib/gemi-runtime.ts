@@ -198,6 +198,68 @@ export async function resolveGemiCompanyByAfm(
   }
 }
 
+/**
+ * One-shot authenticated official GEMI lookup for MAZI review.
+ * The original GEMI number is known, so do not run the two-request AFM search.
+ * Do not read or fall back to an expired cache for identity attestation.
+ */
+export type GemiLiveRecheckReason =
+  "not_configured" | "local_rate_limited" | "provider_rate_limited" |
+  "provider_access_denied" | "provider_unavailable" | "network_timeout" |
+  "identity_mismatch" | "incomplete_record";
+export type GemiLiveRecheckResult =
+  GemiCompanyRecord |
+  Readonly<{lookupStatus:"unavailable";reason:GemiLiveRecheckReason;fromCache:false}>;
+
+class GemiProviderHttpError extends Error {
+  constructor(readonly status:number) { super("GEMI_PROVIDER_HTTP_ERROR"); }
+}
+
+export async function recheckOfficialGemiCompanyByNumber(
+ rawAfm:string, rawGemiNumber:string, now=Date.now()
+):Promise<GemiLiveRecheckResult> {
+ const taxNumber=normalizeGreekAfm(rawAfm);
+ const gemiNumber=rawGemiNumber.trim();
+ if(!/^\d{12}$/.test(gemiNumber)) return {lookupStatus:"unavailable",reason:"identity_mismatch",fromCache:false};
+ const resolved=await resolveGemiRuntimeConfig();
+ if(!resolved) return {lookupStatus:"unavailable",reason:"not_configured",fromCache:false};
+ const {config}=resolved;
+ const allowance=await limiter().consume({
+  route:"gemi-opendata-provider",key:"global",limit:3,windowMs:60_000,now
+ });
+ if(!allowance.allowed)
+  return {lookupStatus:"unavailable",reason:"local_rate_limited",fromCache:false};
+ try{
+  const document=await fetchJson(
+   `${config.baseUrl}/companies/${encodeURIComponent(gemiNumber)}`,config
+  );
+  const resolvedAfm=normalizeOptionalAfm(stringField(document,"afm"));
+  const resolvedGemi=digitsOnly(stringField(document,"arGemi","gemiNumber","gemi_number"));
+  if(resolvedAfm!==taxNumber||resolvedGemi!==gemiNumber) {
+   console.warn(JSON.stringify({event:"mazi.gemi_live_recheck_failed",reason:"identity_mismatch"}));
+   return {lookupStatus:"unavailable",reason:"identity_mismatch",fromCache:false};
+  }
+  const fresh=normalizeCompany(document,document,taxNumber,gemiNumber,now);
+  if(!fresh.legalName.trim()||!fresh.companyStatus?.trim()) {
+   console.warn(JSON.stringify({event:"mazi.gemi_live_recheck_failed",reason:"incomplete_record"}));
+   return {lookupStatus:"unavailable",reason:"incomplete_record",fromCache:false};
+  }
+  // Cache refresh is secondary; successful review evidence is still separately
+  // written by the Super Admin, with the original immutable intake untouched.
+  await writeMatched(fresh,document,now,config.cacheTtlMs);
+  return fresh;
+ }catch(error){
+  const reason:GemiLiveRecheckReason=error instanceof GemiProviderHttpError
+   ? error.status===429?"provider_rate_limited"
+   : error.status===401||error.status===403?"provider_access_denied"
+   : "provider_unavailable"
+   : error instanceof Error&&error.name==="AbortError"
+   ? "network_timeout":"provider_unavailable";
+  console.warn(JSON.stringify({event:"mazi.gemi_live_recheck_failed",reason}));
+  return {lookupStatus:"unavailable",reason,fromCache:false};
+ }
+}
+
 function configFromEnv(env: NodeJS.ProcessEnv = process.env): GemiConfig {
   const apiKey = env.GEMI_OPENDATA_API_KEY?.trim();
   if (!apiKey) throw new Error("GEMI_OPENDATA_API_KEY is required");
@@ -247,7 +309,7 @@ async function fetchJson(url: string, config: GemiConfig): Promise<Record<string
       cache: "no-store"
     });
     if (response.status === 404) return {};
-    if (!response.ok) throw new Error(`GEMI HTTP ${response.status}`);
+    if (!response.ok) throw new GemiProviderHttpError(response.status);
     const body = await response.json();
     return isRecord(body) ? body : {};
   } finally {
