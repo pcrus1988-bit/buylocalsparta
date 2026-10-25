@@ -8,6 +8,7 @@ const actions=read("../app/actions.ts");
 const nav=read("../app/layout.tsx");
 const existing=read("../app/join/page.tsx");
 const marketplaceRoute=read("../../apps/web/src/app/api/mazi-interest/route.ts");
+const securityConfig=read("../next.config.ts");
 
 test("first contact is an actual marketplace AFM/GEMI intake, not new Auth registration",()=>{
  assert.match(form,/https:\/\/kontamou\.site\/api\/mazi-interest/);
@@ -17,6 +18,15 @@ test("first contact is an actual marketplace AFM/GEMI intake, not new Auth regis
  assert.match(form,/method:"POST"/);
  assert.match(marketplaceRoute,/await saveMaziInterest/);
  assert.doesNotMatch(form,/auth\.signInWithOtp|auth\.signUp|supabase\.auth/);
+});
+test("browser CSP permits the exact external intake API origin",()=>{
+ const endpoint=form.match(/const ENDPOINT="([^"]+)"/)?.[1];
+ assert.ok(endpoint, "interest form must expose an intake endpoint");
+ const permittedOrigins=securityConfig.match(/connect-src ([^;]+);/)?.[1]?.split(/\s+/);
+ assert.ok(permittedOrigins, "explicit connect-src is required");
+ assert.ok(permittedOrigins.includes(new URL(endpoint).origin), "CSP must permit the actual intake origin");
+ assert.ok(!permittedOrigins.includes("*")&&!permittedOrigins.includes("https:"), "do not weaken CSP with wildcard schemes");
+ assert.match(marketplaceRoute,/Access-Control-Allow-Origin/);
 });
 test("privacy and representation require separate, affirmative confirmation",()=>{
  assert.match(form,/name="acceptProcessing" required/);
