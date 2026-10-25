@@ -16,8 +16,14 @@ export async function refreshMaziInterestRegistryAction(form:FormData){
   await recheckMaziInterestRegistry(principal,value(form,"id"));
  }catch(error){
   const code=error instanceof Error?error.message:"";
-  const notice=code==="MAZI_GEMI_RECHECK_UNAVAILABLE"?"gemi_unavailable":
-   code==="MAZI_GEMI_RECHECK_MISMATCH"?"gemi_mismatch":
+  const notice=code==="MAZI_GEMI_RECHECK_LOCAL_RATE_LIMITED"?"gemi_local_throttled":
+   code==="MAZI_GEMI_RECHECK_PROVIDER_RATE_LIMITED"?"gemi_provider_throttled":
+   code==="MAZI_GEMI_RECHECK_PROVIDER_ACCESS_DENIED"?"gemi_provider_auth":
+   code==="MAZI_GEMI_RECHECK_NOT_CONFIGURED"?"gemi_not_configured":
+   code==="MAZI_GEMI_RECHECK_NETWORK_TIMEOUT"?"gemi_timeout":
+   code==="MAZI_GEMI_RECHECK_PROVIDER_UNAVAILABLE"?"gemi_provider_unavailable":
+   code==="MAZI_GEMI_RECHECK_INCOMPLETE_RECORD"?"gemi_incomplete":
+   code==="MAZI_GEMI_RECHECK_IDENTITY_MISMATCH"?"gemi_mismatch":
    code==="MAZI_GEMI_ORIGINAL_MATCH_REQUIRED"?"gemi_manual_review":
    code==="MAZI_INTEREST_NOT_REVIEWABLE"?"not_reviewable":
    code==="MAZI_GEMI_RECHECK_INVALID"?"review_invalid":null;

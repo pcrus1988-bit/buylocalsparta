@@ -22,8 +22,11 @@ test("stale GEMI approval visibly offers real server-side refresh and stays disa
 test("refresh must hit official provider and never elevate stale cached data",()=>{
  assert.ok(gemi.includes("options.forceFresh"));
  assert.ok(gemi.includes("!options.forceFresh && cached"));
- assert.ok(admin.includes("resolveGemiCompanyByAfm(original.tax_number,Date.now(),{forceFresh:true})"));
- assert.ok(admin.includes('checked.fromCache'));
+ assert.ok(admin.includes("recheckOfficialGemiCompanyByNumber(original.tax_number,original.gemi_number)"));
+ assert.ok(gemi.includes("/companies/${encodeURIComponent(gemiNumber)}"));
+ assert.ok(gemi.includes("recheckOfficialGemiCompanyByNumber"));
+ assert.ok(gemi.includes('fromCache:false'));
+ assert.ok(gemi.includes("resolvedAfm!==taxNumber||resolvedGemi!==gemiNumber"));
  assert.ok(admin.includes("checked.gemiNumber!==original.gemi_number"));
  assert.ok(admin.includes("checked.taxNumber!==original.tax_number"));
  assert.ok(admin.includes("marketplaceMaziActor(principal)"));
@@ -37,4 +40,15 @@ test("new evidence is immutable, admin-only and used for approval plus invitatio
  assert.ok(admin.includes("LEFT JOIN LATERAL"));
  assert.ok(invite.includes("LEFT JOIN LATERAL"));
  assert.ok(!admin.includes("UPDATE public.mazi_interest_applications SET registry_checked_at"));
+});
+
+test("live GEMI failures are classified without weakening approval checks",()=>{
+ for(const reason of ["local_rate_limited","provider_rate_limited","provider_access_denied",
+   "network_timeout","not_configured","incomplete_record","identity_mismatch"]){
+  assert.ok(gemi.includes(reason),reason);
+ }
+ assert.ok(actions.includes("MAZI_GEMI_RECHECK_LOCAL_RATE_LIMITED"));
+ assert.ok(actions.includes("MAZI_GEMI_RECHECK_PROVIDER_ACCESS_DENIED"));
+ assert.ok(gemi.includes('event:"mazi.gemi_live_recheck_failed"'));
+ assert.ok(!gemi.includes("apiKey: config.apiKey },"+"\n"+"      // expose"));
 });
