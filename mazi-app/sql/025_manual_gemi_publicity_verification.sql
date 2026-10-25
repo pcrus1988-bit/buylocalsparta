@@ -16,7 +16,7 @@ ALTER TABLE public.mazi_interest_registry_rechecks
   source <> 'gemi_publicity_manual'
   OR (
    length(btrim(coalesce(review_evidence,''))) BETWEEN 80 AND 2000
-   AND source_url ~ '^https://publicity\\.businessportal\\.gr(/|$)'
+   AND source_url LIKE 'https://publicity.businessportal.gr/%'
   )
  );
 COMMENT ON COLUMN public.mazi_interest_registry_rechecks.review_evidence IS
