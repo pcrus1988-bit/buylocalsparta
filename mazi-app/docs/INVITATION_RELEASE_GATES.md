@@ -19,6 +19,13 @@ The existing founding needs-assessment round stays zero-funded. Membership invoi
 - **STILL PENDING:** The marketplace production admin UI and new MAZI frontend are not merged. Actual Supabase Auth OTP lifetime, invite and magic-link templates, SMTP, allowed redirect URLs and real consenting-business E2E need verification.
 - **GUARD:** No fictitious businesses or test users; funding cycle remains zero-budget, nonfinancial and no automatic voter entitlement.
 
+## Safety of the authorized production deployment — 25 October 2026
+- The user explicitly authorized deploying completed MAZI work to production. Deployment **does not** implicitly authorize sending an unverified business email, activating paid membership or financing.
+- Before the Super Admin can issue *any* actual invitation, the server now checks the latest immutable `auth_email_delivery` and `legal_and_retention` reviews are both `verified`, and checks the founding cycle, all funded cycles, ledger and grant offers still satisfy the zero-funding lock.
+- A later `reopened` review closes the email issuance gate again; there is no automatic approval of invitation mailing after production deployment.
+- The `consenting_business_e2e` review follows the first real invitation and is independently blocked unless live records prove an approved, accepted, verified ΓΕΜΗ business; it is **not** required before sending that first consent-based invitation.
+- Production website domain and marketplace admin rollout must be independently verified after any merge/deployment. A successful CI or Vercel READY status alone is not proof of full real-world E2E delivery.
+
 ## Chain of trust
 1. A business sends the real AFM/GEMI interest request. Nothing is registered in Supabase Auth; no billing or membership profile is created.
 2. The marketplace Super Admin independently verifies representation, contact-email control and active GEMI status, then approves `approved_pending_invite`.
