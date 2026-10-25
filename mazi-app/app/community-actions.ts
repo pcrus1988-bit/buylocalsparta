@@ -82,6 +82,15 @@ export async function replyInquiry(form:FormData){
  redirect("/inbox?notice=saved");
 }
 
+export async function updateInquiryState(form:FormData){
+ await requireLogin();
+ const inquiry_id=field(form,"inquiry_id"),action=field(form,"action");
+ if(!validId(inquiry_id)||!["read","close"].includes(action))failure("/inbox");
+ const result=await maziMemberRequest("community_inquiry_action",{inquiry_id,action});
+ if(!result.ok)failure("/inbox");
+ redirect("/inbox?notice="+(action==="read"?"read":"closed")+"#inquiry-"+inquiry_id);
+}
+
 export async function reportInquiryMessage(form:FormData){
  await requireLogin();
  const resource_id=field(form,"resource_id"),reason=field(form,"reason");
