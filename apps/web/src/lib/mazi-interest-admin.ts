@@ -1,7 +1,7 @@
 import type {SessionPrincipal} from "@buy-local-sparta/core";
 import {getAdminPostgresRuntime} from "./postgres-runtime";
 import {marketplaceMaziActor} from "./mazi-superadmin";
-import {resolveGemiCompanyByAfm} from "./gemi-runtime";
+import {recheckOfficialGemiCompanyByNumber} from "./gemi-runtime";
 
 export type MaziInterestRow={
  id:string;tax_number:string;gemi_number:string|null;registry_legal_name:string|null;
@@ -120,14 +120,13 @@ export async function recheckMaziInterestRegistry(principal:SessionPrincipal,id:
  // their immutable recorded registry identity requires separate evidence review.
  if(original.registry_lookup_status!=="matched"||!original.gemi_number)
   throw Error("MAZI_GEMI_ORIGINAL_MATCH_REQUIRED");
- const checked=await resolveGemiCompanyByAfm(original.tax_number,Date.now(),{forceFresh:true});
- if(checked.lookupStatus==="unavailable"||checked.fromCache)
-  throw Error("MAZI_GEMI_RECHECK_UNAVAILABLE");
- if(checked.lookupStatus!=="matched"||
-   checked.gemiNumber!==original.gemi_number||
+ const checked=await recheckOfficialGemiCompanyByNumber(original.tax_number,original.gemi_number);
+ if(checked.lookupStatus!=="matched")
+  throw Error("MAZI_GEMI_RECHECK_"+checked.reason.toUpperCase());
+ if(checked.gemiNumber!==original.gemi_number||
    checked.taxNumber!==original.tax_number||
    checked.legalName.trim().length<3)
-  throw Error("MAZI_GEMI_RECHECK_MISMATCH");
+  throw Error("MAZI_GEMI_RECHECK_IDENTITY_MISMATCH");
  const conn=await runtime.nativePool.connect();
  try{
   await conn.query("BEGIN");
