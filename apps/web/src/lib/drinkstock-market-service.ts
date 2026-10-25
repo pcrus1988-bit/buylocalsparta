@@ -130,9 +130,9 @@ export async function mutateDrinkStockMarket(userId:string,partnerId:string,venu
       if(!mayEditPreSessionConfig(venue))throw new DrinkStockMarketError("SESSION_ACTIVE",409);
       const band=drinkPriceBand(action.product.baseCents,venue.bounds);
       const inserted=await client.query<{id:string}>(`
-        INSERT INTO public.drinkstock_products(venue_id,partner_id,name,category,base_cents,price_cents,min_cents,max_cents)
-        VALUES($1::uuid,$2::uuid,$3,$4,$5,$5,$6,$7) RETURNING id::text AS id
-      `,[venueId,partnerId,action.product.name,action.product.category,action.product.baseCents,band.minCents,band.maxCents]);
+        INSERT INTO public.drinkstock_products(venue_id,partner_id,name,category,base_cents,price_cents,min_cents,max_cents,vat_class,vat_reviewed)
+        VALUES($1::uuid,$2::uuid,$3,$4,$5,$5,$6,$7,$8,FALSE) RETURNING id::text AS id
+      `,[venueId,partnerId,action.product.name,action.product.category,action.product.baseCents,band.minCents,band.maxCents,action.product.vatClass??"review_required"]);
       selectedProductId=inserted.rows[0]?.id??null;
       eventType="product_added";
     }else if(action.action==="set_bounds"){
