@@ -14,14 +14,26 @@ export async function reviewMaziInterestAction(form:FormData){
  assertAdminCsrf(principal,value(form,"csrf"));
  const action=value(form,"decision");
  if(action!=="approve"&&action!=="decline")throw Error("MAZI_INTEREST_DECISION_INVALID");
- await reviewMaziInterest(principal,{
-  id:value(form,"id"),
-  decision:action,
-  reason:value(form,"reason"),
-  representativeVerified:form.get("representativeVerified")==="on",
-  emailVerified:form.get("emailVerified")==="on",
-  companyActiveVerified:form.get("companyActiveVerified")==="on"
- });
+ try {
+  await reviewMaziInterest(principal,{
+   id:value(form,"id"),
+   decision:action,
+   reason:value(form,"reason"),
+   representativeVerified:form.get("representativeVerified")==="on",
+   emailVerified:form.get("emailVerified")==="on",
+   companyActiveVerified:form.get("companyActiveVerified")==="on"
+  });
+ } catch(error) {
+  // Business-rule failures must never crash the admin review page.
+  // Authentication, CSRF and unexpected database errors still fail closed.
+  const code=error instanceof Error?error.message:"";
+  const notice=code==="MAZI_INTEREST_VERIFICATION_REQUIRED"?"verification_required":
+   code==="MAZI_INTEREST_DECISION_INVALID"?"review_invalid":
+   code==="MAZI_INTEREST_NOT_REVIEWABLE"?"not_reviewable":
+   code==="MAZI_ALREADY_MEMBER"?"already_member":null;
+  if(notice)redirect("/admin/mazi/interest?notice="+notice);
+  throw error;
+ }
  revalidatePath("/admin/mazi/interest");
  redirect("/admin/mazi/interest?notice=reviewed");
 }
