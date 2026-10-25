@@ -1,0 +1,27 @@
+name: NYXI Agent 1 Governance Integrity
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/nyxi/governance/**'
+      - '.github/workflows/nyxi-agent1-governance.yml'
+  push:
+    paths:
+      - 'scripts/nyxi/governance/**'
+      - '.github/workflows/nyxi-agent1-governance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-asset-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fail-closed archived asset integrity tests
+        run: node --test scripts/nyxi/governance/*.test.mjs
