@@ -123,6 +123,139 @@ Deno.serve(async(req:Request)=>{
     return out({error:"invitation_not_eligible"},409);
    return out({ok:true});
   }
+
+  // Community access requires reviewed membership and official ΓΕΜΗ identity, not login alone.
+  // No marketplace purchase, fund movement, votes or membership changes happen here.
+  if(operation.startsWith("community_")){
+   const member=await verifiedMember(user.id);
+   if(!member)return out({error:"not_verified"},403);
+   const categories=["goods","services","partnerships"];
+   const tableNames={listing:"mazi_marketplace_listings",thread:"mazi_forum_threads",
+     reply:"mazi_forum_replies",chat:"mazi_chat_messages"} as const;
+   const rateLimited=async(table:string, seconds:number)=>{
+     const {data,error}=await admin.from(table).select("created_at")
+       .eq("member_user_id",user.id).order("created_at",{ascending:false}).limit(1);
+     if(error)throw error;
+     return Boolean(data?.[0]&&Date.now()-Date.parse(data[0].created_at)<seconds*1000);
+   };
+   if(operation==="community_snapshot"){
+    const section=text(input.section);
+    if(!["dashboard","marketplace","forum","chat"].includes(section))
+      return out({error:"invalid_section"},400);
+    let listings:Json[]=[],threads:Json[]=[],replies:Json[]=[],messages:Json[]=[];
+    if(section==="marketplace"||section==="dashboard"){
+     const query=admin.from("mazi_marketplace_listings")
+       .select("id,member_user_id,kind,category,title,description,status,created_at")
+       .order("created_at",{ascending:false}).limit(60);
+     const {data,error}=await (section==="dashboard"
+       ?query.eq("member_user_id",user.id)
+       :query.or(`status.eq.active,member_user_id.eq.${user.id}`));
+     if(error)return out({error:"data_unavailable"},503);
+     listings=(data||[]) as Json[];
+    }
+    if(section==="forum"||section==="dashboard"){
+     const query=admin.from("mazi_forum_threads")
+       .select("id,member_user_id,category,title,body,locked,created_at")
+       .order("created_at",{ascending:false}).limit(40);
+     const {data,error}=await (section==="dashboard"?query.eq("member_user_id",user.id):query);
+     if(error)return out({error:"data_unavailable"},503);
+     threads=(data||[]) as Json[];
+     if(section==="forum"&&threads.length){
+       const ids=threads.map(t=>String(t.id));
+       const {data:recent,error:rErr}=await admin.from("mazi_forum_replies")
+         .select("id,thread_id,member_user_id,body,created_at")
+         .in("thread_id",ids).order("created_at",{ascending:false}).limit(160);
+       if(rErr)return out({error:"data_unavailable"},503);
+       replies=(recent||[]) as Json[];
+     }
+    }
+    if(section==="chat"){
+     const {data,error}=await admin.from("mazi_chat_messages")
+       .select("id,member_user_id,body,created_at")
+       .eq("channel","lobby").order("created_at",{ascending:false}).limit(60);
+     if(error)return out({error:"data_unavailable"},503);
+     messages=(data||[]) as Json[];
+     messages.reverse();
+    }
+    const owners=[...new Set([...listings,...threads,...replies,...messages]
+      .map(row=>String(row.member_user_id||"")).filter(uuid))];
+    let businesses:Record<string,string>={};
+    if(owners.length){
+     const {data,error}=await admin.from("mazi_membership_applications")
+       .select("applicant_user_id,business_name").eq("status","approved")
+       .in("applicant_user_id",owners).limit(160);
+     if(error)return out({error:"data_unavailable"},503);
+     for(const b of data||[])businesses[b.applicant_user_id]=b.business_name;
+    }
+    return out({ok:true,listings,threads,replies,messages,businesses});
+   }
+   if(operation==="community_create_listing"){
+     const kind=text(input.kind),category=text(input.category),
+       title=text(input.title),description=text(input.description);
+     if(!["offer","request"].includes(kind)||!categories.includes(category)||
+       title.length<8||title.length>140||description.length<30||description.length>2500)
+       return out({error:"invalid_content"},400);
+     const {count,error:countError}=await admin.from("mazi_marketplace_listings")
+       .select("id",{count:"exact",head:true}).eq("member_user_id",user.id).eq("status","active");
+     if(countError)return out({error:"data_unavailable"},503);
+     if((count||0)>=10||await rateLimited("mazi_marketplace_listings",30))
+       return out({error:"rate_limited"},429);
+     const {error}=await admin.from("mazi_marketplace_listings")
+       .insert({member_user_id:user.id,kind,category,title,description});
+     return error?out({error:"write_failed"},409):out({ok:true});
+   }
+   if(operation==="community_close_listing"){
+     const id=text(input.id);if(!uuid(id))return out({error:"invalid_content"},400);
+     const {data,error}=await admin.from("mazi_marketplace_listings")
+       .update({status:"closed",updated_at:new Date().toISOString()})
+       .eq("id",id).eq("member_user_id",user.id).eq("status","active")
+       .select("id").maybeSingle();
+     return error||!data?out({error:"not_available"},409):out({ok:true});
+   }
+   if(operation==="community_create_thread"){
+     const category=text(input.category),title=text(input.title),body=text(input.body);
+     if(!["general","advice","collaboration"].includes(category)||
+       title.length<8||title.length>140||body.length<30||body.length>4000)
+       return out({error:"invalid_content"},400);
+     if(await rateLimited("mazi_forum_threads",30))return out({error:"rate_limited"},429);
+     const {error}=await admin.from("mazi_forum_threads")
+       .insert({member_user_id:user.id,category,title,body});
+     return error?out({error:"write_failed"},409):out({ok:true});
+   }
+   if(operation==="community_reply"){
+     const thread_id=text(input.thread_id),body=text(input.body);
+     if(!uuid(thread_id)||body.length<2||body.length>2000)
+       return out({error:"invalid_content"},400);
+     const {data:thread,error:tError}=await admin.from("mazi_forum_threads")
+       .select("id,locked").eq("id",thread_id).maybeSingle();
+     if(tError||!thread||thread.locked)return out({error:"thread_closed"},409);
+     if(await rateLimited("mazi_forum_replies",6))return out({error:"rate_limited"},429);
+     const {error}=await admin.from("mazi_forum_replies")
+       .insert({member_user_id:user.id,thread_id,body});
+     return error?out({error:"write_failed"},409):out({ok:true});
+   }
+   if(operation==="community_chat"){
+     const body=text(input.body);
+     if(body.length<1||body.length>1000)return out({error:"invalid_content"},400);
+     if(await rateLimited("mazi_chat_messages",3))return out({error:"rate_limited"},429);
+     const {error}=await admin.from("mazi_chat_messages")
+       .insert({member_user_id:user.id,channel:"lobby",body});
+     return error?out({error:"write_failed"},409):out({ok:true});
+   }
+   if(operation==="community_report"){
+     const resource_type=text(input.resource_type),resource_id=text(input.resource_id),
+       reason=text(input.reason);
+     if(!Object.hasOwn(tableNames,resource_type)||!uuid(resource_id)||
+       reason.length<20||reason.length>500)return out({error:"invalid_content"},400);
+     const table=tableNames[resource_type as keyof typeof tableNames];
+     const {data:target,error:tError}=await admin.from(table).select("id").eq("id",resource_id).maybeSingle();
+     if(tError||!target)return out({error:"not_available"},404);
+     const {error}=await admin.from("mazi_community_reports")
+       .insert({reporter_user_id:user.id,resource_type,resource_id,reason});
+     return error?out({error:"report_unavailable"},409):out({ok:true});
+   }
+   return out({error:"unknown_operation"},400);
+  }
   if(operation==="state"){
    const [{data:application,error:aErr},{data:member,error:mErr},cycle]=await Promise.all([
     admin.from("mazi_membership_applications")
