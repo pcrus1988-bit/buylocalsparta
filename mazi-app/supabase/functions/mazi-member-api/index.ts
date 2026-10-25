@@ -221,7 +221,7 @@ Deno.serve(async(req:Request)=>{
   // Community participation is never implied by possessing a valid Auth JWT:
   // every listing, discussion, reply and chat write must have live KYB status.
   // Additive private B2B inbox; preserve existing marketplace/forum/chat contracts.
-  if(["community_inbox","community_start_inquiry","community_reply_inquiry"].includes(operation)){
+  if(["community_inbox","community_start_inquiry","community_reply_inquiry","community_inquiry_action"].includes(operation)){
    if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
    const rateLimited=async(table:string,seconds:number)=>{
     const {data,error}=await admin.from(table).select("created_at")
@@ -232,7 +232,7 @@ Deno.serve(async(req:Request)=>{
    };
    if(operation==="community_inbox"){
     const {data:inquiries,error}=await admin.from("mazi_listing_inquiries")
-      .select("id,listing_id,sender_user_id,recipient_user_id,status,created_at")
+      .select("id,listing_id,sender_user_id,recipient_user_id,status,created_at,last_message_at,last_message_user_id,sender_last_read_at,recipient_last_read_at,closed_at")
       .or(`sender_user_id.eq.${user.id},recipient_user_id.eq.${user.id}`)
       .order("created_at",{ascending:false}).limit(60);
     if(error)return out({error:"data_unavailable"},503);
@@ -258,6 +258,17 @@ Deno.serve(async(req:Request)=>{
     }
     return out({ok:true,inquiries:list,inquiry_messages:inquiryMessages,
       listing_labels:listingLabels,businesses:businessLabels});
+   }
+   if(operation==="community_inquiry_action"){
+    const inquiryId=text(input.inquiry_id),action=text(input.action);
+    if(!uuid(inquiryId)||!["read","close"].includes(action))
+     return out({error:"invalid_content"},400);
+    const {data:changed,error}=await admin.rpc("mazi_inquiry_member_action",{
+      p_inquiry_id:inquiryId,p_actor_user_id:user.id,p_action:action
+    });
+    if(error)return out({error:"data_unavailable"},503);
+    if(changed!==true)return out({error:"not_available"},403);
+    return out({ok:true});
    }
    if(operation==="community_start_inquiry"){
     const listingId=text(input.listing_id),body=text(input.body);
@@ -292,7 +303,7 @@ Deno.serve(async(req:Request)=>{
     if(await rateLimited("mazi_inquiry_messages",5))return out({error:"rate_limited"},429);
     const {error}=await admin.from("mazi_inquiry_messages")
       .insert({inquiry_id:inquiryId,member_user_id:user.id,body});
-    return error?out({error:"write_failed"},409):out({ok:true});
+    return error?out({error:error.message?.includes("MAZI_INQUIRY_RATE_LIMIT")?"rate_limited":"write_failed"},error.message?.includes("MAZI_INQUIRY_RATE_LIMIT")?429:409):out({ok:true});
    }
 
   }
