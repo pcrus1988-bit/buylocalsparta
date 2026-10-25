@@ -3,7 +3,7 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {createClient} from "../../lib/supabase/server";
 import {maziMemberRequest,type MaziState} from "../../lib/mazi-api";
-import type {CommunityInbox} from "../../lib/community";
+import {isInquiryUnread,type CommunityInbox} from "../../lib/community";
 import type {MaziListing,MaziForumThread} from "../../lib/mazi-community";
 import "../community.css";
 
@@ -37,6 +37,7 @@ export default async function Dashboard(){
  const activity=overview?.ok?overview.activity:null;
  const conversations=inbox?.ok?inbox.inquiries:[];
  const inbound=conversations.filter(q=>q.recipient_user_id===user.id&&q.status==="open");
+ const unread=conversations.filter(q=>isInquiryUnread(q,user.id));
  const ownProposals=state.proposals.filter(p=>p.created_by===user.id);
  const cards=[
   {title:"Η συμμετοχή μου",label:"01 / ΕΠΙΧΕΙΡΗΣΗ",href:"/members",desc:"Αίτηση, επαλήθευση, πραγματική κατάσταση και διευκρινίσεις ελέγχου."},
@@ -63,7 +64,7 @@ export default async function Dashboard(){
     <div><span>Οι προτάσεις μου</span><strong>{ownProposals.length}</strong><small>Στον τρέχοντα κύκλο</small></div>
     <div><span>Ανοιχτές καταχωρίσεις</span><strong>{display(activity?.active_listings)}</strong><small>Πραγματικές καταχωρίσεις μου</small></div>
     <div><span>Θέματα Forum</span><strong>{display(activity?.threads)}</strong><small>Θέματα που έχω ανοίξει</small></div>
-    <div><span>Εισερχόμενα αιτήματα</span><strong>{display(inbox?.ok?inbound.length:undefined)}</strong><small>Ενεργές ιδιωτικές συνεργασίες</small></div>
+    <div><span>Αδιάβαστα μηνύματα</span><strong>{display(inbox?.ok?unread.length:undefined)}</strong><small>{inbound.length} ενεργά αιτήματα συνεργασίας</small></div>
    </section>
    <nav aria-label="Εργαλεία της επιχείρησης" className="com-dashboard-grid">
     {cards.map(card=><Link key={card.href} href={isVerified||card.href==="/members"?card.href:"/members"} className="com-nav-card">
@@ -74,7 +75,7 @@ export default async function Dashboard(){
     {conversations.length||ownProposals.length||listings.length||threads.length?
      <div className="com-list">
       {conversations.slice(0,3).map(q=><article className="com-card" key={q.id}>
-       <span className="com-kicker">ΙΔΙΩΤΙΚΗ ΣΥΝΕΡΓΑΣΙΑ · {q.status==="open"?"ΕΝΕΡΓΗ":"ΚΛΕΙΣΤΗ"}</span>
+       <span className="com-kicker">ΙΔΙΩΤΙΚΗ ΣΥΝΕΡΓΑΣΙΑ · {isInquiryUnread(q,user.id)?"ΑΔΙΑΒΑΣΤΟ":q.status==="open"?"ΕΝΕΡΓΗ":"ΚΛΕΙΣΤΗ"}</span>
        <h3>{inbox?.ok?inbox.listing_labels[q.listing_id]||"Αίτημα συνεργασίας":"Αίτημα συνεργασίας"}</h3>
        <p>{inbox?.ok?inbox.businesses[q.sender_user_id===user.id?q.recipient_user_id:q.sender_user_id]||"Επαληθευμένη επιχείρηση":"Επαληθευμένη επιχείρηση"}</p>
        <Link href="/inbox">Άνοιγμα συνομιλίας →</Link>
