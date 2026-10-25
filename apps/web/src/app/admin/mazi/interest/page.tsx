@@ -9,6 +9,11 @@ import s from "../mazi.module.css";
 
 export const dynamic="force-dynamic";
 export const metadata={title:"ΜΑΖΙ · Έλεγχος αιτήσεων ΑΦΜ",robots:{index:false,follow:false}};
+const registryCurrent=(row:{registry_lookup_status:string;gemi_number:string|null;registry_checked_at:Date|null})=>
+ row.registry_lookup_status==="matched" && Boolean(row.gemi_number) && Boolean(row.registry_checked_at) &&
+ Number.isFinite(new Date(row.registry_checked_at!).getTime()) &&
+ Date.now()-new Date(row.registry_checked_at!).getTime()<=7*86400000;
+
 export default async function InterestReview({searchParams}:{searchParams:Promise<{notice?:string}>}){
  const principal=await getAdminSession();
  if(!principal)redirect("/admin/login");
@@ -29,6 +34,10 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
      Η έγκριση επιτρέπει μόνο το επόμενο βήμα πρόσκλησης — δεν δημιουργεί λογαριασμό, μέλος ή δικαιώματα.</p>
   </div></header>
   {params.notice==="reviewed"?<p className={s.notice} role="status">Η απόφαση καταχωρίστηκε στο μητρώο ελέγχου. Δεν έχει σταλεί πρόσκληση.</p>:null}
+  {params.notice==="verification_required"?<p className={s.notice} role="alert">Δεν καταχωρίστηκε έγκριση. Απαιτείται πρόσφατος έλεγχος ΓΕΜΗ (εντός 7 ημερών) και πραγματική, ανεξάρτητη επιβεβαίωση ενεργής επιχείρησης, νόμιμης εκπροσώπησης και ιδιοκτησίας του email. Συμπλήρωσε και τις τρεις επιβεβαιώσεις μόνο αφού ολοκληρώσεις τους ελέγχους.</p>:null}
+  {params.notice==="review_invalid"?<p className={s.notice} role="alert">Δεν αποθηκεύτηκε απόφαση: η τεκμηρίωση πρέπει να είναι 20–1.000 χαρακτήρες και η αίτηση να είναι έγκυρη.</p>:null}
+  {params.notice==="not_reviewable"?<p className={s.notice} role="alert">Η αίτηση δεν είναι πλέον διαθέσιμη για αξιολόγηση. Η κατάσταση ενδέχεται να άλλαξε· έλεγξε το ιστορικό.</p>:null}
+  {params.notice==="already_member"?<p className={s.notice} role="alert">Η νομική οντότητα διαθέτει ήδη επαληθευμένη συμμετοχή στο ΜΑΖΙ. Δεν δημιουργήθηκε διπλή έγκριση.</p>:null}
   {params.notice==="invitation_sent"?<p className={s.notice} role="status">Ο πάροχος Auth αποδέχθηκε την αποστολή πρόσκλησης στο επαληθευμένο email. Η πραγματική παράδοση δεν έχει ακόμη επιβεβαιωθεί. Δεν δημιουργήθηκε συνδρομή ή μέλος.</p>:null}
   {params.notice==="invitation_delivery_failed"?<p className={s.notice} role="alert">Η αποστολή δεν επιβεβαιώθηκε. Απαιτείται έλεγχος της κατάστασης στο Supabase Auth πριν από νέα προσπάθεια.</p>:null}
   {params.notice==="invitation_revoked"?<p className={s.notice} role="status">Η προηγούμενη πρόσκληση ανακλήθηκε. Η ενδεχόμενη παλιά σύνδεση δεν παρέχει πλέον δικαίωμα ένταξης.</p>:null}
@@ -54,29 +63,36 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
      <form action={reviewMaziInterestAction} className={s.action} style={{display:"grid",gap:12}}>
       <input type="hidden" name="csrf" value={principal.csrfToken}/>
       <input type="hidden" name="id" value={a.id}/>
-      <label className={s.tag} htmlFor={"reason-"+a.id}>Τεκμηρίωση απόφασης (20–1000 χαρακτήρες)</label>
-      <textarea id={"reason-"+a.id} name="reason" required minLength={20} maxLength={1000} rows={4}
+      <label className={s.tag} htmlFor={"approve-reason-"+a.id}>Τεκμηρίωση έγκρισης (20–1000 χαρακτήρες)</label>
+      <textarea id={"approve-reason-"+a.id} name="reason" required minLength={20} maxLength={1000} rows={4}
        style={{padding:14,border:"1px solid #8ea68e",font:"inherit"}}
-       placeholder="Πηγή επαλήθευσης νόμιμης εκπροσώπησης και ιδιοκτησίας email ή αιτιολογία απόρριψης"/>
+       placeholder="Κατέγραψε τις ανεξάρτητες πηγές ελέγχου εκπροσώπου, email και ενεργής επιχείρησης"/>
       <label style={{display:"flex",gap:8,alignItems:"start"}}>
-       <input name="representativeVerified" type="checkbox"/>
+       <input name="representativeVerified" type="checkbox" required/>
        <span>Έλεγξα ανεξάρτητα ότι ο αιτών εκπροσωπεί τη νομική οντότητα.</span>
       </label>
       <label style={{display:"flex",gap:8,alignItems:"start"}}>
-       <input name="emailVerified" type="checkbox"/>
+       <input name="emailVerified" type="checkbox" required/>
        <span>Επιβεβαίωσα την ιδιοκτησία του δηλωμένου email (όχι μόνο μέσω δημόσιου ΓΕΜΗ).</span>
       </label>
       <label style={{display:"flex",gap:8,alignItems:"start"}}>
-       <input name="companyActiveVerified" type="checkbox"/>
+       <input name="companyActiveVerified" type="checkbox" required/>
        <span>Έλεγξα ανεξάρτητα ότι η επιχείρηση είναι ενεργή στο ΓΕΜΗ.</span>
       </label>
-      <div className={s.buttons}>
-       <button type="submit" name="decision" value="approve" className={s.primary}
-        disabled={a.registry_lookup_status!=="matched"||!a.gemi_number}>
-         Έγκριση για μελλοντική πρόσκληση
-       </button>
-       <button type="submit" name="decision" value="decline" className={s.secondary}>Απόρριψη</button>
-      </div>
+      {!registryCurrent(a)?<p className={s.disclaimer} role="alert" style={{marginTop:0}}>Η έγκριση δεν επιτρέπεται ακόμη: δεν υπάρχει επιτυχής και πρόσφατος (εντός 7 ημερών) έλεγχος ΓΕΜΗ. Απαιτείται νέος έλεγχος της εγγραφής.</p>:null}
+      <button type="submit" name="decision" value="approve" className={s.primary}
+       disabled={!registryCurrent(a)}>
+        Έγκριση για μελλοντική πρόσκληση
+      </button>
+     </form>
+     <form action={reviewMaziInterestAction} className={s.action} style={{display:"grid",gap:8,marginTop:18}}>
+      <input type="hidden" name="csrf" value={principal.csrfToken}/>
+      <input type="hidden" name="id" value={a.id}/>
+      <label className={s.tag} htmlFor={"decline-reason-"+a.id}>Αιτιολογία απόρριψης (20–1000 χαρακτήρες)</label>
+      <textarea id={"decline-reason-"+a.id} name="reason" required minLength={20} maxLength={1000} rows={3}
+       style={{padding:14,border:"1px solid #8ea68e",font:"inherit"}}
+       placeholder="Κατέγραψε τους συγκεκριμένους λόγους απόρριψης"/>
+      <button type="submit" name="decision" value="decline" className={s.secondary}>Απόρριψη</button>
      </form>
     </div>
    </article>)}</div>}
