@@ -146,7 +146,7 @@ Deno.serve(async(req:Request)=>{
     if(section==="marketplace"||section==="dashboard"){
      const query=admin.from("mazi_marketplace_listings")
        .select("id,member_user_id,kind,category,title,description,status,created_at")
-       .order("created_at",{ascending:false}).limit(60);
+       .is("hidden_at",null).order("created_at",{ascending:false}).limit(60);
      const {data,error}=await (section==="dashboard"
        ?query.eq("member_user_id",user.id)
        :query.or(`status.eq.active,member_user_id.eq.${user.id}`));
@@ -156,7 +156,7 @@ Deno.serve(async(req:Request)=>{
     if(section==="forum"||section==="dashboard"){
      const query=admin.from("mazi_forum_threads")
        .select("id,member_user_id,category,title,body,locked,created_at")
-       .order("created_at",{ascending:false}).limit(40);
+       .is("hidden_at",null).order("created_at",{ascending:false}).limit(40);
      const {data,error}=await (section==="dashboard"?query.eq("member_user_id",user.id):query);
      if(error)return out({error:"data_unavailable"},503);
      threads=(data||[]) as Json[];
@@ -164,7 +164,7 @@ Deno.serve(async(req:Request)=>{
        const ids=threads.map(t=>String(t.id));
        const {data:recent,error:rErr}=await admin.from("mazi_forum_replies")
          .select("id,thread_id,member_user_id,body,created_at")
-         .in("thread_id",ids).order("created_at",{ascending:false}).limit(160);
+         .in("thread_id",ids).is("hidden_at",null).order("created_at",{ascending:false}).limit(160);
        if(rErr)return out({error:"data_unavailable"},503);
        replies=(recent||[]) as Json[];
      }
@@ -172,7 +172,7 @@ Deno.serve(async(req:Request)=>{
     if(section==="chat"){
      const {data,error}=await admin.from("mazi_chat_messages")
        .select("id,member_user_id,body,created_at")
-       .eq("channel","lobby").order("created_at",{ascending:false}).limit(60);
+       .eq("channel","lobby").is("hidden_at",null).order("created_at",{ascending:false}).limit(60);
      if(error)return out({error:"data_unavailable"},503);
      messages=(data||[]) as Json[];
      messages.reverse();
@@ -223,7 +223,7 @@ Deno.serve(async(req:Request)=>{
     if(!uuid(listingId)||body.length<20||body.length>1500)
      return out({error:"invalid_content"},400);
     const {data:listing,error:lError}=await admin.from("mazi_marketplace_listings")
-      .select("id,member_user_id,status").eq("id",listingId).maybeSingle();
+      .select("id,member_user_id,status").eq("id",listingId).is("hidden_at",null).maybeSingle();
     if(lError||!listing||listing.status!=="active"||listing.member_user_id===user.id)
      return out({error:"listing_not_available"},409);
     const target=await verifiedMember(listing.member_user_id);
@@ -291,7 +291,7 @@ Deno.serve(async(req:Request)=>{
      if(!uuid(thread_id)||body.length<2||body.length>2000)
        return out({error:"invalid_content"},400);
      const {data:thread,error:tError}=await admin.from("mazi_forum_threads")
-       .select("id,locked").eq("id",thread_id).maybeSingle();
+       .select("id,locked").eq("id",thread_id).is("hidden_at",null).maybeSingle();
      if(tError||!thread||thread.locked)return out({error:"thread_closed"},409);
      if(await rateLimited("mazi_forum_replies",6))return out({error:"rate_limited"},429);
      const {error}=await admin.from("mazi_forum_replies")
