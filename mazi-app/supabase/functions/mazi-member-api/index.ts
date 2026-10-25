@@ -233,14 +233,11 @@ Deno.serve(async(req:Request)=>{
     if(cError)return out({error:"data_unavailable"},503);
     if((count||0)>=60||await rateLimited("mazi_listing_inquiries",30))
      return out({error:"rate_limited"},429);
-    const {data:conversation,error:iError}=await admin.from("mazi_listing_inquiries")
-      .insert({listing_id:listingId,sender_user_id:user.id,recipient_user_id:listing.member_user_id})
-      .select("id").maybeSingle();
-    if(iError||!conversation)return out({error:"inquiry_already_exists"},409);
-    const {error:mError}=await admin.from("mazi_inquiry_messages")
-      .insert({inquiry_id:conversation.id,member_user_id:user.id,body});
-    if(mError)return out({error:"write_failed"},503);
-    return out({ok:true});
+    const {data:inquiryId,error:iError}=await admin.rpc("mazi_open_inquiry",{
+      p_listing_id:listingId,p_sender_user_id:user.id,p_body:body
+    });
+    if(iError||!inquiryId)return out({error:"inquiry_already_exists"},409);
+    return out({ok:true,inquiry_id:inquiryId});
    }
    if(operation==="community_reply_inquiry"){
     const inquiryId=text(input.inquiry_id),body=text(input.body);
