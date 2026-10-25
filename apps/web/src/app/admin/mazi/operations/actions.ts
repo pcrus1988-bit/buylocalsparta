@@ -20,7 +20,9 @@ export async function reviewMaziLaunchGateAction(form:FormData){
   await recordMaziLaunchGateReview(principal,{
    gateKey:field(form,"gate_key"),
    decision,
-   evidence:field(form,"evidence")
+   evidence:field(form,"evidence"),
+   evidenceReference:field(form,"evidence_reference"),
+   checkedItems:form.getAll("review_checks").filter((v):v is string=>typeof v==="string")
   });
  }catch{
   redirect("/admin/mazi/operations?notice=gate_not_saved");
