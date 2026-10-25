@@ -37,7 +37,8 @@ test("monitor flags delivery ambiguity and stale registry reviews rather than re
  assert.match(aggregate,/status='pending_delivery' AND issued_at < now\(\)-interval '10 minutes'/);
  assert.match(aggregate,/status='delivery_failed'/);
  assert.match(aggregate,/status='email_sent' AND expires_at<=now\(\)/);
- assert.match(aggregate,/registry_checked_at < now\(\)-interval '7 days'/);
+ assert.match(aggregate,/COALESCE\(\(SELECT checked_at FROM public\.mazi_interest_registry_rechecks/);
+ assert.match(aggregate,/a\.registry_checked_at\) < now\(\)-interval '7 days'/);
  assert.match(page,/invitations_delivery_unconfirmed/);
  assert.match(page,/invitations_delivery_failed/);
  assert.match(page,/invitations_expired_unconsumed/);
