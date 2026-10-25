@@ -4,7 +4,7 @@ import {redirect} from "next/navigation";
 import {createClient} from "../../lib/supabase/server";
 import {maziMemberRequest} from "../../lib/mazi-api";
 import {formattedDate,listingCategories,listingKinds,type MaziListing} from "../../lib/mazi-community";
-import {publishMaziListing,closeMaziListing} from "../community-actions";
+import {publishMaziListing,closeMaziListing,startInquiry} from "../community-actions";
 import {MaziCommunityNav} from "../community-nav";
 import s from "../community.module.css";
 
@@ -50,6 +50,15 @@ export default async function Marketplace({searchParams}:{searchParams:Promise<{
        <h3>{item.title}</h3>
        <p className={s.meta}>{item.author_business_name} · {formattedDate(item.created_at)}</p>
        <p className={s.body}>{item.description}</p>
+       {!item.is_mine?<details style={{margin:"18px 0 0",padding:"12px 0",borderTop:"1px solid #dbe5db"}}>
+        <summary style={{cursor:"pointer",fontWeight:700,color:"#1d6545"}}>Ιδιωτική επικοινωνία με την επιχείρηση</summary>
+        <form action={startInquiry} className={s.form} style={{marginTop:14}}>
+         <input type="hidden" name="listing_id" value={item.id}/>
+         <label>Μήνυμα ενδιαφέροντος<textarea name="body" required minLength={20} maxLength={1500} rows={4} placeholder="Περιέγραψε το ενδιαφέρον σου και μια πιθανή συνεργασία."/></label>
+         <button type="submit" className={s.action}>Αποστολή ιδιωτικού αιτήματος ↗</button>
+         <small>Η συνέχεια γίνεται στον ιδιωτικό χώρο μηνυμάτων. Τα email δεν κοινοποιούνται.</small>
+        </form>
+       </details>:null}
        <div className={s.footerLine}><Link className={s.reportLink} href={`/community/report?resource_type=listing&resource_id=${item.id}`}>Αναφορά περιεχομένου</Link></div>
       </article>
      )}
