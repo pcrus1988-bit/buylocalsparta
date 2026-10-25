@@ -114,3 +114,16 @@ test("onboarding admission guard does not depend on cycle, ledger, voting or das
  assert.match(section,/eq\("user_id",user.id\)/);
  assert.doesNotMatch(section,/currentCycle|mazi_grant_award_offers|mazi_proposals|mazi_fund_ledger/);
 });
+
+test("production invite issuance is held until verified Auth, legal and zero-funded checks",()=>{
+ assert.match(admin,/MAZI_INVITATION_RELEASE_NOT_VERIFIED/);
+ assert.match(admin,/MAZI_FINANCIAL_LOCK_NOT_VERIFIED/);
+ assert.match(admin,/SELECT decision FROM public\.mazi_launch_gate_reviews/);
+ assert.match(admin,/ORDER BY r\.recorded_at DESC,r\.id DESC LIMIT 1/);
+ assert.match(admin,/auth_email_delivery/);
+ assert.match(admin,/legal_and_retention/);
+ assert.match(admin,/NOT finance_activated AND funding_budget_cents=0/);
+ assert.match(admin,/public\.mazi_fund_ledger/);
+ assert.match(admin,/public\.mazi_grant_award_offers/);
+ assert.doesNotMatch(admin,/required\(gate_key\)[\s\S]*consenting_business_e2e/);
+});
