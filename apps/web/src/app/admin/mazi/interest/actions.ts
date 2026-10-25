@@ -4,10 +4,30 @@ import {revalidatePath} from "next/cache";
 import {getAdminSession} from "../../../../lib/admin-session";
 import {assertAdminCsrf} from "../../../../lib/admin-runtime";
 import {requireMarketplaceSuperAdminRole} from "../../../../lib/mazi-superadmin";
-import {reviewMaziInterest} from "../../../../lib/mazi-interest-admin";
+import {reviewMaziInterest,recheckMaziInterestRegistry} from "../../../../lib/mazi-interest-admin";
 import {issueMaziInvitation,revokeMaziInvitation} from "../../../../lib/mazi-invitation-admin";
 
 const value=(f:FormData,k:string)=>typeof f.get(k)==="string"?String(f.get(k)):"";
+export async function refreshMaziInterestRegistryAction(form:FormData){
+ const principal=await getAdminSession();
+ requireMarketplaceSuperAdminRole(principal);
+ assertAdminCsrf(principal,value(form,"csrf"));
+ try{
+  await recheckMaziInterestRegistry(principal,value(form,"id"));
+ }catch(error){
+  const code=error instanceof Error?error.message:"";
+  const notice=code==="MAZI_GEMI_RECHECK_UNAVAILABLE"?"gemi_unavailable":
+   code==="MAZI_GEMI_RECHECK_MISMATCH"?"gemi_mismatch":
+   code==="MAZI_GEMI_ORIGINAL_MATCH_REQUIRED"?"gemi_manual_review":
+   code==="MAZI_INTEREST_NOT_REVIEWABLE"?"not_reviewable":
+   code==="MAZI_GEMI_RECHECK_INVALID"?"review_invalid":null;
+  if(notice)redirect("/admin/mazi/interest?notice="+notice);
+  throw error;
+ }
+ revalidatePath("/admin/mazi/interest");
+ redirect("/admin/mazi/interest?notice=gemi_refreshed");
+}
+
 export async function reviewMaziInterestAction(form:FormData){
  const principal=await getAdminSession();
  requireMarketplaceSuperAdminRole(principal);
