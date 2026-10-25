@@ -220,17 +220,91 @@ Deno.serve(async(req:Request)=>{
   }
   // Community participation is never implied by possessing a valid Auth JWT:
   // every listing, discussion, reply and chat write must have live KYB status.
+  // Additive private B2B inbox; preserve existing marketplace/forum/chat contracts.
+  if(["community_inbox","community_start_inquiry","community_reply_inquiry"].includes(operation)){
+   if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
+   const rateLimited=async(table:string,seconds:number)=>{
+    const {data,error}=await admin.from(table).select("created_at")
+      .eq("member_user_id",user.id).order("created_at",{ascending:false}).limit(1);
+    if(error)throw error;
+    return Boolean(data?.[0]&&Date.now()-Date.parse(data[0].created_at)<seconds*1000);
+   };
+   if(operation==="community_inbox"){
+    const {data:inquiries,error}=await admin.from("mazi_listing_inquiries")
+      .select("id,listing_id,sender_user_id,recipient_user_id,status,created_at")
+      .or(`sender_user_id.eq.${user.id},recipient_user_id.eq.${user.id}`)
+      .order("created_at",{ascending:false}).limit(60);
+    if(error)return out({error:"data_unavailable"},503);
+    const list=inquiries||[];
+    let inquiryMessages:Json[]=[],listingLabels:Record<string,string>={},businessLabels:Record<string,string>={};
+    if(list.length){
+     const {data:messages,error:msgError}=await admin.from("mazi_inquiry_messages")
+       .select("id,inquiry_id,member_user_id,body,created_at")
+       .in("inquiry_id",list.map(i=>i.id)).order("created_at",{ascending:false}).limit(180);
+     if(msgError)return out({error:"data_unavailable"},503);
+     inquiryMessages=(messages||[]) as Json[];
+     const {data:linked,error:lError}=await admin.from("mazi_marketplace_listings")
+       .select("id,title").in("id",[...new Set(list.map(i=>i.listing_id))]).limit(60);
+     if(lError)return out({error:"data_unavailable"},503);
+     for(const l of linked||[])listingLabels[l.id]=l.title;
+     const ownerIds=[...new Set(list.flatMap(i=>[i.sender_user_id,i.recipient_user_id]))];
+     const {data:businesses,error:bError}=await admin.from("mazi_membership_applications")
+       .select("applicant_user_id,business_name").eq("status","approved")
+       .in("applicant_user_id",ownerIds).limit(120);
+     if(bError)return out({error:"data_unavailable"},503);
+     for(const b of businesses||[])businessLabels[b.applicant_user_id]=b.business_name;
+    }
+    return out({ok:true,inquiries:list,inquiry_messages:inquiryMessages,
+      listing_labels:listingLabels,businesses:businessLabels});
+   }
+   if(operation==="community_start_inquiry"){
+    const listingId=text(input.listing_id),body=text(input.body);
+    if(!uuid(listingId)||body.length<20||body.length>1500)
+     return out({error:"invalid_content"},400);
+    const {data:listing,error:lError}=await admin.from("mazi_marketplace_listings")
+      .select("id,member_user_id,status").eq("id",listingId).is("hidden_at",null).maybeSingle();
+    if(lError||!listing||listing.status!=="active"||listing.member_user_id===user.id)
+     return out({error:"listing_not_available"},409);
+    const target=await verifiedMember(listing.member_user_id);
+    if(!target)return out({error:"listing_not_available"},409);
+    const {count,error:cError}=await admin.from("mazi_listing_inquiries")
+      .select("id",{count:"exact",head:true}).eq("sender_user_id",user.id);
+    if(cError)return out({error:"data_unavailable"},503);
+    if((count||0)>=60||await rateLimited("mazi_listing_inquiries",30))
+     return out({error:"rate_limited"},429);
+    const {data:inquiryId,error:iError}=await admin.rpc("mazi_open_inquiry",{
+      p_listing_id:listingId,p_sender_user_id:user.id,p_body:body
+    });
+    if(iError||!inquiryId)return out({error:"inquiry_already_exists"},409);
+    return out({ok:true,inquiry_id:inquiryId});
+   }
+   if(operation==="community_reply_inquiry"){
+    const inquiryId=text(input.inquiry_id),body=text(input.body);
+    if(!uuid(inquiryId)||body.length<2||body.length>1500)
+     return out({error:"invalid_content"},400);
+    const {data:inquiry,error:iError}=await admin.from("mazi_listing_inquiries")
+      .select("sender_user_id,recipient_user_id,status").eq("id",inquiryId).maybeSingle();
+    if(iError||!inquiry||inquiry.status!=="open"||
+      (inquiry.sender_user_id!==user.id&&inquiry.recipient_user_id!==user.id))
+     return out({error:"not_available"},403);
+    if(await rateLimited("mazi_inquiry_messages",5))return out({error:"rate_limited"},429);
+    const {error}=await admin.from("mazi_inquiry_messages")
+      .insert({inquiry_id:inquiryId,member_user_id:user.id,body});
+    return error?out({error:"write_failed"},409):out({ok:true});
+   }
+
+  }
   if(operation==="community_overview"){
    if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
    const [listings,threads,replies,chat]=await Promise.all([
     admin.from("mazi_marketplace_listings").select("id",{count:"exact",head:true})
-     .eq("member_user_id",user.id).eq("status","active"),
+     .eq("member_user_id",user.id).eq("status","active").is("hidden_at",null),
     admin.from("mazi_forum_threads").select("id",{count:"exact",head:true})
-     .eq("member_user_id",user.id),
+     .eq("member_user_id",user.id).is("hidden_at",null),
     admin.from("mazi_forum_replies").select("id",{count:"exact",head:true})
-     .eq("member_user_id",user.id),
+     .eq("member_user_id",user.id).is("hidden_at",null),
     admin.from("mazi_chat_messages").select("id",{count:"exact",head:true})
-     .eq("member_user_id",user.id)
+     .eq("member_user_id",user.id).is("hidden_at",null)
    ]);
    if(listings.error||threads.error||replies.error||chat.error)
     return out({error:"data_unavailable"},503);
@@ -245,7 +319,7 @@ Deno.serve(async(req:Request)=>{
    const mine=operation==="marketplace_my";
    let query=admin.from("mazi_marketplace_listings")
     .select("id,member_user_id,kind,category,title,description,status,created_at,updated_at")
-    .order("created_at",{ascending:false}).limit(60);
+    .is("hidden_at",null).order("created_at",{ascending:false}).limit(60);
    query=mine?query.eq("member_user_id",user.id):query.eq("status","active");
    const {data,error}=await query;
    if(error)return out({error:"data_unavailable"},503);
@@ -280,7 +354,7 @@ Deno.serve(async(req:Request)=>{
    if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
    const {data,error}=await admin.from("mazi_forum_threads")
      .select("id,member_user_id,category,title,body,locked,created_at")
-     .order("created_at",{ascending:false}).limit(60);
+     .is("hidden_at",null).order("created_at",{ascending:false}).limit(60);
    if(error)return out({error:"data_unavailable"},503);
    return out({ok:true,threads:await communityVisible((data||[]) as CommunityRow[],user.id)});
   }
@@ -301,14 +375,14 @@ Deno.serve(async(req:Request)=>{
    if(!uuid(threadId))return out({error:"invalid_thread"},400);
    const {data:thread,error:tError}=await admin.from("mazi_forum_threads")
     .select("id,member_user_id,category,title,body,locked,created_at")
-    .eq("id",threadId).maybeSingle();
+    .eq("id",threadId).is("hidden_at",null).maybeSingle();
    if(tError)return out({error:"data_unavailable"},503);
    if(!thread)return out({error:"thread_not_found"},404);
    const visible=await communityVisible([thread as CommunityRow],user.id);
    if(!visible.length)return out({error:"thread_not_found"},404);
    const {data:replies,error:rError}=await admin.from("mazi_forum_replies")
     .select("id,thread_id,member_user_id,body,created_at")
-    .eq("thread_id",threadId).order("created_at",{ascending:true}).limit(100);
+    .eq("thread_id",threadId).is("hidden_at",null).order("created_at",{ascending:true}).limit(100);
    if(rError)return out({error:"data_unavailable"},503);
    return out({ok:true,thread:visible[0],
     replies:await communityVisible((replies||[]) as CommunityRow[],user.id)});
@@ -318,7 +392,7 @@ Deno.serve(async(req:Request)=>{
    const threadId=text(input.thread_id),body=text(input.body);
    if(!uuid(threadId)||body.length<2||body.length>2000)return out({error:"invalid_reply"},400);
    const {data:thread,error:lookupError}=await admin.from("mazi_forum_threads")
-    .select("id,locked,member_user_id").eq("id",threadId).maybeSingle();
+    .select("id,locked,member_user_id").eq("id",threadId).is("hidden_at",null).maybeSingle();
    if(lookupError||!thread||thread.locked)return out({error:"thread_not_available"},403);
    if(!(await communityVisible([thread as CommunityRow],user.id)).length)
     return out({error:"thread_not_available"},403);
@@ -332,7 +406,7 @@ Deno.serve(async(req:Request)=>{
    if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
    const {data,error}=await admin.from("mazi_chat_messages")
     .select("id,member_user_id,channel,body,created_at")
-    .eq("channel","lobby").order("created_at",{ascending:false}).limit(60);
+    .eq("channel","lobby").is("hidden_at",null).order("created_at",{ascending:false}).limit(60);
    if(error)return out({error:"data_unavailable"},503);
    const visible=await communityVisible((data||[]) as CommunityRow[],user.id);
    return out({ok:true,messages:visible.reverse()});
@@ -358,7 +432,7 @@ Deno.serve(async(req:Request)=>{
    if(!targets[resource_type]||!uuid(resource_id)||reason.length<20||reason.length>500)
     return out({error:"invalid_report"},400);
    const {data:resource,error:targetError}=await admin.from(targets[resource_type])
-    .select("id,member_user_id").eq("id",resource_id).maybeSingle();
+    .select("id,member_user_id").eq("id",resource_id).is("hidden_at",null).maybeSingle();
    if(targetError||!resource)return out({error:"resource_not_found"},404);
    if(!(await communityVisible([resource as CommunityRow],user.id)).length)
     return out({error:"resource_not_found"},404);
