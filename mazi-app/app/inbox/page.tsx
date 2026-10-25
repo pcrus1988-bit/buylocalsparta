@@ -3,16 +3,14 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {createClient} from "../../lib/supabase/server";
 import {maziMemberRequest} from "../../lib/mazi-api";
+import type {CommunityInbox} from "../../lib/community";
 import {replyInquiry} from "../community-actions";
 import "../community.css";
-type Inquiry={id:string;listing_id:string;sender_user_id:string;recipient_user_id:string;status:string;created_at:string};
-type InquiryMessage={id:string;inquiry_id:string;member_user_id:string;body:string;created_at:string};
-type Inbox={inquiries:Inquiry[];inquiry_messages:InquiryMessage[];listing_labels:Record<string,string>;businesses:Record<string,string>};
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"Μηνύματα συνεργασίας",robots:{index:false,follow:false}};
 export default async function InboxPage({searchParams}:{searchParams:Promise<{notice?:string}>}){
  const db=await createClient();const {data:{user}}=await db.auth.getUser();if(!user)redirect("/join");
- const result=await maziMemberRequest<Inbox>("community_inbox");
+ const result=await maziMemberRequest<CommunityInbox>("community_inbox");
  if(!result.ok)return <main id="content" className="com-shell"><h1>Η αλληλογραφία δεν είναι διαθέσιμη.</h1><p>Απαιτείται επαληθευμένη ενεργή συμμετοχή.</p><Link href="/dashboard">Ο χώρος μου</Link></main>;
  const {notice}=await searchParams;
  return <main id="content" className="com-shell">
