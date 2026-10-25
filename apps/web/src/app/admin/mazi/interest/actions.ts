@@ -96,8 +96,22 @@ export async function issueMaziInvitationAction(form:FormData){
  let status:"sent"|"delivery_failed";
  try{
   status=await issueMaziInvitation(principal,value(form,"id"),form.get("provider_reconciled")==="on"?value(form,"reconciliation_reason"):undefined);
- }catch{
-  redirect("/admin/mazi/interest?notice=invitation_not_issued");
+ }catch(error){
+  // Expected policy blocks are safe to explain. Do not leak PII, tokens, or
+  // provider response bodies. No gate, identity or provider check is bypassed.
+  const code=error instanceof Error?error.message:"";
+  const notice=code==="MAZI_INVITATION_RELEASE_NOT_VERIFIED"?"invitation_release_not_verified":
+   code==="MAZI_INVITATION_DELIVERY_NOT_READY"?"invitation_auth_not_configured":
+   code==="MAZI_FINANCIAL_LOCK_NOT_VERIFIED"?"invitation_finance_not_locked":
+   code==="MAZI_INVITATION_BUSINESS_NOT_VERIFIED"?"invitation_identity_not_verified":
+   ["MAZI_INVITATION_ALREADY_ACTIVE","MAZI_INVITATION_ALREADY_CONSUMED",
+    "MAZI_LEGAL_ENTITY_ALREADY_MEMBER"].includes(code)?"invitation_existing":
+   code==="MAZI_INVITATION_PROVIDER_RECONCILIATION_REQUIRED"?"invitation_reconciliation_required":
+   code==="MAZI_INVITATION_INVALID"?"invitation_invalid":
+   "invitation_system_error";
+  if(notice==="invitation_system_error")
+   console.error(JSON.stringify({event:"mazi.invitation_issue_unexpected",reason:"unclassified_failure"}));
+  redirect("/admin/mazi/interest?notice="+notice);
  }
  revalidatePath("/admin/mazi/interest");
  redirect("/admin/mazi/interest?notice="+(status==="sent"?"invitation_sent":"invitation_delivery_failed"));
