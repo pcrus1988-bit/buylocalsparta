@@ -4,7 +4,7 @@ import {getAdminSession} from "../../../../lib/admin-session";
 import {isMaziSuperAdmin} from "../../../../lib/mazi-superadmin";
 import {maziInterestReviewQueue} from "../../../../lib/mazi-interest-admin";
 import {reviewMaziInterestAction,issueMaziInvitationAction,revokeMaziInvitationAction,refreshMaziInterestRegistryAction,manualMaziGemiPublicityAction} from "./actions";
-import {maziInvitationStates} from "../../../../lib/mazi-invitation-admin";
+import {maziInvitationStates,maziInvitationPreflight,type MaziInvitationPreflight} from "../../../../lib/mazi-invitation-admin";
 import s from "../mazi.module.css";
 
 export const dynamic="force-dynamic";
@@ -21,10 +21,23 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
   <h1>Μόνο ο ΚΟΝΤΑ ΜΟΥ Super Admin έχει πρόσβαση.</h1></div></main>;
  let rows:Awaited<ReturnType<typeof maziInterestReviewQueue>>|null=null;
  let invites:Awaited<ReturnType<typeof maziInvitationStates>>=[];
- try{[rows,invites]=await Promise.all([maziInterestReviewQueue(principal),maziInvitationStates(principal)]);}catch{}
+ let invitationPreflight:MaziInvitationPreflight|null=null;
+ try{
+  const [queue,states,preflight]=await Promise.all([
+   maziInterestReviewQueue(principal),maziInvitationStates(principal),maziInvitationPreflight(principal)
+  ]);
+  rows=queue;invites=states;invitationPreflight=preflight;
+ }catch{
+  // An unavailable preflight must never silently enable an invitation.
+  try{rows=await maziInterestReviewQueue(principal);}catch{}
+ }
  if(!rows)return <main className={s.stage}><div className={s.shell}><h1>Προσωρινά μη διαθέσιμο</h1><p>Δεν έγινε καμία αλλαγή.</p></div></main>;
  const params=await searchParams;
  const pending=rows.filter(r=>r.status==="pending_review"||r.status==="registry_review_required");
+ const invitationReady=Boolean(invitationPreflight?.authConfigured&&
+  invitationPreflight?.authEmailVerified&&invitationPreflight?.legalVerified&&
+  invitationPreflight?.financeLocked);
+ const hasApproved=rows.some(r=>r.status==="approved_pending_invite");
  return <main className={s.stage}><div className={s.shell}>
   <div className={s.breadcrumb}><Link href="/admin/mazi">ΚΟΝΤΑ ΜΟΥ / ΜΑΖΙ</Link><span>↗</span> ΑΙΤΗΣΕΙΣ ΑΦΜ <span>·</span><Link href="/admin/mazi/operations">Έλεγχος λειτουργίας ↗</Link></div>
   <header className={s.hero}><div>
@@ -55,7 +68,15 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
   {params.notice==="invitation_delivery_failed"?<p className={s.notice} role="alert">Η αποστολή δεν επιβεβαιώθηκε. Απαιτείται έλεγχος της κατάστασης στο Supabase Auth πριν από νέα προσπάθεια.</p>:null}
   {params.notice==="invitation_revoked"?<p className={s.notice} role="status">Η προηγούμενη πρόσκληση ανακλήθηκε. Η ενδεχόμενη παλιά σύνδεση δεν παρέχει πλέον δικαίωμα ένταξης.</p>:null}
   {params.notice==="invitation_not_revoked"?<p className={s.notice} role="alert">Η ανάκληση απέτυχε ή δεν πληροί τους κανόνες καταγραφής. Δεν έγινε αλλαγή.</p>:null}
-  {params.notice==="invitation_not_issued"?<p className={s.notice} role="alert">Δεν εκδόθηκε πρόσκληση. Έλεγξε τις προϋποθέσεις ταυτοποίησης, την υπάρχουσα πρόσκληση και τη ρύθμιση αποστολής.</p>:null}
+  {params.notice==="invitation_release_not_verified"?<p className={s.notice} role="alert">Δεν εκδόθηκε πρόσκληση: δεν έχουν καταχωριστεί οι απαιτούμενες επαληθεύσεις «Supabase Auth / αποστολή email» και «Νομικός έλεγχος / διατήρηση». Ολοκλήρωσε πραγματικό έλεγχο και καταχώρισέ τον στον <Link href="/admin/mazi/operations" style={{textDecoration:"underline"}}>Έλεγχο λειτουργίας</Link>.</p>:null}
+  {params.notice==="invitation_auth_not_configured"?<p className={s.notice} role="alert">Δεν εκδόθηκε πρόσκληση: η ασφαλής σύνδεση με Supabase Auth για το ΜΑΖΙ δεν έχει ολοκληρωθεί. Έλεγξε το project URL και το server-only service role credential της παραγωγής.</p>:null}
+  {params.notice==="invitation_finance_not_locked"?<p className={s.notice} role="alert">Δεν εκδόθηκε πρόσκληση επειδή δεν επιβεβαιώνεται η απαιτούμενη οικονομική ασφάλεια του αρχικού κύκλου. Απαιτείται διερεύνηση στον Έλεγχο λειτουργίας.</p>:null}
+  {params.notice==="invitation_identity_not_verified"?<p className={s.notice} role="alert">Δεν εκδόθηκε πρόσκληση: δεν πληρούνται πλέον οι όροι ταυτοποίησης επιχείρησης ή πρόσφατης επαλήθευσης ΓΕΜΗ.</p>:null}
+  {params.notice==="invitation_existing"?<p className={s.notice} role="alert">Υπάρχει ήδη ενεργή, χρησιμοποιημένη ή διπλή πρόσκληση/συμμετοχή. Δεν εκδόθηκε δεύτερη πρόσκληση. Έλεγξε το ιστορικό πριν από οποιαδήποτε ενέργεια.</p>:null}
+  {params.notice==="invitation_reconciliation_required"?<p className={s.notice} role="alert">Η προηγούμενη αποστολή έχει αβέβαιο αποτέλεσμα. Χρειάζεται τεκμηριωμένος έλεγχος του Supabase Auth πριν γίνει νέα προσπάθεια.</p>:null}
+  {params.notice==="invitation_invalid"?<p className={s.notice} role="alert">Δεν ήταν έγκυρο το αίτημα έκδοσης πρόσκλησης. Δεν έγινε καμία αλλαγή.</p>:null}
+  {params.notice==="invitation_system_error"?<p className={s.notice} role="alert">Παρουσιάστηκε τεχνικό σφάλμα πριν εκδοθεί πρόσκληση. Έλεγξε τα αρχεία καταγραφής του server. Δεν εμφανίζονται ευαίσθητα στοιχεία.</p>:null}
+  {params.notice==="invitation_not_issued"?<p className={s.notice} role="alert">Δεν εκδόθηκε πρόσκληση. Δες αναλυτικά τις προϋποθέσεις αποστολής παρακάτω.</p>:null}
   <section className={s.section}><div className={s.sectionTop}><div>
    <p>01 / INTAKE REVIEW</p><h2>Προς αξιολόγηση ({pending.length})</h2>
   </div><span>Ισχύει ανεξάρτητη επαλήθευση εκπροσώπου και email</span></div>
@@ -140,6 +161,18 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
    </article>)}</div>}
   </section>
   <section className={s.section}><div className={s.sectionTop}><div><p>02 / REVIEW HISTORY</p><h2>Προηγούμενες αποφάσεις</h2></div></div>
+   {hasApproved?<div className={s.card} style={{display:"block",marginBottom:18,padding:22}}>
+    <strong style={{fontSize:17}}>Έλεγχος ετοιμότητας προσωπικών προσκλήσεων</strong>
+    <p className={s.body} style={{margin:"7px 0"}}>Η έγκριση μιας αίτησης δεν αποστέλλει email. Η αποστολή απαιτεί τους παρακάτω ανεξάρτητους ελέγχους:</p>
+    <ul style={{paddingLeft:20,lineHeight:2,margin:"12px 0",fontSize:14}}>
+     <li>{invitationPreflight?.authEmailVerified?"✓":"○"} Αποστολή Supabase Auth / callback email: {invitationPreflight?.authEmailVerified?"Επαληθεύτηκε":"Αναμένεται πραγματική επαλήθευση"}</li>
+     <li>{invitationPreflight?.legalVerified?"✓":"○"} Νομικός έλεγχος και διατήρηση δεδομένων: {invitationPreflight?.legalVerified?"Επαληθεύτηκε":"Αναμένεται πραγματική επαλήθευση"}</li>
+     <li>{invitationPreflight?.authConfigured?"✓":"○"} Server-only διαμόρφωση Supabase Auth: {invitationPreflight?.authConfigured?"Διαθέσιμη":"Δεν επιβεβαιώθηκε"}</li>
+     <li>{invitationPreflight?.financeLocked?"✓":"○"} Οικονομική ασφάλεια αρχικού κύκλου: {invitationPreflight?.financeLocked?"Κλειδωμένη":"Δεν επιβεβαιώθηκε"}</li>
+    </ul>
+    <p className={s.meta}>{invitationReady?"Οι γενικές προϋποθέσεις επιβεβαιώθηκαν. Η έκδοση εξακολουθεί να ελέγχει ξεχωριστά την ταυτότητα και τυχόν προηγούμενη πρόσκληση.":"Η έκδοση προσωπικής πρόσκλησης παραμένει απενεργοποιημένη μέχρι να ολοκληρωθούν όλοι οι έλεγχοι."}</p>
+    <Link href="/admin/mazi/operations" style={{display:"inline-block",marginTop:8,textDecoration:"underline",fontWeight:700,fontSize:13}}>Μετάβαση στον Έλεγχο λειτουργίας και καταχώριση τεκμηρίωσης ↗</Link>
+   </div>:null}
    {rows.filter(r=>!["pending_review","registry_review_required"].includes(r.status)).map(r=>{
     const latest=invites.find(i=>i.interest_id===r.id);
     return <div key={r.id} className={s.member} style={{display:"grid",gap:12}}>
@@ -157,7 +190,7 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
          </label>
          <label><input type="checkbox" name="provider_reconciled" required/> Επιβεβαιώνω ότι εξέτασα τον παραλήπτη και την κατάσταση της προηγούμενης αποστολής στον πάροχο.</label>
         </>:null}
-        <button type="submit" className={s.primary}>{latest?"Επανέκδοση ατομικής πρόσκλησης":"Αποστολή προσωπικής πρόσκλησης"} ↗</button>
+        <button type="submit" className={s.primary} disabled={!invitationReady} aria-disabled={!invitationReady}>{invitationReady?(latest?"Επανέκδοση ατομικής πρόσκλησης":"Αποστολή προσωπικής πρόσκλησης"):"Απαιτείται ολοκλήρωση ελέγχων"} ↗</button>
        </form>:null}
       {latest&&(latest.status==="pending_delivery"||latest.status==="email_sent")?
        <form action={revokeMaziInvitationAction} className={s.action} style={{display:"grid",gap:8}}>

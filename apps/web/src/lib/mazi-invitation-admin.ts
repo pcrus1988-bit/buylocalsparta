@@ -6,6 +6,44 @@ const AUTH_PROJECT_URL="https://eemihhfreggbigxejjhj.supabase.co";
 const CALLBACK="https://mazi.kontamou.site/auth/callback";
 export type MaziInviteStatus="pending_delivery"|"email_sent"|"delivery_failed"|"consumed"|"revoked";
 
+/** Read-only preflight for the Super Admin, matching the invitation's fail-closed gates. */
+export type MaziInvitationPreflight=Readonly<{
+ authConfigured:boolean;authEmailVerified:boolean;legalVerified:boolean;financeLocked:boolean;
+}>;
+export async function maziInvitationPreflight(principal:SessionPrincipal):Promise<MaziInvitationPreflight>{
+ await marketplaceMaziActor(principal);
+ const {rows}=await getAdminPostgresRuntime().nativePool.query<{
+  auth_email_verified:boolean;legal_verified:boolean;finance_locked:boolean;
+ }>(`
+ SELECT
+  (SELECT decision='verified' FROM public.mazi_launch_gate_reviews
+   WHERE gate_key='auth_email_delivery' ORDER BY recorded_at DESC,id DESC LIMIT 1) IS TRUE
+    AS auth_email_verified,
+  (SELECT decision='verified' FROM public.mazi_launch_gate_reviews
+   WHERE gate_key='legal_and_retention' ORDER BY recorded_at DESC,id DESC LIMIT 1) IS TRUE
+    AS legal_verified,
+  (
+   (SELECT count(*)=0 FROM public.mazi_fund_ledger)
+   AND (SELECT count(*)=0 FROM public.mazi_grant_award_offers)
+   AND (SELECT count(*)=0 FROM public.mazi_cycles WHERE finance_activated OR funding_budget_cents<>0)
+   AND (SELECT count(*)=1 FROM public.mazi_cycles
+       WHERE slug='founding-needs-2026' AND kind='needs_assessment'
+        AND NOT finance_activated AND funding_budget_cents=0)
+  ) AS finance_locked
+ `);
+ const row=rows[0];
+ if(!row)throw Error("MAZI_INVITATION_PREFLIGHT_UNAVAILABLE");
+ return {
+  authConfigured:Boolean(
+   (process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY) &&
+   (process.env.MAZI_SUPABASE_URL||process.env.SUPABASE_URL)===AUTH_PROJECT_URL),
+  authEmailVerified:row.auth_email_verified===true,
+  legalVerified:row.legal_verified===true,
+  financeLocked:row.finance_locked===true
+ };
+}
+
+
 export async function maziInvitationStates(principal:SessionPrincipal){
  await marketplaceMaziActor(principal);
  const result=await getAdminPostgresRuntime().nativePool.query<{
