@@ -76,6 +76,37 @@ export async function issueMaziInvitation(principal:SessionPrincipal,interestId:
  let record:{id:string;email:string}|null=null;
  try{
   await conn.query("BEGIN");
+  // Public release is not implied by a successful database migration.
+  // Auth SMTP/redirect and counsel/privacy checks must both have explicit,
+  // latest verified Super Admin reviews before ANY personal email is issued.
+  // The consenting-business E2E gate necessarily follows the first invite.
+  const gateCheck=await conn.query<{ready:boolean}>(`
+   SELECT NOT EXISTS (
+    SELECT 1 FROM (VALUES
+      ('auth_email_delivery'::text),('legal_and_retention'::text)
+    ) required(gate_key)
+    LEFT JOIN LATERAL (
+      SELECT decision FROM public.mazi_launch_gate_reviews r
+      WHERE r.gate_key=required.gate_key
+      ORDER BY r.recorded_at DESC,r.id DESC LIMIT 1
+    ) latest ON true
+    WHERE latest.decision IS DISTINCT FROM 'verified'
+   ) AS ready
+  `);
+  if(gateCheck.rows[0]?.ready!==true)
+   throw Error("MAZI_INVITATION_RELEASE_NOT_VERIFIED");
+  const financeCheck=await conn.query<{safe:boolean}>(`
+   SELECT
+    (SELECT count(*)=0 FROM public.mazi_fund_ledger)
+    AND (SELECT count(*)=0 FROM public.mazi_grant_award_offers)
+    AND (SELECT count(*)=0 FROM public.mazi_cycles
+         WHERE finance_activated OR funding_budget_cents<>0)
+    AND (SELECT count(*)=1 FROM public.mazi_cycles
+         WHERE slug='founding-needs-2026' AND kind='needs_assessment'
+           AND NOT finance_activated AND funding_budget_cents=0) AS safe
+  `);
+  if(financeCheck.rows[0]?.safe!==true)
+   throw Error("MAZI_FINANCIAL_LOCK_NOT_VERIFIED");
   const res=await conn.query<{
    id:string;status:string;contact_email:string;gemi_number:string|null;
    registry_legal_name:string|null;registry_lookup_status:string;
