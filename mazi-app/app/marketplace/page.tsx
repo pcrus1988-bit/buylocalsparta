@@ -25,7 +25,7 @@ export default async function Marketplace({searchParams}:{searchParams:Promise<{
   </section>
   <MaziCommunityNav/>
   {!publicFeed.ok||!mine.ok?<div className={s.warn}>
-   <h2>{publicFeed.error==="not_verified"||mine.error==="not_verified"?"Πρόσβαση μόνο σε επαληθευμένα μέλη":"Η κοινότητα δεν είναι προσωρινά διαθέσιμη"}</h2>
+   <h2>{(!publicFeed.ok&&publicFeed.error==="not_verified")||(!mine.ok&&mine.error==="not_verified")?"Πρόσβαση μόνο σε επαληθευμένα μέλη":"Η κοινότητα δεν είναι προσωρινά διαθέσιμη"}</h2>
    <p>Χρειάζεται ενεργή έγκριση επιχείρησης και επιβεβαίωση ΓΕΜΗ. Δεν εμφανίζονται δεδομένα χωρίς έλεγχο.</p><Link className={s.minor} href="/members">Κατάσταση μέλους ↗</Link>
   </div>:<>
    {notice==="created"?<p className={s.notice} role="status">Η καταχώρισή σου δημοσιεύτηκε στην κοινότητα.</p>:null}
