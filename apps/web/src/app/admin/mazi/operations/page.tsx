@@ -108,7 +108,7 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
    <div className={s.lock}><strong>ΣΤΙΓΜΙΟΤΥΠΟ ΒΑΣΗΣ</strong>
     <span>{snapshotAt.toLocaleString("el-GR",{timeZone:"Europe/Athens"})}</span>
     <span>Μόνο αναγνωστική πρόσβαση. Δεν δημιουργούνται ή αλλάζουν μέλη.</span>
-    <Link href="/admin/mazi/interest">Διαχείριση αιτήσεων ΑΦΜ ↗</Link>
+    <Link href="/admin/mazi/interest">Διαχείριση αιτήσεων ΑΦΜ ↗</Link><Link href="/admin/mazi/moderation">Αναφορές κοινότητας ↗</Link>
     <Link href="/admin/mazi">Διακυβέρνηση ↗</Link>
    </div>
   </header>
