@@ -17,6 +17,16 @@ export async function createListing(form:FormData){
   title:value(form.get("title")),description:value(form.get("description"))
  },"/marketplace");
 }
+export async function startInquiry(form:FormData){
+ await save("community_start_inquiry",{
+  listing_id:value(form.get("listing_id")),body:value(form.get("body"))
+ },"/marketplace");
+}
+export async function replyInquiry(form:FormData){
+ await save("community_reply_inquiry",{
+  inquiry_id:value(form.get("inquiry_id")),body:value(form.get("body"))
+ },"/inbox");
+}
 export async function closeListing(form:FormData){
  await save("community_close_listing",{id:value(form.get("id"))},"/marketplace");
 }
