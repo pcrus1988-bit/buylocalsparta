@@ -1,6 +1,7 @@
 import type {SessionPrincipal} from "@buy-local-sparta/core";
 import {getAdminPostgresRuntime} from "./postgres-runtime";
 import {marketplaceMaziActor} from "./mazi-superadmin";
+import {formatMaziEvidence,validateMaziGateChecklist} from "./mazi-release-checklist";
 
 /** Live, aggregate-only MAZI operations. Never expose applicants' AFM,
  * contacts, identifiers or individual audit evidence on this overview.
@@ -100,14 +101,28 @@ export async function maziLaunchGateHistory(principal:SessionPrincipal):Promise<
 
 export async function recordMaziLaunchGateReview(principal:SessionPrincipal,input:{
  gateKey:string;decision:string;evidence:string;
+ checkedItems?:readonly string[];evidenceReference?:string;
 }):Promise<void>{
  const actor=await marketplaceMaziActor(principal);
  const {gateKey,decision}=input;
- const evidence=input.evidence.trim();
+ const text=input.evidence.trim();
+ const checked=input.checkedItems??[];
+ const reference=input.evidenceReference?.trim()??"";
  if(!allowedGateKeys.has(gateKey as MaziLaunchGateKey)||
    !["verified","reopened"].includes(decision)||
-   evidence.length<40||evidence.length>1200)
+   text.length<40||text.length>900||
+   !validateMaziGateChecklist(gateKey,decision,checked,reference))
   throw Error("MAZI_LAUNCH_GATE_REVIEW_INVALID");
+ const evidence=decision==="verified"&&
+  (gateKey==="auth_email_delivery"||gateKey==="legal_and_retention")
+  ? formatMaziEvidence(text,reference,checked) : text;
+ if(evidence.length>1200)throw Error("MAZI_LAUNCH_GATE_REVIEW_INVALID");
+ // Passing a checklist does not attest SMTP delivery or replace actual counsel.
+ // For Auth, enforce that the privileged issuer has an exact project binding.
+ if(gateKey==="auth_email_delivery"&&decision==="verified"&&
+   (!(process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY)||
+    (process.env.MAZI_SUPABASE_URL||process.env.SUPABASE_URL)!=="https://eemihhfreggbigxejjhj.supabase.co"))
+  throw Error("MAZI_AUTH_CONFIGURATION_NOT_READY");
  // The real-business E2E attestation cannot be asserted for an empty
  // programme. Require a verifiably consumed invitation and approved legal
  // entity linked to the exact same confirmed Auth account.

@@ -6,6 +6,8 @@ import {maziOperationsSnapshot,maziLaunchGateStates,maziLaunchGateHistory,
  type MaziOperationsSnapshot,type MaziLaunchGateKey,type MaziLaunchGateReview
 } from "../../../../lib/mazi-operations";
 import {reviewMaziLaunchGateAction} from "./actions";
+import {requiredMaziChecks} from "../../../../lib/mazi-release-checklist";
+import {maziRetentionInventory,proposedMaziRetention,type MaziRetentionInventory} from "../../../../lib/mazi-retention-readiness";
 import {assessMaziReleaseReadiness} from "../../../../lib/mazi-readiness";
 import s from "../mazi.module.css";
 
@@ -30,24 +32,48 @@ function ExternalGate({title,description,gateKey,review,csrf}:{
  review:MaziLaunchGateReview|undefined;csrf:string;
 }){
  const verified=review?.decision==="verified";
+ const checklist=requiredMaziChecks(gateKey);
+ const evidenceDoc=gateKey==="auth_email_delivery"
+  ?"https://github.com/pcrus1988-bit/buylocalsparta/blob/main/mazi-app/legal/MAZI-AUTH-DELIVERY-RELEASE-2026-10-25.md"
+  :gateKey==="legal_and_retention"
+  ?"https://github.com/pcrus1988-bit/buylocalsparta/blob/main/mazi-app/legal/MAZI-LEGAL-RETENTION-REVIEW-2026-10-25.md"
+  :null;
  return <article className={s.card}>
   <div style={{flex:1}}>
    <span className={s.tag}>{verified?"ΧΕΙΡΟΚΙΝΗΤΗ ΕΠΙΒΕΒΑΙΩΣΗ":"ΕΚΚΡΕΜΕΙ ΕΠΑΛΗΘΕΥΣΗ"}</span>
    <h3>{title}</h3>
    <p className={s.body}>{description}</p>
+   {evidenceDoc?<p className={s.meta}><a href={evidenceDoc} target="_blank" rel="noreferrer" style={{textDecoration:"underline"}}>Άνοιγμα αναλυτικού φακέλου τεκμηρίωσης και οδηγιών (GitHub) ↗</a></p>:null}
+   {gateKey==="legal_and_retention"?<p className={s.meta}>
+    <a href="https://mazi.kontamou.site/privacy" target="_blank" rel="noreferrer" style={{textDecoration:"underline"}}>Τρέχουσα ενημέρωση GDPR</a>
+    {" · "}
+    <a href="https://mazi.kontamou.site/invitation-terms" target="_blank" rel="noreferrer" style={{textDecoration:"underline"}}>Όροι πρόσκλησης v1</a>
+   </p>:null}
    <p className={s.meta}>{review?
     "Τελευταία απόφαση: "+new Date(review.recorded_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})+
      " · "+(verified?"επιβεβαιώθηκε":"άνοιξε ξανά"):
     "Δεν υπάρχει ακόμη υπογεγραμμένη απόφαση Super Admin."}</p>
   </div>
   <form action={reviewMaziLaunchGateAction} className={s.action}
-   style={{display:"grid",gap:10,minWidth:270,maxWidth:390}}>
+   style={{display:"grid",gap:10,minWidth:0,width:"100%",maxWidth:450}}>
    <input type="hidden" name="csrf" value={csrf}/>
    <input type="hidden" name="gate_key" value={gateKey}/>
    <label className={s.tag} htmlFor={"gate-evidence-"+gateKey}>Τεκμηρίωση πραγματικού ελέγχου (40–1.200 χαρακτήρες)</label>
    <textarea id={"gate-evidence-"+gateKey} name="evidence" required minLength={40} maxLength={1200} rows={4}
     style={{font:"inherit",padding:12,border:"1px solid #adbdac"}}
-    placeholder="Ημερομηνία, ελεγμένο πεδίο, αποτέλεσμα και πού τηρείται το σχετικό αποδεικτικό. Μην προσθέτετε στοιχεία πελατών ή μυστικά."/>
+    placeholder="Ημερομηνία, ποιος έκανε τον έλεγχο, πραγματικά αποτελέσματα και τυχόν εκκρεμότητες. Μην προσθέτετε προσωπικά δεδομένα ή κλειδιά."/>
+   {checklist.length?<fieldset style={{border:"1px solid #bac7b9",padding:12,margin:0,display:"grid",gap:12}}>
+    <legend style={{fontWeight:700,fontSize:13}}>Υποχρεωτικά σημεία για «Επιβεβαιώθηκε»</legend>
+    {checklist.map(item=><label key={item.id} style={{display:"flex",gap:9,alignItems:"start",fontSize:13}}>
+     <input type="checkbox" name="review_checks" value={item.id}/>
+     <span>{item.label}</span>
+    </label>)}
+   </fieldset>:null}
+   {checklist.length?<label style={{fontSize:13,display:"grid",gap:6}}>Αναφορά αποδεικτικών (12–250 χαρακτήρες, μόνο για επιβεβαίωση)
+    <input type="text" name="evidence_reference" minLength={12} maxLength={250}
+     placeholder="Σύνδεσμος εσωτερικού φακέλου / αναφορά ticket ή έγκριση συμβούλου"
+     style={{font:"inherit",padding:12,width:"100%",boxSizing:"border-box"}}/>
+   </label>:null}
    <label style={{fontSize:12,display:"flex",gap:8,alignItems:"start"}}>
     <input type="checkbox" name="affirmed"/>
     <span>Επιβεβαιώνω ότι ολοκλήρωσα πραγματικά τον έλεγχο και έχω ελέγξιμα αποδεικτικά.</span>
@@ -77,6 +103,8 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
  let state:MaziOperationsSnapshot|null=null;
  let gates:MaziLaunchGateReview[]=[];
  let gateHistory:MaziLaunchGateReview[]=[];
+ let retention:MaziRetentionInventory|null=null;
+ try{retention=await maziRetentionInventory(principal);}catch{}
  try{[state,gates,gateHistory]=await Promise.all([
   maziOperationsSnapshot(principal),maziLaunchGateStates(principal),
   maziLaunchGateHistory(principal)
@@ -204,8 +232,30 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
    </div>
   </section>
 
+  <section className={s.section} aria-label="GDPR data inventory" style={{marginTop:32}}>
+   <div className={s.sectionTop}><div><p>04 / LEGAL RETENTION — DRAFT</p><h2>Διατήρηση δεδομένων και δικαιώματα</h2></div>
+    <span>Προτάσεις προς νομική έγκριση, όχι ενεργές προθεσμίες διαγραφής</span></div>
+   <div className={s.card} style={{display:"block"}}>
+    <h3>Πραγματική απογραφή · μόνο συγκεντρωτικά στοιχεία</h3>
+    {retention?<div className={s.stats} style={{margin:"12px 0"}}>
+     <Metric index="01" title="ΑΙΤΗΣΕΙΣ ΣΕ ΕΛΕΓΧΟ" value={retention.awaiting_review} detail={retention.declined_interests+" απορριφθείσες · "+retention.approved_interests+" εγκεκριμένες"}/>
+     <Metric index="02" title="ΠΡΟΣΚΛΗΣΕΙΣ" value={retention.unused_invitations} detail="Προσκλήσεις μη χρησιμοποιημένες"/>
+     <Metric index="03" title="ΚΟΙΝΟΤΗΤΑ" value={retention.community_messages+retention.community_threads} detail="Μηνύματα + συζητήσεις"/>
+     <Metric index="04" title="ΕΛΕΓΚΤΙΚΑ ΙΧΝΗ" value={retention.immutable_audit_rows} detail="Αμετάβλητες εγγραφές"/>
+    </div>:<p role="alert">Η απογραφή δεν ήταν διαθέσιμη. Δεν εμφανίζονται υποθετικά αποτελέσματα.</p>}
+    <p className={s.body}>Η δημοσιευμένη πολιτική δεν ορίζει ακόμη συγκεκριμένες περιόδους. Τα ακόλουθα αποτελούν <strong>προτεινόμενη πολιτική για έλεγχο</strong>. Δεν λειτουργεί αυτόματη διαγραφή ή αυθαίρετη παράκαμψη αμετάβλητων εγγραφών.</p>
+    <div style={{display:"grid",gap:10,marginTop:16}}>{proposedMaziRetention.map(([group,period])=>
+     <div key={group} style={{display:"grid",gridTemplateColumns:"minmax(140px,1fr) minmax(200px,2fr)",gap:12,borderBottom:"1px solid #dae1d6",paddingBottom:8,fontSize:13}}>
+       <strong>{group}</strong><span>{period}</span>
+     </div>)}</div>
+    <p className={s.meta} style={{marginTop:18}}>Απαιτείται έγκριση υπευθύνου/νομικού συμβούλου, διαδικασία DSAR, συμφωνίες εκτελούντων, κανόνας νόμιμης διατήρησης, ασφαλής διαγραφή/εξαίρεση και δημοσίευση της τελικής πολιτικής. Καμία από αυτές τις ανθρώπινες αποφάσεις δεν τεκμαίρεται αυτόματα.</p>
+    <a href="https://github.com/pcrus1988-bit/buylocalsparta/blob/main/mazi-app/legal/MAZI-LEGAL-RETENTION-REVIEW-2026-10-25.md"
+     target="_blank" rel="noreferrer" style={{textDecoration:"underline",fontWeight:700}}>Άνοιγμα προτεινόμενης πολιτικής και πλήρους πλάνου εφαρμογής ↗</a>
+   </div>
+  </section>
+
   <section className={s.section}><div className={s.sectionTop}>
-   <div><p>04 / EXTERNAL RELEASE GATES</p><h2>Πριν από δημόσια ένταξη</h2></div>
+   <div><p>05 / EXTERNAL RELEASE GATES</p><h2>Πριν από δημόσια ένταξη</h2></div>
    <span>Μόνο ανθρώπινες βεβαιώσεις, καμία αυτόματη ενεργοποίηση</span>
   </div>
    <div className={s.stack}>
