@@ -3,7 +3,7 @@ import {getAdminPostgresRuntime} from "./postgres-runtime";
 import {marketplaceMaziActor} from "./mazi-superadmin";
 
 export type MaziCommunityReport={
- id:string;resource_type:"listing"|"thread"|"reply"|"chat";resource_id:string;
+ id:string;resource_type:"listing"|"thread"|"reply"|"chat"|"inquiry";resource_id:string;
  reason:string;created_at:Date;status:"open"|"dismissed"|"hidden";
  subject:string;
 };
@@ -11,18 +11,20 @@ const tables:Record<MaziCommunityReport["resource_type"],string>={
  listing:"public.mazi_marketplace_listings",
  thread:"public.mazi_forum_threads",
  reply:"public.mazi_forum_replies",
- chat:"public.mazi_chat_messages"
+ chat:"public.mazi_chat_messages",
+ inquiry:"public.mazi_inquiry_messages"
 };
 export async function maziCommunityReports(principal:SessionPrincipal):Promise<MaziCommunityReport[]>{
  await marketplaceMaziActor(principal);
  const result=await getAdminPostgresRuntime().nativePool.query<MaziCommunityReport>(`
   select r.id::text,r.resource_type,r.resource_id::text,r.reason,r.created_at,r.status,
-   coalesce(l.title,t.title,left(reply.body,160),left(chat.body,160),'Μη διαθέσιμο περιεχόμενο') subject
+   coalesce(l.title,t.title,left(reply.body,160),left(chat.body,160),left(inquiry.body,160),'Μη διαθέσιμο περιεχόμενο') subject
   from public.mazi_community_reports r
   left join public.mazi_marketplace_listings l on r.resource_type='listing' and l.id=r.resource_id
   left join public.mazi_forum_threads t on r.resource_type='thread' and t.id=r.resource_id
   left join public.mazi_forum_replies reply on r.resource_type='reply' and reply.id=r.resource_id
   left join public.mazi_chat_messages chat on r.resource_type='chat' and chat.id=r.resource_id
+  left join public.mazi_inquiry_messages inquiry on r.resource_type='inquiry' and inquiry.id=r.resource_id
   order by case when r.status='open' then 0 else 1 end, r.created_at desc limit 100
  `);
  return result.rows;
