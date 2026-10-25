@@ -114,7 +114,9 @@ export async function consumePublicGemiLookupLimit(visitorKey: string, now = Dat
   return limiter().consume({ route: "public-gemi-afm", key: visitorKey, limit: 12, windowMs: 60 * 60 * 1000, now });
 }
 
-export async function resolveGemiCompanyByAfm(rawAfm: string, now = Date.now()): Promise<GemiLookupResult> {
+export async function resolveGemiCompanyByAfm(
+ rawAfm: string, now = Date.now(), options: Readonly<{forceFresh?: boolean}> = {}
+): Promise<GemiLookupResult> {
   const taxNumber = normalizeGreekAfm(rawAfm);
   const resolved = await resolveGemiRuntimeConfig();
   if (!resolved) {
@@ -129,7 +131,7 @@ export async function resolveGemiCompanyByAfm(rawAfm: string, now = Date.now()):
 
   const config = resolved.config;
   const cached = await readCache(taxNumber);
-  if (cached && Date.parse(String(cached.expires_at)) > now) return resultFromCache(cached);
+  if (!options.forceFresh && cached && Date.parse(String(cached.expires_at)) > now) return resultFromCache(cached);
 
   const providerAllowance = await limiter().consume({
     route: "gemi-opendata-provider",
@@ -139,7 +141,7 @@ export async function resolveGemiCompanyByAfm(rawAfm: string, now = Date.now()):
     now
   });
   if (!providerAllowance.allowed) {
-    if (cached?.lookup_status === "matched") return resultFromCache(cached);
+    if (!options.forceFresh && cached?.lookup_status === "matched") return resultFromCache(cached);
     return { lookupStatus: "unavailable", taxNumber, checkedAt: now, message: "Το Γ.Ε.ΜΗ. έχει προσωρινά αυξημένη κίνηση. Δοκιμάστε ξανά σε λίγο.", fromCache: false };
   }
 
@@ -183,7 +185,7 @@ export async function resolveGemiCompanyByAfm(rawAfm: string, now = Date.now()):
     await writeMatched(record, company, now, config.cacheTtlMs);
     return record;
   } catch (error) {
-    if (cached?.lookup_status === "matched") return resultFromCache(cached);
+    if (!options.forceFresh && cached?.lookup_status === "matched") return resultFromCache(cached);
     return {
       lookupStatus: "unavailable",
       taxNumber,
