@@ -225,7 +225,8 @@ Deno.serve(async(req:Request)=>{
    if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
    const rateLimited=async(table:string,seconds:number)=>{
     const {data,error}=await admin.from(table).select("created_at")
-      .eq("member_user_id",user.id).order("created_at",{ascending:false}).limit(1);
+      .eq(table==="mazi_listing_inquiries"?"sender_user_id":"member_user_id",user.id)
+      .order("created_at",{ascending:false}).limit(1);
     if(error)throw error;
     return Boolean(data?.[0]&&Date.now()-Date.parse(data[0].created_at)<seconds*1000);
    };
