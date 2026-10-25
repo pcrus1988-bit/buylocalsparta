@@ -4,9 +4,11 @@ import {redirect} from "next/navigation";
 import {createClient} from "../../lib/supabase/server";
 import {signOut,answerMaziFollowup} from "../actions";
 import {maziMemberRequest,type MaziState} from "../../lib/mazi-api";
+import {MaziCommunityNav} from "../community-nav";
+import community from "../community.module.css";
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"Ο χώρος μου",robots:{index:false,follow:false}};
-const messages:Record<string,string>={invitation_accepted:"Η προσωπική πρόσκληση έγινε αποδεκτή. Η συμμετοχή δεν ενεργοποιεί συνδρομή, χρηματοδότηση ή αυτόματη ψήφο.",application_received:"Η αίτηση καταχωρίστηκε με επιτυχία και αναμένει πραγματικό έλεγχο.",invalid_application:"Έλεγξε όλα τα πεδία πριν από την υποβολή.",privacy_required:"Για την υποβολή απαιτείται αποδοχή της ενημέρωσης επεξεργασίας δεδομένων.",already_applied:"Έχεις ήδη υποβάλει αίτηση.",application_failed:"Η αίτηση δεν καταχωρίστηκε. Δοκίμασε ξανά αργότερα.",not_verified:"Η επιχείρηση πρέπει πρώτα να επαληθευτεί.",followup_answered:"Η απάντησή σου καταχωρίστηκε και είναι διαθέσιμη μόνο στον αρμόδιο ελεγκτή.",invalid_followup_answer:"Συμπλήρωσε απάντηση από 20 έως 2.000 χαρακτήρες.",followup_not_available:"Δεν είναι δυνατή η καταχώριση. Η αίτηση ενδέχεται να έχει ήδη αξιολογηθεί."};
+const messages:Record<string,string>={invitation_accepted:"Η προσωπική πρόσκληση έγινε αποδεκτή. Η συμμετοχή δεν ενεργοποιεί συνδρομή, χρηματοδότηση ή αυτόματη ψήφο.",application_received:"Η αίτηση καταχωρίστηκε με επιτυχία και αναμένει πραγματικό έλεγχο.",invalid_application:"Έλεγξε όλα τα πεδία πριν από την υποβολή.",privacy_required:"Για την υποβολή απαιτείται αποδοχή της ενημέρωσης επεξεργασίας δεδομένων.",already_applied:"Έχεις ήδη υποβάλει αίτηση.",application_failed:"Η αίτηση δεν καταχωρίστηκε. Δοκίμασε ξανά αργότερα.",not_verified:"Η επιχείρηση πρέπει πρώτα να επαληθευτεί.",followup_answered:"Η απάντησή σου καταχωρίστηκε και είναι διαθέσιμη μόνο στον αρμόδιο ελεγκτή.",invalid_followup_answer:"Συμπλήρωσε απάντηση από 20 έως 2.000 χαρακτήρες.",followup_not_available:"Δεν είναι δυνατή η καταχώριση. Η αίτηση ενδέχεται να έχει ήδη αξιολογηθεί.",report_received:"Η αναφορά σου καταχωρίστηκε για χειροκίνητο έλεγχο."};
 const statuses:Record<string,string>={pending:"Υπό έλεγχο",approved:"Εγκεκριμένη",rejected:"Δεν εγκρίθηκε"};
 export default async function Members({searchParams}:{searchParams:Promise<{notice?:string}>}){
  const db=await createClient();
@@ -18,11 +20,34 @@ export default async function Members({searchParams}:{searchParams:Promise<{noti
   <p>Δεν υποβάλαμε καμία αίτηση. Δοκίμασε ξανά αφού ανανεώσεις τη σελίδα.</p>
  </section></main>;
  const {application,member,followups}=snapshot;
+ const communityEnabled=member?.status==="verified"&&Boolean(member.identity_verified_at);
+ const communityState=communityEnabled
+  ?await maziMemberRequest<{activity:{active_listings:number;threads:number;replies:number;chat_messages:number}}>("community_overview")
+  :null;
  if(!application)redirect("/onboarding");
  const {notice}=await searchParams;
  return <main id="content"><section className="subhero member-hero"><div className="shell"><span className="eyebrow light">ΜΑΖΙ / ΧΩΡΟΣ ΕΠΙΧΕΙΡΗΣΗΣ</span><h1>Ένας χώρος<br/><em>για την επιχείρησή σου.</em></h1><p>Αίτηση, επαλήθευση, συμμετοχή σε πραγματικές διαδικασίες και παρακολούθηση των αιτημάτων σου.</p></div></section>
  <section className="section shell portal-section"><div className="portal-heading"><div><span className="eyebrow">ΠΡΟΣΩΠΙΚΟΣ ΧΩΡΟΣ</span><h2>{application?.business_name||"Η επιχείρησή σου"}</h2><p className="small-muted">Συνδέθηκες ως {user.email}</p></div><form action={signOut}><button className="reset-button" type="submit">Αποσύνδεση ↗</button></form></div>
  {notice&&messages[notice]?<p className="form-message" role="status">{messages[notice]}</p>:null}
+ {communityEnabled?<section aria-label="Δραστηριότητα και εργαλεία μέλους" style={{margin:"30px 0"}}>
+   <span className="eyebrow">Η ΚΟΙΝΟΤΗΤΑ ΜΟΥ</span>
+   <MaziCommunityNav/>
+   {communityState?.ok?<div className={community.dashboardLinks}>
+    <Link href="/marketplace" className={community.panel}>
+     <strong>Marketplace · {communityState.activity.active_listings}</strong>
+     <span>Οι ενεργές επαγγελματικές καταχωρίσεις σου</span>
+    </Link>
+    <Link href="/forum" className={community.panel}>
+     <strong>Forum · {communityState.activity.threads}</strong>
+     <span>Οι συζητήσεις σου · {communityState.activity.replies} απαντήσεις</span>
+    </Link>
+    <Link href="/livechat" className={community.panel}>
+     <strong>Livechat · {communityState.activity.chat_messages}</strong>
+     <span>Μηνύματα στον κοινό χώρο επαληθευμένων μελών</span>
+    </Link>
+   </div>:<p className="legal-hint">Η καταμέτρηση δραστηριότητας δεν είναι διαθέσιμη. Δεν εμφανίζουμε δοκιμαστικές μετρήσεις.</p>}
+   <p className="legal-hint">Η κοινότητα είναι ξεχωριστή από το Ταμείο Ανάπτυξης. Δεν υπάρχει χρέωση, ολοκλήρωση παραγγελίας ή αυτόματο δικαίωμα ενίσχυσης.</p>
+ </section>:null}
  {application?<div className="member-status"><span className="eyebrow">ΚΑΤΑΣΤΑΣΗ ΑΙΤΗΣΗΣ</span><h3>{statuses[application.status]||application.status}</h3><p>Καταχώριση: {new Date(application.created_at).toLocaleDateString("el-GR")}. Η έγκριση δεν σημαίνει αυτόματη οικονομική συμμετοχή ή δικαίωμα λήψης χρηματοδότησης.</p>
  {application.review_reason?<p className="legal-hint"><strong>Αιτιολογία αξιολόγησης:</strong> {application.review_reason}</p>:null}
  {followups?.length?<div style={{display:"grid",gap:16,margin:"24px 0"}}>
