@@ -57,7 +57,7 @@ export async function reviewMaziInterest(principal:SessionPrincipal,input:{
     COALESCE(r.checked_at,i.registry_checked_at) AS registry_checked_at
    FROM public.mazi_interest_applications i
    LEFT JOIN LATERAL (
-    SELECT id,gemi_number,checked_at
+    SELECT id,gemi_number,checked_at,source
     FROM public.mazi_interest_registry_rechecks
     WHERE interest_id=i.id ORDER BY checked_at DESC,id DESC LIMIT 1
    ) r ON true
