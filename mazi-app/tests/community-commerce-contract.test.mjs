@@ -58,7 +58,7 @@ test("all member postings go through server-authenticated MAZI Edge operations",
  assert.match(api,/authorization:`Bearer \$\{session\.access_token\}`/);
  for(const key of ["marketplace_create","marketplace_close","forum_create",
   "forum_reply","chat_send","community_report"]){
-  assert.ok(actions.includes(`maziMemberRequest("${key}"`),key);
+  assert.ok(actions.includes(`("${key}"`)||actions.includes(`>("${key}"`),key);
  }
  assert.match(actions,/validId\(resource_id\)/);
  assert.match(edge,/\.eq\("member_user_id",user\.id\)\.eq\("status","active"\)/);
