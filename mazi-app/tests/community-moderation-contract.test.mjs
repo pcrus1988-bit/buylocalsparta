@@ -13,6 +13,8 @@ test("Super Admin moderation uses persisted role, CSRF and auditable transaction
  assert.match(moderation,/client\.query\("BEGIN"\)/);
  assert.match(moderation,/client\.query\("COMMIT"\)/);
  assert.match(moderation,/insert into public\.mazi_audit_events/);
+ assert.match(moderation,/mazi_audit_events\(marketplace_actor_user_id,entity_type/);
+ assert.doesNotMatch(moderation,/mazi_audit_events\(actor_user_id,entity_type/);
  assert.match(queue,/isMaziSuperAdmin\(principal\)/);
 });
 test("member-facing content excludes hidden records and private inquiry RPC enforces it",()=>{
