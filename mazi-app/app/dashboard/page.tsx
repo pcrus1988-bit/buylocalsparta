@@ -3,7 +3,7 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {createClient} from "../../lib/supabase/server";
 import {maziMemberRequest,type MaziState} from "../../lib/mazi-api";
-import {getCommunity} from "../../lib/community";
+import {getCommunity,type CommunityInbox} from "../../lib/community";
 import "../community.css";
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"Πίνακας ελέγχου μέλους",robots:{index:false,follow:false}};
@@ -13,7 +13,11 @@ export default async function Dashboard(){
  if(!state.ok)return <main id="content" className="com-shell"><h1>Ο προσωπικός χώρος δεν είναι διαθέσιμος.</h1><p>Δεν τροποποιήθηκαν τα στοιχεία σου.</p></main>;
  if(!state.application)redirect("/onboarding");
  const isVerified=state.member?.status==="verified"&&Boolean(state.member.identity_verified_at);
- const community=isVerified?await getCommunity("dashboard"):null;
+ const [community,inbox]=isVerified?await Promise.all([
+    getCommunity("dashboard"),maziMemberRequest<CommunityInbox>("community_inbox")
+ ]):[null,null];
+ const inboxThreads=inbox?.ok?inbox.inquiries:[];
+ const inboundActive=inboxThreads.filter(q=>q.recipient_user_id===user.id&&q.status==="open");
  const listings=community?.ok?community.listings:[];
  const threads=community?.ok?community.threads:[];
  const ownProposals=state.proposals.filter(p=>p.created_by===user.id);
@@ -26,6 +30,7 @@ export default async function Dashboard(){
     <div><span>Οι προτάσεις μου</span><strong>{ownProposals.length}</strong><small>Υποβολές σε τρέχοντα κύκλο</small></div>
     <div><span>Οι καταχωρίσεις μου</span><strong>{listings.filter(x=>x.status==="active").length}</strong><small>Ανοιχτές στον συνεργατικό χώρο</small></div>
     <div><span>Οι συζητήσεις μου</span><strong>{threads.length}</strong><small>Θέματα στο φόρουμ</small></div>
+    <div><span>Εισερχόμενες συνεργασίες</span><strong>{inboundActive.length}</strong><small>Ενεργά αιτήματα άλλων επιχειρήσεων</small></div>
    </div>
    <div className="com-dashboard-grid">
     <Link href="/members" className="com-nav-card"><span>01 / ΕΠΙΧΕΙΡΗΣΗ</span><h2>Η συμμετοχή μου ↗</h2><p>Αίτηση, επαλήθευση, ερωτήσεις του διαχειριστή και τρέχουσα κατάσταση.</p></Link>
@@ -37,8 +42,14 @@ export default async function Dashboard(){
     <Link href={isVerified?"/awards":"/members"} className="com-nav-card"><span>07 / ΕΝΙΣΧΥΣΗ</span><h2>Συμφωνίες ενίσχυσης ↗</h2><p>Προβολή τυχόν ατομικών προσφορών, όρων και αποδοχών· χωρίς ενεργή εκταμίευση.</p></Link>
    </div>
    <section className="com-recent"><h2>Η πρόσφατη δραστηριότητά μου</h2>
-    {ownProposals.length||listings.length||threads.length?
+    {ownProposals.length||listings.length||threads.length||inboxThreads.length?
     <div className="com-list">
+     {inboxThreads.slice(0,3).map(q=><div className="com-card" key={q.id}>
+       <span className="com-kicker">ΙΔΙΩΤΙΚΗ ΣΥΝΕΡΓΑΣΙΑ · {q.status==="open"?"ΕΝΕΡΓΗ":"ΚΛΕΙΣΤΗ"}</span>
+       <h3>{inbox?.ok?inbox.listing_labels[q.listing_id]||"Καταχώριση αγοράς":"Συνεργασία μελών"}</h3>
+       <p>Με {inbox?.ok?inbox.businesses[q.sender_user_id===user.id?q.recipient_user_id:q.sender_user_id]||"επαληθευμένη επιχείρηση":"επαληθευμένη επιχείρηση"}</p>
+       <Link href="/inbox">Άνοιγμα συνομιλίας →</Link>
+      </div>)}
      {ownProposals.slice(0,3).map(p=><div className="com-card" key={p.id}><span className="com-kicker">ΠΡΟΤΑΣΗ · {p.status}</span><h3>{p.title}</h3><Link href="/proposals">Δες την πρόταση →</Link></div>)}
      {listings.slice(0,3).map(p=><div className="com-card" key={p.id}><span className="com-kicker">ΑΓΟΡΑ · {p.status}</span><h3>{p.title}</h3><Link href="/marketplace">Οι καταχωρίσεις μου →</Link></div>)}
      {threads.slice(0,3).map(t=><div className="com-card" key={t.id}><span className="com-kicker">ΦΟΡΟΥΜ</span><h3>{t.title}</h3><Link href={"/forum#thread-"+t.id}>Η συζήτηση →</Link></div>)}
