@@ -1,6 +1,7 @@
 import type {SessionPrincipal} from "@buy-local-sparta/core";
 import {getAdminPostgresRuntime} from "./postgres-runtime";
 import {marketplaceMaziActor} from "./mazi-superadmin";
+import {resolveGemiCompanyByAfm} from "./gemi-runtime";
 
 export type MaziInterestRow={
  id:string;tax_number:string;gemi_number:string|null;registry_legal_name:string|null;
@@ -13,13 +14,23 @@ export type MaziInterestRow={
 export async function maziInterestReviewQueue(principal:SessionPrincipal){
  await marketplaceMaziActor(principal);
  const data=await getAdminPostgresRuntime().nativePool.query<MaziInterestRow>(`
-  SELECT id::text,tax_number,gemi_number,registry_legal_name,registry_company_status,
-   registry_city,registry_checked_at,registry_lookup_status,
-   representative_name,contact_email,application_note,status,
-   submitted_at,review_reason,representation_verified_at,business_contact_verified_at
-  FROM public.mazi_interest_applications
-  ORDER BY CASE status WHEN 'pending_review' THEN 0 WHEN 'registry_review_required' THEN 1 ELSE 2 END,
-   submitted_at ASC LIMIT 100
+  SELECT i.id::text,i.tax_number,
+   COALESCE(r.gemi_number,i.gemi_number) AS gemi_number,
+   COALESCE(r.legal_name,i.registry_legal_name) AS registry_legal_name,
+   COALESCE(r.company_status,i.registry_company_status) AS registry_company_status,
+   COALESCE(r.city,i.registry_city) AS registry_city,
+   COALESCE(r.checked_at,i.registry_checked_at) AS registry_checked_at,
+   CASE WHEN r.id IS NOT NULL THEN 'matched' ELSE i.registry_lookup_status END AS registry_lookup_status,
+   i.representative_name,i.contact_email,i.application_note,i.status,
+   i.submitted_at,i.review_reason,i.representation_verified_at,i.business_contact_verified_at
+  FROM public.mazi_interest_applications i
+  LEFT JOIN LATERAL (
+   SELECT id,gemi_number,legal_name,company_status,city,checked_at
+   FROM public.mazi_interest_registry_rechecks
+   WHERE interest_id=i.id ORDER BY checked_at DESC,id DESC LIMIT 1
+  ) r ON true
+  ORDER BY CASE i.status WHEN 'pending_review' THEN 0 WHEN 'registry_review_required' THEN 1 ELSE 2 END,
+   i.submitted_at ASC LIMIT 100
  `);
  return data.rows;
 }
@@ -38,9 +49,17 @@ export async function reviewMaziInterest(principal:SessionPrincipal,input:{
    id:string;status:string;registry_lookup_status:string;gemi_number:string|null;
    registry_checked_at:Date|null
   }>(`
-   SELECT id::text,status,registry_lookup_status,gemi_number,registry_checked_at
-   FROM public.mazi_interest_applications WHERE id=$1::uuid
-   FOR UPDATE
+   SELECT i.id::text,i.status,
+    CASE WHEN r.id IS NOT NULL THEN 'matched' ELSE i.registry_lookup_status END AS registry_lookup_status,
+    COALESCE(r.gemi_number,i.gemi_number) AS gemi_number,
+    COALESCE(r.checked_at,i.registry_checked_at) AS registry_checked_at
+   FROM public.mazi_interest_applications i
+   LEFT JOIN LATERAL (
+    SELECT id,gemi_number,checked_at
+    FROM public.mazi_interest_registry_rechecks
+    WHERE interest_id=i.id ORDER BY checked_at DESC,id DESC LIMIT 1
+   ) r ON true
+   WHERE i.id=$1::uuid FOR UPDATE OF i
   `,[input.id]);
   const app=row.rows[0];
   if(!app||!["pending_review","registry_review_required"].includes(app.status))
@@ -78,4 +97,55 @@ export async function reviewMaziInterest(principal:SessionPrincipal,input:{
   await client.query("ROLLBACK");
   throw error;
  }finally{client.release();}
+}
+
+/**
+ * Re-run the official ΓΕΜΗ provider for the immutable application ΑΦΜ.
+ * The provider must really answer now; old cache entries never count as new
+ * verification. Save the evidence separately, preserving the original intake.
+ */
+export async function recheckMaziInterestRegistry(principal:SessionPrincipal,id:string):Promise<void>{
+ const actor=await marketplaceMaziActor(principal);
+ if(!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(id))
+  throw Error("MAZI_GEMI_RECHECK_INVALID");
+ const runtime=getAdminPostgresRuntime();
+ const initial=await runtime.nativePool.query<{
+  tax_number:string;gemi_number:string|null;status:string;registry_lookup_status:string;
+ }>(`SELECT tax_number,gemi_number,status,registry_lookup_status
+     FROM public.mazi_interest_applications WHERE id=$1::uuid`,[id]);
+ const original=initial.rows[0];
+ if(!original||!["pending_review","registry_review_required"].includes(original.status))
+  throw Error("MAZI_INTEREST_NOT_REVIEWABLE");
+ // Original mismatched applications cannot be normalized by a recheck alone:
+ // their immutable recorded registry identity requires separate evidence review.
+ if(original.registry_lookup_status!=="matched"||!original.gemi_number)
+  throw Error("MAZI_GEMI_ORIGINAL_MATCH_REQUIRED");
+ const checked=await resolveGemiCompanyByAfm(original.tax_number,Date.now(),{forceFresh:true});
+ if(checked.lookupStatus==="unavailable"||checked.fromCache)
+  throw Error("MAZI_GEMI_RECHECK_UNAVAILABLE");
+ if(checked.lookupStatus!=="matched"||
+   checked.gemiNumber!==original.gemi_number||
+   checked.taxNumber!==original.tax_number||
+   checked.legalName.trim().length<3)
+  throw Error("MAZI_GEMI_RECHECK_MISMATCH");
+ const conn=await runtime.nativePool.connect();
+ try{
+  await conn.query("BEGIN");
+  const row=await conn.query<{status:string;tax_number:string;gemi_number:string|null}>(`
+   SELECT status,tax_number,gemi_number FROM public.mazi_interest_applications
+   WHERE id=$1::uuid FOR UPDATE
+  `,[id]);
+  const current=row.rows[0];
+  if(!current||!["pending_review","registry_review_required"].includes(current.status)||
+   current.tax_number!==checked.taxNumber||current.gemi_number!==checked.gemiNumber)
+    throw Error("MAZI_INTEREST_NOT_REVIEWABLE");
+  await conn.query(`
+   INSERT INTO public.mazi_interest_registry_rechecks (
+    interest_id,tax_number,gemi_number,legal_name,company_status,city,checked_at,checked_by
+   ) VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8::uuid)
+  `,[id,checked.taxNumber,checked.gemiNumber,checked.legalName,
+    checked.companyStatus??null,checked.city??null,new Date(checked.checkedAt),actor]);
+  await conn.query("COMMIT");
+ }catch(error){await conn.query("ROLLBACK");throw error;}
+ finally{conn.release();}
 }
