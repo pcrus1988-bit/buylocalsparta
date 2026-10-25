@@ -1,4 +1,4 @@
-import { requireVendorCapability, requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { isDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
 import { createVendorProductDraft, vendorCatalogWorkspace } from "../../../../../lib/vendor-backoffice-service";
 import { searchVendorCatalogProducts } from "../../../../../lib/vendor-catalog-control-service";
@@ -14,7 +14,7 @@ import { postgresVendorRuntimeEnabled } from "../../../../../lib/vendor-runtime"
 
 export async function GET(request: Request) {
   try {
-    const principal = await requireVendorSession();
+    const { principal } = await requireVendorCapability("catalogue.read", request);
     const url = new URL(request.url);
     const query = url.searchParams.get("q")?.trim() ?? "";
     const categoryId = url.searchParams.get("category")?.trim() ?? "";

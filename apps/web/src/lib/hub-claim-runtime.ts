@@ -1,5 +1,6 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { claimDirectoryAgreement } from "./hub-directory-agreement";
 import { normalizeVendorExternalWebsiteUrl, publicVendorExternalWebsiteUrl } from "./vendor-external-website";
 
 export type HubClaimPublicProfile = Readonly<{
@@ -121,8 +122,9 @@ export async function getHubClaimInvitation(id: string, principal?: SessionPrinc
   };
 }
 
-export async function acceptApprovedHubClaim(id: string, principal: SessionPrincipal): Promise<void> {
+export async function acceptApprovedHubClaim(id: string, principal: SessionPrincipal, acceptance: { templateSha256: string; termsConsent: boolean; publicationConsent: boolean }): Promise<void> {
   if (!validId(id) || !principal.roles.includes("customer")) throw new Error("CLAIM_NOT_ALLOWED");
+  if (!acceptance?.termsConsent || !acceptance.publicationConsent || !/^[a-f0-9]{64}$/.test(acceptance.templateSha256)) throw new Error("CLAIM_CONTRACT_CONSENT_REQUIRED");
   const uow = new PostgresUnitOfWork(getProductionPostgresRuntime().sqlPool);
   await uow.withTransaction(
     { platformAccess: true, marketId: "sparta", requestId: "accept-hub-claim:" + id },
@@ -136,7 +138,8 @@ export async function acceptApprovedHubClaim(id: string, principal: SessionPrinc
         throw new Error("VERIFIED_ACCOUNT_REQUIRED");
       }
       const claim = await tx.query<SqlRow>(`
-        SELECT id::text AS id,status::text AS status,plan_code,email,owner_user_id::text AS owner_user_id
+        SELECT id::text AS id,public_id,status::text AS status,plan_code,billing_cycle,
+               legal_name,business_name,tax_number,contact_name,email,owner_user_id::text AS owner_user_id
         FROM hub_expansion_prospects WHERE public_id=$1 FOR UPDATE
       `, [id]);
       if (!claim.rowCount || claim.rows[0].plan_code !== "claim") throw new Error("CLAIM_NOT_FOUND");
@@ -149,6 +152,19 @@ export async function acceptApprovedHubClaim(id: string, principal: SessionPrinc
       }
       if (row.status === "converted" && String(row.owner_user_id) === String(user.rows[0].id)) return;
       if (row.status !== "approved") throw new Error("CLAIM_NOT_APPROVED");
+      // Atomic agreement acceptance + conversion: no publication on unchecked,
+      // mismatched, obsolete or unapproved contract terms.
+      const agreement = claimDirectoryAgreement(row as Parameters<typeof claimDirectoryAgreement>[0]);
+      if (acceptance.templateSha256 !== agreement.templateSha256) {
+        throw new Error("CLAIM_AGREEMENT_VERSION_CHANGED");
+      }
+      await tx.query(`
+        INSERT INTO vendor_directory_agreement_acceptances
+          (prospect_id,owner_user_id,plan_code,billing_cycle,template_version,
+           template_sha256,terms_snapshot,publication_consent,accepted_at)
+        VALUES ($1::uuid,$2::uuid,'claim','annual',$3,$4,$5::jsonb,true,now())
+      `, [row.id, user.rows[0].id, agreement.plan.templateVersion,
+           agreement.templateSha256, JSON.stringify(agreement.terms)]);
       await tx.query(
         "UPDATE hub_expansion_prospects SET owner_user_id=$2::uuid,status='converted',updated_at=now() WHERE id=$1::uuid",
         [row.id, user.rows[0].id]

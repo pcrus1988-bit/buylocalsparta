@@ -40,6 +40,8 @@ export function VendorWorkspaceHeader() {
     locationId?: string;
     operatingModel: "MANAGED" | "SELF_GOVERNED";
     capabilities: readonly string[];
+    subscriptionPlanCode?: string;
+    subscriptionState?: string;
   }>();
 
   // Keep the workspace neutral KONTA MOY chrome, but reuse this vendor's exact
@@ -123,6 +125,8 @@ export function VendorWorkspaceHeader() {
           locationId?: string;
           operatingModel?: "MANAGED" | "SELF_GOVERNED";
           capabilities?: readonly string[];
+          subscriptionPlanCode?: string;
+          subscriptionState?: string;
         };
         trial?: {
           active?: boolean;
@@ -179,7 +183,9 @@ export function VendorWorkspaceHeader() {
             hubId: payload.operatingContext.hubId,
             locationId: payload.operatingContext.locationId,
             operatingModel: payload.operatingContext.operatingModel,
-            capabilities: Array.isArray(payload.operatingContext.capabilities) ? payload.operatingContext.capabilities : []
+            capabilities: Array.isArray(payload.operatingContext.capabilities) ? payload.operatingContext.capabilities : [],
+            subscriptionPlanCode: payload.operatingContext.subscriptionPlanCode,
+            subscriptionState: payload.operatingContext.subscriptionState
           });
         }
       })
@@ -193,27 +199,20 @@ export function VendorWorkspaceHeader() {
       .filter((group) => group.links.length > 0)
       .map((group) => group.href === "/vendor/daily-access" ? { ...group, href: group.links[0]?.href } : group);
 
-    const selfGovernedOnly = new Set([
-      "catalogue.import",
-      "local_delivery.manage",
-      "aade.manage",
-      "promotions.manage",
-      "seo.source_data.manage",
-      "subscription.manage"
-    ]);
+
     const capabilityFiltered = roleFiltered
       .map((group) => ({
         ...group,
         links: group.links.filter((link) => {
           if (!link.vendorCapability) return true;
-          if (!operatingContext) return !selfGovernedOnly.has(link.vendorCapability);
+          if (!operatingContext) return false;
           return operatingContext.capabilities.includes(link.vendorCapability);
         })
       }))
       .filter((group) => group.links.length > 0)
       .map((group) => group.links.some((link) => link.href === group.href) ? group : { ...group, href: group.links[0]?.href });
 
-    if (!dropshippingOnly) return capabilityFiltered;
+    if (!dropshippingOnly || !operatingContext?.capabilities.includes("catalogue.read")) return capabilityFiltered;
     return capabilityFiltered.map((group) => group.href === "/vendor/catalog" ? {
       ...group,
       label: "Dropshipping",
@@ -347,7 +346,7 @@ export function VendorWorkspaceHeader() {
             : <img src="/brand/kontamou-sparta-logo.webp" alt="ΚΟΝΤΑ ΜΟΥ Σπάρτη" width={78} height={52} style={{ display: "block", width: "78px", height: "52px", objectFit: "contain" }} />}
           <span>
             <strong>Χώρος συνεργάτη</strong>
-            <small>{selfGoverned ? `Αυτοδιαχειριζόμενο HUB · ${marketLabel}${operatingContext?.hubId ? ` · ${operatingContext.hubId}` : ""}` : "ΚΟΝΤΑ ΜΟΥ Σπάρτη"}</small>
+            <small>{operatingContext?.subscriptionPlanCode ? `Πλάνο ${operatingContext.subscriptionPlanCode.toUpperCase()} · ${operatingContext.subscriptionState === "active" ? "Ενεργό" : operatingContext.subscriptionState === "trial" ? "Δοκιμαστικό" : "Ανενεργό"}` : selfGoverned ? `Αυτοδιαχειριζόμενο HUB · ${marketLabel}${operatingContext?.hubId ? ` · ${operatingContext.hubId}` : ""}` : "ΚΟΝΤΑ ΜΟΥ Σπάρτη"}</small>
           </span>
         </Link>
         <button className="workspace-menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="vendor-workspace-navigation" aria-label={menuOpen ? "Κλείσιμο μενού συνεργάτη" : "Άνοιγμα μενού συνεργάτη"} onClick={() => setMenuOpen((current) => !current)}>

@@ -11,7 +11,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../.
 import { researchVendorsWorkspace } from "../../../lib/research-vendors-runtime";
 import { hubProspectDisplayReference } from "../../../lib/hub-prospect-application-runtime";
 import { vendorApplicationPlanCompactLabel, vendorApplicationPlanSnapshotFromRow, type VendorApplicationPlanSnapshot } from "../../../lib/vendor-application-plan";
-import { provisionHubProspectTrialAction, resendApprovedHubClaimEmail, setApplicationDemoMode, setHubProspectStatus } from "./actions";
+import { provisionHubProspectTrialAction, resendApprovedHubClaimEmail, resendApprovedHubPresenceEmail, setApplicationDemoMode, setHubProspectStatus } from "./actions";
 
 export const metadata: Metadata = { title: "Admin · Applications", robots: { index: false, follow: false } };
 
@@ -372,6 +372,8 @@ export default async function ApplicationsPage() {
                   reasonPrompt="Permanent closure reason"
                   danger
                 />
+                {application.vendorId && <Link className="button button-secondary" href={`/api/admin/finance/agreements/plan-preview?plan=${encodeURIComponent(application.requestedPlanCode)}&vendorId=${encodeURIComponent(application.vendorId)}`} target="_blank">Plan agreement PDF ↗</Link>}
+                <Link className="button button-secondary" href="/admin/finance/agreements">Agreement lifecycle →</Link>
                 {application.vendorId && <Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(application.vendorId)}`}>Partner record</Link>}
               </div>
             </div>
@@ -384,7 +386,7 @@ export default async function ApplicationsPage() {
       <WorkspaceSectionHeading eyebrow="Hub expansion" title="Applications from /hubs/join" note="HUB applications are part of the operational intake queue. Every card shows the readable application number, subscription snapshot, Trial state and the next governed Admin action." />
       {hubProspects.length === 0 ? <WorkspaceEmptyState title="No HUB applications have been submitted yet." body="New /hubs/join submissions will appear here immediately after they are stored." /> : <div className="workspace-queue-list">
         {hubProspects.map((prospect) => {
-          const next = prospect.planCode === "claim" && prospect.status === "approved" ? undefined : hubNextStatus(prospect.status);
+          const next = ["claim","presence"].includes(prospect.planCode) && prospect.status === "approved" ? undefined : hubNextStatus(prospect.status);
           const trialActive = Boolean(prospect.trialExpiresAt && prospect.trialExpiresAt > Date.now() && prospect.trialDemoMode);
           return <article className="workspace-queue-card" id={`hub-application-${prospect.reference}`} key={prospect.internalId}>
             <div className="workspace-queue-head">
@@ -402,6 +404,11 @@ export default async function ApplicationsPage() {
               <span>{prospect.phone}</span>
             </div>
             <div className="workspace-inline-note">
+              <strong>Agreement workflow:</strong> {prospect.planCode === "claim"
+                ? "CLAIM: verified owner accepts versioned directory agreement and separate publication consent."
+                : prospect.planCode === "presence" ? "PRESENCE: approved owner acceptance; billing and publication must clear before activation." : "Paid HUB · reviewed versioned agreement. Status conversion requires a plan-matched approved agreement, signed PDF and verified gov.gr reference."}
+            </div>
+            <div className="workspace-inline-note">
               <strong>Subscription snapshot</strong>
               {` · setup ${fmtMoney(prospect.setupFeeCents)} · recurring ${prospect.planCode === "claim" ? "free" : fmtMoney(prospect.recurringFeeCents)} · commission ${(prospect.commissionBps / 100).toFixed(2)}% · payment ${prospect.paymentState}`}
             </div>
@@ -412,8 +419,8 @@ export default async function ApplicationsPage() {
             <div className="workspace-inline-note">Contact: <strong>{prospect.contactName}</strong> · {prospect.addressLine} · {prospect.postalCode}{prospect.websiteUrl ? ` · ${prospect.websiteUrl}` : ""}</div>
             <div className="workspace-inline-note">
               <strong>3-day Trial:</strong>{" "}
-              {prospect.planCode === "claim"
-                ? "Not included with CLAIM."
+              {["claim","presence"].includes(prospect.planCode)
+                ? "Directory-only plan: commerce Trial unavailable."
                 : prospect.trialVendorId
                   ? trialActive
                     ? `ACTIVE · expires ${fmtDate(prospect.trialExpiresAt!)}`
@@ -426,11 +433,14 @@ export default async function ApplicationsPage() {
                 {prospect.trialVendorId && <Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(prospect.trialVendorId)}/catalogue`}>Trial catalogue</Link>}
                 {prospect.trialVendorId && <Link className="button button-secondary" href={`/demo/vendor/${encodeURIComponent(prospect.trialVendorId)}`} target="_blank">Private preview ↗</Link>}
                 <Link className="button button-secondary" href={"/admin/hubs/plan-preview?applicationId=" + encodeURIComponent(prospect.internalId) + "&plan=" + encodeURIComponent(prospect.planCode)}>Preview selected plan ↗</Link>
+                <Link className="button button-secondary" target="_blank" href={`/api/admin/finance/agreements/plan-preview?plan=${encodeURIComponent(prospect.planCode)}&billing=${encodeURIComponent(prospect.billingCycle)}&prospectId=${encodeURIComponent(prospect.internalId)}`}>Plan agreement PDF ↗</Link>
+                {prospect.planCode !== "claim" && <Link className="button button-secondary" href="/admin/finance/agreements">Finance · Governed agreement →</Link>}
+                {prospect.planCode === "presence" && prospect.status === "approved" && <Link className="button button-secondary" href={`/hubs/presence/${encodeURIComponent(prospect.internalId)}`} target="_blank">Owner PRESENCE agreement ↗</Link>}
                 {prospect.planCode === "claim" && prospect.status === "converted" && <Link className="button button-secondary" href={"/hubs/" + prospect.hubSlug + "/business/" + prospect.internalId} target="_blank">Published CLAIM profile ↗</Link>}
               </div>
             </div>
 
-            {prospect.planCode !== "claim" && !["declined", "converted"].includes(prospect.status) && <form action={provisionHubProspectTrialAction} className="admin-directory-filters" style={{ marginTop: 12 }}>
+            {!["claim","presence"].includes(prospect.planCode) && !["declined", "converted"].includes(prospect.status) && <form action={provisionHubProspectTrialAction} className="admin-directory-filters" style={{ marginTop: 12 }}>
               <input type="hidden" name="csrfToken" value={applicationWorkspace.csrfToken} />
               <input type="hidden" name="applicationId" value={prospect.internalId} />
               <input type="hidden" name="reason" value="Create or resend private 3-day Trial access from Admin Applications" />
@@ -442,7 +452,7 @@ export default async function ApplicationsPage() {
               <input type="hidden" name="applicationId" value={prospect.internalId} />
               <input type="hidden" name="status" value={next.status} />
               <label><span>Workflow note</span><input name="reason" defaultValue={`Admin review: ${prospect.status} → ${next.status}`} minLength={3} maxLength={500} required /></label>
-              {prospect.planCode === "claim" && next.status === "approved" && <label className="workspace-inline-note"><input type="checkbox" name="ownershipVerified" required /> Έλεγξα τεκμηριωμένα ότι ο αιτών εκπροσωπεί την επιχείρηση. Το ΓΕΜΗ μόνο του δεν αποδεικνύει δικαίωμα διαχείρισης.</label>}
+              {["claim","presence"].includes(prospect.planCode) && next.status === "approved" && <label className="workspace-inline-note"><input type="checkbox" name="ownershipVerified" required /> Έλεγξα τεκμηριωμένα ότι ο αιτών εκπροσωπεί την επιχείρηση. Το ΓΕΜΗ μόνο του δεν αποδεικνύει δικαίωμα διαχείρισης.</label>}
               <button className="button button-secondary" type="submit">{next.label}</button>
             </form>}
 
@@ -452,6 +462,14 @@ export default async function ApplicationsPage() {
               <input type="hidden" name="reason" value="Resend approved claimant verification and acceptance instructions" />
               <button className="button button-secondary" type="submit">Resend CLAIM activation email</button>
               <span className="workspace-inline-note">Η δημόσια σελίδα δημιουργείται μόνο μετά την αποδοχή από τον εγκεκριμένο επαληθευμένο λογαριασμό.</span>
+            </form>}
+            
+            {prospect.planCode === "presence" && prospect.status === "approved" && <form action={resendApprovedHubPresenceEmail} className="admin-directory-filters" style={{ marginTop: 8 }}>
+              <input type="hidden" name="csrfToken" value={applicationWorkspace.csrfToken} />
+              <input type="hidden" name="applicationId" value={prospect.internalId} />
+              <input type="hidden" name="reason" value="Resend verified PRESENCE agreement invitation" />
+              <button className="button button-secondary" type="submit">Resend PRESENCE agreement email</button>
+              <span className="workspace-inline-note">Αποδοχή και δημοσίευση είναι χωριστά από την πληρωμή · δεν ενεργοποιείται checkout.</span>
             </form>}
             {!["declined", "converted"].includes(prospect.status) && <form action={setHubProspectStatus} className="admin-directory-filters" style={{ marginTop: 8 }}>
               <input type="hidden" name="csrfToken" value={applicationWorkspace.csrfToken} />

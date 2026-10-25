@@ -1,5 +1,5 @@
 import { assertDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { applyDropshippingSupplierDefaultsBatch } from "../../../../../lib/vendor-dropshipping-bulk-apply";
 import { saveDropshippingSupplierDefaults } from "../../../../../lib/vendor-dropshipping-service";
 
@@ -11,7 +11,7 @@ function numberValue(body: Record<string, unknown>, key: string): number {
 
 export async function PUT(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("offer.manage", request, true);
     if (!principal.vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
     await assertDropshippingOnlyVendor(principal.vendorId);
     const body = await request.json() as Record<string, unknown>;
@@ -32,7 +32,7 @@ export async function PUT(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("offer.manage", request, true);
     if (!principal.vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
     await assertDropshippingOnlyVendor(principal.vendorId);
     const body = await request.json() as Record<string, unknown>;

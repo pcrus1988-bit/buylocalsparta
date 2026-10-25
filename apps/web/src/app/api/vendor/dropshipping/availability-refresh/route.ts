@@ -1,14 +1,14 @@
 import { runNovaAvailabilityRefreshForProduct } from "../../../../../lib/nova-availability-refresh-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../../lib/postgres-runtime";
 import { assertDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 
 const NOVA_SUPPLIER_CODE = "nova_brandsgateway";
 const TARGETED_REFRESH_COOLDOWN_MS = 2 * 60 * 1000;
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("offer.manage", request, true);
     if (!principal.vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
     await assertDropshippingOnlyVendor(principal.vendorId);
     if (!productionDatabaseConfigured()) throw new Error("Η ανανέωση διαθεσιμότητας απαιτεί ενεργή βάση δεδομένων.");

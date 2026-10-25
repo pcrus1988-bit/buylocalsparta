@@ -185,7 +185,7 @@ export async function submitHubProspectApplication(input: {
   const applicationUuid = randomUUID();
   const applicationId = id("hubprospect");
   const reference = hubProspectDisplayReference(applicationId, hub.slug, input.now);
-  const shouldTrial = plan.code !== "claim";
+  const shouldTrial = plan.ecommerce; // CLAIM and PRESENCE are directory-only and never grant commerce vendor trials.
 
   return uow.withTransaction(
     { platformAccess: true, marketId: "sparta", requestId: `public-hub-prospect:${applicationId}` },
@@ -552,7 +552,7 @@ export async function ensureExistingHubProspectTrial(input: {
     throw new Error(`Trial is not available while HUB application status is ${status}`);
   }
   const planCode = requiredText(snapshot.plan_code, "hub_prospect.plan_code") as HubExpansionPlanCode;
-  if (planCode === "claim") throw new Error("CLAIM applications do not include a Vendor Trial");
+  if (!getHubExpansionPlan(planCode)?.ecommerce) throw new Error("Directory-only CLAIM/PRESENCE applications do not include a commerce Vendor Trial");
 
   const applicationId = requiredText(snapshot.public_id, "hub_prospect.public_id");
   const hubSlug = requiredText(snapshot.hub_slug, "hub_prospect.hub_slug");

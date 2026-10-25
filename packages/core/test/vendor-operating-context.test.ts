@@ -7,7 +7,8 @@ import {
   assertVendorResourceScope,
   buildVendorOperatingContext,
   buildVendorOperatingContextFromSession,
-  hasVendorCapability
+  hasVendorCapability,
+  vendorCapabilitiesForSubscription
 } from "../src/index.ts";
 
 test("Sparta-compatible vendor context defaults to MANAGED without changing current scope", () => {
@@ -143,4 +144,51 @@ test("resource scope rejects cross-vendor and cross-market access", () => {
 test("scope identifiers fail closed when blank", () => {
   assert.throws(() => buildVendorOperatingContext({ vendorId: "   " }), /vendorId is required/);
   assert.throws(() => buildVendorOperatingContext({ vendorId: "vendor_1", marketId: "  " }), /marketId is required/);
+});
+
+test("every subscription tier enforces the ceiling, regardless of role or HUB model", () => {
+  for (const code of ["claim", "presence"] as const) {
+    assert.deepEqual(vendorCapabilitiesForSubscription(code, "active"), []);
+  }
+  const contexts = (planCode: string) => buildVendorOperatingContext({
+    vendorId: "vendor_test", marketId: "tripoli", operatingModel: "SELF_GOVERNED",
+    roles: ["vendor_owner"], subscriptionPlanCode: planCode, subscriptionState: "active",
+    entitledCapabilities: vendorCapabilitiesForSubscription(planCode, "active")
+  });
+  const shop = contexts("shop"), growth = contexts("growth"), pro = contexts("pro");
+  for (const capability of ["shop.manage", "catalogue.submit", "orders.manage", "finance.read", "shipping.manage"] as const) {
+    assert.ok(hasVendorCapability(shop, capability));
+    assert.ok(hasVendorCapability(growth, capability));
+    assert.ok(hasVendorCapability(pro, capability));
+  }
+  assert.equal(hasVendorCapability(shop, "catalogue.import"), false);
+  assert.equal(hasVendorCapability(shop, "promotions.manage"), false);
+  assert.equal(hasVendorCapability(shop, "seo.source_data.manage"), false);
+  assert.equal(hasVendorCapability(growth, "catalogue.import"), true);
+  assert.equal(hasVendorCapability(growth, "promotions.manage"), false);
+  assert.equal(hasVendorCapability(pro, "catalogue.import"), true);
+  assert.equal(hasVendorCapability(pro, "promotions.manage"), true);
+  assert.equal(hasVendorCapability(pro, "seo.source_data.manage"), true);
+  assert.deepEqual(vendorCapabilitiesForSubscription("unknown", "active"), []);
+  assert.deepEqual(vendorCapabilitiesForSubscription("pro", "inactive"), []);
+  assert.equal(vendorCapabilitiesForSubscription("pro", "trial").includes("orders.manage"), false);
+  assert.equal(vendorCapabilitiesForSubscription("pro", "trial").includes("catalogue.submit"), true);
+  assert.equal(vendorCapabilitiesForSubscription("presence", "trial").length, 0);
+});
+
+test("subscription entitlements never promote a vendor staff member beyond their role", () => {
+  const cap = vendorCapabilitiesForSubscription("pro", "active");
+  const mk = (roles: string[]) => buildVendorOperatingContext({
+    vendorId: "vendor_1", marketId: "tripoli", operatingModel: "SELF_GOVERNED",
+    roles, entitledCapabilities: cap
+  });
+  assert.ok(hasVendorCapability(mk(["vendor_catalog"]), "catalogue.import"));
+  assert.equal(hasVendorCapability(mk(["vendor_catalog"]), "finance.read"), false);
+  assert.ok(hasVendorCapability(mk(["vendor_finance"]), "finance.read"));
+  assert.equal(hasVendorCapability(mk(["vendor_finance"]), "catalogue.submit"), false);
+  assert.ok(hasVendorCapability(mk(["vendor_fulfilment"]), "orders.manage"));
+  assert.equal(hasVendorCapability(mk(["vendor_fulfilment"]), "promotions.manage"), false);
+  assert.equal(hasVendorCapability(mk(["vendor_adviser"]), "inventory.manage"), false);
+  assert.deepEqual(mk(["vendor_claim"]).capabilities, []);
+  assert.deepEqual(mk(["customer"]).capabilities, []);
 });

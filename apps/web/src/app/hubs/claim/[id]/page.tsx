@@ -7,6 +7,7 @@ import { SiteFooter } from "../../../../components/SiteFooter";
 import { assertCustomerCsrf } from "../../../../lib/customer-state-runtime";
 import { getAccountSession, requireAccountSession } from "../../../../lib/account-session";
 import { acceptApprovedHubClaim, getHubClaimInvitation } from "../../../../lib/hub-claim-runtime";
+import { claimDirectoryAgreementForViewer } from "../../../../lib/hub-directory-agreement";
 import { prepareHubClaimPasswordReset } from "../../../../lib/vendor-activation-access";
 import { sendVendorPasswordResetEmail } from "../../../../lib/vendor-activation-email";
 import styles from "../claim.module.css";
@@ -19,7 +20,8 @@ async function acceptClaim(formData: FormData) {
   assertCustomerCsrf(principal, String(formData.get("csrfToken") ?? ""));
   const id = String(formData.get("claimId") ?? "");
   if (formData.get("publishConsent") !== "on") throw new Error("Explicit public-directory consent is required");
-  await acceptApprovedHubClaim(id, principal);
+  if (formData.get("termsConsent") !== "on") throw new Error("Explicit plan agreement acceptance is required");
+  await acceptApprovedHubClaim(id, principal, { templateSha256: String(formData.get("templateSha256") ?? ""), termsConsent: true, publicationConsent: true });
   let setupSent = false;
   try {
     const access = await prepareHubClaimPasswordReset({ claimId: id, actorUserId: principal.userId, now: Date.now() });
@@ -39,6 +41,9 @@ export default async function ApprovedHubClaimPage({ params }: { params: Promise
   const principal = await getAccountSession();
   const invitation = await getHubClaimInvitation(id, principal);
   if (!invitation) notFound();
+  const agreement = invitation.status === "approved" && invitation.eligibleEmail && principal
+    ? await claimDirectoryAgreementForViewer(id, principal)
+    : undefined;
   const loginNext = encodeURIComponent("/hubs/claim/" + id);
 
   return <main>
@@ -63,7 +68,11 @@ export default async function ApprovedHubClaimPage({ params }: { params: Promise
                   : <form action={acceptClaim}>
                       <p>Με την αποδοχή επιβεβαιώνεις ότι εκπροσωπείς νόμιμα την επιχείρηση και αναλαμβάνεις την ευθύνη ενημέρωσης των δημόσιων στοιχείων.</p>
                       <p className={styles.hint}>Στη δημόσια σελίδα θα εμφανιστούν η εμπορική ονομασία, η κατηγορία, η διεύθυνση ({invitation.address}) και το τηλέφωνο ({invitation.phone}). Έλεγξέ τα πριν αποδεχθείς. Δεν ενεργοποιούνται πωλήσεις ή πληρωμές.</p>
+                      <p className={styles.hint}><strong>Εγκεκριμένοι όροι δωρεάν καταχώρισης · έκδοση {agreement?.plan.templateVersion}.</strong> Διάβασε τη συμφωνία που αφορά αυτή ακριβώς την επιχείρηση πριν αποδεχθείς.</p>
+                      <p><Link className={styles.button + " " + styles.secondary} href={`/hubs/claim/${encodeURIComponent(id)}/agreement`} target="_blank">Προβολή πλήρους συμφωνίας CLAIM (PDF) ↗</Link></p>
+                      <label className={styles.field}><span><input type="checkbox" name="termsConsent" required /> Έχω διαβάσει και αποδέχομαι τους εγκεκριμένους όρους του προγράμματος CLAIM, έκδοση {agreement?.plan.templateVersion}.</span></label>
                       <label className={styles.field}><span><input type="checkbox" name="publishConsent" required /> Συμφωνώ με τη δημοσίευση αυτών των επαγγελματικών στοιχείων στην καταχώριση CLAIM.</span></label>
+                      <input type="hidden" name="templateSha256" value={agreement?.templateSha256 ?? ""} />
                       <input type="hidden" name="csrfToken" value={principal.csrfToken} />
                       <input type="hidden" name="claimId" value={id} />
                       <button className={styles.button} type="submit">Αποδέχομαι · Ενεργοποίηση CLAIM</button>

@@ -1,48 +1,16 @@
-# KONTA MOY — plan-specific vendor agreement generators (2026-10-11)
+# KONTA MOY — Subscription agreement releases
 
-## Status / legal gate
-Version: 2026-10-11-v1. **DRAFT, pending counsel and accountant review**.
-Do not email for signature, collect signatures, verify gov.gr references or activate a newly generated plan agreement in this revision. Server-side Finance actions block that path for new draft plan records, while legacy verified agreements retain their lifecycle.
+## Release status
 
-## Plans covered
+- Historical template **2026-10-11-v1**: legal-review DRAFT; do not relabel existing signed agreement records or claim prior acceptance of this version.
+- New template **2026-10-20-v2**: approved for rollout on the basis of the platform operator's explicit confirmation that legal and accounting review are complete on 20 October 2026. This confirmation does **not** independently identify counsel, accountant or external signed approval documents; do not fabricate reviewer identities.
+- Plans: expansion HUB CLAIM, PRESENCE, SHOP, GROWTH, PRO; Sparta monthly, annual and Founding Partner.
+- Every new merchant agreement stores the approved plan, market, cycle, fees, commissions, entitlements, template version and legal-review state in immutable agreement snapshots. The governed PDF → signed gov.gr → verification → activation steps continue to apply. No simulated signature or retroactive approval.
+- CLAIM directory-only acceptance is not a merchant contract. A verified owner must view their company-specific approved terms, accept the exact fingerprinted version and separately authorize public business-data publication. Both consents and the conversion are a single transaction. An immutable `vendor_directory_agreement_acceptances` row stores the identified owner, plan/cycle, version, SHA-256, terms, timestamp and publication consent.
+- Previously converted CLAIM listings and legacy signed merchant contracts are preserved as historical, without any fictional backfill of signatures or acceptance events.
+- PRESENCE is a directory-only plan. Approved applicants now receive an agreement link, authenticate as verified representatives, view their company-specific PDF, and record independent terms and future-publication consent. This does **not** charge, activate or publish a paid service; the billing, invoicing and public PRESENCE entitlements remain a separate release gate. It must not become a merchant checkout vendor.
+- Paid HUB conversion and new Sparta final activation require matching plan/cycle, approved version and governed signing evidence. The HUB final conversion and actual vendor activation now share a transaction, and require verified paid/settled payment state. Finance cannot activate a HUB vendor independently. Provisioned trial/demo accounts are never commercial activation.
 
-| Market | Plan | Contract kind | Source |
-| --- | --- | --- | --- |
-| Expansion HUBs | CLAIM | Non-commerce free listing | hub-expansion-plans.ts |
-| Expansion HUBs | PRESENCE | Non-commerce enriched profile/media/leads | hub-expansion-plans.ts |
-| Expansion HUBs | SHOP | Marketplace merchant | hub-expansion-plans.ts |
-| Expansion HUBs | GROWTH | Marketplace merchant | hub-expansion-plans.ts |
-| Expansion HUBs | PRO | Marketplace merchant | hub-expansion-plans.ts |
-| Sparta | Monthly | Marketplace merchant | /join/sparta |
-| Sparta | Annual | Marketplace merchant | /join/sparta |
-| Sparta | Founding Partner | Marketplace merchant, 36-month protected period | /join/sparta |
+## Verification
 
-Sparta has distinct terms from expansion HUBs. New agreements snapshot the plan code, its market, version, billing cycle, fees, commissions and entitlements. Existing signed agreements are immutable and are not rewritten.
-
-## Admin workflow
-
-1. Open /admin/finance/agreements, then Plan agreement generator.
-2. Select the exact plan and annual/monthly cycle.
-3. For an expansion HUB, provide the saved HUB application reference. Its plan/cycle must match. The preview uses the approved setup-fee amount, including any onboarding reward.
-4. For Sparta, provide a vendor ID or public ID. Preview comes from the vendor record.
-5. Download the marked DRAFT PDF. Nothing is activated or recorded as accepted.
-6. For a commerce vendor provisioned with a vendor record, use Governed agreement lifecycle to create the merchant contract. Economics are locked to the selected plan. Expansion HUBs additionally require a linked application in verified/approved/converted status with the identical plan and billing cycle.
-7. Creation saves a versioned snapshot and generates the unsigned PDF in the private vault. Sending, signature uploads, gov.gr verification and activation remain blocked while legalReviewStatus is pending_legal_review.
-
-## Legal distinctions and open release gates
-
-- CLAIM: Free directory without checkout or seller obligations. Optional external iframe must respect site framing policies and cookie/consent implications.
-- PRESENCE: Paid directory services, media and enquiries; no checkout, settlements, inventory or shipping SLA.
-- SHOP/GROWTH/PRO and Sparta tiers: Governed marketplace contract plus plan-specific commercial and entitlement appendix.
-- Legal counsel should review merchant-of-record roles, DSA/GDPR, media/iframe rights, renewal and refunds, notice periods, dispute jurisdiction and termination.
-- Accountant must approve VAT, invoicing, myDATA and settlement treatment.
-- NOT included: public versioned CLAIM/PRESENCE acceptance, durable consent evidence, and automatically applied plan-change contracts. These remain separate release gates.
-- For launch, create a new, approved template version after review and generate new drafts. Never treat old unapproved PDFs as retrospectively valid.
-
-## Validation
-
-- npm run test:vendor-plan-agreements
-- npm run check
-- npm run build
-- Preview all plans from controlled verified records and cross-check /hubs/join and /join/sparta.
-- Reject cross-plan/cycle input; keep all existing signed documents unchanged.
+Run `npm run test:vendor-plan-agreements`, `npm run check`, browser acceptance and production readiness checks. Schema 0454 introduces directory acceptance storage.
