@@ -62,7 +62,7 @@ export async function maziModerateCommunity(principal:SessionPrincipal,input:{
   );
   if(updated.rowCount!==1)throw Error("MAZI_REPORT_DECISION_NOT_SAVED");
   await client.query(
-   `insert into public.mazi_audit_events(actor_user_id,entity_type,entity_id,action,evidence)
+   `insert into public.mazi_audit_events(marketplace_actor_user_id,entity_type,entity_id,action,evidence)
     values($1::uuid,'community_report',$2::uuid,$3,jsonb_build_object(
      'resource_type',$4::text,'resource_id',$5::text,'reason',$6::text))`,
    [actor,report.id,input.decision==="hide"?"content_hidden":"report_dismissed",
