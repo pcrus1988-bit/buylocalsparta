@@ -18,6 +18,9 @@ export default function RootLayout({children}: Readonly<{children: React.ReactNo
           <Link href="/" className="wordmark" aria-label="ΜΑΖΙ — αρχική"><span className="mark-symbol" aria-hidden="true">✳</span> ΜΑΖΙ<span className="wordmark-period">.</span></Link>
           <nav aria-label="Κύρια πλοήγηση" className="header-nav">
             <Link href="/fund">Το Ταμείο</Link>
+            <Link href="/marketplace">Marketplace</Link>
+            <Link href="/forum">Forum</Link>
+            <Link href="/livechat">Livechat</Link>
             <Link href="/charter">Οι αρχές μας</Link>
             <Link href="/interest" className="nav-accent">Αίτηση ενδιαφέροντος <span aria-hidden="true">↗</span></Link>
           </nav>
@@ -27,7 +30,7 @@ export default function RootLayout({children}: Readonly<{children: React.ReactNo
       <footer className="site-footer">
         <div className="shell footer-grid">
           <div><span className="footer-logo">ΜΑΖΙ<span>.</span></span><p>Για να μη χρειάζεται καμία μικρή επιχείρηση να τα καταφέρνει μόνη της.</p></div>
-          <div><strong>Γνώρισε το ΜΑΖΙ</strong><Link href="/fund">Το Ταμείο Ανάπτυξης</Link><Link href="/charter">Αρχές & διακυβέρνηση</Link><Link href="/privacy">Προσωπικά δεδομένα</Link><Link href="/interest">Αίτηση ενδιαφέροντος</Link><Link href="/join">Σύνδεση μελών</Link></div>
+          <div><strong>Γνώρισε το ΜΑΖΙ</strong><Link href="/fund">Το Ταμείο Ανάπτυξης</Link><Link href="/charter">Αρχές & διακυβέρνηση</Link><Link href="/privacy">Προσωπικά δεδομένα</Link><Link href="/interest">Αίτηση ενδιαφέροντος</Link><Link href="/join">Σύνδεση μελών</Link><Link href="/marketplace">Marketplace μελών</Link><Link href="/forum">Forum μελών</Link><Link href="/livechat">Livechat μελών</Link></div>
           <div><strong>Μια πρωτοβουλία</strong><a href="https://kontamou.site" rel="noopener noreferrer">ΚΟΝΤΑ ΜΟΥ ↗</a><small>Γίνονται πραγματικές αιτήσεις ενδιαφέροντος. Δεν εισπράττονται συνδρομές και δεν πραγματοποιούνται πληρωμές ή εκταμιεύσεις.</small></div>
         </div>
         <div className="shell footer-bottom"><span>© 2026 ΜΑΖΙ · ΚΟΝΤΑ ΜΟΥ</span><span>Από τη Σπάρτη, για όλη την Ελλάδα.</span></div>
