@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useRef,useState,type FormEvent} from "react";
+import {reportContent} from "../community-actions";
 import type {CommunityChat,CommunitySnapshot} from "../../lib/community";
 type ResponseData=({ok:true}&CommunitySnapshot)|{ok:false;error:string};
 export default function ChatRoom({initialMessages,initialBusinesses,currentUserId}:{initialMessages:CommunityChat[];initialBusinesses:Record<string,string>;currentUserId:string}){
@@ -36,6 +37,7 @@ export default function ChatRoom({initialMessages,initialBusinesses,currentUserI
   <div className="com-chat-messages" ref={scrollBox} aria-live="polite" aria-relevant="additions text">
    {messages.length?messages.map(msg=><article key={msg.id} className={"com-chat-line"+(msg.member_user_id===currentUserId?" mine":"")}>
     <div className="com-meta"><strong>{msg.member_user_id===currentUserId?"Εσύ":businesses[msg.member_user_id]||"Επαληθευμένο μέλος"}</strong><time>{new Date(msg.created_at).toLocaleTimeString("el-GR",{hour:"2-digit",minute:"2-digit"})}</time></div><p>{msg.body}</p>
+    {msg.member_user_id!==currentUserId?<details className="com-report"><summary>Αναφορά μηνύματος</summary><form action={reportContent}><input type="hidden" name="resource_type" value="chat"/><input type="hidden" name="resource_id" value={msg.id}/><textarea name="reason" required minLength={20} maxLength={500} placeholder="Αιτιολόγησε την αναφορά"/><button className="com-minor">Αποστολή αναφοράς</button></form></details>:null}
    </article>):<p className="com-empty">Δεν υπάρχουν ακόμη μηνύματα. Ξεκίνα εσύ τη συζήτηση.</p>}
   </div>
   <form onSubmit={send} className="com-chat-compose"><label htmlFor="chatMessage" className="com-sr">Μήνυμα</label><input id="chatMessage" value={body} maxLength={1000} onChange={e=>setBody(e.target.value)} placeholder="Γράψε ένα μήνυμα στην κοινότητα…" required/><button className="com-button" disabled={pending||!body.trim()}>{pending?"Αποστολή…":"Αποστολή ↗"}</button></form>
