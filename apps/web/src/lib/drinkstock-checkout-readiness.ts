@@ -37,9 +37,9 @@ const CHECKS: readonly [CheckoutReadinessCode, string][] = [
   ["CATALOGUE_REQUIRED", "Active products exist"],
   ["PRODUCT_VAT_REVIEW_REQUIRED", "Every active drink has a reviewed VAT classification"],
   ["VAT_JURISDICTION_UNVERIFIED", "Venue's applicable VAT jurisdiction has been verified"],
-  ["MERCHANT_SETTLEMENT_UNAVAILABLE", "PSP routes funds to the authorized hospitality merchant"],
-  ["PSP_PAYMENT_VERIFICATION_UNAVAILABLE", "Production payment callbacks are authenticated, reconciled and idempotent"],
-  ["CERTIFIED_RECEIPTS_UNAVAILABLE", "Certified retail receipt issuer is connected and verified"],
+  ["MERCHANT_SETTLEMENT_UNAVAILABLE", "KONTA MOY Mollie collection and authorized venue settlement are operational"],
+  ["PSP_PAYMENT_VERIFICATION_UNAVAILABLE", "KONTA MOY Mollie callbacks are provider-verified and idempotently reconciled"],
+  ["CERTIFIED_RECEIPTS_UNAVAILABLE", "KONTA MOY AADE route and legally authorized retail receipt issuer are verified"],
   ["REFUND_CREDIT_RECONCILIATION_UNAVAILABLE", "Refunds, credit documents and reconciliation are working"],
   ["COMMERCIAL_ORDER_ADAPTER_UNAVAILABLE", "Atomic DrinkStock checkout and price-lock adapter is deployed"]
 ];

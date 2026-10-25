@@ -18,9 +18,9 @@ export function HospitalityCheckoutFallbackAdmin({partners,csrfToken}:{
  return <section className="shell vendor-section" aria-label="POS-less KONTA MOY checkout approval">
   <h2>KONTA MOY Checkout · POS fallback</h2>
   <p>Admin-only eligibility approval for Hospitality partners without a compatible POS.
-   Every approval is partner-specific, recorded with an audit event, and reversible.
+   KONTA MOY's existing Mollie and AADE infrastructure is reused centrally; venue owners do not configure their own provider credentials. Every approval is partner-specific, recorded with an audit event, and reversible.
    <strong> Approval does not activate customer payments:</strong> the DrinkStock-specific
-   settlement, receipt and real-time quote adapter must be completed before checkout can accept money.</p>
+   legal seller/settlement verification, certified receipt issuance, and venue order adapter must be completed before checkout can accept money.</p>
   {!partners.length?<p>No partners are eligible for review.</p>:
    <div style={{display:"grid",gap:17}}>
     {partners.map(p=><PartnerApproval key={p.id} partner={p} csrfToken={csrfToken}/>)}

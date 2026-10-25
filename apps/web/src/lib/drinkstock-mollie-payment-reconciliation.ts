@@ -1,6 +1,6 @@
 import {createHash} from "node:crypto";
 import {getProductionPostgresRuntime,productionDatabaseConfigured} from "./postgres-runtime";
-import {verifyPartnerDrinkStockPayment} from "./drinkstock-mollie-merchant-payments";
+import {retrieveVerifiedPlatformMolliePayment} from "./drinkstock-platform-fallback-provider";
 export class DrinkStockPaymentVerifyError extends Error{
  readonly code:string;readonly status:number;
  constructor(code:string,status:number){super(code);this.code=code;this.status=status;}
@@ -35,7 +35,7 @@ const attemptSql=`
  */
 export async function reconcileDrinkStockMollieWebhook(
  paymentId:string,
- verify:typeof verifyPartnerDrinkStockPayment=verifyPartnerDrinkStockPayment
+ verify:typeof retrieveVerifiedPlatformMolliePayment=retrieveVerifiedPlatformMolliePayment
 ){
  if(!PID.test(paymentId))throw new DrinkStockPaymentVerifyError("INVALID_WEBHOOK",400);
  if(!productionDatabaseConfigured())throw new DrinkStockPaymentVerifyError("DATABASE_UNAVAILABLE",503);
@@ -45,10 +45,11 @@ export async function reconcileDrinkStockMollieWebhook(
  if(!attempt)return {recognized:false,processed:false};
  if(Number(attempt.amount_cents)!==Number(attempt.order_amount_cents)||attempt.order_currency!=="EUR")
   throw new DrinkStockPaymentVerifyError("PAYMENT_ORDER_AMOUNT_MISMATCH",409);
- // This MUST fetch the payment from the partner-owned Mollie OAuth account,
- // verify live status, profile, order metadata, currency, amount and provider ID.
- await verify(attempt.partner_id,paymentId,{
-  orderId:attempt.order_id,profileId:attempt.profile_id,grossCents:Number(attempt.amount_cents)
+ // This MUST fetch the payment from KONTA MOY's existing Mollie account,
+ // verify paid state, DrinkStock provider-mode and venue/order metadata, currency, amount and provider ID.
+ await verify(paymentId,{
+  partnerId:attempt.partner_id,venueId:attempt.venue_id,
+  orderId:attempt.order_id,grossCents:Number(attempt.amount_cents)
  });
  const db=await pool.connect();let committed=false;
  try{

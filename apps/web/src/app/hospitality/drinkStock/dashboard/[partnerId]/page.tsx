@@ -33,9 +33,9 @@ export default async function DrinkStockPartnerPage({ params }: { params: Promis
      <Link href={`/drinkstock/dashboard/${partnerId}/reports`} style={{display:"inline-block",background:"#d9ff57",color:"#182027",padding:"12px 17px",borderRadius:12,fontWeight:850,textDecoration:"none"}}>Open trading reports ↗</Link>
     </section>}
     {partner.role==="owner"&&<section style={{maxWidth:1240,margin:"20px auto",padding:18,border:"1px solid #89b2d0",borderRadius:15}}>
-     <h2>💳 Merchant payment & tax connections</h2>
-     <p>Connect your own Mollie merchant account and Greek AADE myDATA credentials. Guest checkout stays disabled until fiscal receipts are legally operational.</p>
-     <Link href={`/drinkStock/dashboard/${partnerId}/payments`} className={styles.action}>Mollie & AADE setup ↗</Link>
+     <h2>💳 KONTA MOY checkout fallback</h2>
+     <p>For partners without compatible POS, the fallback uses KONTA MOY's existing Mollie and AADE integrations. There is no separate account connection for the venue. Guest payments stay disabled until receipt issuance and legal-seller checks are operational.</p>
+     <Link href={`/drinkStock/dashboard/${partnerId}/payments`} className={styles.action}>View KONTA MOY fallback readiness ↗</Link>
     </section>}
     <section className={styles.partnerGrid} aria-label="Your venues">
       {venues.length ? venues.map(venue=><article className={styles.partnerCard} key={venue.venueId}>

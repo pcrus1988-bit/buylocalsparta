@@ -1,3 +1,6 @@
+> **SUPERSEDED FOR THE ADMIN-APPROVED POS-UNAVAILABLE FALLBACK (20 October 2026):**
+> Per the operator's explicit decision, fallback now reuses KONTA MOY's existing Mollie and AADE backend integrations, not separate partner credentials or OAuth onboarding. Partner OAuth endpoints are disabled by default and hidden from the fallback UI. See [the shared-platform fallback contract](./platform-mollie-aade-fallback-20261020.md). This earlier document remains historical implementation reference only.
+>
 # DrinkStock Merchant Mollie + AADE Integration — 20 October 2026
 
 ## Decision
