@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {escapeHtml,pricedLines,manualLines,selectedRetailerIds,completePlan,safePrice,eligibleAlternative,groupedItems,compareLabel} from './core.mjs';
+test('never permit unsafe HTML injection',()=>assert.equal(escapeHtml('<img src="x" onerror=alert(1)>'),'&lt;img src=&quot;x&quot; onerror=alert(1)&gt;'));
+test('unpriced lines excluded from comparison',()=>{const all=[{kind:'manual'},{kind:'exact'}];assert.equal(pricedLines(all).length,1);assert.equal(manualLines(all).length,1);});
+test('retailer selection honors exclusions',()=>assert.deepEqual(selectedRetailerIds([{id:'a'},{id:'b'}],['b']),['a']));
+test('no total for incomplete plan',()=>assert.equal(completePlan({cheapestWithinStoreLimit:{complete:false,totalEur:null}}),null));
+test('reject 0, negative and nonfinite prices',()=>{assert.equal(safePrice(0),false);assert.equal(safePrice(-2),false);assert.equal(safePrice(Infinity),false);assert.equal(safePrice(3.75),true);});
+test('only verified, strictly cheaper and quantity-bounded brand replacements',()=>{const alt={id:'A1',confidence:'reviewed_equivalent',originalTotalEur:5,candidateTotalEur:4,packageCount:2};assert.ok(eligibleAlternative(alt));assert.ok(!eligibleAlternative({...alt,confidence:'unverified_match'}));assert.ok(!eligibleAlternative({...alt,candidateTotalEur:6}));assert.ok(!eligibleAlternative({...alt,packageCount:101}));});
+test('split grouped plan retains quoted per-store totals',()=>{const plan={items:[{retailerId:'a',retailerName:'A',lineTotalEur:2},{retailerId:'b',retailerName:'B',lineTotalEur:3},{retailerId:'a',retailerName:'A',lineTotalEur:1}]};assert.deepEqual(groupedItems(plan).map(s=>s.subtotal),[3,3]);});
+test('manual products explicitly excluded from output estimate',()=>assert.match(compareLabel({items:[]},{lineCount:2},1),/1 χειροκίνητα εκτός υπολογισμού/));
