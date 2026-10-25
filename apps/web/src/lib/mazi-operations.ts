@@ -40,7 +40,7 @@ export async function maziOperationsSnapshot(principal:SessionPrincipal):Promise
   "(SELECT count(*)::int FROM public.mazi_interest_applications) AS interest_total,",
   "(SELECT count(*)::int FROM public.mazi_interest_applications WHERE status IN ('pending_review','registry_review_required')) AS interest_pending,",
   "(SELECT count(*)::int FROM public.mazi_interest_applications WHERE status='approved_pending_invite') AS interest_approved,",
-  "(SELECT count(*)::int FROM public.mazi_interest_applications WHERE status='approved_pending_invite' AND registry_checked_at < now()-interval '7 days') AS interest_registry_stale,",
+  "(SELECT count(*)::int FROM public.mazi_interest_applications a WHERE a.status='approved_pending_invite' AND COALESCE((SELECT checked_at FROM public.mazi_interest_registry_rechecks r WHERE r.interest_id=a.id ORDER BY checked_at DESC,id DESC LIMIT 1),a.registry_checked_at) < now()-interval '7 days') AS interest_registry_stale,",
   "(SELECT count(*)::int FROM public.mazi_invitations) AS invitations_total,",
   "(SELECT count(*)::int FROM public.mazi_invitations WHERE status='pending_delivery' AND issued_at < now()-interval '10 minutes') AS invitations_delivery_unconfirmed,",
   "(SELECT count(*)::int FROM public.mazi_invitations WHERE status='delivery_failed') AS invitations_delivery_failed,",
