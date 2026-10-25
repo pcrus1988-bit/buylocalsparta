@@ -39,8 +39,8 @@ export async function publishMaziThread(form:FormData){
  if(!["general","advice","collaboration"].includes(category)||
     title.length<8||title.length>140||body.length<30||body.length>4000)failure("/forum");
  const result=await maziMemberRequest<{thread_id:string}>("forum_create",{category,title,body});
- if(!result.ok||!validId(result.thread_id))failure("/forum");
- redirect("/forum/"+result.thread_id+"?notice=created");
+ if(result.ok===true&&validId(result.thread_id))redirect("/forum/"+result.thread_id+"?notice=created");
+ failure("/forum");
 }
 
 export async function replyMaziThread(form:FormData){
