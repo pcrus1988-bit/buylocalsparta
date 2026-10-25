@@ -52,8 +52,8 @@ test("inbox and dashboard show persisted recency and per-member unread badges",(
  assert.match(sql,/create trigger mazi_inquiry_activity after insert/);
  assert.match(inbox,/aria-current=\{filter==="unread"/);
  assert.match(inbox,/isInquiryUnread\(thread,user\.id\)/);
- assert.match(inbox,/action="close"/);
- assert.match(inbox,/action="read"/);
+ assert.match(inbox,/name="action" value="close"/);
+ assert.match(inbox,/name="action" value="read"/);
  assert.match(dashboard,/isInquiryUnread\(q,user\.id\)/);
  assert.doesNotMatch(sql,/grant execute on function public\.mazi_inquiry_member_action\(uuid,uuid,text\) to authenticated/);
 });
