@@ -3,7 +3,7 @@ import {redirect} from "next/navigation";
 import {getAdminSession} from "../../../../lib/admin-session";
 import {isMaziSuperAdmin} from "../../../../lib/mazi-superadmin";
 import {maziInterestReviewQueue} from "../../../../lib/mazi-interest-admin";
-import {reviewMaziInterestAction,issueMaziInvitationAction,revokeMaziInvitationAction} from "./actions";
+import {reviewMaziInterestAction,issueMaziInvitationAction,revokeMaziInvitationAction,refreshMaziInterestRegistryAction} from "./actions";
 import {maziInvitationStates} from "../../../../lib/mazi-invitation-admin";
 import s from "../mazi.module.css";
 
@@ -34,6 +34,10 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
      Η έγκριση επιτρέπει μόνο το επόμενο βήμα πρόσκλησης — δεν δημιουργεί λογαριασμό, μέλος ή δικαιώματα.</p>
   </div></header>
   {params.notice==="reviewed"?<p className={s.notice} role="status">Η απόφαση καταχωρίστηκε στο μητρώο ελέγχου. Δεν έχει σταλεί πρόσκληση.</p>:null}
+  {params.notice==="gemi_refreshed"?<p className={s.notice} role="status">Ο νέος έλεγχος ΓΕΜΗ ολοκληρώθηκε απευθείας στον επίσημο πάροχο και καταγράφηκε χωρίς να αλλοιώσει την αρχική αίτηση. Μπορείς τώρα να προχωρήσεις, εφόσον έχουν γίνει οι ανεξάρτητοι έλεγχοι εκπροσώπου και email.</p>:null}
+  {params.notice==="gemi_unavailable"?<p className={s.notice} role="alert">Ο ζωντανός έλεγχος ΓΕΜΗ δεν ήταν διαθέσιμος ή εφαρμόστηκε όριο αιτημάτων. Η παλιά πληροφορία δεν θεωρήθηκε νέα επιβεβαίωση. Δοκίμασε ξανά αργότερα.</p>:null}
+  {params.notice==="gemi_mismatch"?<p className={s.notice} role="alert">Ο επίσημος έλεγχος δεν ταυτίστηκε με την αρχική νομική οντότητα ΓΕΜΗ. Η αίτηση δεν άλλαξε· χρειάζεται χειροκίνητη διερεύνηση.</p>:null}
+  {params.notice==="gemi_manual_review"?<p className={s.notice} role="alert">Η αρχική αίτηση δεν είχε επιβεβαιωμένη ταύτιση ΓΕΜΗ. Δεν επιτρέπεται αυτόματη αντικατάσταση της αρχικής ταυτότητας· απαιτείται χωριστός έλεγχος.</p>:null}
   {params.notice==="verification_required"?<p className={s.notice} role="alert">Δεν καταχωρίστηκε έγκριση. Απαιτείται πρόσφατος έλεγχος ΓΕΜΗ (εντός 7 ημερών) και πραγματική, ανεξάρτητη επιβεβαίωση ενεργής επιχείρησης, νόμιμης εκπροσώπησης και ιδιοκτησίας του email. Συμπλήρωσε και τις τρεις επιβεβαιώσεις μόνο αφού ολοκληρώσεις τους ελέγχους.</p>:null}
   {params.notice==="review_invalid"?<p className={s.notice} role="alert">Δεν αποθηκεύτηκε απόφαση: η τεκμηρίωση πρέπει να είναι 20–1.000 χαρακτήρες και η αίτηση να είναι έγκυρη.</p>:null}
   {params.notice==="not_reviewable"?<p className={s.notice} role="alert">Η αίτηση δεν είναι πλέον διαθέσιμη για αξιολόγηση. Η κατάσταση ενδέχεται να άλλαξε· έλεγξε το ιστορικό.</p>:null}
@@ -48,18 +52,30 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
   </div><span>Ισχύει ανεξάρτητη επαλήθευση εκπροσώπου και email</span></div>
   {!pending.length?<div className={s.empty}>Δεν υπάρχουν εκκρεμείς αιτήσεις ΑΦΜ.</div>:
    <div className={s.stack}>{pending.map(a=><article key={a.id} className={s.card}>
-    <div style={{flex:1,minWidth:280}}>
+    <div style={{flex:1,minWidth:0}}>
      <span className={s.tag}>{a.status==="pending_review"?"ΓΕΜΗ ΑΝΕΥΡΕΘΗ":"ΑΠΑΙΤΕΙΤΑΙ ΝΕΟΣ ΕΛΕΓΧΟΣ ΓΕΜΗ"} · {new Date(a.submitted_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})}</span>
      <h3>{a.registry_legal_name||"Χωρίς επαληθευμένη επωνυμία"}</h3>
      <p className={s.meta}>ΑΦΜ: {a.tax_number} · ΓΕΜΗ: {a.gemi_number||"Δεν επιβεβαιώθηκε"}</p>
      <p className={s.meta}>Κατάσταση ΓΕΜΗ: {a.registry_company_status||"Απαιτείται έλεγχος"} · Περιοχή: {a.registry_city||"—"}</p>
      <p className={s.meta}>Έλεγχος: {a.registry_checked_at?new Date(a.registry_checked_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"}):"Μη διαθέσιμος"}</p>
+     {!registryCurrent(a)?<div style={{margin:"12px 0 16px",padding:16,background:"#fff0d7",border:"1px solid #d8a657",color:"#67421b",fontSize:13,lineHeight:1.6}} role="alert">
+       <strong>Η έγκριση είναι προσωρινά απενεργοποιημένη.</strong>
+       <p style={{margin:"8px 0"}}>Ο προηγούμενος έλεγχος ΓΕΜΗ είναι παλιότερος από επτά ημέρες ή δεν υπάρχει επιβεβαιωμένη ταύτιση.</p>
+       {a.registry_lookup_status==="matched"&&Boolean(a.gemi_number)?
+        <form action={refreshMaziInterestRegistryAction} style={{marginTop:12,display:"grid",gap:8}}>
+         <input type="hidden" name="csrf" value={principal.csrfToken}/>
+         <input type="hidden" name="id" value={a.id}/>
+         <button type="submit" className={s.secondary} style={{background:"#fff9ed",whiteSpace:"normal"}}>Επανέλεγχος ΓΕΜΗ τώρα ↻</button>
+         <span>Ζωντανή επανάκτηση από τον επίσημο πάροχο · δεν εγκρίνει την αίτηση.</span>
+        </form>:
+        <p>Χρειάζεται ανεξάρτητη διερεύνηση της αρχικής ταύτισης ΓΕΜΗ.</p>}
+      </div>:<p className={s.meta} style={{color:"#276d45",fontWeight:700}}>✓ Πρόσφατη ταύτιση ΓΕΜΗ — μπορείς να αξιολογήσεις την αίτηση.</p>}
      <p className={s.meta}>Εκπρόσωπος (δήλωση): {a.representative_name}</p>
      <p className={s.meta}>Email επικοινωνίας (μη επαληθευμένο): {a.contact_email}</p>
      <p className={s.body}>{a.application_note}</p>
      <p className={s.disclaimer}>ΠΡΟΣΟΧΗ: Η εύρεση ΓΕΜΗ δεν αποδεικνύει ότι αυτό το πρόσωπο εκπροσωπεί την επιχείρηση. Μην αποδεχτείτε αν δεν έχει γίνει ανεξάρτητος έλεγχος.</p>
     </div>
-    <div style={{minWidth:260,maxWidth:420}}>
+    <div style={{width:"100%",minWidth:0,maxWidth:420}}>
      <form action={reviewMaziInterestAction} className={s.action} style={{display:"grid",gap:12}}>
       <input type="hidden" name="csrf" value={principal.csrfToken}/>
       <input type="hidden" name="id" value={a.id}/>
@@ -81,8 +97,8 @@ export default async function InterestReview({searchParams}:{searchParams:Promis
       </label>
       {!registryCurrent(a)?<p className={s.disclaimer} role="alert" style={{marginTop:0}}>Η έγκριση δεν επιτρέπεται ακόμη: δεν υπάρχει επιτυχής και πρόσφατος (εντός 7 ημερών) έλεγχος ΓΕΜΗ. Απαιτείται νέος έλεγχος της εγγραφής.</p>:null}
       <button type="submit" name="decision" value="approve" className={s.primary}
-       disabled={!registryCurrent(a)}>
-        Έγκριση για μελλοντική πρόσκληση
+       disabled={!registryCurrent(a)} aria-disabled={!registryCurrent(a)}>
+        {registryCurrent(a)?"Έγκριση για μελλοντική πρόσκληση":"Απαιτείται πρώτα επανέλεγχος ΓΕΜΗ"}
       </button>
      </form>
      <form action={reviewMaziInterestAction} className={s.action} style={{display:"grid",gap:8,marginTop:18}}>
