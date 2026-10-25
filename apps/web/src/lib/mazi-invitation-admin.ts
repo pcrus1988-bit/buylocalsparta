@@ -114,11 +114,20 @@ export async function issueMaziInvitation(principal:SessionPrincipal,interestId:
    representation_verified_at:Date|null;business_contact_verified_at:Date|null;
    company_active_verified_at:Date|null;
   }>(`
-   SELECT id::text,status,contact_email,gemi_number,registry_legal_name,
-     registry_lookup_status,reviewed_by::text,registry_checked_at,
-     representation_verified_at,business_contact_verified_at,company_active_verified_at
-   FROM public.mazi_interest_applications
-   WHERE id=$1::uuid FOR UPDATE
+   SELECT i.id::text,i.status,i.contact_email,
+     COALESCE(r.gemi_number,i.gemi_number) AS gemi_number,
+     COALESCE(r.legal_name,i.registry_legal_name) AS registry_legal_name,
+     CASE WHEN r.id IS NOT NULL THEN 'matched' ELSE i.registry_lookup_status END AS registry_lookup_status,
+     i.reviewed_by::text,
+     COALESCE(r.checked_at,i.registry_checked_at) AS registry_checked_at,
+     i.representation_verified_at,i.business_contact_verified_at,i.company_active_verified_at
+   FROM public.mazi_interest_applications i
+   LEFT JOIN LATERAL (
+    SELECT id,gemi_number,legal_name,checked_at
+    FROM public.mazi_interest_registry_rechecks
+    WHERE interest_id=i.id ORDER BY checked_at DESC,id DESC LIMIT 1
+   ) r ON true
+   WHERE i.id=$1::uuid FOR UPDATE OF i
   `,[interestId]);
   const app=res.rows[0];
   if(!app||app.status!=="approved_pending_invite"
