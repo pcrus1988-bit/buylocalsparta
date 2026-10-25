@@ -63,6 +63,25 @@ export async function sendMaziChat(form:FormData){
  redirect("/livechat?notice=sent");
 }
 
+
+/** The matching verified-member gateway also validates inquiry participants and content. */
+export async function startInquiry(form:FormData){
+ await requireLogin();
+ const listing_id=field(form,"listing_id"),body=field(form,"body");
+ if(!validId(listing_id)||body.length<20||body.length>1500)failure("/marketplace");
+ const result=await maziMemberRequest("community_start_inquiry",{listing_id,body});
+ if(!result.ok)failure("/marketplace");
+ redirect("/inbox?notice=saved");
+}
+export async function replyInquiry(form:FormData){
+ await requireLogin();
+ const inquiry_id=field(form,"inquiry_id"),body=field(form,"body");
+ if(!validId(inquiry_id)||body.length<2||body.length>1500)failure("/inbox");
+ const result=await maziMemberRequest("community_reply_inquiry",{inquiry_id,body});
+ if(!result.ok)failure("/inbox");
+ redirect("/inbox?notice=saved");
+}
+
 export async function reportMaziCommunity(form:FormData){
  await requireLogin();
  const resource_type=field(form,"resource_type"),resource_id=field(form,"resource_id"),
