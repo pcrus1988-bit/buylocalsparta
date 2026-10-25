@@ -220,6 +220,25 @@ Deno.serve(async(req:Request)=>{
   }
   // Community participation is never implied by possessing a valid Auth JWT:
   // every listing, discussion, reply and chat write must have live KYB status.
+  if(operation==="community_overview"){
+   if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
+   const [listings,threads,replies,chat]=await Promise.all([
+    admin.from("mazi_marketplace_listings").select("id",{count:"exact",head:true})
+     .eq("member_user_id",user.id).eq("status","active"),
+    admin.from("mazi_forum_threads").select("id",{count:"exact",head:true})
+     .eq("member_user_id",user.id),
+    admin.from("mazi_forum_replies").select("id",{count:"exact",head:true})
+     .eq("member_user_id",user.id),
+    admin.from("mazi_chat_messages").select("id",{count:"exact",head:true})
+     .eq("member_user_id",user.id)
+   ]);
+   if(listings.error||threads.error||replies.error||chat.error)
+    return out({error:"data_unavailable"},503);
+   return out({ok:true,activity:{
+    active_listings:listings.count||0,threads:threads.count||0,
+    replies:replies.count||0,chat_messages:chat.count||0
+   }});
+  }
   if(operation==="marketplace_list"||operation==="marketplace_my"){
    const m=await verifiedMember(user.id);
    if(!m)return out({error:"not_verified"},403);
