@@ -8,7 +8,7 @@ import s from "../mazi.module.css";
 export const dynamic="force-dynamic";
 export const metadata={title:"ΜΑΖΙ · Εποπτεία κοινότητας",robots:{index:false,follow:false}};
 const label=(type:MaziCommunityReport["resource_type"])=>
- ({listing:"Αγορά",thread:"Θέμα φόρουμ",reply:"Απάντηση",chat:"Livechat"})[type];
+ ({listing:"Αγορά",thread:"Θέμα φόρουμ",reply:"Απάντηση",chat:"Livechat",inquiry:"Ιδιωτικό μήνυμα"})[type];
 export default async function MaziModeration({searchParams}:{searchParams:Promise<{notice?:string}>}){
  const principal=await getAdminSession();if(!principal)redirect("/admin/login");
  if(!isMaziSuperAdmin(principal))return <main className={s.stage}><section className={s.denied}>
