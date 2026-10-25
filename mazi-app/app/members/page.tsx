@@ -30,7 +30,7 @@ export default async function Members({searchParams}:{searchParams:Promise<{noti
  <section className="section shell portal-section"><div className="portal-heading"><div><span className="eyebrow">ΠΡΟΣΩΠΙΚΟΣ ΧΩΡΟΣ</span><h2>{application?.business_name||"Η επιχείρησή σου"}</h2><p className="small-muted">Συνδέθηκες ως {user.email}</p></div><form action={signOut}><button className="reset-button" type="submit">Αποσύνδεση ↗</button></form></div>
  {notice&&messages[notice]?<p className="form-message" role="status">{messages[notice]}</p>:null}
  {communityEnabled?<section aria-label="Δραστηριότητα και εργαλεία μέλους" style={{margin:"30px 0"}}>
-   <span className="eyebrow">Η ΚΟΙΝΟΤΗΤΑ ΜΟΥ</span>
+   <span className="eyebrow">Η ΚΟΙΝΟΤΗΤΑ ΜΟΥ</span><p><Link href="/dashboard" className="button dark">Άνοιγμα ατομικού Dashboard ↗</Link></p>
    <MaziCommunityNav/>
    {communityState?.ok?<div className={community.dashboardLinks}>
     <Link href="/marketplace" className={community.panel}>
