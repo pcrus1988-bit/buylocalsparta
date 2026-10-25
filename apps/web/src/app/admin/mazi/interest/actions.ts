@@ -4,10 +4,35 @@ import {revalidatePath} from "next/cache";
 import {getAdminSession} from "../../../../lib/admin-session";
 import {assertAdminCsrf} from "../../../../lib/admin-runtime";
 import {requireMarketplaceSuperAdminRole} from "../../../../lib/mazi-superadmin";
-import {reviewMaziInterest,recheckMaziInterestRegistry} from "../../../../lib/mazi-interest-admin";
+import {reviewMaziInterest,recheckMaziInterestRegistry,attestMaziManualGemiPublicity} from "../../../../lib/mazi-interest-admin";
 import {issueMaziInvitation,revokeMaziInvitation} from "../../../../lib/mazi-invitation-admin";
 
 const value=(f:FormData,k:string)=>typeof f.get(k)==="string"?String(f.get(k)):"";
+export async function manualMaziGemiPublicityAction(form:FormData){
+ const principal=await getAdminSession();
+ requireMarketplaceSuperAdminRole(principal);
+ assertAdminCsrf(principal,value(form,"csrf"));
+ try{
+  await attestMaziManualGemiPublicity(principal,{
+   id:value(form,"id"),
+   sourceUrl:value(form,"sourceUrl"),
+   evidence:value(form,"evidence"),
+   confirmedGemi:value(form,"confirmedGemi"),
+   confirmedIdentity:form.get("confirmedIdentity")==="on",
+   confirmedActive:form.get("confirmedActive")==="on"
+  });
+ }catch(error){
+  const code=error instanceof Error?error.message:"";
+  const notice=code==="MAZI_GEMI_MANUAL_INVALID"?"gemi_manual_invalid":
+   code==="MAZI_GEMI_MANUAL_IDENTITY_MISMATCH"?"gemi_manual_mismatch":
+   code==="MAZI_INTEREST_NOT_REVIEWABLE"?"not_reviewable":null;
+  if(notice)redirect("/admin/mazi/interest?notice="+notice);
+  throw error;
+ }
+ revalidatePath("/admin/mazi/interest");
+ redirect("/admin/mazi/interest?notice=gemi_manual_recorded");
+}
+
 export async function refreshMaziInterestRegistryAction(form:FormData){
  const principal=await getAdminSession();
  requireMarketplaceSuperAdminRole(principal);

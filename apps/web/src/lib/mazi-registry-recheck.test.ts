@@ -9,6 +9,7 @@ const admin=local("./mazi-interest-admin.ts");
 const invite=local("./mazi-invitation-admin.ts");
 const gemi=local("./gemi-runtime.ts");
 const migration=local("../../../../mazi-app/sql/024_interest_registry_live_rechecks.sql");
+const manualMigration=local("../../../../mazi-app/sql/025_manual_gemi_publicity_verification.sql");
 
 test("stale GEMI approval visibly offers real server-side refresh and stays disabled",()=>{
  assert.ok(approval.includes("Επανέλεγχος ΓΕΜΗ τώρα"));
@@ -51,4 +52,20 @@ test("live GEMI failures are classified without weakening approval checks",()=>{
  assert.ok(actions.includes("MAZI_GEMI_RECHECK_PROVIDER_ACCESS_DENIED"));
  assert.ok(gemi.includes('event:"mazi.gemi_live_recheck_failed"'));
  assert.ok(!gemi.includes("apiKey: config.apiKey },"+"\n"+"      // expose"));
+});
+
+test("manual GEMI publicity evidence is private and distinguishable from API evidence",()=>{
+ assert.ok(manualMigration.includes("'gemi_publicity_manual'"));
+ assert.ok(manualMigration.includes("source_url LIKE 'https://publicity.businessportal.gr/%'"));
+ assert.ok(manualMigration.includes("review_evidence"));
+ assert.ok(manualMigration.includes("80 AND 2000"));
+ assert.ok(admin.includes("attestMaziManualGemiPublicity"));
+ assert.ok(admin.includes('parsed.hostname!=="publicity.businessportal.gr"'));
+ assert.ok(admin.includes("input.confirmedIdentity")&&admin.includes("input.confirmedActive"));
+ assert.ok(admin.includes("item.gemi_number!==input.confirmedGemi.trim()"));
+ assert.ok(admin.includes("marketplaceMaziActor(principal)"));
+ assert.ok(admin.includes("'gemi_publicity_manual'"));
+ assert.ok(approval.includes("manualMaziGemiPublicityAction"));
+ assert.ok(approval.includes("Χειροκίνητη βεβαίωση Super Admin"));
+ assert.ok(actions.includes("assertAdminCsrf(principal,value(form,\"csrf\"))"));
 });

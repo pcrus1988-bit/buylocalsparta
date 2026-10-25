@@ -7,6 +7,7 @@ export type MaziInterestRow={
  id:string;tax_number:string;gemi_number:string|null;registry_legal_name:string|null;
  registry_company_status:string|null;registry_city:string|null;
  registry_checked_at:Date|null;registry_lookup_status:string;
+ registry_evidence_source:string;
  representative_name:string;contact_email:string;application_note:string;
  status:string;submitted_at:Date;review_reason:string|null;
  representation_verified_at:Date|null;business_contact_verified_at:Date|null
@@ -21,11 +22,12 @@ export async function maziInterestReviewQueue(principal:SessionPrincipal){
    COALESCE(r.city,i.registry_city) AS registry_city,
    COALESCE(r.checked_at,i.registry_checked_at) AS registry_checked_at,
    CASE WHEN r.id IS NOT NULL THEN 'matched' ELSE i.registry_lookup_status END AS registry_lookup_status,
+   COALESCE(r.source,'application_snapshot') AS registry_evidence_source,
    i.representative_name,i.contact_email,i.application_note,i.status,
    i.submitted_at,i.review_reason,i.representation_verified_at,i.business_contact_verified_at
   FROM public.mazi_interest_applications i
   LEFT JOIN LATERAL (
-   SELECT id,gemi_number,legal_name,company_status,city,checked_at
+   SELECT id,gemi_number,legal_name,company_status,city,checked_at,source
    FROM public.mazi_interest_registry_rechecks
    WHERE interest_id=i.id ORDER BY checked_at DESC,id DESC LIMIT 1
   ) r ON true
@@ -55,7 +57,7 @@ export async function reviewMaziInterest(principal:SessionPrincipal,input:{
     COALESCE(r.checked_at,i.registry_checked_at) AS registry_checked_at
    FROM public.mazi_interest_applications i
    LEFT JOIN LATERAL (
-    SELECT id,gemi_number,checked_at
+    SELECT id,gemi_number,checked_at,source
     FROM public.mazi_interest_registry_rechecks
     WHERE interest_id=i.id ORDER BY checked_at DESC,id DESC LIMIT 1
    ) r ON true
@@ -144,6 +146,55 @@ export async function recheckMaziInterestRegistry(principal:SessionPrincipal,id:
    ) VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8::uuid)
   `,[id,checked.taxNumber,checked.gemiNumber,checked.legalName,
     checked.companyStatus??null,checked.city??null,new Date(checked.checkedAt),actor]);
+  await conn.query("COMMIT");
+ }catch(error){await conn.query("ROLLBACK");throw error;}
+ finally{conn.release();}
+}
+
+/**
+ * Human-verified, non-API path for a temporarily unavailable official GEMI API.
+ * Super Admin must actually inspect the public record, compare the original
+ * identity and document the evidence. This is never labelled as an API check.
+ */
+export async function attestMaziManualGemiPublicity(principal:SessionPrincipal,input:{
+ id:string;sourceUrl:string;evidence:string;confirmedGemi:string;
+ confirmedIdentity:boolean;confirmedActive:boolean;
+}):Promise<void>{
+ const actor=await marketplaceMaziActor(principal);
+ if(!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(input.id))
+   throw Error("MAZI_GEMI_MANUAL_INVALID");
+ const sourceUrl=input.sourceUrl.trim(),evidence=input.evidence.trim();
+ let parsed:URL;
+ try {parsed=new URL(sourceUrl);} catch {throw Error("MAZI_GEMI_MANUAL_INVALID");}
+ if(parsed.protocol!=="https:"||parsed.hostname!=="publicity.businessportal.gr"||
+    parsed.port||parsed.username||parsed.password||
+    evidence.length<80||evidence.length>2000||
+    !input.confirmedIdentity||!input.confirmedActive)
+  throw Error("MAZI_GEMI_MANUAL_INVALID");
+ const conn=await getAdminPostgresRuntime().nativePool.connect();
+ try{
+  await conn.query("BEGIN");
+  const result=await conn.query<{
+    tax_number:string;gemi_number:string|null;registry_legal_name:string|null;
+    status:string;registry_lookup_status:string
+   }>(`SELECT tax_number,gemi_number,registry_legal_name,status,registry_lookup_status
+      FROM public.mazi_interest_applications WHERE id=$1::uuid FOR UPDATE`,[input.id]);
+  const item=result.rows[0];
+  if(!item||!["pending_review","registry_review_required"].includes(item.status))
+    throw Error("MAZI_INTEREST_NOT_REVIEWABLE");
+  if(item.registry_lookup_status!=="matched"||!item.gemi_number||
+     !item.registry_legal_name||item.registry_legal_name.trim().length<3||
+     item.gemi_number!==input.confirmedGemi.trim())
+    throw Error("MAZI_GEMI_MANUAL_IDENTITY_MISMATCH");
+  await conn.query(`
+    INSERT INTO public.mazi_interest_registry_rechecks (
+      interest_id,tax_number,gemi_number,legal_name,company_status,city,
+      checked_at,checked_by,source,source_url,review_evidence
+    )
+    SELECT id,tax_number,gemi_number,registry_legal_name,
+      'Ενεργή',registry_city,now(),$2::uuid,'gemi_publicity_manual',$3,$4
+    FROM public.mazi_interest_applications WHERE id=$1::uuid
+  `,[input.id,actor,parsed.href,evidence]);
   await conn.query("COMMIT");
  }catch(error){await conn.query("ROLLBACK");throw error;}
  finally{conn.release();}
