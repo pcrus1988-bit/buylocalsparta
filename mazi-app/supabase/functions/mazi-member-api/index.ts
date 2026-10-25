@@ -241,7 +241,8 @@ Deno.serve(async(req:Request)=>{
     if(list.length){
      const {data:messages,error:msgError}=await admin.from("mazi_inquiry_messages")
        .select("id,inquiry_id,member_user_id,body,created_at")
-       .in("inquiry_id",list.map(i=>i.id)).order("created_at",{ascending:false}).limit(180);
+       .in("inquiry_id",list.map(i=>i.id)).is("hidden_at",null)
+       .order("created_at",{ascending:false}).limit(180);
      if(msgError)return out({error:"data_unavailable"},503);
      inquiryMessages=(messages||[]) as Json[];
      const {data:linked,error:lError}=await admin.from("mazi_marketplace_listings")
@@ -426,6 +427,24 @@ Deno.serve(async(req:Request)=>{
    if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
    const resource_type=text(input.resource_type),resource_id=text(input.resource_id),
     reason=text(input.reason);
+   if(resource_type==="inquiry"){
+    if(!uuid(resource_id)||reason.length<20||reason.length>500)
+     return out({error:"invalid_report"},400);
+    const {data:msg,error:mError}=await admin.from("mazi_inquiry_messages")
+     .select("id,inquiry_id,member_user_id").eq("id",resource_id)
+     .is("hidden_at",null).maybeSingle();
+    if(mError||!msg||msg.member_user_id===user.id)
+     return out({error:"resource_not_found"},404);
+    const {data:inquiry,error:iError}=await admin.from("mazi_listing_inquiries")
+     .select("sender_user_id,recipient_user_id").eq("id",msg.inquiry_id).maybeSingle();
+    if(iError||!inquiry||
+       (inquiry.sender_user_id!==user.id&&inquiry.recipient_user_id!==user.id))
+     return out({error:"resource_not_found"},404);
+    const {error}=await admin.from("mazi_community_reports").insert({
+      reporter_user_id:user.id,resource_type,resource_id,reason
+    });
+    return error?out({error:"report_not_saved"},409):out({ok:true});
+   }
    const targets:Record<string,string>={
     listing:"mazi_marketplace_listings",thread:"mazi_forum_threads",
     reply:"mazi_forum_replies",chat:"mazi_chat_messages"
