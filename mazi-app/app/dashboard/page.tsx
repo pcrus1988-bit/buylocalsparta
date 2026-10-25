@@ -32,8 +32,9 @@ export default async function Dashboard(){
     <Link href={isVerified?"/marketplace":"/members"} className="com-nav-card"><span>02 / ΑΓΟΡΑ</span><h2>Αγορά συνεργασίας ↗</h2><p>Προσφορά προϊόντων, αναζήτηση υπηρεσιών και νέες επαγγελματικές συνέργειες.</p></Link>
     <Link href={isVerified?"/forum":"/members"} className="com-nav-card"><span>03 / ΚΟΙΝΟΤΗΤΑ</span><h2>Φόρουμ μελών ↗</h2><p>Ρώτησε, μοιράσου εμπειρία και ανταποκρίσου στις ανάγκες άλλων επιχειρήσεων.</p></Link>
     <Link href={isVerified?"/livechat":"/members"} className="com-nav-card"><span>04 / ΣΥΝΟΜΙΛΙΑ</span><h2>Livechat ↗</h2><p>Ζωντανή επικοινωνία με την επαληθευμένη κοινότητα.</p></Link>
-    <Link href={isVerified?"/proposals":"/members"} className="com-nav-card"><span>05 / ΑΝΑΠΤΥΞΗ</span><h2>Προτάσεις και ψηφοφορίες ↗</h2><p>Παρακολούθηση των πραγματικών προτάσεων και της επιλεξιμότητας συμμετοχής.</p></Link>
-    <Link href={isVerified?"/awards":"/members"} className="com-nav-card"><span>06 / ΕΝΙΣΧΥΣΗ</span><h2>Συμφωνίες ενίσχυσης ↗</h2><p>Προβολή τυχόν ατομικών προσφορών, όρων και αποδοχών· χωρίς ενεργή εκταμίευση.</p></Link>
+    <Link href={isVerified?"/inbox":"/members"} className="com-nav-card"><span>05 / ΜΗΝΥΜΑΤΑ</span><h2>Ιδιωτική αλληλογραφία ↗</h2><p>Αιτήματα συνεργασίας και απαντήσεις με άλλες επαληθευμένες επιχειρήσεις.</p></Link>
+    <Link href={isVerified?"/proposals":"/members"} className="com-nav-card"><span>06 / ΑΝΑΠΤΥΞΗ</span><h2>Προτάσεις και ψηφοφορίες ↗</h2><p>Παρακολούθηση των πραγματικών προτάσεων και της επιλεξιμότητας συμμετοχής.</p></Link>
+    <Link href={isVerified?"/awards":"/members"} className="com-nav-card"><span>07 / ΕΝΙΣΧΥΣΗ</span><h2>Συμφωνίες ενίσχυσης ↗</h2><p>Προβολή τυχόν ατομικών προσφορών, όρων και αποδοχών· χωρίς ενεργή εκταμίευση.</p></Link>
    </div>
    <section className="com-recent"><h2>Η πρόσφατη δραστηριότητά μου</h2>
     {ownProposals.length||listings.length||threads.length?
