@@ -75,6 +75,10 @@ export async function sendMaziExistingAccountResendLogin(rawEmail:string):Promis
   throw err;
  }finally{conn.release();}
  let sent=false;
+ // Report only the failing transport stage and numeric HTTP status. Never log
+ // provider response bodies, email addresses, token hashes, or credentials.
+ let deliveryStage:"auth_generate"|"auth_payload"|"resend_send"="auth_generate";
+ let upstreamStatus=0;
  try{
   const auth=await fetch(AUTH_PROJECT_URL+"/auth/v1/admin/generate_link",{
    method:"POST",cache:"no-store",
@@ -83,7 +87,10 @@ export async function sendMaziExistingAccountResendLogin(rawEmail:string):Promis
    body:JSON.stringify({type:"magiclink",email}),
    signal:AbortSignal.timeout(9000)
   });
+  upstreamStatus=auth.status;
   if(!auth.ok)throw Error("auth_generate_link_failed");
+  deliveryStage="auth_payload";
+  upstreamStatus=0;
   const raw:unknown=await auth.json();
   const property=raw&&typeof raw==="object"&&"properties" in raw
    ?(raw as {properties?:{hashed_token?:unknown}}).properties:null;
@@ -109,6 +116,7 @@ export async function sendMaziExistingAccountResendLogin(rawEmail:string):Promis
    <p>Αν δεν ζήτησες σύνδεση, αγνόησε αυτό το email. Ο σύνδεσμος χρησιμοποιείται μόνο μία φορά.</p>
    <small>ΚΟΝΤΑ ΜΟΥ · ΜΑΖΙ | Δεν ενεργοποιεί χρέωση ή δικαίωμα μέλους.</small>
    </div></body></html>`;
+  deliveryStage="resend_send";
   const delivery=await fetch("https://api.resend.com/emails",{
    method:"POST",cache:"no-store",
    headers:{"content-type":"application/json",authorization:`Bearer ${resendKey}`,
@@ -119,11 +127,14 @@ export async function sendMaziExistingAccountResendLogin(rawEmail:string):Promis
    }),
    signal:AbortSignal.timeout(9000)
   });
+  upstreamStatus=delivery.status;
   if(!delivery.ok)throw Error("resend_delivery_rejected");
   sent=true;
  }catch{
   // Deliberately don't log email, token hash or provider payload.
-  console.warn("MAZI_AUTH_LOGIN_EMAIL_UNAVAILABLE");
+  console.warn("MAZI_AUTH_LOGIN_EMAIL_UNAVAILABLE",{
+   stage:deliveryStage,http_status:upstreamStatus||null
+  });
  }finally{
   await pool.query(`
    UPDATE public.mazi_passwordless_email_attempts
