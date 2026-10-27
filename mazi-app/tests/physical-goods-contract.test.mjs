@@ -36,7 +36,7 @@ test("Edge gateway enforces active KYB and blocks non-goods listing operations",
  assert.match(listing,/\.gt\("expires_at",new Date\(\)\.toISOString\(\)\)/);
  assert.match(listing,/\.eq\("member_user_id",user\.id\)/);
  assert.match(listing,/input\.goods_policy_accepted!==true/);
- assert.match(listing,/goods_policy_version:"mazi-goods-v1"/);
+ assert.match(listing,/goods_policy_version:"mazi-goods-v2"/);
  assert.match(listing,/No price, checkout, invoice, grant or money movement/);
 });
 test("member forms support offers, requests, filters and privacy-first inquiries",()=>{

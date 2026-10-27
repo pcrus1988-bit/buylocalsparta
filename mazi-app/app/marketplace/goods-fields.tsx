@@ -44,13 +44,18 @@ export function GoodsFields({item}:{item?:MaziListing}){
     {Object.entries(goodsVatBasis).map(([value,label])=><option key={value} value={value}>{label}</option>)}
    </select></label>
   </div>
-  <p className={s.hint}>Διάβασε τους <Link href="/marketplace/rules">κανόνες της αγοράς φυσικών ειδών</Link> (mazi-goods-v1)
+  <p className={s.hint}>Διάβασε τους <Link href="/marketplace/rules">κανόνες της αγοράς φυσικών ειδών</Link> (mazi-goods-v2)
    πριν από τη δημοσίευση. Η αποδοχή καταγράφεται με χρονοσήμανση.</p>
+  <input type="hidden" name="goods_policy_version" value="mazi-goods-v2"/>
   <label className={s.goodsConsent}><input type="checkbox" name="goods_policy_accepted" required/>
-   <span>Δηλώνω ότι πρόκειται αποκλειστικά για νόμιμα φυσικά αγαθά που δικαιούμαι να διαθέσω
-    ή να ζητήσω, ότι τα στοιχεία είναι αληθή, και ότι δεν αναρτώ απαγορευμένα,
-    επικίνδυνα ή μη αδειοδοτημένα είδη. Η τελική τιμή, ο ΦΠΑ, η αποστολή και
-    τα παραστατικά συμφωνούνται απευθείας μεταξύ των επιχειρήσεων.</span>
+   <span>Διάβασα και αποδέχομαι τους πλήρεις <Link href="/marketplace/rules">Όρους B2B Αγοράς Φυσικών Ειδών (v2)</Link>,
+   συμπεριλαμβανομένων των κανόνων ακριβούς περιγραφής, νόμιμης διάθεσης και ασφάλειας προϊόντων.</span>
+  </label>
+  <label className={s.goodsConsent}><input type="checkbox" name="goods_b2b_acknowledged" required/>
+   <span>Δηλώνω ότι ενεργώ ως νόμιμα εξουσιοδοτημένη επιχείρηση, κατανοώ ότι η πώληση γίνεται
+    απευθείας μεταξύ μελών, ότι οι νόμιμες αξιώσεις από ελαττώματα και τυχόν εμπορικές εγγυήσεις
+    αφορούν τον πραγματικό πωλητή, και ότι το ΚΟΝΤΑ ΜΟΥ δεν είναι πωλητής ή εγγυητής
+    χωρίς να αποκλείονται τυχόν δικές του αναγκαστικές νόμιμες ευθύνες.</span>
   </label>
  </>;
 }

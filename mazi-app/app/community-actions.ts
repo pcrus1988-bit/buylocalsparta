@@ -33,7 +33,9 @@ const goodsInput=(form:FormData)=>{
    (priceEur!==""&&!/^\d{1,9}(?:[.,]\d{1,2})?$/.test(priceEur))||
    (price_type==="fixed"&&!priceEur)||(price_type==="on_request"&&!!priceEur)||
    title.length<8||title.length>140||description.length<30||description.length>2500||
-   form.get("goods_policy_accepted")!=="on")return null;
+   form.get("goods_policy_accepted")!=="on"||
+   form.get("goods_b2b_acknowledged")!=="on"||
+   field(form,"goods_policy_version")!=="mazi-goods-v2")return null;
  let price_cents:number|null=null;
  if(priceEur){
    const [whole,decimal=""]=priceEur.replace(",",".").split(".");
@@ -42,7 +44,8 @@ const goodsInput=(form:FormData)=>{
  }
  return {kind,item_category,item_condition,quantity,quantity_unit:quantityUnit,
   location_city,fulfillment,price_type,price_cents,price_vat_basis,title,description,
-  goods_policy_accepted:true};
+  goods_policy_accepted:true,goods_b2b_acknowledged:true,
+  goods_policy_version:"mazi-goods-v2"};
 };
 export async function publishMaziListing(form:FormData){
  await requireLogin();

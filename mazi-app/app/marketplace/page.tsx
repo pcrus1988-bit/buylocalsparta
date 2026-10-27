@@ -64,8 +64,8 @@ export default async function Marketplace({searchParams}:{searchParams:Promise<{
       <GoodsFields/>
       <button type="submit" className={s.action}>Δημοσίευση στην αγορά ↗</button>
      </form>
-     <p className={s.hint}>Η ΜΑΖΙ δεν είναι μέρος της αγοραπωλησίας και δεν διαχειρίζεται
-      πληρωμές, αποστολές, εγγυήσεις ή παραστατικά. Η επικοινωνία ξεκινά ιδιωτικά.</p>
+     <p className={s.hint}>Η ΜΑΖΙ δεν είναι συμβαλλόμενο μέρος στην αγοραπωλησία: πωλητής και αγοραστής είναι αποκλειστικά οι επιχειρήσεις. Για νόμιμη ευθύνη ελαττωμάτων, εγγυήσεις και τα όρια ευθύνης του ΚΟΝΤΑ ΜΟΥ διάβασε τους ειδικούς όρους. Η επικοινωνία ξεκινά ιδιωτικά.</p>
+     <p className={s.hint}><Link href="/marketplace/rules">Αναλυτικοί όροι B2B, εγγυήσεις και ευθύνες ↗</Link></p>
     </section>
     <section id="discover" className={s.feed} aria-label="Ενεργές αγγελίες φυσικών ειδών">
      <div className={s.goodsFeedTop}><div><span className={s.eyebrow}>Η ΑΓΟΡΑ · 02</span>
