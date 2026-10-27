@@ -24,7 +24,7 @@ export async function emailSignIn(form:FormData) {
   const secret=process.env.MAZI_AUTH_BRIDGE_SECRET;
   if(!secret||secret.length<48)urlMessage("/join","email_unavailable");
   const ts=Date.now();
-  const signature=createHmac("sha256",secret).update(String(ts)+"\\n"+email).digest("hex");
+  const signature=createHmac("sha256",secret).update(String(ts)+"\n"+email).digest("hex");
   try{
    const response=await fetch("https://kontamou.site/api/mazi-auth-email",{
     method:"POST",cache:"no-store",
