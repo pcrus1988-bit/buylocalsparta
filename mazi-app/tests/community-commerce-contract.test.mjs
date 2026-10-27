@@ -61,7 +61,7 @@ test("all member postings go through server-authenticated MAZI Edge operations",
   assert.ok(actions.includes(`("${key}"`)||actions.includes(`>("${key}"`),key);
  }
  assert.match(actions,/validId\(resource_id\)/);
- assert.match(edge,/\.eq\("member_user_id",user\.id\)\.eq\("status","active"\)/);
+ assert.match(edge,/\.eq\("member_user_id",user\.id\)\.eq\("category","goods"\)\.eq\("status","active"\)/);
  assert.match(edge,/\.eq\("channel","lobby"\)/);
  assert.match(edge,/\.eq\("thread_id",threadId\)/);
 });
