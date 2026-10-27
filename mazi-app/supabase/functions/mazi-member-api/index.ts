@@ -412,10 +412,11 @@ Deno.serve(async(req:Request)=>{
      (price_type==="fixed"&&price_cents===null)||
      (price_type==="on_request"&&price_cents!==null)||
      title.length<8||title.length>140||description.length<30||description.length>2500||
-     input.goods_policy_accepted!==true)return null;
+     input.goods_policy_accepted!==true||input.goods_b2b_acknowledged!==true||
+     text(input.goods_policy_version)!=="mazi-goods-v2")return null;
    return {kind,category:"goods",title,description,item_category,item_condition,
      quantity,quantity_unit,location_city,fulfillment,price_type,price_cents,
-     price_vat_basis,goods_policy_version:"mazi-goods-v1",
+     price_vat_basis,goods_policy_version:"mazi-goods-v2",
      goods_policy_accepted_at:new Date().toISOString()};
   };
   if(operation==="marketplace_create"){

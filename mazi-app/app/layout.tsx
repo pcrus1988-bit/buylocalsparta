@@ -22,7 +22,6 @@ export default function RootLayout({children}: Readonly<{children: React.ReactNo
             <Link href="/forum">Forum</Link>
             <Link href="/livechat">Livechat</Link><Link href="/dashboard">Ο χώρος μου</Link>
             <Link href="/charter">Οι αρχές μας</Link>
-            <Link href="/legal">Νομικά</Link>
             <Link href="/interest" className="nav-accent">Αίτηση ενδιαφέροντος <span aria-hidden="true">↗</span></Link>
           </nav>
         </div>
@@ -31,7 +30,7 @@ export default function RootLayout({children}: Readonly<{children: React.ReactNo
       <footer className="site-footer">
         <div className="shell footer-grid">
           <div><span className="footer-logo">ΜΑΖΙ<span>.</span></span><p>Για να μη χρειάζεται καμία μικρή επιχείρηση να τα καταφέρνει μόνη της.</p></div>
-          <div><strong>Γνώρισε το ΜΑΖΙ</strong><Link href="/fund">Το Ταμείο Ανάπτυξης</Link><Link href="/charter">Αρχές & διακυβέρνηση</Link><Link href="/legal">Νομικό κέντρο</Link><Link href="/terms">Όροι συμμετοχής</Link><Link href="/privacy">Πολιτική απορρήτου</Link><Link href="/legal/retention">Διατήρηση δεδομένων</Link><Link href="/legal/fund">Κανονισμός Ταμείου</Link><Link href="/legal/community">Κώδικας κοινότητας</Link><Link href="/legal/cookies">Cookies</Link><Link href="/interest">Αίτηση ενδιαφέροντος</Link><Link href="/join">Σύνδεση μελών</Link></div>
+          <div><strong>Γνώρισε το ΜΑΖΙ</strong><Link href="/fund">Το Ταμείο Ανάπτυξης</Link><Link href="/charter">Αρχές & διακυβέρνηση</Link><Link href="/privacy">Προσωπικά δεδομένα</Link><Link href="/interest">Αίτηση ενδιαφέροντος</Link><Link href="/join">Σύνδεση μελών</Link><Link href="/marketplace">Marketplace μελών</Link><Link href="/marketplace/rules">Όροι B2B Marketplace</Link><Link href="/forum">Forum μελών</Link><Link href="/livechat">Livechat μελών</Link><Link href="/inbox">Ιδιωτικά μηνύματα</Link></div>
           <div><strong>Μια πρωτοβουλία</strong><a href="https://kontamou.site" rel="noopener noreferrer">ΚΟΝΤΑ ΜΟΥ ↗</a><small>Γίνονται πραγματικές αιτήσεις ενδιαφέροντος. Δεν εισπράττονται συνδρομές και δεν πραγματοποιούνται πληρωμές ή εκταμιεύσεις.</small></div>
         </div>
         <div className="shell footer-bottom"><span>© 2026 ΜΑΖΙ · ΚΟΝΤΑ ΜΟΥ</span><span>Από τη Σπάρτη, για όλη την Ελλάδα.</span></div>
