@@ -121,7 +121,7 @@
 .voiceOpenLink a{display:inline-flex;align-items:center;text-decoration:none;font-size:12px;font-weight:800;background:#173d2a;color:#f9f6ed;border:1px solid #d6e0d0;border-radius:10px;padding:12px 16px}
 .crossFilterPanel{border:1px solid #dae6d5;background:#f8fbf6;margin:24px 0;border-radius:16px;padding:18px}
 
-/* A permanent national answer summary and the full 13-region distribution. */
+/* National survey summary, prominently showing the map and the 55 county figures. */
 .mapNationalOverview{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.9fr);gap:14px;margin:15px 0;padding:0}
 .nationalHeadline{display:flex;flex-direction:column;align-items:flex-start;gap:7px;border-radius:16px;background:linear-gradient(125deg,#153e2c,#246443);padding:24px;color:#fff;min-width:0}
 .nationalFlag{font-size:10px;letter-spacing:.15em;font-weight:900;color:#dbd1a6}
@@ -151,8 +151,8 @@
 .mapSide{max-height:none}
 .mapSide .regionList{max-height:none;overflow:visible}
 
-/* Full thirteen-periphery distribution is always available, including on νομός view. */
-.allRegionsGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:9px;max-height:760px;overflow-y:auto;align-content:start;padding-right:4px}
+/* All 55 county values remain available alongside the visual. */
+.allRegionsGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr));gap:7px;margin-top:9px;max-height:760px;overflow-y:auto;align-content:start;padding-right:4px}
 .allRegionsRow{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:3px;align-items:center;background:#fffdf7;border:1px solid #e0e9db;border-radius:9px;padding:9px 11px;color:#385b40;font-size:11px}
 .allRegionsRow>span{font-size:11px;line-height:1.35}.allRegionsRow>strong{font-size:13px;color:#22563a;white-space:nowrap}
 .allRegionsRow>small{grid-column:1/-1;font-size:9px;color:#788c7b}
@@ -253,3 +253,6 @@
  .allRegionsGrid{max-height:540px}
  .nationalHeadline .mapToolbar{align-items:flex-start}
 }
+
+/* At tablet/phone widths keep the map readable instead of squeezing it beside the county list. */
+@media(max-width:1000px){.mapNationalOverview{grid-template-columns:minmax(0,1fr)}.nationalHeadline .mapSvg{min-height:300px}}
