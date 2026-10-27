@@ -34,7 +34,7 @@ export default function HomePage() {
       </div>
     </section>
     <section className="section muted"><div className="shell">
-      <div className="section-top"><span className="eyebrow">02 / ΤΙ ΧΤΙΖΟΥΜΕ</span><span className="side-note">ΤΕΣΣΕΡΙΣ ΤΡΟΠΟΙ ΝΑ ΠΑΜΕ ΜΠΡΟΣΤΑ</span></div>
+      <div className="section-top"><span className="eyebrow">02 / ΤΙ ΧΤΙΖΟΥΜΕ</span><span className="side-note">ΠΕΝΤΕ ΤΡΟΠΟΙ ΝΑ ΠΑΜΕ ΜΠΡΟΣΤΑ</span></div>
       <h2 className="section-heading">Περισσότερα από <em>ένα</em> ταμείο.</h2>
       <div className="pillars">{pillars.map(([n,title,desc,arrow])=><article className="pillar" key={n}><span className="pillar-index">{n}</span><div className="pillar-content"><h3>{title}</h3><p>{desc}</p></div><span aria-hidden="true" className="pillar-arrow">{arrow}</span></article>)}</div>
     </div></section>
