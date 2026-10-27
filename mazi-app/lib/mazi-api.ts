@@ -82,7 +82,7 @@ export async function maziPublicCycle():Promise<{status:string;starts_at:string;
 export async function maziPublicFundReport():Promise<PublicFundReport|null>{
  if(!base||!key)return null;
  try {
-  const res=await fetch(endpoint()+"?operation=fund_transparency",{
+  const res=await fetch(`${base}/functions/v1/mazi-fund-public`,{
    method:"GET",headers:{apikey:key},next:{revalidate:60},signal:AbortSignal.timeout(8000)
   });
   if(!res.ok)return null;
