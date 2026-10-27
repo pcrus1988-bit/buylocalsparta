@@ -17,7 +17,7 @@ const send=(body:Dict,status=200)=>new Response(JSON.stringify(body),{status,hea
 const str=(v:unknown)=>typeof v==="string"?v.trim():"";
 const uuid=(v:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 const issueCodes=new Set(["not_authorized","invoice_reference_required","invalid_billing_period","member_not_eligible","overlapping_period","invoice_reference_conflict"]);
-const requestCodes=new Set(["not_authenticated","invalid_request","member_not_eligible","allowance_inactive","unknown_service","insufficient_tokens","cannot_cancel","unknown_request","invalid_transition","reason_required","note_too_long"]);
+const requestCodes=new Set(["not_authenticated","invalid_request","member_not_eligible","allowance_inactive","unknown_service","insufficient_tokens","cannot_cancel","unknown_request","invalid_transition","reason_required","note_too_long","invalid_message","invalid_message_kind","invalid_message_state","invalid_delivery_url","delivery_summary_required","revision_window_closed","revision_limit_reached","already_accepted","not_delivered"]);
 const friendly=(error:{message?:string}|null,allowed:Set<string>)=>{
  const message=String(error?.message||"");
  for(const code of allowed)if(message.includes(code))return code;
@@ -76,7 +76,12 @@ Deno.serve(async(req:Request)=>{
       .eq("member_user_id",user.id).order("created_at",{ascending:false}).limit(100)
    ]);
    if(periods.error||requests.error)throw periods.error||requests.error;
-   return send({ok:true,services,periods:periods.data||[],requests:requests.data||[]});
+   const ids=(requests.data||[]).map(r=>r.id);
+   const messages=ids.length?await admin.from("mazi_service_messages")
+    .select("id,request_id,author_user_id,kind,body,delivery_url,created_at")
+    .in("request_id",ids).order("id",{ascending:true}).limit(1000):{data:[],error:null};
+   if(messages.error)throw messages.error;
+   return send({ok:true,services,periods:periods.data||[],requests:requests.data||[],messages:messages.data||[]});
   }
   if(operation==="service_request"){
    if(!await eligible(user.id))return send({ok:false,error:"member_not_eligible"},403);
@@ -95,6 +100,22 @@ Deno.serve(async(req:Request)=>{
    if(error)return send({ok:false,error:friendly(error,requestCodes)},409);
    return send({ok:true});
   }
+  if(operation==="service_message"){
+   const id=str(body.request_id),kind=str(body.kind),message=str(body.message);
+   const deliveryUrl=str(body.delivery_url);
+   if(!uuid(id)||!["member_message","admin_message","delivery","revision_request","acceptance"].includes(kind)||
+      message.length<10||message.length>3000||deliveryUrl.length>1200)
+     return send({ok:false,error:"invalid_message"},400);
+   if((kind==="admin_message"||kind==="delivery")&&!(await isAdmin(user.id)))
+     return send({ok:false,error:"not_authorized"},403);
+   if((kind==="member_message"||kind==="revision_request"||kind==="acceptance")&&!(await eligible(user.id)))
+     return send({ok:false,error:"member_not_eligible"},403);
+   const {data,error}=await admin.rpc("mazi_services_internal_message",{
+    p_actor:user.id,p_request:id,p_kind:kind,p_body:message,p_delivery_url:deliveryUrl||null
+   });
+   if(error)return send({ok:false,error:friendly(error,requestCodes)},409);
+   return send({ok:true,message_id:data});
+  }
   if(!["admin_dashboard","admin_issue_period","admin_transition"].includes(operation))
     return send({ok:false,error:"unknown_operation"},400);
   if(!await isAdmin(user.id))return send({ok:false,error:"not_authorized"},403);
@@ -105,7 +126,16 @@ Deno.serve(async(req:Request)=>{
     admin.from("mazi_members").select("user_id,status,identity_verified_at").order("admitted_at",{ascending:false}).limit(50)
    ]);
    if(requests.error||periods.error||members.error)throw requests.error||periods.error||members.error;
-   return send({ok:true,requests:requests.data||[],periods:periods.data||[],members:members.data||[]});
+   const ids=(requests.data||[]).map(r=>r.id);
+   const [messages,release]=await Promise.all([
+    ids.length?admin.from("mazi_service_messages")
+      .select("id,request_id,author_user_id,kind,body,delivery_url,created_at")
+      .in("request_id",ids).order("id",{ascending:true}).limit(1500):
+      Promise.resolve({data:[],error:null}),
+    admin.from("mazi_service_release_state").select("paid_enabled").eq("id",true).single()
+   ]);
+   if(messages.error||release.error)throw messages.error||release.error;
+   return send({ok:true,requests:requests.data||[],periods:periods.data||[],members:members.data||[],messages:messages.data||[],paid_enabled:release.data?.paid_enabled===true});
   }
   if(operation==="admin_issue_period"){
    const id=str(body.member_user_id),start=str(body.starts_at),end=str(body.ends_at),invoice=str(body.invoice_reference);
