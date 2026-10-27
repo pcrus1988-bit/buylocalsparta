@@ -91,7 +91,7 @@ test("paid release gate defaults off and enforces three separate approvals",()=>
  assert.match(fulfillment,/payment_integration_verified_at is not null/);
  assert.match(fulfillment,/subscription_not_activated/);
  assert.match(admin,/dashboard.paid_enabled/);
- assert.match(edge,/paid_enabled:release.data?.paid_enabled===true/);
+ assert.ok(edge.includes("paid_enabled:release.data?.paid_enabled===true"));
 });
 test("completed services require explicit documented delivery rather than admin transition",()=>{
  assert.match(fulfillment,/if p_status='completed' then raise exception 'delivery_required'/);
@@ -112,7 +112,7 @@ test("service messages are privately stored, immutable and bounded",()=>{
  assert.match(fulfillment,/interval '10 days'/);
  assert.match(fulfillment,/revision_limit_reached/);
  assert.match(fulfillment,/already_accepted/);
- assert.match(fulfillment,/^https:\/\//m);
+ assert.ok(fulfillment.includes("^https://"));
  assert.match(edge,/operation==="service_message"/);
  assert.match(actions,/sendServiceMessage/);
  assert.match(member,/ΙΣΤΟΡΙΚΟ ΕΠΙΚΟΙΝΩΝΙΑΣ/);
