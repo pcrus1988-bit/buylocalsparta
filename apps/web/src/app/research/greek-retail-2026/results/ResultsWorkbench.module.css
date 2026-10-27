@@ -43,6 +43,7 @@
 .graphRow>span{font-size:11px;line-height:1.45}.graphRow>strong{font-size:12px;color:#245337;text-align:right}.graphRow>small{font-size:10px;color:#869686;text-align:right}
 .graphTrack{height:15px;background:#edf2e9;border-radius:99px;position:relative;overflow:visible}.graphBar{display:block;height:100%;background:linear-gradient(90deg,#bdd2b6,#287449);border-radius:99px}
 .graphDot{position:absolute;top:50%;height:16px;width:16px;border:3px solid #236840;box-sizing:border-box;background:#fff;transform:translate(-50%,-50%);border-radius:50%}
+.graphTrackMissing{background:repeating-linear-gradient(135deg,#f1f4ef,#f1f4ef 9px,#e1e9df 9px,#e1e9df 18px);border:1px dashed #b4c6b5;box-sizing:border-box}
 .tableScroll{max-width:100%;overflow:auto;margin:18px 0}.table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}.table th{text-align:left;color:#62786b;font-size:11px}.table td,.table th{padding:12px 10px;border-bottom:1px solid #e4ebe3}
 .mapFilters{grid-template-columns:2fr 1fr 1.5fr}.mapLayout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(240px,.85fr);gap:16px;margin-top:15px}
 .mapCanvas{background:#f0f5ec;border:1px solid #d9e3d6;border-radius:18px;padding:16px;min-width:0}

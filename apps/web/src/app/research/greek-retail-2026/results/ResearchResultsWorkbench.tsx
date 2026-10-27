@@ -82,7 +82,22 @@ export function ResearchResultsWorkbench({
  const graphRows=useMemo(()=>points.filter(p=>p.metricKey===graphKey&&matches(p,graphDimension,"")&&p.n>=minN).sort((a,b)=>
   graphOrder==="label"?groupLabel(a.segment[graphDimension]??"",graphDimension).localeCompare(groupLabel(b.segment[graphDimension]??"",graphDimension),"el"):
   graphOrder==="high"?b.value-a.value:a.value-b.value
- ).slice(0,GREECE_PREFECTURES.length),[points,graphKey,graphDimension,graphOrder,minN]);
+ ),[points,graphKey,graphDimension,graphOrder,minN]);
+ // Always show the entire 55-nomos frame, including cells with no estimate.
+ // An unavailable value is different from an observed value of zero.
+ const graphEntries=useMemo(()=>{
+  if(graphDimension!=="prefectureCode")return graphRows.map(point=>({id:point.segment[graphDimension]??"",point}));
+  const available=new Map(graphRows.map(point=>[point.segment.prefectureCode??"",point]));
+  return GREECE_PREFECTURES.map(prefecture=>({id:prefecture.key,point:available.get(prefecture.key)??null}))
+   .sort((left,right)=>{
+    const alphabetical=groupLabel(left.id,"prefectureCode").localeCompare(groupLabel(right.id,"prefectureCode"),"el");
+    if(graphOrder==="label")return alphabetical;
+    if(left.point===null)return right.point===null?alphabetical:1;
+    if(right.point===null)return -1;
+    const delta=graphOrder==="high"?right.point.value-left.point.value:left.point.value-right.point.value;
+    return delta||alphabetical;
+   });
+ },[graphRows,graphDimension,graphOrder]);
  const graphMaximum=graphRows.length?Math.max(...graphRows.map(r=>r.value),.0001):1;
  const comparable=group!=="overall"&&Boolean(level)&&Boolean(compareTo)&&level!==compareTo;
  const comparison=activeMetricKeys.flatMap(key=>{
@@ -98,7 +113,7 @@ export function ResearchResultsWorkbench({
   const left=find(crossRegion),right=crossRegionB?find(crossRegionB):undefined;
   return left?[{key,left,right}]:[];
  });
- const graphLevels=graphRows.map(row=>row.segment[graphDimension]??"");
+ const graphLevels=graphEntries.map(entry=>entry.id);
  const graphLeft=graphRows.find(row=>graphCompareA&&row.segment[graphDimension]===graphCompareA);
  const graphRight=graphRows.find(row=>graphCompareB&&row.segment[graphDimension]===graphCompareB);
  const difference=(a:SafePublicResultPoint,b:SafePublicResultPoint)=>a.format==="proportion"
@@ -110,8 +125,11 @@ export function ResearchResultsWorkbench({
  };
  const exportData=()=>{
   const lines=[["Θέμα","Ομάδα","Τιμή","Μη σταθμισμένο n","95% κάτω όριο","95% άνω όριο"].map(csvValue).join(";")];
-  for(const p of graphRows) lines.push([publicMetricLabel(p.metricKey),groupLabel(p.segment[graphDimension]??"",graphDimension),
-   String(p.value),String(p.n),p.ciLower===null?"":String(p.ciLower),p.ciUpper===null?"":String(p.ciUpper)].map(csvValue).join(";"));
+  for(const entry of graphEntries){
+   const p=entry.point;
+   lines.push([publicMetricLabel(graphKey),groupLabel(entry.id,graphDimension),
+    p?String(p.value):"",p?String(p.n):"",p?.ciLower==null?"":String(p.ciLower),p?.ciUpper==null?"":String(p.ciUpper)].map(csvValue).join(";"));
+  }
   const blob=new Blob(["\uFEFF"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");a.href=url;a.download=demo?"research-demo-graph.csv":mode==="live"?"greek-retail-2026-live-preview.csv":"greek-retail-2026-approved-graph.csv";a.click();URL.revokeObjectURL(url);
@@ -239,24 +257,28 @@ export function ResearchResultsWorkbench({
    </div>
    <div className={styles.filters}><label>Εστίαση Α<select value={graphCompareA} onChange={e=>setGraphCompareA(e.target.value)}><option value="">Όλες οι ομάδες</option>{graphLevels.map(v=><option key={v} value={v}>{groupLabel(v,graphDimension)}</option>)}</select></label><label>Εστίαση Β<select value={graphCompareB} onChange={e=>setGraphCompareB(e.target.value)}><option value="">Καμία</option>{graphLevels.filter(v=>v!==graphCompareA).map(v=><option key={v} value={v}>{groupLabel(v,graphDimension)}</option>)}</select></label></div>
    {graphLeft&&graphRight&&graphLeft!==graphRight&&<p className={styles.compareInsight}>Α: <strong>{format(graphLeft)}</strong> (n={graphLeft.n}) · Β: <strong>{format(graphRight)}</strong> (n={graphRight.n}) · Διαφορά Α − Β: <strong>{difference(graphLeft,graphRight)}</strong></p>}
-   <div className={styles.graphSummary}><strong>{publicMetricLabel(graphKey)}</strong><span>{graphRows.length} διαθέσιμες ομάδες</span>
-    <button type="button" onClick={exportData} disabled={graphRows.length===0}>Εξαγωγή συγκεντρωτικών CSV ↓</button>
+   <div className={styles.graphSummary}><strong>{publicMetricLabel(graphKey)}</strong><span>{graphDimension==="prefectureCode"
+    ?graphRows.length+" με διαθέσιμη τιμή · "+graphEntries.length+" νομοί"
+    :graphRows.length+" διαθέσιμες ομάδες"}</span>
+    <button type="button" onClick={exportData} disabled={graphEntries.length===0}>Εξαγωγή συγκεντρωτικών CSV ↓</button>
    </div>
-   {graphRows.length===0?<div className={styles.empty} role="status">Δεν υπάρχουν εγκεκριμένοι συγκεντρωτικοί αριθμοί με αυτά τα φίλτρα.</div>:
+   {graphDimension==="prefectureCode"&&<p className={styles.note}>Εμφανίζονται και οι 55 νομοί. Το «—» και η διακεκομμένη μπάρα σημαίνουν ότι δεν υπάρχει διαθέσιμη τιμή για τον επιλεγμένο δείκτη και τα φίλτρα — όχι μηδενική επίδοση.</p>}
+   {graphEntries.length===0?<div className={styles.empty} role="status">Δεν υπάρχουν εγκεκριμένοι συγκεντρωτικοί αριθμοί με αυτά τα φίλτρα.</div>:
     graphKind==="table"?<div className={styles.tableScroll}><table className={styles.table}>
       <thead><tr><th>Ομάδα</th><th>Εκτίμηση</th><th>n</th><th>95% ΔΕ</th></tr></thead>
-      <tbody>{graphRows.map((p,i)=><tr key={i}><td>{groupLabel(p.segment[graphDimension]??"",graphDimension)}</td>
-       <td>{format(p)}</td><td>{p.n.toLocaleString("el-GR")}</td>
-       <td>{p.ciLower!==null&&p.ciUpper!==null?
-        p.format==="proportion"?pct(p.ciLower*100)+"% – "+pct(p.ciUpper*100)+"%":
-          pct(p.ciLower)+" – "+pct(p.ciUpper):"—"}</td></tr>)}</tbody></table></div>:
+      <tbody>{graphEntries.map(({id,point})=><tr key={id}><td>{groupLabel(id,graphDimension)}</td>
+       <td>{point?format(point):"—"}</td><td>{point?point.n.toLocaleString("el-GR"):"—"}</td>
+       <td>{point&&point.ciLower!==null&&point.ciUpper!==null?
+        point.format==="proportion"?pct(point.ciLower*100)+"% – "+pct(point.ciUpper*100)+"%":
+          pct(point.ciLower)+" – "+pct(point.ciUpper):"—"}</td></tr>)}</tbody></table></div>:
     <div className={styles.graphChart} role="img" aria-label={"Γράφημα: "+publicMetricLabel(graphKey)}>
-     {graphRows.filter(p=>!graphCompareA&&!graphCompareB||p.segment[graphDimension]===graphCompareA||p.segment[graphDimension]===graphCompareB).map((p,i)=><div className={styles.graphRow} key={i}>
-      <span>{groupLabel(p.segment[graphDimension]??"",graphDimension)}</span>
-      <div className={styles.graphTrack}>
-       {graphKind==="dots"?<i className={styles.graphDot} style={{left:Math.min(98,p.value/graphMaximum*98)+"%"}}/>:
-        <i className={styles.graphBar} style={{width:Math.min(100,p.value/graphMaximum*100)+"%"}}/>}
-      </div><strong>{format(p)}</strong><small>n={p.n}</small>
+     {graphEntries.filter(entry=>!graphCompareA&&!graphCompareB||entry.id===graphCompareA||entry.id===graphCompareB).map(({id,point})=><div className={styles.graphRow} key={id}>
+      <span>{groupLabel(id,graphDimension)}</span>
+      <div className={point?styles.graphTrack:styles.graphTrack+" "+styles.graphTrackMissing}
+       aria-label={point?undefined:"Δεν υπάρχει διαθέσιμη τιμή"}>
+       {point&&(graphKind==="dots"?<i className={styles.graphDot} style={{left:Math.min(98,point.value/graphMaximum*98)+"%"}}/>:
+        <i className={styles.graphBar} style={{width:Math.min(100,point.value/graphMaximum*100)+"%"}}/>)}
+      </div><strong>{point?format(point):"—"}</strong><small>{point?"n="+point.n:"Χωρίς τιμή"}</small>
      </div>)}
     </div>}
    {mode==="live"&&graphDimension==="prefectureCode"&&coverage&&<section aria-label="Κάλυψη όλων των 55 νομών" style={{marginTop:24}}>
