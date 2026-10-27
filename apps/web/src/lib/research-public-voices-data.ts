@@ -5,7 +5,7 @@
  * Never query research_answers, response_design_context or private Admin Q18 rows
  * from a public route. Quote and prefecture outputs are independently governed.
  */
-import { publicResearchQ18DisplayText } from "./research-q18-publication-moderation";
+import { publicResearchQ18DisplayText } from "./research-q18-publication-moderation.ts";
 
 export type PublicVoiceQuote = Readonly<{id:string;category:string;text:string}>;
 export type PublicVoiceCategory = Readonly<{key:string;label:string;count:number}>;
