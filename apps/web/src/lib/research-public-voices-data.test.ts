@@ -34,3 +34,13 @@ test("Q18 reader drops PII, quote-level geography and unapproved quotes",()=>{
  assert.equal(v?.quotes.length,1);
  assert.equal(v?.quotes[0]?.id,"quote_1");
 });
+
+test("public approved release withholds excluded Q18 and censors offensive wording",()=>{
+ const v=publicVoiceDataFromRelease({...approved,quotes:[
+  {...approved.quotes[0],id:"quote-47198",text:"An otherwise approved blocked quote"},
+  {...approved.quotes[0],id:"quote_2",text:"Να έπαιρνε μαζί του τους Εβραίους"},
+  {...approved.quotes[0],id:"quote_3",text:"Να εξαφανιστεί η λαίλαπα που λέγεται Μητσοτάκης."}
+ ]});
+ assert.equal(v?.quotes.length,1);
+ assert.equal(v?.quotes[0]?.text,"Να εξαφανιστεί η [λογοκρίθηκε] που λέγεται Μητσοτάκης.");
+});
