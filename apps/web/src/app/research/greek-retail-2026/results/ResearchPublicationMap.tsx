@@ -262,7 +262,7 @@ export function ResearchPublicationMap({
        const cell=currentValues.find(r=>r.key===feature.properties.name);
        if(!cell||cell.value===undefined||cell.n===undefined)return null;
        const anchor=featureAnchor(feature.geometry);
-       const valueLabel=!hasMetric?showGeoValue(cell):legendValue(cell.value);
+       const valueLabel=!hasMetric?showGeoValue(cell):isProportion?fmt(cell.value*100)+"%":fmt(cell.value);
        const labelWidth=Math.max(42,Math.min(104,valueLabel.length*6.7+16));
        return <g key={"label:"+feature.properties.name} transform={"translate("+anchor.x+" "+anchor.y+")"}
          className={styles.mapValueOverlay} pointerEvents="none" aria-hidden="true">
