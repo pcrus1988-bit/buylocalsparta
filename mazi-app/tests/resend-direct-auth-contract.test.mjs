@@ -42,3 +42,14 @@ test("Resend email points directly at safe production callback, bypassing localh
  assert.ok(invitation.includes('type=existing?"magiclink":"invite"'));
  assert.ok(invitation.includes("resend_invite_new"));
 });
+
+
+test("failed provider stages are auditable without exposing account or token data",()=>{
+ assert.ok(delivery.includes('let deliveryStage:"auth_generate"|"auth_payload"|"resend_send"'));
+ assert.ok(delivery.includes('upstreamStatus=auth.status'));
+ assert.ok(delivery.includes('upstreamStatus=delivery.status'));
+ assert.ok(delivery.includes('stage:deliveryStage,http_status:upstreamStatus||null'));
+ assert.ok(!delivery.includes('console.warn(email'));
+ assert.ok(!delivery.includes('console.warn(token'));
+ assert.ok(!delivery.includes('console.warn(raw'));
+});
