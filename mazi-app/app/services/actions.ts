@@ -8,7 +8,6 @@ async function current(){
  const db=await createClient();
  const {data:{user}}=await db.auth.getUser();
  if(!user)redirect("/join");
- return db;
 }
 export async function requestService(form:FormData){
  await current();
@@ -45,8 +44,6 @@ export async function issueServicePeriod(form:FormData){
 }
 export async function transitionService(form:FormData){
  await current();
- const {data:isAdmin,error:check}=await db.rpc("mazi_is_administrator");
- if(check||isAdmin!==true)redirect("/dashboard");
  const id=String(form.get("request_id")||"");
  const status=String(form.get("status")||"");
  const note=String(form.get("note")||"").trim();
