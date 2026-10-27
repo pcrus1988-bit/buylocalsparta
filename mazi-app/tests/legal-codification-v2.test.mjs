@@ -9,7 +9,7 @@ test("all MAZI legal sectors have explicit codification",()=>{
   assert.ok(source.includes('"'+sector+'"'),sector);
  assert.match(layout,/MAZI_LEGAL_ADDENDA/);
  assert.match(layout,/sections\.map/);
- assert.match(layout,/Κωδικοποίηση 2\.0/);
+ assert.match(layout,/Νομική κωδικοποίηση 2\\.1/);
 });
 test("monthly stages are real fixed rules without pretending the founding €0 cycle pays grants",()=>{
  const fund=read("app/fund/page.tsx");
