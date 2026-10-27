@@ -2,10 +2,11 @@ import Link from "next/link";
 
 const pillars = [
   ["01", "Ταμείο Ανάπτυξης", "Συγκεντρώνουμε και αξιολογούμε πραγματικές ανάγκες, με στόχο μελλοντική συλλογική χρηματοδότηση.", "↗"],
-  ["02", "Κοινή προβολή", "Ενώνουμε μικρούς προϋπολογισμούς για ισχυρότερες καμπάνιες και περισσότερους πελάτες.", "↗"],
+  ["02", "Συλλογική προβολή", "Online και offline καμπάνιες που σχεδιάζονται για την παρουσία των μελών στο KONTA ΜΟΥ.", "↗"],
   ["03", "Περισσότερη αγοραστική δύναμη", "Διεκδικούμε καλύτερους όρους σε υπηρεσίες, εργαλεία και προμήθειες.", "↗"],
   ["04", "250 Tokens υπηρεσιών", "Στο μελλοντικό πρόγραμμα πληρωμένης συμμετοχής: 250 νέα μη μεταφερόμενα Tokens κάθε εξοφλημένο μήνα, για υπηρεσίες κατά παραγγελία.", "↗"],
-  ["05", "Δίκτυο που στηρίζει", "Γνώση, συνεργασίες, προτάσεις και ανθρώπινη αλληλοβοήθεια.", "↗"]
+  ["05", "KONTA ΜΟΥ HUB PRO", "Η premium ψηφιακή παρουσία που συνδέεται με την κοινή προβολή, όπου υπάρχει ενεργό HUB.", "↗"],
+  ["06", "Δίκτυο που στηρίζει", "Γνώση, συνεργασίες, προτάσεις και ανθρώπινη αλληλοβοήθεια.", "↗"]
 ];
 
 export default function HomePage() {
@@ -15,7 +16,7 @@ export default function HomePage() {
         <span className="eyebrow light"><span className="signal"/> Η ΝΕΑ ΣΥΛΛΟΓΙΚΗ ΔΥΝΑΜΗ ΤΩΝ ΜΙΚΡΩΝ</span>
         <h1>Μόνος παλεύεις.<br/><em>Μαζί</em> αλλάζουμε τα πράγματα.</h1>
         <p className="hero-intro">Μια νέα πρωτοβουλία για τις ανεξάρτητες ελληνικές επιχειρήσεις. Ενώνουμε πόρους, ιδέες και ανθρώπους — για να αποκτήσουμε δυνατότητες που μόνοι μας δεν έχουμε.</p>
-        <div className="hero-actions"><Link className="button peach" href="/fund">Γνώρισε το Ταμείο <span aria-hidden="true">↗</span></Link><Link className="text-link white" href="/services/catalogue">250 Tokens υπηρεσιών ↗</Link><Link className="text-link white" href="/interest">Εκδήλωσε ενδιαφέρον <span aria-hidden="true">↗</span></Link></div>
+        <div className="hero-actions"><Link className="button peach" href="/benefits">Γνώρισε τα προνόμια <span aria-hidden="true">↗</span></Link><Link className="text-link white" href="/marketing">Κοινή διαφήμιση ↗</Link><Link className="text-link white" href="/interest">Εκδήλωσε ενδιαφέρον <span aria-hidden="true">↗</span></Link></div>
         <p className="hero-note">Δεχόμαστε πραγματικές αιτήσεις ενδιαφέροντος. Δεν υπάρχουν ακόμη συνδρομές, δεσμεύσεις ή χρηματοδοτήσεις.</p>
       </div>
       <div className="hero-art" aria-label="Αφηρημένη σύνθεση συμβολίζει τις ανεξάρτητες επιχειρήσεις που ενώνονται" role="img">
@@ -34,7 +35,7 @@ export default function HomePage() {
       </div>
     </section>
     <section className="section muted"><div className="shell">
-      <div className="section-top"><span className="eyebrow">02 / ΤΙ ΧΤΙΖΟΥΜΕ</span><span className="side-note">ΠΕΝΤΕ ΤΡΟΠΟΙ ΝΑ ΠΑΜΕ ΜΠΡΟΣΤΑ</span></div>
+      <div className="section-top"><span className="eyebrow">02 / ΤΙ ΧΤΙΖΟΥΜΕ</span><span className="side-note">ΕΞΙ ΤΡΟΠΟΙ ΝΑ ΠΑΜΕ ΜΠΡΟΣΤΑ</span></div>
       <h2 className="section-heading">Περισσότερα από <em>ένα</em> ταμείο.</h2>
       <div className="pillars">{pillars.map(([n,title,desc,arrow])=><article className="pillar" key={n}><span className="pillar-index">{n}</span><div className="pillar-content"><h3>{title}</h3><p>{desc}</p></div><span aria-hidden="true" className="pillar-arrow">{arrow}</span></article>)}</div>
     </div></section>
