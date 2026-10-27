@@ -35,7 +35,7 @@ Deno.serve(async(req:Request)=>{
   let input:Record<string,unknown>;
   try{const decoded=JSON.parse(body);if(!decoded||typeof decoded!=="object"||Array.isArray(decoded))throw new Error();
    input=decoded;}catch{return out({ok:false,error:"invalid_json"},400);}
-  if(input.operation!=="state"&&input.operation!=="vote")return out({ok:false,error:"unsupported"},400);
+  if(input.operation!=="state"&&input.operation!=="vote"&&input.operation!=="apply")return out({ok:false,error:"unsupported"},400);
   const {data:member,error:mError}=await admin.from("mazi_members")
    .select("user_id,status,voting_eligible,identity_verified_at,gemi_number,application_id")
    .eq("user_id",user.id).maybeSingle();
@@ -52,6 +52,31 @@ Deno.serve(async(req:Request)=>{
   if(cError)return out({ok:false,error:"service_unavailable"},503);
   if(!cycle||cycle.finance_activated!==true||cycle.funding_budget_cents<=0)
     return out({ok:true,cycle:null,proposals:[],has_voted:false,voting_eligible:false});
+  if(input.operation==="apply"){
+   if(cycle.status!=="submissions"||!inWindow(cycle))
+    return out({ok:false,error:"applications_not_open"},403);
+   const title=typeof input.title==="string"?input.title.trim():"";
+   const details=typeof input.details==="string"?input.details.trim():"";
+   const category=typeof input.category==="string"?input.category:"";
+   const amount=input.amount_cents,minimum=input.minimum_useful_cents;
+   if(title.length<8||title.length>140||details.length<80||details.length>4000
+      ||!["resilience","growth","joint"].includes(category)
+      ||typeof amount!=="number"||!Number.isSafeInteger(amount)||amount<50000||amount>20000000
+      ||typeof minimum!=="number"||!Number.isSafeInteger(minimum)||minimum<1||minimum>amount
+      ||input.acknowledge_grant_terms!==true
+      ||input.grant_policy_version!=="mazi-grant-retention-v1")
+      return out({ok:false,error:"invalid_project_application"},400);
+   const {error:insertError}=await admin.from("mazi_proposals").insert({
+    cycle_id:cycle.id,created_by:user.id,title,category,
+    amount_cents:amount,minimum_useful_cents:minimum,details,status:"submitted",
+    grant_policy_ack_version:"mazi-grant-retention-v1",
+    grant_policy_acknowledged_at:new Date().toISOString()
+   });
+   if(insertError)return out({ok:false,
+    error:insertError.code==="23505"?"already_submitted":"application_not_eligible"},
+    insertError.code==="23505"?409:403);
+   return out({ok:true,submitted:true});
+  }
   const [proposalResponse,ballotResponse]=await Promise.all([
    admin.from("mazi_proposals").select("id,title,details,category,amount_cents,created_by,first_time_support_request")
     .eq("cycle_id",cycle.id).eq("status","approved").order("created_at",{ascending:true}).limit(100),
