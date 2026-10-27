@@ -277,8 +277,8 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
      description="Έλεγχος παραγωγής token hash από Supabase Auth, πραγματικής παράδοσης μέσω Resend, κατάληξης στο MAZI callback και σωστής λήξης/σύνδεσης χωρίς localhost. Το προεπιλεγμένο SMTP του Supabase δεν χρησιμοποιείται από τη ροή αυτή."/>
     <article className={s.card} style={{display:"block"}}>
      <span className={s.tag}>ΖΩΝΤΑΝΗ ΔΟΚΙΜΗ · ΜΟΝΟ SUPER ADMIN</span>
-     <h3>Δοκιμαστική αποστολή μέσω Supabase Auth</h3>
-     <p className={s.body}>Αυτή η δοκιμή ζητά πραγματικό email σύνδεσης μόνο για υπάρχοντα και επιβεβαιωμένο λογαριασμό Auth, συνδεδεμένο με εγκεκριμένη επιχείρηση. Δεν δημιουργεί χρήστη, δεν εκδίδει πρόσκληση, δεν ενεργοποιεί συμμετοχή και δεν εγκρίνει τον έλεγχο Auth αυτόματα.</p>
+     <h3>Δοκιμαστική αποστολή Supabase Auth × Resend</h3>
+     <p className={s.body}>Αυτή η δοκιμή ζητά πραγματικό email σύνδεσης μόνο για υπάρχοντα και επιβεβαιωμένο λογαριασμό Auth, συνδεδεμένο με εγκεκριμένη επιχείρηση. Το email αποστέλλεται μέσω του υπάρχοντος Resend, με απευθείας ασφαλή σύνδεσμο στο MAZI και όχι μέσω του προεπιλεγμένου Supabase SMTP. Δεν δημιουργεί χρήστη, δεν εκδίδει πρόσκληση, δεν ενεργοποιεί συμμετοχή και δεν εγκρίνει τον έλεγχο Auth αυτόματα.</p>
      {probeTargets.length?<form action={probeMaziAuthDeliveryAction} className={s.action} style={{display:"grid",gap:12,maxWidth:530}}>
       <input type="hidden" name="csrf" value={principal.csrfToken}/>
       <label style={{display:"grid",gap:6}}>Υπάρχων λογαριασμός για ελεγχόμενη δοκιμή
