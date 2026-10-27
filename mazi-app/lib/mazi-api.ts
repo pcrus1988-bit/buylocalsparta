@@ -91,3 +91,28 @@ export async function maziPublicFundReport():Promise<PublicFundReport|null>{
   return parsePublicFundReport(data.report);
  }catch{return null;}
 }
+
+export type MaziFundBallotState={
+ cycle:{id:string;title:string;status:string;starts_at:string;ends_at:string;funding_budget_cents:number}|null;
+ proposals:{id:string;title:string;details:string;category:string;amount_cents:number;first_time_support_request:boolean}[];
+ has_voted:boolean;voting_eligible:boolean;
+ my_vote:{proposal_ids:string[];created_at:string}|null;
+};
+/** Financial-round voting (not the nonfinancial founding survey). */
+export async function maziFundMemberRequest<T extends object>(operation:"state"|"vote",
+ payload:Record<string,unknown>={}):Promise<Result<T>>{
+ if(!base||!key)return fail;
+ const supabase=await createClient();
+ const {data:{session}}=await supabase.auth.getSession();
+ if(!session?.access_token)return {ok:false,error:"not_authenticated"};
+ try{
+  const response=await fetch(`${base}/functions/v1/mazi-fund-member`,{
+   method:"POST",headers:{"content-type":"application/json",apikey:key,
+    authorization:`Bearer ${session.access_token}`},
+   body:JSON.stringify({operation,...payload}),cache:"no-store",signal:AbortSignal.timeout(8000)
+  });
+  const data:unknown=await response.json();
+  if(isObject(data)&&data.ok===true)return data as {ok:true}&T;
+  return {ok:false,error:isObject(data)&&typeof data.error==="string"?data.error:"service_unavailable"};
+ }catch{return fail;}
+}
