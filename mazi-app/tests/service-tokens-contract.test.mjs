@@ -82,3 +82,38 @@ test("gateway protects schema isolation, member ownership and token-only financi
  assert.doesNotMatch(admin,/db.from\("mazi_service_/);
  assert.doesNotMatch(actions,/db.rpc\("mazi_services_/);
 });
+
+const fulfillment=readFileSync(join(root,"sql/032_service_fulfilment.sql"),"utf8");
+test("paid release gate defaults off and enforces three separate approvals",()=>{
+ assert.match(fulfillment,/paid_enabled boolean not null default false/);
+ assert.match(fulfillment,/legal_approved_at is not null/);
+ assert.match(fulfillment,/accounting_approved_at is not null/);
+ assert.match(fulfillment,/payment_integration_verified_at is not null/);
+ assert.match(fulfillment,/subscription_not_activated/);
+ assert.match(admin,/dashboard.paid_enabled/);
+ assert.ok(edge.includes("paid_enabled:release.data?.paid_enabled===true"));
+});
+test("completed services require explicit documented delivery rather than admin transition",()=>{
+ assert.match(fulfillment,/if p_status='completed' then raise exception 'delivery_required'/);
+ assert.match(fulfillment,/p_kind='delivery'/);
+ assert.match(fulfillment,/delivery_summary_required/);
+ assert.match(fulfillment,/kind='delivery'/);
+ assert.match(admin,/Τεκμηριωμένη παράδοση υπηρεσίας/);
+ assert.doesNotMatch(admin,/<option value="completed">/);
+});
+test("service messages are privately stored, immutable and bounded",()=>{
+ assert.match(fulfillment,/create table if not exists public.mazi_service_messages/);
+ assert.match(fulfillment,/alter table public.mazi_service_messages enable row level security/);
+ assert.match(fulfillment,/revoke all on public.mazi_service_messages from public,anon,authenticated/);
+ assert.match(fulfillment,/grant select on public.mazi_service_messages to service_role/);
+ assert.match(fulfillment,/not v_admin and v_req.member_user_id<>p_actor/);
+ assert.match(fulfillment,/v_req.member_user_id<>p_actor/);
+ assert.match(fulfillment,/revisions_included_snapshot/);
+ assert.match(fulfillment,/interval '10 days'/);
+ assert.match(fulfillment,/revision_limit_reached/);
+ assert.match(fulfillment,/already_accepted/);
+ assert.ok(fulfillment.includes("^https://"));
+ assert.match(edge,/operation==="service_message"/);
+ assert.match(actions,/sendServiceMessage/);
+ assert.match(member,/ΙΣΤΟΡΙΚΟ ΕΠΙΚΟΙΝΩΝΙΑΣ/);
+});
