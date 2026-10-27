@@ -8,6 +8,8 @@ const sql=readFileSync(join(root,"sql/030_member_service_tokens.sql"),"utf8");
 const member=readFileSync(join(root,"app/services/page.tsx"),"utf8");
 const admin=readFileSync(join(root,"app/admin/services/page.tsx"),"utf8");
 const actions=readFileSync(join(root,"app/services/actions.ts"),"utf8");
+const publicCatalogue=readFileSync(join(root,"app/services/catalogue/page.tsx"),"utf8");
+const homepage=readFileSync(join(root,"app/page.tsx"),"utf8");
 
 test("catalogue contains 22 bounded fixed-price services",()=>{
  const seed=sql.match(/insert into public\.mazi_service_catalog\s*\([\s\S]+?on conflict \(id\) do nothing;/);
@@ -45,4 +47,12 @@ test("access control and member UI never submits service without active entitlem
  assert.match(actions,/mazi_services_cancel_request/);
  assert.match(admin,/mazi_is_administrator/);
  assert.match(sql,/reason_required/);
+});
+
+test("public catalogue displays only active service definitions, no member records",()=>{
+ assert.match(homepage,/href="\\/services\\/catalogue"/);
+ assert.match(publicCatalogue,/from\("mazi_service_catalog"\)/);
+ assert.match(publicCatalogue,/eq\("is_active",true\)/);
+ assert.doesNotMatch(publicCatalogue,/mazi_service_periods|mazi_service_requests|mazi_service_events/);
+ assert.match(publicCatalogue,/μη οικονομική πιλοτική/);
 });
