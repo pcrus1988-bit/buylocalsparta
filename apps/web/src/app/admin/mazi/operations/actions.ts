@@ -38,15 +38,10 @@ export async function probeMaziAuthDeliveryAction(form:FormData){
  assertAdminCsrf(principal,field(form,"csrf"));
  if(form.get("recipient_has_consented")!=="on")
   redirect("/admin/mazi/operations?notice=probe_not_authorized");
+ let outcome:"provider_accepted"|"provider_rejected"|"network_failed";
  try{
-  const result=await runMaziAuthEmailProbe(principal,field(form,"interest_id"));
-  revalidatePath("/admin/mazi/operations");
-  redirect("/admin/mazi/operations?notice="+(result==="provider_accepted"?
-   "probe_provider_accepted":"probe_provider_failed"));
+  outcome=await runMaziAuthEmailProbe(principal,field(form,"interest_id"));
  }catch(error){
-  // Never mistake a Next.js redirect for a provider failure.
-  if(error&&typeof error==="object"&&"digest" in error&&
-   typeof error.digest==="string"&&error.digest.startsWith("NEXT_REDIRECT"))throw error;
   const code=error instanceof Error?error.message:"";
   const notice=code==="MAZI_AUTH_PROBE_COOLDOWN"?"probe_cooldown":
    code==="MAZI_AUTH_PROBE_NOT_CONFIGURED"?"probe_configuration_missing":
@@ -54,4 +49,7 @@ export async function probeMaziAuthDeliveryAction(form:FormData){
    "probe_system_error";
   redirect("/admin/mazi/operations?notice="+notice);
  }
+ revalidatePath("/admin/mazi/operations");
+ redirect("/admin/mazi/operations?notice="+(outcome==="provider_accepted"?
+  "probe_provider_accepted":"probe_provider_failed"));
 }
