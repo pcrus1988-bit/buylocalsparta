@@ -9,6 +9,7 @@ import {
   RESEARCH_FREE_TEXT_TAXONOMY_VERSION,categorizeResearchFreeText
 } from "./research-free-text-categories";
 import {renderResearchVoicesPdf} from "./research-voice-pdf";
+import {publicResearchQ18DisplayText} from "./research-q18-publication-moderation";
 
 const PAGE_SIZE = 1000;
 const MAX_EXPORT_ANSWERS = 20000; // fail closed instead of silently publishing a partial export
@@ -39,7 +40,7 @@ export async function createInternalResearchVoicesPdf(principal:SessionPrincipal
         FROM research_response_quality_reviews qr
         ORDER BY qr.response_id,qr.created_at DESC,qr.id DESC
       )
-      SELECT a.answer #>> '{}' AS answer_text
+      SELECT a.id AS answer_id, a.answer #>> '{}' AS answer_text
       FROM research_answers a
       JOIN research_responses r ON r.id=a.response_id
       JOIN research_studies s ON s.id=r.study_id AND s.slug='greek-retail-2026'
@@ -54,7 +55,9 @@ export async function createInternalResearchVoicesPdf(principal:SessionPrincipal
       ORDER BY a.id LIMIT $1 OFFSET $2
     `,[PAGE_SIZE,offset]);
     for(const row of rows.rows){
-      const text=scrubResearchAnswerForInternalPdf(String(row.answer_text??"").trim());
+      const display=publicResearchQ18DisplayText(Number(row.answer_id),String(row.answer_text??"").trim());
+      if(display===null)continue;
+      const text=scrubResearchAnswerForInternalPdf(display);
       if(text.length>=12) answers.push({text,categories:categorizeResearchFreeText(text)});
     }
     if(answers.length>MAX_EXPORT_ANSWERS) throw new Error("RESEARCH_VOICES_EXPORT_TOO_LARGE");
