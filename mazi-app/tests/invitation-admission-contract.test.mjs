@@ -68,7 +68,9 @@ test("JWT verified by Edge, acceptance is explicit and versioned",()=>{
 });
 
 test("public privacy notice discloses AFM/GEMI verification, invite records and nonmarketing purpose",()=>{
- const notice=read("../app/privacy/page.tsx");
+ const route=read("../app/privacy/page.tsx");
+ assert.match(route,/LegalView slug="privacy"/);
+ const notice=read("../lib/legal-documents.ts");
  assert.match(notice,/ΑΦΜ/);
  assert.match(notice,/ΓΕΜΗ/);
  assert.match(notice,/Supabase Authentication/);
