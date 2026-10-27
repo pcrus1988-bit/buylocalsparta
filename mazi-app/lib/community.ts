@@ -24,3 +24,13 @@ export function isInquiryUnread(inquiry:CommunityInquiry,userId:string):boolean{
  const latest=Date.parse(inquiry.last_message_at);
  return Number.isFinite(latest)&&(!lastRead||latest>Date.parse(lastRead));
 }
+
+/** One server-scoped conversation; only the verified sender or recipient may retrieve it. */
+export type CommunityInquiryThread={
+ thread:CommunityInquiry;
+ messages:CommunityInquiryMessage[];
+ listing_title:string;
+ other_business_name:string;
+ has_older:boolean;
+ page:number;
+};
