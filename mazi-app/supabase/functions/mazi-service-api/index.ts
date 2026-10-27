@@ -16,7 +16,7 @@ type Dict=Record<string,unknown>;
 const send=(body:Dict,status=200)=>new Response(JSON.stringify(body),{status,headers:H});
 const str=(v:unknown)=>typeof v==="string"?v.trim():"";
 const uuid=(v:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
-const issueCodes=new Set(["not_authorized","invoice_reference_required","invalid_billing_period","member_not_eligible","overlapping_period","invoice_reference_conflict"]);
+const issueCodes=new Set(["not_authorized","invoice_reference_required","invalid_billing_period","member_not_eligible","overlapping_period","invoice_reference_conflict","subscription_not_activated"]);
 const requestCodes=new Set(["not_authenticated","invalid_request","member_not_eligible","allowance_inactive","unknown_service","insufficient_tokens","cannot_cancel","unknown_request","invalid_transition","reason_required","note_too_long","invalid_message","invalid_message_kind","invalid_message_state","invalid_delivery_url","delivery_summary_required","revision_window_closed","revision_limit_reached","already_accepted","not_delivered"]);
 const friendly=(error:{message?:string}|null,allowed:Set<string>)=>{
  const message=String(error?.message||"");
@@ -72,7 +72,7 @@ Deno.serve(async(req:Request)=>{
     catalogue(),
     admin.from("mazi_service_periods").select("id,starts_at,ends_at,allowance_tokens")
       .eq("member_user_id",user.id).order("starts_at",{ascending:false}).limit(14),
-    admin.from("mazi_service_requests").select("id,service_title_snapshot,token_price,status,created_at,period_id,brief,admin_note")
+    admin.from("mazi_service_requests").select("id,service_title_snapshot,token_price,status,created_at,period_id,brief,admin_note,completed_at,revisions_included_snapshot")
       .eq("member_user_id",user.id).order("created_at",{ascending:false}).limit(100)
    ]);
    if(periods.error||requests.error)throw periods.error||requests.error;
@@ -121,7 +121,7 @@ Deno.serve(async(req:Request)=>{
   if(!await isAdmin(user.id))return send({ok:false,error:"not_authorized"},403);
   if(operation==="admin_dashboard"){
    const [requests,periods,members]=await Promise.all([
-    admin.from("mazi_service_requests").select("id,member_user_id,service_title_snapshot,token_price,status,brief,created_at,admin_note").order("created_at",{ascending:false}).limit(150),
+    admin.from("mazi_service_requests").select("id,member_user_id,service_title_snapshot,token_price,status,brief,created_at,admin_note,completed_at,revisions_included_snapshot").order("created_at",{ascending:false}).limit(150),
     admin.from("mazi_service_periods").select("id,member_user_id,starts_at,ends_at,verified_invoice_ref,issued_at").order("issued_at",{ascending:false}).limit(30),
     admin.from("mazi_members").select("user_id,status,identity_verified_at").order("admitted_at",{ascending:false}).limit(50)
    ]);
