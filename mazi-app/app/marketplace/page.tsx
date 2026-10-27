@@ -10,14 +10,19 @@ import s from "../community.module.css";
 
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"Marketplace μελών",robots:{index:false,follow:false}};
-export default async function Marketplace({searchParams}:{searchParams:Promise<{notice?:string}>}){
+export default async function Marketplace({searchParams}:{searchParams:Promise<{notice?:string;page?:string;category?:string;kind?:string;q?:string}>}){
  const db=await createClient();const {data:{user}}=await db.auth.getUser();
  if(!user)redirect("/join");
+ const {notice,category:rawCategory,kind:rawKind,q:rawQuery,page:rawPage}=await searchParams;
+ const category=["goods","services","partnerships"].includes(rawCategory||"")?rawCategory||"":"";
+ const kind=["offer","request"].includes(rawKind||"")?rawKind||"":"";
+ const q=(rawQuery||"").trim().slice(0,80);
+ const page=/^(0|[1-9][0-9]{0,1})$/.test(rawPage||"0")?Number(rawPage||0):0;
+ const linkFor=(nextPage:number)=>"/marketplace?"+new URLSearchParams({page:String(nextPage),...(category?{category}:{}),...(kind?{kind}:{}),...(q?{q}:{})}).toString();
  const [publicFeed,mine]=await Promise.all([
-  maziMemberRequest<{listings:MaziListing[]}>("marketplace_list"),
+  maziMemberRequest<{listings:MaziListing[];has_more:boolean}>("marketplace_list",{page,category,kind,query:q}),
   maziMemberRequest<{listings:MaziListing[]}>("marketplace_my")
  ]);
- const {notice}=await searchParams;
  return <main id="content" className={s.stage}><div className={s.shell}>
   <section className={s.intro}><span className={s.eyebrow}>ΜΑΖΙ / ΠΡΑΓΜΑΤΙΚΕΣ ΕΠΙΧΕΙΡΗΣΕΙΣ</span>
    <h1>Marketplace <em>μελών.</em></h1>
@@ -43,7 +48,13 @@ export default async function Marketplace({searchParams}:{searchParams:Promise<{
      <p className={s.hint}>Δεν πραγματοποιούνται πληρωμές μέσω MAZI. Απόφυγε τη δημοσιοποίηση προσωπικών στοιχείων ή όρων που δεν έχουν συμφωνηθεί.</p>
     </section>
     <section className={s.feed} aria-label="Ενεργές καταχωρίσεις">
-     <h2>Ενεργές καταχωρίσεις ({publicFeed.listings.length})</h2>
+     <h2>Καταχωρίσεις μελών · Σελίδα {page+1}</h2>
+     <form method="get" action="/marketplace" className={s.discovery} role="search">
+      <label>Αναζήτηση τίτλου<input name="q" maxLength={80} defaultValue={q} placeholder="Π.χ. γραφιστική, προμηθευτές…" /></label>
+      <label>Τύπος<select name="kind" defaultValue={kind}><option value="">Όλα</option><option value="offer">Προσφέρω</option><option value="request">Αναζητώ</option></select></label>
+      <label>Κατηγορία<select name="category" defaultValue={category}><option value="">Όλες</option><option value="services">Υπηρεσίες</option><option value="goods">Προϊόντα</option><option value="partnerships">Συνεργασίες</option></select></label>
+      <button type="submit" className={s.action}>Αναζήτηση</button>
+     </form>
      {!publicFeed.listings.length?<div className={s.empty}>Δεν υπάρχουν ακόμη ενεργές καταχωρίσεις από επαληθευμένα μέλη.</div>:publicFeed.listings.map(item=>
       <article key={item.id} className={s.entry}>
        <div className={s.tags}><span className={s.tag}>{listingKinds[item.kind]}</span><span className={s.tag}>{listingCategories[item.category]}</span></div>
@@ -62,6 +73,7 @@ export default async function Marketplace({searchParams}:{searchParams:Promise<{
        <div className={s.footerLine}><Link className={s.reportLink} href={`/community/report?resource_type=listing&resource_id=${item.id}`}>Αναφορά περιεχομένου</Link></div>
       </article>
      )}
+     <nav className={s.pagination} aria-label="Σελίδες marketplace">{page>0?<Link className={s.minor} href={linkFor(page-1)}>← Προηγούμενη</Link>:<span/>}{publicFeed.has_more&&page<99?<Link className={s.minor} href={linkFor(page+1)}>Επόμενη →</Link>:null}</nav>
     </section>
    </div>
    <section className={s.panel} style={{marginTop:26}}>
