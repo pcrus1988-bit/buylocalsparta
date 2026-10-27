@@ -5,6 +5,9 @@ import {fileURLToPath} from "node:url";
 import {join,dirname} from "node:path";
 const root=join(dirname(fileURLToPath(import.meta.url)),"..");
 const sql=readFileSync(join(root,"sql/030_member_service_tokens.sql"),"utf8");
+const gatewaySql=readFileSync(join(root,"sql/031_service_role_gateway.sql"),"utf8");
+const edge=readFileSync(join(root,"supabase/functions/mazi-service-api/index.ts"),"utf8");
+const api=readFileSync(join(root,"lib/mazi-services-api.ts"),"utf8");
 const member=readFileSync(join(root,"app/services/page.tsx"),"utf8");
 const admin=readFileSync(join(root,"app/admin/services/page.tsx"),"utf8");
 const actions=readFileSync(join(root,"app/services/actions.ts"),"utf8");
@@ -42,17 +45,40 @@ test("access control and member UI never submits service without active entitlem
  assert.match(sql,/for select to anon using \(is_active\)/);
  assert.match(sql,/member_user_id=\(select auth\.uid\(\)\)/);
  assert.match(member,/verified&&active&&available>=s\.tokens/);
- assert.match(actions,/await db\.auth\.getUser\(\)/);
- assert.match(actions,/mazi_services_request/);
- assert.match(actions,/mazi_services_cancel_request/);
- assert.match(admin,/mazi_is_administrator/);
+ assert.match(actions,/await db.auth.getUser\(\)/);
+ assert.match(actions,/maziServiceRequest\("service_request"/);
+ assert.match(actions,/maziServiceRequest\("service_cancel"/);
+ assert.match(admin,/maziServiceRequest<\{/);
+ assert.match(gatewaySql,/revoke execute on function public.mazi_services_request/);
+ assert.match(gatewaySql,/to service_role/);
  assert.match(sql,/reason_required/);
 });
 
 test("public catalogue displays only active service definitions, no member records",()=>{
  assert.ok(homepage.includes('href="/services/catalogue"'));
- assert.match(publicCatalogue,/from\("mazi_service_catalog"\)/);
- assert.match(publicCatalogue,/eq\("is_active",true\)/);
+ assert.match(publicCatalogue,/maziPublicServiceCatalogue/);
+ assert.match(edge,/from\("mazi_service_catalog"\)/);
+ assert.match(edge,/eq\("is_active",true\)/);
  assert.doesNotMatch(publicCatalogue,/mazi_service_periods|mazi_service_requests|mazi_service_events/);
  assert.match(publicCatalogue,/μη οικονομική πιλοτική/);
+});
+
+test("gateway protects schema isolation, member ownership and token-only financial procedures",()=>{
+ assert.match(gatewaySql,/mazi_services_internal_request/);
+ assert.match(gatewaySql,/mazi_services_internal_cancel_request/);
+ assert.match(gatewaySql,/mazi_services_internal_issue_period/);
+ assert.match(gatewaySql,/mazi_services_internal_admin_transition/);
+ assert.match(gatewaySql,/from public,anon,authenticated/);
+ assert.match(gatewaySql,/to service_role/);
+ assert.doesNotMatch(gatewaySql,/grant usage on schema public to anon|grant usage on schema public to authenticated/i);
+ assert.match(edge,/admin.auth.getUser\(jwt\)/);
+ assert.match(edge,/eq\("member_user_id",user.id\)/);
+ assert.match(edge,/isAdmin\(user.id\)/);
+ assert.match(edge,/eligible\(user.id\)/);
+ assert.match(edge,/p_actor:user.id/);
+ assert.ok(edge.includes('url.searchParams.get("operation")==="catalogue"'));
+ assert.match(api,/functions\/v1\/mazi-service-api/);
+ assert.doesNotMatch(member,/db.from\("mazi_service_/);
+ assert.doesNotMatch(admin,/db.from\("mazi_service_/);
+ assert.doesNotMatch(actions,/db.rpc\("mazi_services_/);
 });

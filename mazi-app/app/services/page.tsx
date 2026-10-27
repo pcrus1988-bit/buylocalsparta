@@ -4,6 +4,7 @@ import {redirect} from "next/navigation";
 import {randomUUID} from "node:crypto";
 import {createClient} from "../../lib/supabase/server";
 import {maziMemberRequest,type MaziState} from "../../lib/mazi-api";
+import {maziServiceRequest,maziPublicServiceCatalogue} from "../../lib/mazi-services-api";
 import {requestService,cancelService} from "./actions";
 import "../community.css";
 
@@ -33,14 +34,14 @@ export default async function Services({searchParams}:{searchParams:Promise<{not
  if(!state.ok)return <main className="com-shell"><h1>Οι υπηρεσίες δεν είναι διαθέσιμες.</h1><p>Δεν καταχωρίστηκε κάποια αλλαγή.</p><Link href="/dashboard">Επιστροφή</Link></main>;
  if(!state.application)redirect("/onboarding");
  const verified=state.application.status==="approved"&&state.member?.status==="verified"&&Boolean(state.member.identity_verified_at);
- const [catalogResult,periodResult,requestResult]=await Promise.all([
-  db.from("mazi_service_catalog").select("id,title,category,description,deliverable,tokens,turnaround_business_days,revisions_included,is_active").eq("is_active",true).order("category").order("tokens"),
-  db.from("mazi_service_periods").select("id,starts_at,ends_at,allowance_tokens").order("starts_at",{ascending:false}).limit(14),
-  db.from("mazi_service_requests").select("id,service_title_snapshot,token_price,status,created_at,period_id,brief,admin_note").order("created_at",{ascending:false}).limit(100)
+ const [catalogue,wallet]=await Promise.all([
+  maziPublicServiceCatalogue<{services:Service[]}>(),
+  verified?maziServiceRequest<{services:Service[];periods:Period[];requests:Request[]}>("member_wallet"):Promise.resolve(null)
  ]);
- const services=(catalogResult.data||[]) as Service[];
- const periods=(periodResult.data||[]) as Period[];
- const requests=(requestResult.data||[]) as Request[];
+ const services=wallet?.ok?wallet.services:catalogue.ok?catalogue.services:[];
+ const periods=wallet?.ok?wallet.periods:[];
+ const requests=wallet?.ok?wallet.requests:[];
+ const serviceUnavailable=!catalogue.ok||(verified&&!wallet?.ok);
  const now=Date.now();
  const active=periods.find(p=>Date.parse(p.starts_at)<=now&&Date.parse(p.ends_at)>now);
  const activeRequests=requests.filter(r=>r.period_id===active?.id);
@@ -55,7 +56,7 @@ export default async function Services({searchParams}:{searchParams:Promise<{not
    <p>Υπηρεσίες πραγματικής παραγωγής, με σαφή παραδοτέα και προκαθορισμένη χρέωση σε Tokens. Επιλέγεις ακριβώς ό,τι χρειάζεται η επιχείρησή σου.</p>
   </div><Link href="/dashboard" className="com-back">Το Dashboard μου ↗</Link></header>
   {notice&&feedback[notice]?<p className="com-feedback" role="status">{feedback[notice]}</p>:null}
-  {catalogResult.error||periodResult.error||requestResult.error?<div className="com-alert">Το σύστημα υπηρεσιών δεν είναι ακόμη διαθέσιμο. Δεν μπορούν να υποβληθούν αιτήματα ή να υπολογιστούν υπόλοιπα.</div>:null}
+  {serviceUnavailable?<div className="com-alert">Το σύστημα υπηρεσιών δεν είναι ακόμη διαθέσιμο. Δεν μπορούν να υποβληθούν αιτήματα ή να υπολογιστούν υπόλοιπα.</div>:null}
   <section aria-label="Υπόλοιπο υπηρεσιών" className="com-stats" style={{gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))"}}>
    <div><span>Διαθέσιμα</span><strong>{available} Tokens</strong><small>{active?"Για νέες υπηρεσίες":"Δεν υπάρχει ενεργός πληρωμένος κύκλος"}</small></div>
    <div><span>Σε εκκρεμότητα</span><strong>{reserved}</strong><small>Δεσμευμένα Tokens</small></div>
@@ -73,7 +74,7 @@ export default async function Services({searchParams}:{searchParams:Promise<{not
      <span className="com-kicker">{s.category}</span>
      <h3>{s.title}</h3><p>{s.description}</p><p><strong>Παραδοτέο:</strong> {s.deliverable}</p>
      <div className="com-meta"><strong style={{fontSize:25}}>{s.tokens} Tokens</strong><span>Ενδεικτικά {s.turnaround_business_days} εργάσιμες · {s.revisions_included} διορθώσεις</span></div>
-     {verified&&active&&available>=s.tokens&&!catalogResult.error?
+     {verified&&active&&available>=s.tokens&&!serviceUnavailable?
       <details style={{marginTop:20}}><summary className="com-minor" style={{cursor:"pointer"}}>Αίτημα υπηρεσίας</summary>
        <form action={requestService} className="com-form">
         <input type="hidden" name="service_id" value={s.id}/>

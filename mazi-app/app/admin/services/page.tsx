@@ -2,6 +2,7 @@ import type {Metadata} from "next";
 import Link from "next/link";
 import {redirect} from "next/navigation";
 import {createClient} from "../../../lib/supabase/server";
+import {maziServiceRequest} from "../../../lib/mazi-services-api";
 import {issueServicePeriod,transitionService} from "../../services/actions";
 import "../../community.css";
 
@@ -12,16 +13,11 @@ export default async function ServicesAdmin({searchParams}:{searchParams:Promise
  const db=await createClient();
  const {data:{user}}=await db.auth.getUser();
  if(!user)redirect("/join");
- const {data:authorized,error:authError}=await db.rpc("mazi_is_administrator");
- if(authError||authorized!==true)redirect("/dashboard");
- const [requestsResult,periodsResult,membersResult]=await Promise.all([
-  db.from("mazi_service_requests").select("id,member_user_id,service_title_snapshot,token_price,status,brief,created_at,admin_note").order("created_at",{ascending:false}).limit(150),
-  db.from("mazi_service_periods").select("id,member_user_id,starts_at,ends_at,verified_invoice_ref,issued_at").order("issued_at",{ascending:false}).limit(30),
-  db.from("mazi_members").select("user_id,status,identity_verified_at").order("admitted_at",{ascending:false}).limit(50)
- ]);
- const rows=(requestsResult.data||[]) as Row[];
- const periods=periodsResult.data||[];
- const members=membersResult.data||[];
+ const dashboard=await maziServiceRequest<{requests:Row[];periods:Array<{id:string;member_user_id:string;starts_at:string;ends_at:string;verified_invoice_ref:string;issued_at:string}>;members:Array<{user_id:string;status:string;identity_verified_at:string|null}>}>("admin_dashboard");
+ if(!dashboard.ok)redirect("/dashboard");
+ const rows=dashboard.requests;
+ const periods=dashboard.periods;
+ const members=dashboard.members;
  const {notice}=await searchParams;
  const feedback:Record<string,string>={invalid:"Άκυρα στοιχεία. Δώσε πλήρεις ημερομηνίες ISO 8601 με ζώνη ώρας.",period_issued:"Ο ελεγμένος κύκλος εκδόθηκε επιτυχώς.",issue_failed:"Αποτυχία έκδοσης: έλεγξε την πληρωμή, την επιλεξιμότητα, τις ημερομηνίες και την μοναδικότητα.",updated:"Η κατάσταση ενημερώθηκε και καταγράφηκε στο ιστορικό.",transition_failed:"Μη επιτρεπτή μετάβαση ή μη έγκυρη αιτιολογία."};
  return <main id="content" className="com-shell">
@@ -30,7 +26,7 @@ export default async function ServicesAdmin({searchParams}:{searchParams:Promise
    <p>Ατομική παρακολούθηση υπηρεσιών, κρατήσεων Tokens και μηνιαίων πληρωμένων κύκλων.</p>
   </div><Link href="/services" className="com-back">Υπηρεσίες μέλους ↗</Link></div>
   {notice&&feedback[notice]?<p className="com-feedback" role="status">{feedback[notice]}</p>:null}
-  {requestsResult.error||periodsResult.error||membersResult.error?<p className="com-alert">Δεν φορτώθηκαν όλες οι ζωντανές εγγραφές. Μην βασιστείς σε ελλιπές σύνολο.</p>:null}
+  
   <section className="com-card" style={{marginBottom:26}}>
    <span className="com-kicker">ΕΝΕΡΓΟΠΟΙΗΣΗ / ΜΟΝΟ ΜΕΤΑ ΤΗΝ ΕΞΟΦΛΗΣΗ</span><h2>Έκδοση 250 Tokens για νέο κύκλο</h2>
    <p><strong>Οικονομική δικλίδα:</strong> επαλήθευσε προηγουμένως τη νόμιμη, ξεχωριστή σύμβαση συνδρομής, το αντίστοιχο τιμολόγιο και την πραγματική εξόφληση στο λογιστικό σύστημα. Το παρόν εργαλείο δεν πραγματοποιεί χρέωση ούτε επαληθεύει πληρωμή αυτόματα.</p>
