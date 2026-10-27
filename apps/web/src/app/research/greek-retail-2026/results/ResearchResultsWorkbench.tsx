@@ -9,6 +9,7 @@ import { ResearchCountyReport } from "./ResearchCountyReport";
 import { ResearchVoiceOfGreece } from "./ResearchVoiceOfGreece";
 import type { PublicVoiceData } from "../../../../lib/research-public-voices-data";
 import { GREECE_PREFECTURES } from "../../../../lib/research-prefectures";
+import { researchSectorLabel, sortResearchSectors } from "../../../../lib/research-sector-labels";
 import styles from "./ResultsWorkbench.module.css";
 
 type GroupBy="overall"|"sectorCode"|"sizeBand"|"prefectureCode";
@@ -21,16 +22,11 @@ const options:ReadonlyArray<Readonly<{id:GroupBy;title:string}>>=[
  {id:"prefectureCode",title:"Νομοί"}
 ];
 const prefectureLabels:Record<string,string>=Object.fromEntries(GREECE_PREFECTURES.map(r=>[r.key,r.label]));
-const sectorLabels:Record<string,string>={
- food_groceries:"Τρόφιμα & παντοπωλεία",fashion_footwear:"Ένδυση & υπόδηση",
- home_living:"Σπίτι & είδη οικιακής χρήσης",retail_intermediation:"Εμπορικοί διαμεσολαβητές",
- health_beauty:"Υγεία & ομορφιά"
-};
 const sizeLabels:Record<string,string>={"1":"1 εργαζόμενος","2_4":"2–4 εργαζόμενοι",
  "5_9":"5–9 εργαζόμενοι","10_19":"10–19 εργαζόμενοι",
  "20_49":"20–49 εργαζόμενοι","50_plus":"50+ εργαζόμενοι"};
 const groupLabel=(value:string,key:GroupBy)=>key==="sectorCode"
- ? sectorLabels[value]??value.replaceAll("_"," "):key==="sizeBand"
+ ? researchSectorLabel(value):key==="sizeBand"
  ? sizeLabels[value]??value:key==="prefectureCode"?(prefectureLabels[value]??value):"Σύνολο";
 const format=(point:SafePublicResultPoint)=>point.format==="proportion"
  ?new Intl.NumberFormat("el-GR",{style:"percent",maximumFractionDigits:1}).format(point.value)
@@ -73,9 +69,11 @@ export function ResearchResultsWorkbench({
  const sub=chapter.subchapters.find(s=>s.id===subId)??chapter.subchapters[0]!;
  const levels=useMemo(()=>group==="prefectureCode"&&coverage
   ? coverage.prefectures.map(p=>p.key)
-  : [...new Set(points.flatMap(p=>typeof p.segment[group]==="string"?[p.segment[group]]:[]))].sort(),
+  : group==="sectorCode"
+    ? sortResearchSectors([...new Set(points.flatMap(p=>typeof p.segment.sectorCode==="string"?[p.segment.sectorCode]:[]))])
+    : [...new Set(points.flatMap(p=>typeof p.segment[group]==="string"?[p.segment[group]]:[]))].sort(),
   [points,group,coverage]);
- const sectorValues=useMemo(()=>[...new Set(points.flatMap(p=>p.segment.sectorCode?[p.segment.sectorCode]:[]))].sort(),[points]);
+ const sectorValues=useMemo(()=>sortResearchSectors([...new Set(points.flatMap(p=>p.segment.sectorCode?[p.segment.sectorCode]:[]))]),[points]);
  const prefectureValues=useMemo(()=>coverage?coverage.prefectures.map(p=>p.key):GREECE_PREFECTURES.filter(r=>points.some(p=>p.segment.prefectureCode===r.key)).map(r=>r.key),[points,coverage]);
  const areas=prefectureValues;
  const activeMetricKeys=sub.metrics.filter(k=>publicMetricLabel(k).toLowerCase().includes(search.toLowerCase())||k.toLowerCase().includes(search.toLowerCase()));

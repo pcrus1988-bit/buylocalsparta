@@ -3,6 +3,7 @@ import { assertAdminPermission, recordAdminPersonalDataAccess } from "./admin-ru
 import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { summarizeResearchPostcodeCells, resolveResearchAdministrativeGeography } from "./research-postcode-geography";
 import { GREECE_PREFECTURES } from "./research-prefectures";
+import { researchSectorLabel } from "./research-sector-labels";
 
 type Choice = Readonly<{ key: string; label: string }>;
 type Question = Readonly<{ code: string; label: string; type: string; options: readonly Choice[] }>;
@@ -38,20 +39,6 @@ const obj = (v: unknown): Record<string, unknown> =>
 const pairs = (value: unknown): Choice[] =>
   Array.isArray(value) ? value.flatMap(item =>
     Array.isArray(item) && item.length >= 2 ? [{ key: String(item[0]), label: String(item[1]) }] : []) : [];
-
-const SECTOR_LABELS: Record<string, string> = {
-  fashion_footwear: "Ένδυση και υπόδηση",
-  home_living: "Σπίτι και διακόσμηση",
-  beauty_personal_care: "Ομορφιά και προσωπική φροντίδα",
-  diy_building: "Εργαλεία και οικοδομικά",
-  other_non_food_retail: "Λοιπό λιανεμπόριο",
-  sports_books_hobby: "Αθλητικά, βιβλία και χόμπι",
-  automotive_trade: "Αυτοκίνητο και συναφή",
-  electronics: "Ηλεκτρονικά και τεχνολογία",
-  flowers_pets: "Άνθη και κατοικίδια",
-  jewellery_watches: "Κοσμήματα και ρολόγια",
-  second_hand: "Μεταχειρισμένα"
-};
 
 function questionChoices(row: SqlRow): Choice[] {
   const cfg = obj(row.config);
@@ -132,7 +119,7 @@ export async function researchGeographicMap(
     ?? (question?.code === "Q19" ? question.options.find(o => o.key === "pessimistic")?.key : undefined)
     ?? question?.options[0]?.key ?? "";
   const chosenQuestionId = text(qResult.rows.find(row => row.code === question?.code)?.id);
-  const sectors = sectorsResult.rows.map(row => ({ key: text(row.value), label: SECTOR_LABELS[text(row.value)] ?? text(row.value) }));
+  const sectors = sectorsResult.rows.map(row => ({ key: text(row.value), label: researchSectorLabel(text(row.value)) }));
   const prefectureOptions = GREECE_PREFECTURES.map(row=>({key:row.key,label:row.label}));
   const municipalities = municipalityResult.rows.map(row => ({ key: text(row.value), label: text(row.label) || text(row.value) }));
   const kads = kadResult.rows.map(row => ({ key: text(row.code), label: text(row.code) }));

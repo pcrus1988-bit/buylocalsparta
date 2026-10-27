@@ -10,6 +10,7 @@ import { publicResearchStudy } from "../../../../lib/research-observatory-runtim
 import { publicResultPoints, validRegionValue, type SafeParticipationGeography } from "../../../../lib/research-public-results-data";
 import { ResearchResultsWorkbench } from "./ResearchResultsWorkbench";
 import { publicVoiceDataFromRelease } from "../../../../lib/research-public-voices-data";
+import { researchSectorLabel } from "../../../../lib/research-sector-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,9 @@ function metricLabel(metricKey: string, metadata: Record<string, unknown>): stri
 }
 
 function segmentLabel(segment: Record<string, unknown>, key: "regionCode" | "sectorCode"): string {
-  return typeof segment[key] === "string" ? String(segment[key]) : "—";
+  return typeof segment[key] === "string"
+    ? (key === "sectorCode" ? researchSectorLabel(String(segment[key])) : String(segment[key]))
+    : "—";
 }
 
 function intervalText(
