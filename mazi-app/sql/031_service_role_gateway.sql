@@ -3,7 +3,8 @@
 -- The Edge function MUST verify the end-user JWT with Supabase Auth and admin status.
 grant select on public.mazi_service_catalog,public.mazi_service_periods,public.mazi_service_requests,public.mazi_service_events,public.mazi_administrators to service_role;
 
-create or replace function public.mazi_services_internal_issue_period(\n p_actor uuid,p_member uuid,p_starts timestamptz,p_ends timestamptz,p_verified_invoice_ref text
+create or replace function public.mazi_services_internal_issue_period(
+ p_actor uuid,p_member uuid,p_starts timestamptz,p_ends timestamptz,p_verified_invoice_ref text
 ) returns uuid
 language plpgsql security definer set search_path = ''
 as $$
@@ -35,7 +36,8 @@ end $$;
 revoke all on function public.mazi_services_internal_issue_period(uuid,uuid,timestamptz,timestamptz,text) from public,anon,authenticated;
 grant execute on function public.mazi_services_internal_issue_period(uuid,uuid,timestamptz,timestamptz,text) to service_role;
 
-create or replace function public.mazi_services_internal_request(\n p_actor uuid,p_service_id text,p_brief text,p_idempotency_key uuid
+create or replace function public.mazi_services_internal_request(
+ p_actor uuid,p_service_id text,p_brief text,p_idempotency_key uuid
 ) returns uuid
 language plpgsql security definer set search_path = ''
 as $$
@@ -85,7 +87,8 @@ end $$;
 revoke all on function public.mazi_services_internal_cancel_request(uuid,uuid) from public,anon,authenticated;
 grant execute on function public.mazi_services_internal_cancel_request(uuid,uuid) to service_role;
 
-create or replace function public.mazi_services_internal_admin_transition(\n p_actor uuid,p_request uuid,p_status text,p_note text default null
+create or replace function public.mazi_services_internal_admin_transition(
+ p_actor uuid,p_request uuid,p_status text,p_note text default null
 ) returns boolean
 language plpgsql security definer set search_path = ''
 as $$
