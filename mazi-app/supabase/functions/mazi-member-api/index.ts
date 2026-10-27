@@ -221,7 +221,7 @@ Deno.serve(async(req:Request)=>{
   // Community participation is never implied by possessing a valid Auth JWT:
   // every listing, discussion, reply and chat write must have live KYB status.
   // Additive private B2B inbox; preserve existing marketplace/forum/chat contracts.
-  if(["community_inbox","community_start_inquiry","community_reply_inquiry","community_inquiry_action"].includes(operation)){
+  if(["community_inbox","community_inquiry_thread","community_start_inquiry","community_reply_inquiry","community_inquiry_action"].includes(operation)){
    if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
    const rateLimited=async(table:string,seconds:number)=>{
     const {data,error}=await admin.from(table).select("created_at")
@@ -230,6 +230,40 @@ Deno.serve(async(req:Request)=>{
     if(error)throw error;
     return Boolean(data?.[0]&&Date.now()-Date.parse(data[0].created_at)<seconds*1000);
    };
+   if(operation==="community_inquiry_thread"){
+    const inquiryId=text(input.inquiry_id),page=Number(input.page??0);
+    if(!uuid(inquiryId)||!Number.isInteger(page)||page<0||page>99)
+     return out({error:"invalid_content"},400);
+    // Check the parent conversation before *any* message or counterparty lookup.
+    // A valid member must be sender or recipient; knowing a UUID grants nothing.
+    const {data:thread,error:tError}=await admin.from("mazi_listing_inquiries")
+      .select("id,listing_id,sender_user_id,recipient_user_id,status,created_at,last_message_at,last_message_user_id,sender_last_read_at,recipient_last_read_at,closed_at")
+      .eq("id",inquiryId)
+      .or(`sender_user_id.eq.${user.id},recipient_user_id.eq.${user.id}`)
+      .maybeSingle();
+    if(tError)return out({error:"data_unavailable"},503);
+    if(!thread)return out({error:"not_available"},404);
+    const otherUserId=thread.sender_user_id===user.id?thread.recipient_user_id:thread.sender_user_id;
+    const [messagesResult,listingResult,businessResult]=await Promise.all([
+      admin.from("mazi_inquiry_messages")
+       .select("id,inquiry_id,member_user_id,body,created_at")
+       .eq("inquiry_id",inquiryId).is("hidden_at",null)
+       .order("created_at",{ascending:false}).order("id",{ascending:false})
+       .range(page*40,page*40+40),
+      admin.from("mazi_marketplace_listings")
+       .select("id,title").eq("id",thread.listing_id).maybeSingle(),
+      admin.from("mazi_membership_applications")
+       .select("business_name").eq("applicant_user_id",otherUserId)
+       .eq("status","approved").maybeSingle()
+    ]);
+    if(messagesResult.error||listingResult.error||businessResult.error)
+     return out({error:"data_unavailable"},503);
+    const selected=messagesResult.data||[];
+    return out({ok:true,thread,messages:selected.slice(0,40).reverse(),
+      has_older:selected.length>40,page,
+      listing_title:listingResult.data?.title||"Καταχώριση μελών",
+      other_business_name:businessResult.data?.business_name||"Επιχείρηση ΜΑΖΙ"});
+   }
    if(operation==="community_inbox"){
     const {data:inquiries,error}=await admin.from("mazi_listing_inquiries")
       .select("id,listing_id,sender_user_id,recipient_user_id,status,created_at,last_message_at,last_message_user_id,sender_last_read_at,recipient_last_read_at,closed_at")
