@@ -36,7 +36,8 @@ export async function maziInvitationPreflight(principal:SessionPrincipal):Promis
  return {
   authConfigured:Boolean(
    (process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY) &&
-   (process.env.MAZI_SUPABASE_URL||process.env.SUPABASE_URL)===AUTH_PROJECT_URL),
+   (process.env.MAZI_SUPABASE_URL||process.env.SUPABASE_URL)===AUTH_PROJECT_URL &&
+   Boolean(process.env.RESEND_API_KEY)),
   authEmailVerified:row.auth_email_verified===true,
   legalVerified:row.legal_verified===true,
   financeLocked:row.finance_locked===true
@@ -58,48 +59,68 @@ export async function maziInvitationStates(principal:SessionPrincipal){
  return result.rows;
 }
 
-type InviteProviderMethod="supabase_auth_invite"|"existing_auth_email_otp";
-/**
- * One authorized email to the independently reviewed business contact.
- * Auth Admin invite only creates an Auth user for NEW addresses; confirmed
- * preexisting accounts get a login link with create_user=false instead.
- * Nothing here creates MAZI membership, which requires the SQL acceptance RPC.
+type InviteProviderMethod="resend_magiclink_existing"|"resend_invite_new";
+/** Generate a Supabase verification token hash but have Resend deliver a
+ * branded MAZI link directly to our fixed callback host. No hosted Auth
+ * Site URL or SMTP configuration is involved in transport or redirection.
+ * This function is called only after the locked Super Admin invitation
+ * transaction and two independent launch gates are verified.
  */
 async function sendVerifiedAuthInvitation(email:string):Promise<InviteProviderMethod>{
- const key=process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
- const url=process.env.MAZI_SUPABASE_URL || process.env.SUPABASE_URL;
- // Never invite from a different Auth project or expose service credentials.
- if(!key||url!==AUTH_PROJECT_URL)throw Error("MAZI_AUTH_DELIVERY_NOT_CONFIGURED");
- const headers={"Content-Type":"application/json",apikey:key,authorization:`Bearer ${key}`};
- const endpoint=new URL("/auth/v1/invite",AUTH_PROJECT_URL);
- endpoint.searchParams.set("redirect_to",CALLBACK);
- const response=await fetch(endpoint.toString(),{
-  method:"POST",cache:"no-store",headers,
-  body:JSON.stringify({email}),
+ const key=process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY;
+ const url=process.env.MAZI_SUPABASE_URL||process.env.SUPABASE_URL;
+ const resend=process.env.RESEND_API_KEY;
+ if(!key||url!==AUTH_PROJECT_URL||!resend)
+  throw Error("MAZI_AUTH_DELIVERY_NOT_CONFIGURED");
+ const found=await getAdminPostgresRuntime().nativePool.query<{confirmed:boolean}>(`
+  SELECT EXISTS(SELECT 1 FROM auth.users WHERE lower(email)=lower($1)
+   AND email_confirmed_at IS NOT NULL) AS confirmed
+ `,[email]);
+ const existing=found.rows[0]?.confirmed===true;
+ const type=existing?"magiclink":"invite";
+ const generate=await fetch(AUTH_PROJECT_URL+"/auth/v1/admin/generate_link",{
+  method:"POST",cache:"no-store",
+  headers:{"content-type":"application/json",apikey:key,authorization:`Bearer ${key}`},
+  body:JSON.stringify({type,email}),
   signal:AbortSignal.timeout(9000)
  });
- if(response.ok)return "supabase_auth_invite";
-
- // Never fall back on SMTP/auth/rate-limit/permission errors. Only the
- // provider's explicitly identified already-existing account is eligible.
- if(response.status!==400&&response.status!==422)
-  throw Error("MAZI_AUTH_INVITE_PROVIDER_FAILED");
- const failure:unknown=await response.json().catch(()=>null);
- const errorCode=(failure&&typeof failure==="object"&&
-  ("code" in failure || "error_code" in failure))
-   ? String(("code" in failure?failure.code:failure.error_code)||""):"";
- if(!["email_exists","user_already_exists"].includes(errorCode))
-  throw Error("MAZI_AUTH_INVITE_PROVIDER_FAILED");
-
- const existing=new URL("/auth/v1/otp",AUTH_PROJECT_URL);
- existing.searchParams.set("redirect_to",CALLBACK);
- const accepted=await fetch(existing.toString(),{
-  method:"POST",cache:"no-store",headers,
-  body:JSON.stringify({email,create_user:false}),
+ if(!generate.ok)throw Error("MAZI_AUTH_TOKEN_GENERATION_FAILED");
+ const payload:unknown=await generate.json();
+ const detail=payload&&typeof payload==="object"&&"properties" in payload
+  ?(payload as {properties?:{hashed_token?:unknown}}).properties:null;
+ const hash=detail?.hashed_token;
+ if(typeof hash!=="string"||!/^[a-zA-Z0-9_-]{20,256}$/.test(hash))
+  throw Error("MAZI_AUTH_TOKEN_HASH_UNAVAILABLE");
+ const callback=new URL(CALLBACK);
+ callback.searchParams.set("token_hash",hash);
+ callback.searchParams.set("type",type);
+ const label=existing?"Σύνδεση στο ΜΑΖΙ":"Αποδοχή πρόσκλησης ΜΑΖΙ";
+ const plain=[
+  "ΜΑΖΙ · Προσωπική πρόσκληση",
+  "Η πρόσκληση προορίζεται αποκλειστικά για την εγκεκριμένη επιχείρηση.",
+  callback.toString(),
+  "Αν δεν αναγνωρίζεις αυτή την πρόσκληση, αγνόησε το μήνυμα.",
+  "Δεν ενεργοποιεί χρέωση, χρηματοδότηση ή δικαίωμα μέλους."
+ ].join("\n\n");
+ const html=`<!doctype html><html lang="el"><body style="font-family:Arial,sans-serif;background:#f5f2e9;padding:24px">
+  <main style="max-width:560px;margin:auto;padding:28px;background:#fff;color:#133b30;border-radius:14px">
+  <h1 style="font-size:32px;font-weight:400">ΜΑΖΙ.</h1>
+  <h2>Προσωπική πρόσκληση</h2>
+  <p>Η επιχείρησή σου έχει εγκριθεί για το επόμενο βήμα. Η αποδοχή απαιτεί ξεχωριστή επιβεβαίωση των όρων.</p>
+  <p><a href="${callback.toString()}" style="background:#153d32;color:#fff;padding:14px 20px;display:inline-block;border-radius:6px">${label}</a></p>
+  <p>Ο σύνδεσμος είναι προσωπικός και μιας χρήσης. Δεν δημιουργεί αυτομάτως δικαιώματα μέλους.</p>
+  </main></body></html>`;
+ const sent=await fetch("https://api.resend.com/emails",{
+  method:"POST",cache:"no-store",
+  headers:{"content-type":"application/json",authorization:`Bearer ${resend}`},
+  body:JSON.stringify({
+   from:"MAZI <mazi@kontamou.site>",to:[email],
+   subject:"Η προσωπική σου πρόσκληση · ΜΑΖΙ",text:plain,html
+  }),
   signal:AbortSignal.timeout(9000)
  });
- if(!accepted.ok)throw Error("MAZI_EXISTING_AUTH_LOGIN_FAILED");
- return "existing_auth_email_otp";
+ if(!sent.ok)throw Error("MAZI_RESEND_PROVIDER_FAILED");
+ return existing?"resend_magiclink_existing":"resend_invite_new";
 }
 
 export async function issueMaziInvitation(principal:SessionPrincipal,interestId:string,retryReason?:string):Promise<"sent"|"delivery_failed">{
@@ -107,7 +128,8 @@ export async function issueMaziInvitation(principal:SessionPrincipal,interestId:
  if(!/^[a-f0-9-]{36}$/i.test(interestId))throw Error("MAZI_INVITATION_INVALID");
  // Fail before writing if the Auth project is not securely configured.
  if((process.env.MAZI_SUPABASE_URL || process.env.SUPABASE_URL)!==AUTH_PROJECT_URL||
-    !(process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY))
+    !(process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)||
+    !process.env.RESEND_API_KEY)
    throw Error("MAZI_INVITATION_DELIVERY_NOT_READY");
  const pool=getAdminPostgresRuntime().nativePool;
  const conn=await pool.connect();

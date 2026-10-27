@@ -1,9 +1,10 @@
 import type {SessionPrincipal} from "@buy-local-sparta/core";
 import {getAdminPostgresRuntime} from "./postgres-runtime";
 import {marketplaceMaziActor} from "./mazi-superadmin";
+import {sendMaziExistingAccountResendLogin} from "./mazi-passwordless-resend";
 
 const AUTH_URL="https://eemihhfreggbigxejjhj.supabase.co";
-const AUTH_CALLBACK="https://mazi.kontamou.site/auth/callback";
+// The official callback is generated and verified inside mazi-passwordless-resend.
 const PROBE_COOLDOWN_MINUTES=15;
 
 /** Probe only an approved interest whose email belongs to an ALREADY CONFIRMED
@@ -55,23 +56,12 @@ export async function runMaziAuthEmailProbe(
  let status:"provider_accepted"|"provider_rejected"|"network_failed"="network_failed";
  let code:string|null=null,HTTP:number|null=null;
  try{
-  const endpoint=new URL("/auth/v1/otp",AUTH_URL);
-  endpoint.searchParams.set("redirect_to",AUTH_CALLBACK);
-  const response=await fetch(endpoint.toString(),{
-   method:"POST",cache:"no-store",
-   headers:{"Content-Type":"application/json",apikey:key,Authorization:`Bearer ${key}`},
-   body:JSON.stringify({email:recipient,create_user:false}),
-   signal:AbortSignal.timeout(9000)
-  });
-  HTTP=response.status;
-  status=response.ok?"provider_accepted":"provider_rejected";
-  if(!response.ok){
-   const detail:unknown=await response.json().catch(()=>null);
-   const candidate=detail&&typeof detail==="object"
-    ?("code" in detail?String(detail.code):"error_code" in detail?String(detail.error_code):"provider_rejected")
-    :"provider_rejected";
-   code=/^[a-z0-9_]{1,64}$/.test(candidate)?candidate:"provider_rejected";
-  }
+  // Exercise the SAME Supabase token-hash and KONTA MOY Resend transport
+  // used by the live MAZI public login, never the old localhost-bound SMTP.
+  const outcome=await sendMaziExistingAccountResendLogin(recipient);
+  status=outcome==="sent"?"provider_accepted":"provider_rejected";
+  code=outcome==="sent"?null:outcome==="throttled"?"rate_limited":
+   outcome==="not_eligible"?"recipient_not_verified":"delivery_unavailable";
  }catch{status="network_failed";code="request_unavailable";}
  await pool.query(`
   UPDATE public.mazi_auth_delivery_probes

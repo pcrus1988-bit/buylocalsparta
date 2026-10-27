@@ -121,7 +121,8 @@ export async function recordMaziLaunchGateReview(principal:SessionPrincipal,inpu
  // For Auth, enforce that the privileged issuer has an exact project binding.
  if(gateKey==="auth_email_delivery"&&decision==="verified"&&
    (!(process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY)||
-    (process.env.MAZI_SUPABASE_URL||process.env.SUPABASE_URL)!=="https://eemihhfreggbigxejjhj.supabase.co"))
+    (process.env.MAZI_SUPABASE_URL||process.env.SUPABASE_URL)!=="https://eemihhfreggbigxejjhj.supabase.co"||
+    !process.env.RESEND_API_KEY||!process.env.MAZI_AUTH_BRIDGE_SECRET))
   throw Error("MAZI_AUTH_CONFIGURATION_NOT_READY");
  // The real-business E2E attestation cannot be asserted for an empty
  // programme. Require a verifiably consumed invitation and approved legal

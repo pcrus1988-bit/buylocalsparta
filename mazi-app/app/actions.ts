@@ -1,5 +1,6 @@
 "use server";
 import { redirect } from "next/navigation";
+import {createHmac} from "node:crypto";
 import { createClient } from "../lib/supabase/server";
 import { asText, validEmail, validateProposal } from "../lib/validation";
 import {maziMemberRequest} from "../lib/mazi-api";
@@ -16,12 +17,25 @@ async function authenticated() {
 
 export async function emailSignIn(form:FormData) {
   const email=asText(form.get("email")).toLowerCase();
-  if (!validEmail(email)) urlMessage("/join","invalid_email");
-  const db=await createClient();
-  const {error}=await db.auth.signInWithOtp({
-    email,options:{emailRedirectTo:DESTINATION,shouldCreateUser:false}
-  });
-  if(error) urlMessage("/join","email_unavailable");
+  if(!validEmail(email)) urlMessage("/join","invalid_email");
+  // The public form cannot send administrative auth emails, create accounts or
+  // control redirects. Only this server action signs a bounded request to
+  // the existing KONTA MOY backend, which retains privileged Auth/Resend keys.
+  const secret=process.env.MAZI_AUTH_BRIDGE_SECRET;
+  if(!secret||secret.length<48)urlMessage("/join","email_unavailable");
+  const ts=Date.now();
+  const signature=createHmac("sha256",secret).update(String(ts)+"\n"+email).digest("hex");
+  try{
+   const response=await fetch("https://kontamou.site/api/mazi-auth-email",{
+    method:"POST",cache:"no-store",
+    headers:{"content-type":"application/json","x-mazi-auth-signature":signature},
+    body:JSON.stringify({email,ts}),signal:AbortSignal.timeout(12000)
+   });
+   if(response.status!==202)urlMessage("/join","email_unavailable");
+  }catch{
+   urlMessage("/join","email_unavailable");
+  }
+  // Do not disclose account existence or authorization state.
   redirect("/join?sent=1");
 }
 
