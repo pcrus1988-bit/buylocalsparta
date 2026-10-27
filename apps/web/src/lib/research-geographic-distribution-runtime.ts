@@ -6,7 +6,8 @@ import { assertAdminPermission, recordAdminPersonalDataAccess } from "./admin-ru
 import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { rawResearchAnswerAccess } from "./research-survey-response-admin";
 import { resolveResearchAdministrativeGeography } from "./research-postcode-geography";
-import { questionChoices, SECTOR_LABELS, type RelationshipChoice, type RelationshipQuestion } from "./research-geographic-relations-runtime";
+import { questionChoices, type RelationshipChoice, type RelationshipQuestion } from "./research-geographic-relations-runtime";
+import { researchSectorLabel } from "./research-sector-labels";
 import {
   aggregateDistribution, safeDistributionCounts, safeDistributionRegion,
   type SafeDistributionRegion, type SafeDistributionCounts
@@ -97,7 +98,7 @@ export async function researchSingleQuestionDistribution(
   const id = questionRows.rows.find(row => row.code === question.code)?.id;
   if (!answer || !id) return undefined;
   const sectors = sectorRows.rows.map(row => ({
-    key: asText(row.code), label: SECTOR_LABELS[asText(row.code)] ?? asText(row.code)
+    key: asText(row.code), label: researchSectorLabel(asText(row.code))
   }));
   const kads = kadRows.rows.map(row => ({ key: asText(row.code), label: asText(row.code) }));
   const filters: SingleQuestionFilters = {
@@ -109,7 +110,7 @@ export async function researchSingleQuestionDistribution(
   };
   const selected = await pool.query<SqlRow>([
     "WITH scoped AS (",
-    " SELECT COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),NULLIF(ctx.source_prefecture,''),'') AS prefecture,",
+    " SELECT COALESCE(NULLIF(NULLIF(ctx.source_prefecture,'unknown'),'Inadequate Info'),NULLIF(NULLIF(fu.sampling_attributes->>'prefecture','unknown'),'Inadequate Info'),'') AS prefecture,",
     "  COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,a.answer",
     " FROM research_responses r",
     " JOIN research_invites i ON i.id=r.invite_id",

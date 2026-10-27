@@ -11,6 +11,7 @@ import { publicResultPoints, validRegionValue, type SafeParticipationGeography }
 import { ResearchResultsWorkbench } from "./ResearchResultsWorkbench";
 import { publicVoiceDataFromRelease } from "../../../../lib/research-public-voices-data";
 import { researchSectorLabel } from "../../../../lib/research-sector-labels";
+import { GREECE_REGIONS } from "../../../../lib/research-geographic-core";
 
 export const dynamic = "force-dynamic";
 
@@ -38,9 +39,10 @@ function metricLabel(metricKey: string, metadata: Record<string, unknown>): stri
 }
 
 function segmentLabel(segment: Record<string, unknown>, key: "regionCode" | "sectorCode"): string {
-  return typeof segment[key] === "string"
-    ? (key === "sectorCode" ? researchSectorLabel(String(segment[key])) : String(segment[key]))
-    : "—";
+  if (typeof segment[key] !== "string") return "—";
+  const code = String(segment[key]);
+  if (key === "sectorCode") return researchSectorLabel(code);
+  return GREECE_REGIONS.find(region => region.key === code)?.label ?? "Άγνωστη περιφέρεια";
 }
 
 function intervalText(

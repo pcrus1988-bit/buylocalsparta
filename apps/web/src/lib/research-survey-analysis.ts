@@ -556,7 +556,7 @@ export async function runGreekRetailAnalysis(
       st.code AS stratum_code,
       COALESCE(fu.region_code,ctx.region_code,'unknown') AS region_code,
       COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,
-      COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),ctx.source_prefecture,'') AS source_prefecture,
+      COALESCE(NULLIF(NULLIF(ctx.source_prefecture,'unknown'),'Inadequate Info'),NULLIF(NULLIF(fu.sampling_attributes->>'prefecture','unknown'),'Inadequate Info'),'') AS source_prefecture,
       COALESCE(fu.sector_code,ctx.sector_code,'unknown') AS sector_code,
       COALESCE(su.base_weight,ctx.base_weight) AS base_weight
     FROM research_responses r
