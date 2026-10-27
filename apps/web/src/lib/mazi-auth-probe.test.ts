@@ -12,7 +12,7 @@ test("one existing and email-confirmed approved business recipient only",()=>{
  assert.ok(lib.includes("u.email_confirmed_at IS NOT NULL"));
  assert.ok(lib.includes("a.status='approved_pending_invite'"));
  assert.ok(lib.includes("a.business_contact_verified_at IS NOT NULL"));
- assert.ok(lib.includes("create_user:false"));
+ assert.ok(lib.includes("sendMaziExistingAccountResendLogin(recipient)"));
  assert.ok(!lib.includes("signUp("));
  assert.ok(!lib.includes('"/auth/v1/invite"'));
  assert.ok(lib.includes("marketplaceMaziActor(principal)"));
@@ -21,8 +21,9 @@ test("one existing and email-confirmed approved business recipient only",()=>{
 test("Supabase Auth probe is real, rate-limited, and cannot confer membership",()=>{
  assert.ok(lib.includes("15 minutes"));
  assert.ok(lib.includes("pg_advisory_xact_lock"));
- assert.ok(lib.includes("auth/v1/otp"));
- assert.ok(lib.includes('endpoint.searchParams.set("redirect_to",AUTH_CALLBACK)'));
+ assert.ok(lib.includes("sendMaziExistingAccountResendLogin(recipient)"));
+ assert.ok(!lib.includes('"/auth/v1/otp"'));
+
  assert.ok(lib.includes("provider_accepted"));
  assert.ok(lib.includes("request_unavailable"));
  assert.ok(!lib.includes("UPDATE public.mazi_launch_gate_reviews"));
