@@ -51,7 +51,7 @@ Deno.serve(async(req:Request)=>{
    .eq("kind","fund_allocation").order("created_at",{ascending:false}).limit(1).maybeSingle();
   if(cError)return out({ok:false,error:"service_unavailable"},503);
   if(!cycle||cycle.finance_activated!==true||cycle.funding_budget_cents<=0)
-    return out({ok:true,cycle:null,proposals:[],has_voted:false,voting_eligible:false});
+    return out({ok:true,cycle:null,proposals:[],has_voted:false,voting_eligible:false,my_vote:null,my_proposal:null});
   if(input.operation==="apply"){
    if(cycle.status!=="submissions"||!inWindow(cycle))
     return out({ok:false,error:"applications_not_open"},403);
@@ -77,13 +77,15 @@ Deno.serve(async(req:Request)=>{
     insertError.code==="23505"?409:403);
    return out({ok:true,submitted:true});
   }
-  const [proposalResponse,ballotResponse]=await Promise.all([
+  const [proposalResponse,ballotResponse,ownProposalResponse]=await Promise.all([
    admin.from("mazi_proposals").select("id,title,details,category,amount_cents,created_by,first_time_support_request")
     .eq("cycle_id",cycle.id).eq("status","approved").order("created_at",{ascending:true}).limit(100),
    admin.from("mazi_fund_ballots").select("id,proposal_ids,created_at")
-    .eq("cycle_id",cycle.id).eq("voter_id",user.id).maybeSingle()
+    .eq("cycle_id",cycle.id).eq("voter_id",user.id).maybeSingle(),
+   admin.from("mazi_proposals").select("id,title,status,amount_cents,minimum_useful_cents")
+    .eq("cycle_id",cycle.id).eq("created_by",user.id).limit(1).maybeSingle()
   ]);
-  if(proposalResponse.error||ballotResponse.error)return out({ok:false,error:"service_unavailable"},503);
+  if(proposalResponse.error||ballotResponse.error||ownProposalResponse.error)return out({ok:false,error:"service_unavailable"},503);
   const memberEligible=member.voting_eligible===true;
   const proposals=(proposalResponse.data||[]).filter(p=>p.created_by!==user.id).map(p=>({
    id:p.id,title:p.title,details:p.details,category:p.category,
@@ -95,7 +97,7 @@ Deno.serve(async(req:Request)=>{
    },proposals,has_voted:Boolean(ballotResponse.data),
    my_vote:ballotResponse.data?{proposal_ids:ballotResponse.data.proposal_ids,
     created_at:ballotResponse.data.created_at}:null,
-   voting_eligible:memberEligible});
+   voting_eligible:memberEligible,my_proposal:ownProposalResponse.data||null});
   // The database trigger validates cycle, legal identity, every selected
   // proposal and conflict, and freezes the ballot against later edits.
   if(!memberEligible||cycle.status!=="voting"||!inWindow(cycle))
