@@ -91,8 +91,10 @@ revoke all on public.mazi_service_catalog,public.mazi_service_periods,public.maz
 grant select on public.mazi_service_catalog to anon,authenticated;
 grant select on public.mazi_service_periods,public.mazi_service_requests,public.mazi_service_events to authenticated;
 
-create policy "mazi_services_catalogue_read" on public.mazi_service_catalog
- for select to anon,authenticated using (is_active or (select public.mazi_is_administrator()));
+create policy "mazi_services_catalogue_anon" on public.mazi_service_catalog
+ for select to anon using (is_active);
+create policy "mazi_services_catalogue_member" on public.mazi_service_catalog
+ for select to authenticated using (is_active or (select public.mazi_is_administrator()));
 create policy "mazi_services_period_private" on public.mazi_service_periods
  for select to authenticated using (member_user_id=(select auth.uid()) or (select public.mazi_is_administrator()));
 create policy "mazi_services_requests_private" on public.mazi_service_requests
