@@ -24,13 +24,13 @@ const goodsInput=(form:FormData)=>{
    !["equipment","inventory","materials","furniture","electronics","packaging","vehicles","other"].includes(item_category)||
    !["new","used","refurbished","any"].includes(item_condition)||
    (kind==="offer"&&item_condition==="any")||
-   !/^\\d{1,7}(?:\\.\\d{1,2})?$/.test(quantityText)||quantity<=0||quantity>1000000||
+   !/^\d{1,7}(?:\.\d{1,2})?$/.test(quantityText)||quantity<=0||quantity>1000000||
    !["piece","set","box","pallet","kg","liter"].includes(quantityUnit)||
    location_city.length<2||location_city.length>100||
    !["pickup","shipping","either"].includes(fulfillment)||
    !["fixed","negotiable","on_request"].includes(price_type)||
    !["included","excluded","unspecified"].includes(price_vat_basis)||
-   (priceEur!==""&&!/^\\d{1,9}(?:[.,]\\d{1,2})?$/.test(priceEur))||
+   (priceEur!==""&&!/^\d{1,9}(?:[.,]\d{1,2})?$/.test(priceEur))||
    (price_type==="fixed"&&!priceEur)||(price_type==="on_request"&&!!priceEur)||
    title.length<8||title.length>140||description.length<30||description.length>2500||
    form.get("goods_policy_accepted")!=="on")return null;
