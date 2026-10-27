@@ -117,11 +117,11 @@ export async function getLiveGreekRetailVoices(principal: SessionPrincipal): Pro
     }
   }
 
-  if (eligible.length) await recordAdminPersonalDataAccess(principal,{
+  if (result.rows.length) await recordAdminPersonalDataAccess(principal,{
     route:"/research/greek-retail-2026/results/Preview/voices",
     resourceType:"research_free_text_answers",resourceId:"greek-retail-2026:Q18",
     purpose:"privacy_operations",dataClasses:["research_open_text_answers"],
-    recordCount:eligible.length,accessScope:"bulk"
+    recordCount:result.rows.length,accessScope:"bulk"
   });
 
   return {
