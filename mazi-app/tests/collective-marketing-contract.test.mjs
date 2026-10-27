@@ -8,7 +8,7 @@ test("pre-join pages expose all benefits without implying active payments",()=>{
  assert.match(benefits,/Συλλογική διαφήμιση/);
  assert.match(benefits,/HUB PRO/);
  assert.match(benefits,/Tokens/);
- assert.match(benefits,/Δεν.*ενεργοποιηθεί/);
+ assert.match(benefits,/δεν έχουν ενεργοποιηθεί/i);
  assert.match(membership,/δεν υπάρχει ακόμη ενεργή συνδρομή|Δεν υπάρχει ακόμη ενεργή συνδρομή/);
  assert.match(marketing,/δεν υπάρχουν ενεργές συνδρομές|Δεν υπάρχουν ενεργές συνδρομές/);
 });
