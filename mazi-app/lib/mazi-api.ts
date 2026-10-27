@@ -97,9 +97,10 @@ export type MaziFundBallotState={
  proposals:{id:string;title:string;details:string;category:string;amount_cents:number;first_time_support_request:boolean}[];
  has_voted:boolean;voting_eligible:boolean;
  my_vote:{proposal_ids:string[];created_at:string}|null;
+ my_proposal:{id:string;title:string;status:string;amount_cents:number;minimum_useful_cents:number|null}|null;
 };
 /** Financial-round voting (not the nonfinancial founding survey). */
-export async function maziFundMemberRequest<T extends object>(operation:"state"|"vote",
+export async function maziFundMemberRequest<T extends object>(operation:"state"|"vote"|"apply",
  payload:Record<string,unknown>={}):Promise<Result<T>>{
  if(!base||!key)return fail;
  const supabase=await createClient();
