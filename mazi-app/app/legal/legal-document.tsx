@@ -9,7 +9,7 @@ export function LegalView({slug}: {slug:LegalSlug}) {
    <section className={styles.hero}><div className="shell">
      <span className="eyebrow light">ΜΑΖΙ · ΝΟΜΙΚΗ ΤΕΚΜΗΡΙΩΣΗ / {doc.eyebrow}</span>
      <h1>{doc.title}</h1><p>{doc.summary}</p>
-     <div className={styles.heroMeta}><span>Κωδικοποίηση 2.0 · {LEGAL_DATE} · {MAZI_LEGAL_ADDENDUM_VERSION}</span><span>{doc.status==="proposed"?"Κανονισμός του οικονομικού προγράμματος · εξατομικευμένη αποδοχή πριν από χρέωση":"Δημοσιευμένη ενημέρωση για την τρέχουσα πιλοτική χρήση"}</span></div>
+     <div className={styles.heroMeta}><span>Νομική κωδικοποίηση 2.1 · {LEGAL_DATE} · {MAZI_LEGAL_ADDENDUM_VERSION}</span><span>{doc.status==="proposed"?"Κανονισμός του οικονομικού προγράμματος · εξατομικευμένη αποδοχή πριν από χρέωση":"Δημοσιευμένη ενημέρωση για την τρέχουσα πιλοτική χρήση"}</span></div>
    </div></section>
    <div className={`shell ${styles.layout}`}>
     <nav aria-label="Νομικές ενότητες" className={styles.side}>
@@ -18,7 +18,11 @@ export function LegalView({slug}: {slug:LegalSlug}) {
       <Link href="/invitation-terms">Ισχύοντες όροι μη οικονομικής πρόσκλησης</Link>
     </nav>
     <article className={styles.article}>
-      <p className={styles.notice}><strong>Σημαντική διάκριση:</strong> Η τρέχουσα πρόσκληση παρέχει μόνο μη οικονομική πιλοτική πρόσβαση. Οι προτεινόμενες οικονομικές ρήτρες δεν αποτελούν ενεργή σύμβαση, συνδρομή ή ενεργοποίηση του Ταμείου. Απαιτούνται νομική/φοροτεχνική έγκριση και χωριστή ρητή αποδοχή.</p>
+      <p className={styles.notice}><strong>{doc.status==="current"?"Ισχύουσα ενημέρωση και κανόνες:":"Συμβατική ισχύς:"}</strong> {slug==="retention"
+? "Τα δικαιώματα προστασίας δεδομένων ισχύουν ήδη. Οι προθεσμίες του εσωτερικού προγράμματος διατήρησης δεν αποτελούν βεβαίωση εκτέλεσης αυτοματοποιημένης διαγραφής· η εφαρμογή και οι εκτελέσεις της ελέγχονται χωριστά."
+:doc.status==="current"
+? "Οι κανόνες της παρούσας ενότητας αφορούν την υπάρχουσα λειτουργία της πλατφόρμας και την ενημέρωση των υποκειμένων. Η μη οικονομική πρόσκληση διέπεται από τους ειδικά αποδεκτούς όρους της."
+: "Οι οικονομικοί κανόνες της παρούσας ενότητας συνιστούν το κανονιστικό κείμενο του προγράμματος και δεσμεύουν συγκεκριμένη επιχείρηση μόνο μετά την απαιτούμενη χωριστή αποδοχή και ενεργοποίηση. Η τρέχουσα πιλοτική πρόσκληση δεν ενεργοποιεί συνδρομή, πληρωμή ή ενίσχυση."}</p>
       <div className={styles.toc}><strong>Περιεχόμενα</strong><ol>{sections.map((section,i)=><li key={section.heading}><a href={`#article-${i+1}`}>{section.heading}</a></li>)}</ol></div>
       {sections.map((section,i)=><section className={styles.section} id={`article-${i+1}`} key={section.heading}>
         <h2>{section.heading}</h2>{section.paragraphs.map((paragraph,j)=><p key={j}>{paragraph}</p>)}
@@ -31,7 +35,9 @@ export function LegalView({slug}: {slug:LegalSlug}) {
         <a href="https://kontamou.site/hubs/join" target="_blank" rel="noopener noreferrer">KONTA ΜΟΥ · επίσημος πίνακας HUB PRO</a>
         <a href="https://eur-lex.europa.eu/eli/reg/2016/679/oj" target="_blank" rel="noopener noreferrer">ΓΚΠΔ · Κανονισμός (ΕΕ) 2016/679</a>
         <a href="https://eur-lex.europa.eu/eli/reg/2022/2065/oj" target="_blank" rel="noopener noreferrer">Κανονισμός Ψηφιακών Υπηρεσιών (DSA)</a>
-        <a href="https://www.aade.gr/sites/default/files/2026-04/n.5144_2024.pdf" target="_blank" rel="noopener noreferrer">Ν. 5144/2024 · Άρθρο 16, κουπόνια και ΦΠΑ</a>
+        <a href="https://www.taxheaven.gr/law/5144/2024/arthro/16" target="_blank" rel="noopener noreferrer">Ν. 5144/2024 · Άρθρο 16, κουπόνια και ΦΠΑ</a>
+        <a href="https://www.taxheaven.gr/law/4308/2014/arthro/7" target="_blank" rel="noopener noreferrer">Ν. 4308/2014 · Άρθρο 7, λογιστικά αρχεία</a>
+        <a href="https://www.dpa.gr/el/enimerwtiko/thematikes_enotites/electronikesepikoinwnies/cookies/cookies_diadiktuo_cookies" target="_blank" rel="noopener noreferrer">ΑΠΔΠΧ · Τεχνολογίες cookies</a>
         <a href="mailto:info@kontamou.site">info@kontamou.site</a>
       </aside>
     </article>
