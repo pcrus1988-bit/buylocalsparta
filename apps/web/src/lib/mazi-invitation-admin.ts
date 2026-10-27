@@ -128,7 +128,8 @@ export async function issueMaziInvitation(principal:SessionPrincipal,interestId:
  if(!/^[a-f0-9-]{36}$/i.test(interestId))throw Error("MAZI_INVITATION_INVALID");
  // Fail before writing if the Auth project is not securely configured.
  if((process.env.MAZI_SUPABASE_URL || process.env.SUPABASE_URL)!==AUTH_PROJECT_URL||
-    !(process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY))
+    !(process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)||
+    !process.env.RESEND_API_KEY)
    throw Error("MAZI_INVITATION_DELIVERY_NOT_READY");
  const pool=getAdminPostgresRuntime().nativePool;
  const conn=await pool.connect();
