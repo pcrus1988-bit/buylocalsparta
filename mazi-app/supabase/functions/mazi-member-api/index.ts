@@ -254,7 +254,7 @@ Deno.serve(async(req:Request)=>{
        .select("id,title").eq("id",thread.listing_id).maybeSingle(),
       admin.from("mazi_membership_applications")
        .select("business_name").eq("applicant_user_id",otherUserId)
-       .eq("status","approved").maybeSingle()
+       .eq("status","approved").order("created_at",{ascending:false}).limit(1).maybeSingle()
     ]);
     if(messagesResult.error||listingResult.error||businessResult.error)
      return out({error:"data_unavailable"},503);
