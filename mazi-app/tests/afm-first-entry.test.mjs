@@ -37,8 +37,10 @@ test("privacy and representation require separate, affirmative confirmation",()=
  assert.match(form,/Η αίτηση δεν αποτελεί έγκριση ή πρόσκληση/);
 });
 test("public email links do not create unknown Supabase Auth users",()=>{
- assert.match(actions,/shouldCreateUser:false/);
- assert.doesNotMatch(actions,/shouldCreateUser:true/);
+ assert.match(actions,/MAZI_AUTH_BRIDGE_SECRET/);
+ assert.match(actions,/createHmac\("sha256",secret\)/);
+ assert.doesNotMatch(actions,/auth\.signUp\(/);
+ assert.doesNotMatch(actions,/auth\.signInWithOtp\(/);
  assert.match(existing,/ήδη καταχωρισμένους λογαριασμούς/);
 });
 test("public website leads applicants to verified interest; existing login stays available",()=>{
