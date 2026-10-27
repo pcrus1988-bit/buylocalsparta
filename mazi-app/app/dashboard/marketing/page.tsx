@@ -60,7 +60,7 @@ export default async function MemberMarketing({searchParams}:{searchParams:Promi
  </form>}
  </article>
  <article className="com-card"><span className="com-kicker">02 / ΚΑΜΠΑΝΙΕΣ</span><h2>Οι καμπάνιες μου</h2><p>Η συμμετοχή σε συγκεκριμένη καμπάνια θα χρειάζεται χωριστή, σαφή διαδικασία έγκρισης δημιουργικού και διαθεσιμότητας. Δεν υπάρχει ενεργή καμπάνια ή μετρημένο media spend.</p><div className="com-empty">Καμία ενεργή καμπάνια στο πρόγραμμα.</div></article>
- <article className="com-card"><span className="com-kicker">03 / 250 TOKENS</span><h2>Οι υπηρεσίες μου</h2><p>Το προσωπικό υπόλοιπο Tokens και οι πραγματικές αιτήσεις υπηρεσιών εμφανίζονται στον χωριστό μηχανισμό, μόνο με εγκεκριμένο πληρωμένο κύκλο.</p><Link href="/services">Άνοιξε υπηρεσίες και Tokens →</Link></article>
+ <article className="com-card"><span className="com-kicker">03 / 250 TOKENS</span><h2>Οι υπηρεσίες μου</h2><p>Το προσωπικό υπόλοιπο Tokens και οι πραγματικές αιτήσεις υπηρεσιών εμφανίζονται στον χωριστό μηχανισμό, μόνο με εγκεκριμένο πληρωμένο κύκλο. Δεν πιστώνονται Tokens όσο δεν λειτουργεί η συνδρομή.</p><Link href="/services">Άνοιξε υπηρεσίες και Tokens →</Link></article>
  </div><aside className="com-side"><h2>Δίκαιη προβολή</h2><p>Η επιλογή καμπανιών θα βασίζεται σε γεωγραφική και κλαδική συνάφεια, πραγματικές προσφορές, επιλεξιμότητα και προηγούμενη έκθεση, χωρίς εγγυημένο αριθμό εμφανίσεων ή πωλήσεων.</p><p>Η αποθήκευση προτιμήσεων δεν δημιουργεί χρέωση, οικονομική δέσμευση ή άδεια χρήσης φωτογραφιών και λογοτύπου.</p><Link href="/marketing" style={{color:"#f6ccb1",fontWeight:800}}>Ο κανονισμός συλλογικής προβολής →</Link></aside></div>
  </main>;
 }
