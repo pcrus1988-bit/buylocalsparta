@@ -12,18 +12,62 @@ async function requireLogin(){
 }
 const failure=(path:string)=>redirect(path+(path.includes("?")?"&":"?")+"notice=not_saved");
 
+const goodsInput=(form:FormData)=>{
+ const kind=field(form,"kind"),item_category=field(form,"item_category"),
+  item_condition=field(form,"item_condition"),quantityUnit=field(form,"quantity_unit"),
+  quantityText=field(form,"quantity"),location_city=field(form,"location_city"),
+  fulfillment=field(form,"fulfillment"),price_type=field(form,"price_type"),
+  price_vat_basis=field(form,"price_vat_basis"),priceEur=field(form,"price_eur"),
+  title=field(form,"title"),description=field(form,"description");
+ const quantity=Number(quantityText);
+ if(!["offer","request"].includes(kind)||
+   !["equipment","inventory","materials","furniture","electronics","packaging","vehicles","other"].includes(item_category)||
+   !["new","used","refurbished","any"].includes(item_condition)||
+   (kind==="offer"&&item_condition==="any")||
+   !/^\\d{1,7}(?:\\.\\d{1,2})?$/.test(quantityText)||quantity<=0||quantity>1000000||
+   !["piece","set","box","pallet","kg","liter"].includes(quantityUnit)||
+   location_city.length<2||location_city.length>100||
+   !["pickup","shipping","either"].includes(fulfillment)||
+   !["fixed","negotiable","on_request"].includes(price_type)||
+   !["included","excluded","unspecified"].includes(price_vat_basis)||
+   (priceEur!==""&&!/^\\d{1,9}(?:[.,]\\d{1,2})?$/.test(priceEur))||
+   (price_type==="fixed"&&!priceEur)||(price_type==="on_request"&&!!priceEur)||
+   title.length<8||title.length>140||description.length<30||description.length>2500||
+   form.get("goods_policy_accepted")!=="on")return null;
+ let price_cents:number|null=null;
+ if(priceEur){
+   const [whole,decimal=""]=priceEur.replace(",",".").split(".");
+   price_cents=Number(whole)*100+Number((decimal+"00").slice(0,2));
+   if(!Number.isSafeInteger(price_cents)||price_cents<1||price_cents>100000000000)return null;
+ }
+ return {kind,item_category,item_condition,quantity,quantity_unit:quantityUnit,
+  location_city,fulfillment,price_type,price_cents,price_vat_basis,title,description,
+  goods_policy_accepted:true};
+};
 export async function publishMaziListing(form:FormData){
  await requireLogin();
- const kind=field(form,"kind"),category=field(form,"category"),
-  title=field(form,"title"),description=field(form,"description");
- if(!["offer","request"].includes(kind)||!["goods","services","partnerships"].includes(category)||
-  title.length<8||title.length>140||description.length<30||description.length>2500)
-  failure("/marketplace");
- const result=await maziMemberRequest("marketplace_create",{kind,category,title,description});
+ const listing=goodsInput(form);
+ if(!listing)failure("/marketplace");
+ const result=await maziMemberRequest("marketplace_create",listing!);
  if(!result.ok)failure("/marketplace");
  redirect("/marketplace?notice=created");
 }
-
+export async function editMaziListing(form:FormData){
+ await requireLogin();
+ const listing_id=field(form,"listing_id"),listing=goodsInput(form);
+ if(!validId(listing_id)||!listing)failure("/marketplace");
+ const result=await maziMemberRequest("marketplace_edit",{...listing!,listing_id});
+ if(!result.ok)failure("/marketplace");
+ redirect("/marketplace?notice=edited");
+}
+export async function renewMaziListing(form:FormData){
+ await requireLogin();
+ const listing_id=field(form,"listing_id");
+ if(!validId(listing_id))failure("/marketplace");
+ const result=await maziMemberRequest("marketplace_renew",{listing_id});
+ if(!result.ok)failure("/marketplace");
+ redirect("/marketplace?notice=renewed");
+}
 export async function closeMaziListing(form:FormData){
  await requireLogin();
  const listing_id=field(form,"listing_id");
