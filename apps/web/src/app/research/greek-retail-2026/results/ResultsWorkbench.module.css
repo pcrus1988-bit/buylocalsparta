@@ -122,13 +122,13 @@
 .crossFilterPanel{border:1px solid #dae6d5;background:#f8fbf6;margin:24px 0;border-radius:16px;padding:18px}
 
 /* A permanent national answer summary and the full 13-region distribution. */
-.mapNationalOverview{display:grid;grid-template-columns:minmax(230px,.85fr) minmax(0,1.15fr);gap:14px;margin:15px 0;padding:0}
-.nationalHeadline{display:flex;flex-direction:column;align-items:flex-start;gap:7px;border-radius:16px;background:linear-gradient(125deg,#153e2c,#246443);padding:20px 23px;color:#fff}
+.mapNationalOverview{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.9fr);gap:14px;margin:15px 0;padding:0}
+.nationalHeadline{display:flex;flex-direction:column;align-items:flex-start;gap:7px;border-radius:16px;background:linear-gradient(125deg,#153e2c,#246443);padding:24px;color:#fff;min-width:0}
 .nationalFlag{font-size:10px;letter-spacing:.15em;font-weight:900;color:#dbd1a6}
 .nationalHeadline>strong{font:500 clamp(36px,4.2vw,57px)/1.06 Georgia,serif;letter-spacing:-.05em;color:#fff;margin:5px 0}
 .nationalHeadline>span:not(.nationalFlag){font-weight:750;font-size:12px;color:#f0f6ec}
 .nationalHeadline small{font-size:11px;line-height:1.5;color:#bed9c6}
-.nationalDetails{background:#f1f6ee;border-radius:16px;border:1px solid #dbe7d6;padding:20px 23px;display:flex;flex-direction:column;justify-content:center;gap:9px}
+.nationalDetails{background:#f1f6ee;border-radius:16px;border:1px solid #dbe7d6;padding:20px 23px;display:flex;flex-direction:column;justify-content:flex-start;gap:9px;min-width:0}
 .nationalTag{font-size:10px;letter-spacing:.12em;font-weight:900;color:#658b65}
 .nationalDetails>strong{font:500 21px/1.18 Georgia,serif;color:#255539}
 .nationalDetails>p{margin:0;font-size:11px;line-height:1.7;color:#637967}
@@ -152,7 +152,7 @@
 .mapSide .regionList{max-height:none;overflow:visible}
 
 /* Full thirteen-periphery distribution is always available, including on νομός view. */
-.allRegionsGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:9px}
+.allRegionsGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:9px;max-height:760px;overflow-y:auto;align-content:start;padding-right:4px}
 .allRegionsRow{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:3px;align-items:center;background:#fffdf7;border:1px solid #e0e9db;border-radius:9px;padding:9px 11px;color:#385b40;font-size:11px}
 .allRegionsRow>span{font-size:11px;line-height:1.35}.allRegionsRow>strong{font-size:13px;color:#22563a;white-space:nowrap}
 .allRegionsRow>small{grid-column:1/-1;font-size:9px;color:#788c7b}
@@ -235,3 +235,21 @@
 @media(max-width:900px){.countyOverview{grid-template-columns:repeat(2,minmax(0,1fr))}.countyChapterHeader{flex-wrap:wrap}.countyChapterHeader>small{width:100%;padding-left:44px}}
 @media(max-width:550px){.countyOverview{grid-template-columns:1fr 1fr}.countyOverview>div{padding:13px}.countyOverview strong{font-size:23px}.countyPicker>p{margin:0}.countyChapter{padding:15px}.countyChapterHeader h4{font-size:20px}.countyReportControls{gap:7px}.countyReportControls label{width:100%}}
 @media print{.countyReportHeader,.countyOverview>div:first-child{-webkit-print-color-adjust:exact;print-color-adjust:exact}.countyPicker,.countyReportControls{display:none}.countyChapter{break-inside:avoid}.countyReport{color:#222}}
+
+/* Shared published/Preview map: the geographic visual is the focal point of the green summary. */
+.nationalHeadline .mapCanvas{width:100%;min-width:0;flex:1;box-sizing:border-box;background:transparent;border:0;border-radius:0;padding:16px 0 0;display:flex;flex-direction:column;justify-content:center}
+.nationalHeadline .mapToolbar{color:#f6f1d5}
+.nationalHeadline .mapSvg{width:100%;max-height:670px;min-height:340px;margin:12px auto 0;overflow:visible}
+.nationalHeadline .mapZoom button{background:#f9f3df;color:#1c4731;border-color:#d3c59e}
+.nationalHeadline .mapRegion:hover{stroke:#fff9da}
+.nationalHeadline .regionFocus{background:#f9f3df;color:#224734;border-color:#d4c9a5;flex-wrap:wrap}
+.nationalHeadline .mapPrivacyNote{font-size:11px;color:#e2eaca;line-height:1.65;margin:14px 0}
+.mapCountyDirectory{margin:16px 0 0;border:1px solid #d9e5d3;border-radius:14px;background:#fbfcf8;overflow:hidden}
+.mapCountyDirectory>summary{padding:15px 18px;cursor:pointer;color:#24553a;font-size:12px;font-weight:800}
+.mapCountyDirectory .mapSide{border:0;border-top:1px solid #e1e9dd;border-radius:0}
+@media(max-width:670px){
+ .nationalHeadline .mapSvg{min-height:270px;max-height:560px}
+ .nationalHeadline .mapCanvas{padding-top:12px}
+ .allRegionsGrid{max-height:540px}
+ .nationalHeadline .mapToolbar{align-items:flex-start}
+}
