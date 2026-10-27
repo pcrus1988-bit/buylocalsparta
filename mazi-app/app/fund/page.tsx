@@ -15,5 +15,20 @@ const open=cycle?.status==="submissions"&&Date.parse(cycle.starts_at)<=Date.now(
 const stageLabel=!cycle?"Η ΚΑΤΑΣΤΑΣΗ ΤΟΥ ΚΥΚΛΟΥ ΔΕΝ ΕΙΝΑΙ ΔΙΑΘΕΣΙΜΗ":open?"ΑΝΟΙΧΤΗ ΚΑΤΑΓΡΑΦΗ ΑΝΑΓΚΩΝ":"ΔΕΝ ΓΙΝΟΝΤΑΙ ΑΥΤΗ ΤΗ ΣΤΙΓΜΗ ΝΕΕΣ ΥΠΟΒΟΛΕΣ ΑΝΑΓΚΩΝ";
 return <main id="content"><section className="subhero"><div className="shell"><span className="eyebrow light">ΤΟ ΤΑΜΕΙΟ · Ο ΠΥΡΗΝΑΣ ΤΟΥ ΜΑΖΙ</span><h1>Όχι τύχη.<br/><em>Πραγματικές ευκαιρίες.</em></h1><p>Ένα συλλογικό ταμείο για πραγματικές επιχειρηματικές ανάγκες. Τα μέλη προτείνουν, συζητούν και αποφασίζουν. Στόχος μας είναι, όταν ενεργοποιηθεί νόμιμα το Ταμείο, να στηρίζονται πολλά τεκμηριωμένα έργα και όχι τυχαίοι νικητές.</p></div></section>
 <section className="section shell"><div className="section-top"><span className="eyebrow">ΠΩΣ ΘΑ ΛΕΙΤΟΥΡΓΕΙ</span><span className="side-note">{stageLabel} · ΧΩΡΙΣ ΕΝΕΡΓΗ ΧΡΗΜΑΤΟΔΟΤΗΣΗ</span></div><h2 className="section-heading">Από την ανάγκη <em>στη δράση.</em></h2><div className="step-list">{steps.map(([i,title,desc])=><article className="step" key={i}><span className="step-number">{i}</span><div><h3>{title}</h3><p>{desc}</p></div><span aria-hidden="true" className="step-icon">↗</span></article>)}</div></section>
+<section className="section shell" aria-labelledby="mazi-cycle-calendar">
+ <span className="eyebrow">ΕΠΙΣΗΜΟ ΧΡΟΝΟΔΙΑΓΡΑΜΜΑ ΤΑΚΤΙΚΟΥ ΚΥΚΛΟΥ</span>
+ <h2 className="section-heading" id="mazi-cycle-calendar">Ολόκληρος ο μήνας. <em>Συγκεκριμένα στάδια.</em></h2>
+ <div className="step-list">
+  {([
+   ["01–10","Υποβολή","Μία πραγματική χρηματοδοτική αίτηση ανά επαληθευμένη επιχείρηση."],
+   ["11–15","Εξέταση","Ελεγχος νομιμότητας, εταιρικής ταυτότητας, τεκμηρίων και συγκρούσεων."],
+   ["16–23","Συζήτηση & ψήφος","Μία ισότιμη έγκυρη ψήφος ανά επιχείρηση σύμφωνα με τον ενεργό κανονισμό."],
+   ["24–27","Ένσταση & οριστικοποίηση","Έλεγχος αποτελεσμάτων, αιτιολογημένες διορθώσεις και κατανομές."],
+   ["28–τέλος μήνα","Συμφωνία & καταβολή","Υπογραφή ατομικών όρων και πραγματικές νόμιμες εκταμιεύσεις μόνον εφόσον έχουν εκπληρωθεί οι προϋποθέσεις."]
+  ] as const).map(([days,title,detail])=><article key={days} className="step"><span className="step-number">{days}</span><div><h3>{title}</h3><p>{detail}</p></div></article>)}
+ </div>
+ <p className="small-muted">Οι περίοδοι ορίζονται σε ημερολογιακές ημέρες Ελλάδας. Ο ιδρυτικός μη χρηματοδοτικός κύκλος με €0 παραμένει διακριτός και ακολουθεί τις πραγματικές ημερομηνίες του.</p>
+ <Link href="/legal/fund" className="button dark">Πλήρης νομικός κανονισμός κύκλου ↗</Link>
+</section>
 <section className="section muted"><div className="shell grid-two"><div><span className="eyebrow">ΤΡΕΙΣ ΚΑΤΕΥΘΥΝΣΕΙΣ</span><h2 className="section-heading">Η βοήθεια έχει <em>πολλές μορφές.</em></h2></div><div className="stack"><article className="mini-card"><strong>Ανθεκτικότητα</strong><p>Επείγουσες επισκευές και απαραίτητος εξοπλισμός για τη συνέχεια της λειτουργίας.</p></article><article className="mini-card"><strong>Ανάπτυξη</strong><p>Ψηφιακό εμπόριο, εκσυγχρονισμός, πρόσβαση σε πελάτες και νέα παραγωγική δυνατότητα.</p></article><article className="mini-card"><strong>Κοινές πρωτοβουλίες</strong><p>Συνεργατικά έργα μεταξύ επιχειρήσεων που δημιουργούν όφελος σε περισσότερα μέλη.</p></article></div></div></section>
 <section className="section shell"><div className="fund-callout"><span className="eyebrow light">ΔΕΣ ΤΟ ΣΤΗΝ ΠΡΑΞΗ</span><h2>Ξεκίνα με πραγματικά στοιχεία.</h2><p>Κάνε πραγματική αίτηση ενδιαφέροντος. Ο έλεγχος των μελών περιλαμβάνει ενεργή καταχώριση ΓΕΜΗ και εκπροσώπηση. {open?"Οι υποβολές αναγκών είναι ανοιχτές στον ιδρυτικό κύκλο.":"Η υποβολή νέων αναγκών στον ιδρυτικό κύκλο δεν είναι αυτή τη στιγμή ανοιχτή."} Δεν υπάρχει ενεργός χρηματοδοτικός προϋπολογισμός.</p><Link className="button peach" href="/join">Σύνδεση και αίτηση ↗</Link></div></section></main>}
