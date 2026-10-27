@@ -12,6 +12,7 @@ import {
   type ResearchFreeTextCategory
 } from "./research-free-text-categories";
 import type { PublicVoices } from "../app/research/greek-retail-2026/results/ResearchVoiceOfGreece";
+import { publicResearchQ18DisplayText } from "./research-q18-publication-moderation";
 
 const MIN_GEOGRAPHY_CELL = 30;
 const MAX_INTERNAL_QUOTE_LENGTH = 900;
@@ -47,7 +48,7 @@ export async function getLiveGreekRetailVoices(principal: SessionPrincipal): Pro
       FROM research_response_quality_reviews qr
       ORDER BY qr.response_id, qr.created_at DESC, qr.id DESC
     )
-    SELECT a.answer #>> '{}' AS answer_text,
+    SELECT a.id AS answer_id, a.answer #>> '{}' AS answer_text,
       COALESCE(NULLIF(NULLIF(ctx.source_prefecture,'unknown'),'Inadequate Info'),NULLIF(NULLIF(fu.sampling_attributes->>'prefecture','unknown'),'Inadequate Info'),'') AS prefecture,
       COALESCE(fu.sampling_attributes->>'postcode','') AS postcode
     FROM research_answers a
@@ -67,13 +68,15 @@ export async function getLiveGreekRetailVoices(principal: SessionPrincipal): Pro
     ORDER BY a.id
     LIMIT 5000
   `);
-  const eligible: EligibleQ18[] = result.rows.map(row => {
-    const content = String(row.answer_text ?? "").trim();
-    return {
+  const eligible: EligibleQ18[] = result.rows.flatMap(row => {
+    const original = String(row.answer_text ?? "").trim();
+    const content = publicResearchQ18DisplayText(Number(row.answer_id),original);
+    if (content === null) return [];
+    return [{
       text: content,
       prefecture: resolveResearchAdministrativeGeography(row.postcode,row.prefecture).prefectureLabel,
       categories: categorizeResearchFreeText(content)
-    };
+    }];
   });
 
   const allCategories = [...RESEARCH_FREE_TEXT_CATEGORIES, RESEARCH_FREE_TEXT_OTHER];
@@ -114,11 +117,11 @@ export async function getLiveGreekRetailVoices(principal: SessionPrincipal): Pro
     }
   }
 
-  if (eligible.length) await recordAdminPersonalDataAccess(principal,{
+  if (result.rows.length) await recordAdminPersonalDataAccess(principal,{
     route:"/research/greek-retail-2026/results/Preview/voices",
     resourceType:"research_free_text_answers",resourceId:"greek-retail-2026:Q18",
     purpose:"privacy_operations",dataClasses:["research_open_text_answers"],
-    recordCount:eligible.length,accessScope:"bulk"
+    recordCount:result.rows.length,accessScope:"bulk"
   });
 
   return {

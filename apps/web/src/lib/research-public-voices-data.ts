@@ -5,6 +5,8 @@
  * Never query research_answers, response_design_context or private Admin Q18 rows
  * from a public route. Quote and prefecture outputs are independently governed.
  */
+import { publicResearchQ18DisplayText } from "./research-q18-publication-moderation.ts";
+
 export type PublicVoiceQuote = Readonly<{id:string;category:string;text:string}>;
 export type PublicVoiceCategory = Readonly<{key:string;label:string;count:number}>;
 export type PublicVoiceGeography = Readonly<{area:string;category:string;count:number;eligibleN:number}>;
@@ -31,11 +33,12 @@ export function publicVoiceDataFromRelease(value:unknown):PublicVoiceData|undefi
  const keys=new Set(categories.map(c=>c.key));
  const quotes=asArray(source.quotes).flatMap(value=>{
   const item=asRecord(value),id=simple(item.id,110),category=simple(item.category,90),text=simple(item.text,900);
+  const displayText=publicResearchQ18DisplayText(id,text);
   // No location, sector or participant reference is accepted in the public quote object.
-  if(!id||!keys.has(category)||text.length<12||suspicious(text)||
+  if(!id||!keys.has(category)||displayText===null||displayText.length<12||suspicious(displayText)||
      item.publicApproved!==true||item.deidentified!==true||
      Object.keys(item).some(k=>!["id","category","text","publicApproved","deidentified"].includes(k)))return [];
-  return [{id,category,text}];
+  return [{id,category,text:displayText}];
  }).filter((v,i,all)=>all.findIndex(item=>item.id===v.id)===i);
  const geography=asArray(source.geography).flatMap(value=>{
   const item=asRecord(value),area=simple(item.area,100),category=simple(item.category,90);
