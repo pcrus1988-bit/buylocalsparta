@@ -345,7 +345,8 @@ Deno.serve(async(req:Request)=>{
    if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
    const [listings,threads,replies,chat]=await Promise.all([
     admin.from("mazi_marketplace_listings").select("id",{count:"exact",head:true})
-     .eq("member_user_id",user.id).eq("status","active").is("hidden_at",null),
+     .eq("member_user_id",user.id).eq("category","goods").eq("status","active")
+     .gt("expires_at",new Date().toISOString()).is("hidden_at",null),
     admin.from("mazi_forum_threads").select("id",{count:"exact",head:true})
      .eq("member_user_id",user.id).is("hidden_at",null),
     admin.from("mazi_forum_replies").select("id",{count:"exact",head:true})
