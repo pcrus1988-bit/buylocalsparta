@@ -2,6 +2,11 @@ name: Admin Functionality CI
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "apps/web/src/app/admin/**"
+      - "apps/web/src/lib/mazi-*.ts"
+      - ".github/workflows/admin-functionality-ci.yml"
   push:
     branches: [main]
     paths:
@@ -11,6 +16,7 @@ on:
       - "apps/web/src/components/VendorToggleControl.tsx"
       - "apps/web/src/components/ProductTaxProfileManager.tsx"
       - "apps/web/src/lib/admin-*.ts"
+      - "apps/web/src/lib/mazi-*.ts"
       - "apps/web/src/lib/media-upload-service.ts"
       - "apps/web/src/lib/vendor-profile-media-service.ts"
       - "scripts/verify-admin-quickadd.ts"
