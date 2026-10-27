@@ -50,7 +50,7 @@ test("access control and member UI never submits service without active entitlem
 });
 
 test("public catalogue displays only active service definitions, no member records",()=>{
- assert.match(homepage,/href="\\/services\\/catalogue"/);
+ assert.ok(homepage.includes('href="/services/catalogue"'));
  assert.match(publicCatalogue,/from\("mazi_service_catalog"\)/);
  assert.match(publicCatalogue,/eq\("is_active",true\)/);
  assert.doesNotMatch(publicCatalogue,/mazi_service_periods|mazi_service_requests|mazi_service_events/);
