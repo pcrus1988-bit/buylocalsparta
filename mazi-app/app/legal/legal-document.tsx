@@ -20,7 +20,7 @@ export function LegalView({slug}: {slug:LegalSlug}) {
     <article className={styles.article}>
       <p className={styles.notice}><strong>Σημαντική διάκριση:</strong> Η τρέχουσα πρόσκληση παρέχει μόνο μη οικονομική πιλοτική πρόσβαση. Οι προτεινόμενες οικονομικές ρήτρες δεν αποτελούν ενεργή σύμβαση, συνδρομή ή ενεργοποίηση του Ταμείου. Απαιτούνται νομική/φοροτεχνική έγκριση και χωριστή ρητή αποδοχή.</p>
       <div className={styles.toc}><strong>Περιεχόμενα</strong><ol>{sections.map((section,i)=><li key={section.heading}><a href={`#article-${i+1}`}>{section.heading}</a></li>)}</ol></div>
-      {doc.sections.map((section,i)=><section className={styles.section} id={`article-${i+1}`} key={section.heading}>
+      {sections.map((section,i)=><section className={styles.section} id={`article-${i+1}`} key={section.heading}>
         <h2>{section.heading}</h2>{section.paragraphs.map((paragraph,j)=><p key={j}>{paragraph}</p>)}
       </section>)}
       <aside className={styles.sources}>
