@@ -45,6 +45,8 @@ export function ResearchResultsPreviewExperience({initial,geography}:{initial:Li
     return ()=>{ window.clearInterval(timer); controller.abort(); };
   },[refresh]);
 
+  const assignedCountyResponses = snapshot?.coverage.prefectures.reduce((sum, prefecture) => sum + (prefecture.eligibleN ?? 0), 0) ?? null;
+
   return <div className={styles.content}>
     <section className={styles.hero}>
       <div className={styles.heroText}>
@@ -62,6 +64,7 @@ export function ResearchResultsPreviewExperience({initial,geography}:{initial:Li
         <div className={styles.paperTitle}>Όλες οι υποβληθείσες ολοκληρωμένες απαντήσεις</div>
         <div style={{fontSize:"3rem",fontWeight:800,marginBlock:"1rem"}}>{snapshot ? snapshot.includedResponses.toLocaleString("el-GR") : "—"}</div>
         <p>Όλες οι ολοκληρωμένες, μη αποσυρμένες απαντήσεις της κύριας έρευνας. {snapshot?.pendingQualityReview!==undefined&&<strong>{snapshot.pendingQualityReview.toLocaleString("el-GR")} εκκρεμούν σε ποιοτικό έλεγχο.</strong>} Οι απορριφθείσες και μη ολοκληρωμένες δεν συγκαταλέγονται.</p>
+        {snapshot&&assignedCountyResponses!==null&&<p role="status"><strong>Γεωγραφικά αντιστοιχισμένες: {assignedCountyResponses.toLocaleString("el-GR")} / {snapshot.includedResponses.toLocaleString("el-GR")}.</strong> {snapshot.includedResponses-assignedCountyResponses>0 ? `${(snapshot.includedResponses-assignedCountyResponses).toLocaleString("el-GR")} απαντήσεις χρειάζονται τεκμηρίωση γεωγραφικής αντιστοίχισης.` : "Όλες οι ολοκληρωμένες απαντήσεις έχουν νομό."}</p>}
         <div className={styles.heroPaperFooter}>
           {snapshot
             ? "Τελευταία ενημέρωση: "+new Date(snapshot.capturedAt).toLocaleString("el-GR",{timeZone:"Europe/Athens",dateStyle:"medium",timeStyle:"medium"})+" (Ελλάδα)"

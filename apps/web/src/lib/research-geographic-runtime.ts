@@ -130,11 +130,12 @@ export async function researchGeographicMap(
   const region = clean(input.region, 50);
   const rows = await pool.query<SqlRow>([
     "WITH base AS (",
-    " SELECT r.id,COALESCE(fu.sampling_attributes->>'prefecture','') AS prefecture, COALESCE(fu.sampling_attributes->>'postcode','') AS postcode",
+    " SELECT r.id,COALESCE(NULLIF(NULLIF(ctx.source_prefecture,'unknown'),'Inadequate Info'),NULLIF(NULLIF(fu.sampling_attributes->>'prefecture','unknown'),'Inadequate Info'),'') AS prefecture, COALESCE(fu.sampling_attributes->>'postcode','') AS postcode",
     " FROM research_responses r",
     " JOIN research_invites i ON i.id=r.invite_id",
     " JOIN research_sample_units su ON su.id=i.sample_unit_id",
     " JOIN research_frame_units fu ON fu.id=su.frame_unit_id",
+    " LEFT JOIN research_response_design_context ctx ON ctx.response_id=r.id",
     " WHERE r.study_id=$1 AND r.instrument_id=$2 AND r.status=$3",
     " AND r.withdrawn_at IS NULL AND i.fieldwork_phase=$4",
     " AND ($5::text='' OR fu.sector_code=$5)",

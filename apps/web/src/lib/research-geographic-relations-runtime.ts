@@ -4,6 +4,7 @@ import { rawResearchAnswerAccess } from "./research-survey-response-admin";
 import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { GREECE_REGIONS } from "./research-geographic-core";
 import { resolveResearchAdministrativeGeography } from "./research-postcode-geography";
+import { researchSectorLabel, RESEARCH_SECTOR_LABELS } from "./research-sector-labels";
 import {
   RESEARCH_RELATIONSHIP_PRESETS, aggregateRelationship, relationshipAnswerCoverage,
   relationshipAnswerCoverageByRegion,
@@ -41,13 +42,7 @@ const obj=(v:unknown):Record<string,unknown>=>v&&typeof v==="object"&&!Array.isA
 const str=(v?:string,limit=100)=>String(v??"").trim().slice(0,limit);
 const pairs=(value:unknown):RelationshipChoice[]=>Array.isArray(value)
  ? value.flatMap(item=>Array.isArray(item)&&item.length>=2?[{key:String(item[0]),label:String(item[1])}]:[]):[];
-export const SECTOR_LABELS: Record<string,string>={
-  fashion_footwear:"Ένδυση / υπόδηση",home_living:"Σπίτι / διακόσμηση",
-  beauty_personal_care:"Ομορφιά / φροντίδα",diy_building:"Εργαλεία / οικοδομικά",
-  other_non_food_retail:"Λοιπό λιανεμπόριο",sports_books_hobby:"Αθλητικά / βιβλία / χόμπι",
-  automotive_trade:"Αυτοκίνητο",electronics:"Ηλεκτρονικά",flowers_pets:"Άνθη / κατοικίδια",
-  jewellery_watches:"Κοσμήματα / ρολόγια",second_hand:"Μεταχειρισμένα"
-};
+export const SECTOR_LABELS = RESEARCH_SECTOR_LABELS;
 export function questionChoices(row:SqlRow):RelationshipChoice[]{
   const cfg=obj(row.config);
   if(row.question_type!=="scale")return pairs(cfg.options);
@@ -142,7 +137,7 @@ export async function researchRelationshipMap(
   })).filter(q=>q.options.length>0);
   const resolved=resolvePair(questions,input);
   const sectorOptions=sr.rows.map(row=>({
-    key:text(row.code),label:SECTOR_LABELS[text(row.code)]??text(row.code)
+    key:text(row.code),label:researchSectorLabel(text(row.code))
   }));
   const sector=sectorOptions.some(x=>x.key===input.sector)?str(input.sector):"";
   const kadOptions=kr.rows.map(row=>({key:text(row.code),label:text(row.code)}));
@@ -162,7 +157,7 @@ export async function researchRelationshipMap(
   // Unknown/none responses are recorded answers, not silently discarded.
   const records=await pool.query<SqlRow>([
     "WITH labeled AS (",
-    " SELECT COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),NULLIF(ctx.source_prefecture,''),'') AS prefecture, COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,",
+    " SELECT COALESCE(NULLIF(NULLIF(ctx.source_prefecture,'unknown'),'Inadequate Info'),NULLIF(NULLIF(fu.sampling_attributes->>'prefecture','unknown'),'Inadequate Info'),'') AS prefecture, COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,",
     "   CASE WHEN jsonb_typeof(a.answer)='array' THEN jsonb_array_length(a.answer)>0",
     "     WHEN jsonb_typeof(a.answer)='string' THEN btrim(a.answer #>> '{}')<>''",
     "     WHEN jsonb_typeof(a.answer) IN ('number','boolean') THEN true",

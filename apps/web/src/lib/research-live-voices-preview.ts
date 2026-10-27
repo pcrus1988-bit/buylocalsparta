@@ -48,8 +48,7 @@ export async function getLiveGreekRetailVoices(principal: SessionPrincipal): Pro
       ORDER BY qr.response_id, qr.created_at DESC, qr.id DESC
     )
     SELECT a.answer #>> '{}' AS answer_text,
-      COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),
-               NULLIF(ctx.source_prefecture,''),'') AS prefecture,
+      COALESCE(NULLIF(NULLIF(ctx.source_prefecture,'unknown'),'Inadequate Info'),NULLIF(NULLIF(fu.sampling_attributes->>'prefecture','unknown'),'Inadequate Info'),'') AS prefecture,
       COALESCE(fu.sampling_attributes->>'postcode','') AS postcode
     FROM research_answers a
     JOIN research_responses r ON r.id=a.response_id

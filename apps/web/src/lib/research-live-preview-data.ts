@@ -60,7 +60,7 @@ export async function getLiveGreekRetailPreview(): Promise<LiveGreekRetailPrevie
       ORDER BY qr.response_id, qr.created_at DESC, qr.id DESC
     )
     SELECT r.id AS response_id,
-      COALESCE(NULLIF(fu.sampling_attributes->>'prefecture',''),ctx.source_prefecture,'') AS prefecture,
+      COALESCE(NULLIF(NULLIF(ctx.source_prefecture,'unknown'),'Inadequate Info'),NULLIF(NULLIF(fu.sampling_attributes->>'prefecture','unknown'),'Inadequate Info'),'') AS prefecture,
       COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,
       COALESCE(fu.sector_code, ctx.sector_code, '') AS sector_code,
       quality.decision AS quality_decision,

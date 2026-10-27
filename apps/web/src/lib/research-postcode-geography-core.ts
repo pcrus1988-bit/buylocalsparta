@@ -47,7 +47,8 @@ export type ResearchAdministrativeGeography = Readonly<{
 export function resolveResearchAdministrativeGeography(
   postcode:unknown,sourcePrefecture:unknown
 ):ResearchAdministrativeGeography {
-  const raw = typeof postcode==="string" ? postcode.replace(/\s+/g,"") : "";
+  // Normalize GEMI postcodes with internal dashes/spaces; never infer from a partial prefix.
+  const raw = typeof postcode==="string" ? postcode.replace(/[^0-9]/g,"") : "";
   const matched = /^\d{5}$/.test(raw) ? POSTCODE_MAP[raw] : undefined;
   if (matched && VALID_REGIONS.has(matched[1])) {
     const prefectureCode=CODES.has(matched[0])?matched[0]:"";

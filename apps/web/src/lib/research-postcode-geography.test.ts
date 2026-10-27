@@ -15,17 +15,25 @@ const publishedSource = readFileSync(new URL("./research-survey-analysis.ts",imp
 const participationSource = readFileSync(new URL("./research-observatory-runtime.ts",import.meta.url),"utf8");
 
 test("postcodes resolve to known geographic boundary keys and 13-region IDs",()=>{
-  assert.equal(Object.keys(lookup).length,1041);
+  assert.equal(Object.keys(lookup).length,1045);
   assert.deepEqual(lookup["11142"],["Athens","ATTICA"]);
   assert.deepEqual(lookup["24100"],["Mesinia","PELOPONNESE"]);
   assert.deepEqual(lookup["71306"],["Heraklio","CRETE"]);
+  assert.deepEqual(lookup["13232"],["Athens","ATTICA"]);
+  assert.deepEqual(lookup["16763"],["Athens","ATTICA"]);
+  assert.deepEqual(lookup["31084"],["Lefkada","IONIAN ISLANDS"]);
+  assert.deepEqual(lookup["80200"],["Peiraias and islands","ATTICA"]);
   assert.ok(Object.values(lookup).every(item=>Array.isArray(item)&&item.length===2));
 });
 test("raw postcodes never pass through browser geography projections",()=>{
   assert.match(guardedSource,/import "server-only"/);
   assert.match(geoSource,/postcodePrefectures/);
+  assert.match(geoSource,/postcode\.replace\(\/\[\^0-9\]\/g,""\)/);
   assert.match(liveSource,/resolveResearchAdministrativeGeography\(row\.postcode,row\.prefecture\)/);
   assert.match(liveSource,/prefectureCode/);
+  assert.match(liveSource,/ctx\.source_prefecture/);
+  assert.match(publishedSource,/ctx\.source_prefecture/);
+  assert.match(voicesSource,/ctx\.source_prefecture/);
   assert.match(voicesSource,/resolveResearchAdministrativeGeography\(row\.postcode,row\.prefecture\)\.prefectureLabel/);
   assert.match(participationSource,/summarizeResearchPostcodeCells/);
   assert.doesNotMatch(voicesSource,/quotes\.push\(\{[^}]*postcode/);
