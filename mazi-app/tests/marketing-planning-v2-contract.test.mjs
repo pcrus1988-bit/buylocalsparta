@@ -12,6 +12,9 @@ test("marketing financial execution is not activated by campaign planning",()=>{
  assert.match(sql,/mazi_marketing_preference_self_insert/);
  assert.match(sql,/member_user_id=\(select auth.uid\(\)\)/);
  assert.match(sql,/identity_verified_at is not null/);
+ const erasure=read("sql/034_marketing_member_preference_erasure.sql");
+ assert.match(erasure,/for delete to authenticated using/);
+ assert.match(erasure,/member_user_id=\(select auth.uid\(\)\)/);
 });
 test("member marketing stores voluntary preferences without enabling paid ads",()=>{
  const a=read("app/dashboard/marketing/actions.ts");
@@ -19,6 +22,7 @@ test("member marketing stores voluntary preferences without enabling paid ads",(
  assert.match(a,/marketing_preferences/);
  assert.match(a,/verified/);
  assert.doesNotMatch(a,/service_role/);
+ assert.match(a,/deleteMarketingPreferences/);
 });
 test("marketing admin operations enforce persisted superadmin and CSRF",()=>{
  const server=read("../apps/web/src/app/admin/mazi/marketing/actions.ts");

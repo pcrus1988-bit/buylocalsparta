@@ -28,3 +28,13 @@ export async function saveMarketingPreferences(form:FormData) {
  revalidatePath("/dashboard/marketing");
  go("saved");
 }
+
+export async function deleteMarketingPreferences(){
+ const db=await createClient();
+ const {data:{user}}=await db.auth.getUser();
+ if(!user)redirect("/join");
+ const {error}=await db.from("mazi_marketing_preferences").delete().eq("member_user_id",user.id);
+ if(error)go("unavailable");
+ revalidatePath("/dashboard/marketing");
+ go("deleted");
+}
