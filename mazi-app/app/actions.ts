@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import {createHmac} from "node:crypto";
 import { createClient } from "../lib/supabase/server";
 import { asText, validEmail, validateProposal } from "../lib/validation";
-import {maziMemberRequest} from "../lib/mazi-api";
+import {maziMemberRequest,maziFundMemberRequest} from "../lib/mazi-api";
 
 const DESTINATION = "https://mazi.kontamou.site/auth/callback";
 function urlMessage(path:string,reason:string): never { redirect(path+"?notice="+encodeURIComponent(reason)); }
@@ -134,4 +134,16 @@ export async function acceptMaziInvitation(form:FormData){
  });
  if(!outcome.ok)urlMessage("/onboarding","invitation_not_eligible");
  redirect("/members?notice=invitation_accepted");
+}
+
+/** One immutable ballot per verified GEMI in a future funded round. */
+export async function castMaziFundBallot(form:FormData){
+ await authenticated();
+ const ids=form.getAll("proposal_id").map(x=>String(x));
+ if(!ids.length||ids.length>20||ids.some(x=>!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(x))
+    ||new Set(ids).size!==ids.length)urlMessage("/fund/vote","invalid_choices");
+ const result=await maziFundMemberRequest("vote",{proposal_ids:ids});
+ if(!result.ok)urlMessage("/fund/vote",
+  ["already_voted","invalid_choices","voting_not_open","ballot_not_eligible"].includes(result.error)?result.error:"service_unavailable");
+ redirect("/fund/vote?notice=voted");
 }
