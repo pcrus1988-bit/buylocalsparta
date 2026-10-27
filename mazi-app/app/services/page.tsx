@@ -5,14 +5,15 @@ import {randomUUID} from "node:crypto";
 import {createClient} from "../../lib/supabase/server";
 import {maziMemberRequest,type MaziState} from "../../lib/mazi-api";
 import {maziServiceRequest,maziPublicServiceCatalogue} from "../../lib/mazi-services-api";
-import {requestService,cancelService} from "./actions";
+import {requestService,cancelService,sendServiceMessage} from "./actions";
 import "../community.css";
 
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"Υπηρεσίες κατ’ απαίτηση · 250 Tokens",robots:{index:false,follow:false}};
 type Service={id:string;title:string;category:string;description:string;deliverable:string;tokens:number;turnaround_business_days:number;revisions_included:number;is_active:boolean};
 type Period={id:string;starts_at:string;ends_at:string;allowance_tokens:number};
-type Request={id:string;service_title_snapshot:string;token_price:number;status:string;created_at:string;period_id:string;brief:string;admin_note:string|null};
+type Request={id:string;service_title_snapshot:string;token_price:number;status:string;created_at:string;period_id:string;brief:string;admin_note:string|null;completed_at:string|null;revisions_included_snapshot:number};
+type ServiceMessage={id:number;request_id:string;author_user_id:string;kind:string;body:string;delivery_url:string|null;created_at:string};
 const statusText:Record<string,string>={requested:"Αναμονή ελέγχου",accepted:"Εγκρίθηκε",in_progress:"Σε εκτέλεση",completed:"Παραδόθηκε",rejected:"Απορρίφθηκε",cancelled:"Ακυρώθηκε"};
 const feedback:Record<string,string>={
  requested:"Το αίτημα καταχωρίστηκε. Τα Tokens δεσμεύτηκαν προσωρινά.",
@@ -23,7 +24,16 @@ const feedback:Record<string,string>={
  member_not_eligible:"Απαιτείται επαληθευμένη συμμετοχή.",
  unknown_service:"Η υπηρεσία δεν προσφέρεται πλέον.",
  request_failed:"Το αίτημα δεν καταχωρίστηκε· δεν έγινε δέσμευση.",
- cancel_failed:"Δεν ήταν δυνατή η ακύρωση. Ίσως το αίτημα έχει ήδη αναληφθεί."
+ cancel_failed:"Δεν ήταν δυνατή η ακύρωση. Ίσως το αίτημα έχει ήδη αναληφθεί.",
+ message_sent:"Το μήνυμα καταχωρίστηκε στην επικοινωνία της υπηρεσίας.",
+ message_failed:"Δεν έγινε καταχώριση μηνύματος· δοκίμασε ξανά.",
+ message_invalid:"Το μήνυμα πρέπει να περιέχει 10–3.000 χαρακτήρες.",
+ revision_sent:"Το αίτημα αναθεώρησης καταχωρίστηκε χωρίς νέα χρέωση Tokens.",
+ revision_window_closed:"Η περίοδος αναθεώρησης έχει λήξει.",
+ revision_limit_reached:"Έχει χρησιμοποιηθεί ο αριθμός διορθώσεων που περιλαμβάνει η υπηρεσία.",
+ already_accepted:"Η παράδοση έχει ήδη αποδεχθεί.",
+ accepted:"Η παραλαβή της υπηρεσίας καταγράφηκε.",
+ invalid_message_state:"Η κατάσταση της υπηρεσίας δεν επιτρέπει αυτήν την ενέργεια."
 };
 const fmt=(d:string)=>new Date(d).toLocaleDateString("el-GR",{day:"2-digit",month:"long",year:"numeric",timeZone:"Europe/Athens"});
 export default async function Services({searchParams}:{searchParams:Promise<{notice?:string}>}){
@@ -36,11 +46,12 @@ export default async function Services({searchParams}:{searchParams:Promise<{not
  const verified=state.application.status==="approved"&&state.member?.status==="verified"&&Boolean(state.member.identity_verified_at);
  const [catalogue,wallet]=await Promise.all([
   maziPublicServiceCatalogue<{services:Service[]}>(),
-  verified?maziServiceRequest<{services:Service[];periods:Period[];requests:Request[]}>("member_wallet"):Promise.resolve(null)
+  verified?maziServiceRequest<{services:Service[];periods:Period[];requests:Request[];messages:ServiceMessage[]}>("member_wallet"):Promise.resolve(null)
  ]);
  const services=wallet?.ok?wallet.services:catalogue.ok?catalogue.services:[];
  const periods=wallet?.ok?wallet.periods:[];
  const requests=wallet?.ok?wallet.requests:[];
+ const messages=wallet?.ok?wallet.messages:[];
  const serviceUnavailable=!catalogue.ok||(verified&&!wallet?.ok);
  const now=Date.now();
  const active=periods.find(p=>Date.parse(p.starts_at)<=now&&Date.parse(p.ends_at)>now);
@@ -95,7 +106,46 @@ export default async function Services({searchParams}:{searchParams:Promise<{not
      <div className="com-meta"><span>{fmt(r.created_at)}</span><strong>{statusText[r.status]||r.status}</strong></div>
      <h3>{r.service_title_snapshot} · {r.token_price} Tokens</h3>
      <p>{r.brief}</p>
-     {r.admin_note?<p><strong>Σημείωση ομάδας:</strong> {r.admin_note}</p>:null}
+     {r.admin_note?<p><strong>Τελευταία σημείωση ομάδας:</strong> {r.admin_note}</p>:null}
+     <div style={{margin:"18px 0",paddingTop:12,borderTop:"1px solid var(--line, #d8ded8)"}}>
+      <span className="com-kicker">ΙΣΤΟΡΙΚΟ ΕΠΙΚΟΙΝΩΝΙΑΣ ΚΑΙ ΠΑΡΑΔΟΣΗΣ</span>
+      <div className="com-list" style={{marginTop:12}}>
+       {messages.filter(m=>m.request_id===r.id).map(m=><div key={m.id} className="com-meta" style={{display:"block",padding:"10px 0"}}>
+        <strong>{m.kind==="delivery"?"Παράδοση":m.kind==="revision_request"?"Αίτημα διόρθωσης":m.kind==="acceptance"?"Αποδοχή παραλαβής":m.kind==="member_message"?"Μήνυμα μέλους":"Απάντηση ομάδας"}</strong>
+        <span style={{marginLeft:8}}>{new Date(m.created_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})}</span>
+        <p style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{m.body}</p>
+        {m.delivery_url?<a href={m.delivery_url} rel="noopener noreferrer" target="_blank">Άνοιγμα παραδοτέου ↗</a>:null}
+       </div>)}
+       {!messages.some(m=>m.request_id===r.id)?<p className="com-empty">Δεν έχουν καταχωριστεί ακόμη μηνύματα ή παραδοτέα.</p>:null}
+      </div>
+     </div>
+     {["requested","accepted","in_progress","completed"].includes(r.status)&&!messages.some(m=>m.request_id===r.id&&m.kind==="acceptance")?
+      <details><summary className="com-minor" style={{cursor:"pointer"}}>Αποστολή μηνύματος προς την ομάδα</summary>
+       <form action={sendServiceMessage} className="com-form">
+        <input type="hidden" name="request_id" value={r.id}/><input type="hidden" name="kind" value="member_message"/>
+        <label>Το μήνυμά σου<textarea name="message" minLength={10} maxLength={3000} rows={3} required/></label>
+        <button className="com-button" type="submit">Αποστολή μηνύματος</button>
+       </form>
+      </details>:null}
+     {r.status==="completed"&&!messages.some(m=>m.request_id===r.id&&m.kind==="acceptance")?
+      <div style={{marginTop:16}}>
+       <span className="com-kicker">ΠΑΡΑΛΑΒΗ ΚΑΙ ΔΙΟΡΘΩΣΕΙΣ</span>
+       <p>Περιλαμβάνονται έως {r.revisions_included_snapshot} διορθώσεις. Για αίτημα αναθεώρησης ισχύουν 10 ημερολογιακές ημέρες μετά την τελευταία παράδοση.</p>
+       <form action={sendServiceMessage} className="com-form">
+        <input type="hidden" name="request_id" value={r.id}/><input type="hidden" name="kind" value="acceptance"/>
+        <input type="hidden" name="message" value="Παρέλαβα και αποδέχομαι το παραδοτέο της υπηρεσίας."/>
+        <button className="com-minor" type="submit">Επιβεβαίωση παραλαβής</button>
+       </form>
+       {r.completed_at&&Date.now()<=Date.parse(r.completed_at)+10*86400000&&
+        messages.filter(m=>m.request_id===r.id&&m.kind==="revision_request").length<r.revisions_included_snapshot?
+        <details style={{marginTop:10}}><summary className="com-minor" style={{cursor:"pointer"}}>Ζητώ περιλαμβανόμενη διόρθωση</summary>
+         <form action={sendServiceMessage} className="com-form">
+          <input type="hidden" name="request_id" value={r.id}/><input type="hidden" name="kind" value="revision_request"/>
+          <label>Ποιες αλλαγές χρειάζεσαι;<textarea name="message" minLength={10} maxLength={3000} rows={4} required/></label>
+          <button className="com-button" type="submit">Υποβολή αναθεώρησης χωρίς νέα Tokens</button>
+         </form>
+        </details>:null}
+      </div>:null}
      {r.status==="requested"?<form action={cancelService}><input type="hidden" name="request_id" value={r.id}/><button className="com-minor">Ακύρωση πριν την ανάληψη</button></form>:null}
     </article>)}
     {!requests.length?<p className="com-empty">Δεν υπάρχουν αιτήματα υπηρεσιών.</p>:null}
