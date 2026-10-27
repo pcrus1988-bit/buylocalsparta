@@ -76,3 +76,16 @@
 .com-inquiry-actions{display:flex;gap:20px;flex-wrap:wrap;align-items:center}
 .com-tabs a[aria-current="page"]{background:#1b4430;color:white;border-color:#1b4430}
 @media(max-width:600px){.com-inbox-overview{grid-template-columns:1fr}.com-inbox-overview>div{padding:12px 17px}.com-inquiry-heading{display:block}}
+
+
+/* Full conversation view: legible private exchanges, compact on mobile. */
+.com-conversation{max-width:1000px}
+.com-conversation .com-top h1{font-size:clamp(32px,4.8vw,58px);overflow-wrap:anywhere}
+.com-conversation-feed{display:flex;flex-direction:column;gap:17px;padding:24px 0}
+.com-conversation-feed .com-chat-line{width:fit-content;max-width:min(85%,710px);min-width:min(100%,240px)}
+.com-conversation-feed .com-meta{gap:15px}
+.com-conversation-feed .com-report form{display:grid;gap:10px}
+.com-conversation-feed .com-report textarea{font:inherit}
+.com-conversation-pagination{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;border-top:1px solid #d8dfd2;padding:22px 0}
+.com-conversation-pagination .com-back{display:inline-block;margin-top:0}
+@media(max-width:600px){.com-conversation-feed .com-chat-line{max-width:100%}.com-conversation-pagination{display:grid}.com-conversation-pagination .com-back{white-space:normal}}

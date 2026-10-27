@@ -78,7 +78,7 @@ export default async function InboxPage({searchParams}:{searchParams:Promise<{no
       </div>
      </div>
      <div className="com-replies">
-      {messages.map(m=><div key={m.id} className="com-reply">
+      {messages.slice(-3).map(m=><div key={m.id} className="com-reply">
        <div className="com-meta"><strong>{m.member_user_id===user.id?"Εσύ":name}</strong>
         <span>{new Date(m.created_at).toLocaleString("el-GR")}</span></div>
        <p>{m.body}</p>
@@ -93,6 +93,7 @@ export default async function InboxPage({searchParams}:{searchParams:Promise<{no
       </div>)}
       {!messages.length?<p>Δεν υπάρχουν πρόσφατα ορατά μηνύματα σε αυτήν τη συνομιλία.</p>:null}
      </div>
+     <p className="com-by">Προεπισκόπηση τελευταίων μηνυμάτων · <Link href={"/inbox/"+thread.id}>Πλήρες ιστορικό και απάντηση ↗</Link></p>
      <div className="com-inquiry-actions">
       {isUnread?<form action={updateInquiryState}>
        <input type="hidden" name="inquiry_id" value={thread.id}/>

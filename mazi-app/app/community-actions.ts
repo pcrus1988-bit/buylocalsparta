@@ -76,10 +76,12 @@ export async function startInquiry(form:FormData){
 export async function replyInquiry(form:FormData){
  await requireLogin();
  const inquiry_id=field(form,"inquiry_id"),body=field(form,"body");
- if(!validId(inquiry_id)||body.length<2||body.length>1500)failure("/inbox");
+ if(!validId(inquiry_id))failure("/inbox");
+ const destination="/inbox/"+inquiry_id;
+ if(body.length<2||body.length>1500)failure(destination);
  const result=await maziMemberRequest("community_reply_inquiry",{inquiry_id,body});
- if(!result.ok)failure("/inbox");
- redirect("/inbox?notice=saved");
+ if(!result.ok)failure(destination);
+ redirect(destination+"?notice=saved");
 }
 
 export async function updateInquiryState(form:FormData){
@@ -87,19 +89,21 @@ export async function updateInquiryState(form:FormData){
  const inquiry_id=field(form,"inquiry_id"),action=field(form,"action");
  if(!validId(inquiry_id)||!["read","close"].includes(action))failure("/inbox");
  const result=await maziMemberRequest("community_inquiry_action",{inquiry_id,action});
- if(!result.ok)failure("/inbox");
- redirect("/inbox?notice="+(action==="read"?"read":"closed")+"#inquiry-"+inquiry_id);
+ if(!result.ok)failure("/inbox/"+inquiry_id);
+ redirect("/inbox/"+inquiry_id+"?notice="+(action==="read"?"read":"closed"));
 }
 
 export async function reportInquiryMessage(form:FormData){
  await requireLogin();
  const resource_id=field(form,"resource_id"),reason=field(form,"reason");
- if(!validId(resource_id)||reason.length<20||reason.length>500)failure("/inbox");
+ const inquiryId=field(form,"inquiry_id");
+ const destination=validId(inquiryId)?"/inbox/"+inquiryId:"/inbox";
+ if(!validId(resource_id)||reason.length<20||reason.length>500)failure(destination);
  const result=await maziMemberRequest("community_report",{
    resource_type:"inquiry",resource_id,reason
  });
- if(!result.ok)failure("/inbox");
- redirect("/inbox?notice=reported");
+ if(!result.ok)failure(destination);
+ redirect(destination+"?notice=reported");
 }
 
 export async function reportMaziCommunity(form:FormData){
