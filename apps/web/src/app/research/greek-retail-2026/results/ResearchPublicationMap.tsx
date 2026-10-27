@@ -28,13 +28,6 @@ function demoValue(key:string,prefecture:string,base:number,isProportion:boolean
  const signed=((hash%2001)/1000)-1;
  return isProportion?Math.max(.015,Math.min(.985,base+signed*.13)):Math.max(0,base+signed*(base>10?17:.8));
 }
-const compactRegion:Record<string,string>={
- "EAST MACEDONIA AND THRACE":"Αν. Μακ. & Θράκη","CENTRAL MACEDONIA":"Κ. Μακεδονία",
- "THESSALY":"Θεσσαλία","NORTH AEGEAN":"Β. Αιγαίο","SOUTH AEGEAN":"Ν. Αιγαίο",
- "CENTRAL GREECE":"Στερεά","WESTERN GREECE":"Δ. Ελλάδα","PELOPONNESE":"Πελοπόννησος",
- "ATTICA":"Αττική","WEST MACEDONIA":"Δ. Μακεδονία","EPIRUS":"Ήπειρος",
- "IONIAN ISLANDS":"Ιόνια","CRETE":"Κρήτη"
-};
 /** Anchor labels inside the largest polygon, not a bbox covering outlying islands. */
 function featureAnchor(geometry:Feature["geometry"]):{x:number;y:number}{
  const rings=geometry.type==="Polygon"?(geometry.coordinates as number[][][]): 
@@ -54,25 +47,7 @@ function featureAnchor(geometry:Feature["geometry"]):{x:number;y:number}{
 function area(ring:number[][]){let total=0;for(let i=0;i<ring.length;i++){const a=ring[i]!,b=ring[(i+1)%ring.length]!;total+=a[0]!*b[1]!-b[0]!*a[1]!;}return Math.abs(total);}
 
 type Palette=Readonly<{from:readonly number[];to:readonly number[];label:string}>;
-const PALETTES:Readonly<Record<string,Palette>>={
- economy:{from:[252,234,211],to:[161,64,43],label:"Οικονομία"},
- digital:{from:[219,235,248],to:[26,98,161],label:"Ψηφιακές δυνατότητες"},
- customers:{from:[219,239,220],to:[18,111,67],label:"Πελάτες"},
- operations:{from:[240,230,248],to:[102,65,148],label:"Λειτουργία"},
- investment:{from:[250,237,209],to:[155,103,21],label:"Επενδύσεις"},
- indices:{from:[220,236,235],to:[6,103,119],label:"Δείκτες"},
- participation:{from:[223,235,246],to:[23,95,159],label:"Κάλυψη συμμετοχής"}
-};
-const paletteFor=(id:string):Palette=>{
- if(id==="participation")return PALETTES.participation!;
- if(["Q03","Q04","Q05","Q06","Q24"].includes(id))return PALETTES.digital!;
- if(["Q07","Q08"].includes(id))return PALETTES.operations!;
- if(["Q16","Q17","Q19","Q20"].includes(id))return PALETTES.investment!;
- if(["Q21","Q27"].includes(id))return PALETTES.economy!;
- if(id==="indices")return PALETTES.indices!;
- return PALETTES.customers!;
-};
-const rgb=(channels:readonly number[])=>"rgb("+channels.join(",")+")";
+const HEAT_PALETTE:Palette={from:[255,231,113],to:[198,35,39],label:"Κίτρινο έως κόκκινο"};
 function heat(value:number|undefined,domain:{minimum:number;maximum:number},palette:Palette){
  if(value===undefined)return "#e4e8e1";
  const strength=mapColorStrength(value,domain);
@@ -95,7 +70,6 @@ export function ResearchPublicationMap({
  const [answerKey,setAnswerKey]=useState("customer_acquisition_sources.share.word_of_mouth");
  const [selected,setSelected]=useState("");
  const [sort,setSort]=useState("high");
- const [showLabels,setShowLabels]=useState(true);
  const [sector,setSector]=useState("");
  const [zoom,setZoom]=useState(1);
  const [search,setSearch]=useState("");
@@ -165,7 +139,7 @@ export function ResearchPublicationMap({
  const domain=hasMetric?
    mapLegendDomain(selectedKey,isProportion?"proportion":"mean",available.map(x=>x.value!)):
    {minimum:0,maximum:Math.max(1,...available.map(x=>x.value??0)),unit:"ενάρξεις"};
- const palette=paletteFor(hasMetric?question.id:"participation");
+ const palette=HEAT_PALETTE;
  const coverage=available.length;
  const legendValue=(value:number)=>isProportion?fmt(value*100)+"%":
    hasMetric?fmt(value)+(domain.unit?" "+domain.unit:""):Math.round(value).toLocaleString("el-GR");
@@ -255,26 +229,8 @@ export function ResearchPublicationMap({
     {hasMetric&&nationalPoint?.ciLower!==null&&nationalPoint?.ciLower!==undefined&&
      nationalPoint.ciUpper!==null&&nationalPoint.ciUpper!==undefined&&
      <small>95% ΔΕ: {legendValue(nationalPoint.ciLower)} – {legendValue(nationalPoint.ciUpper)}</small>}
-   </div>
-   <div className={styles.nationalDetails}>
-    <span className={styles.nationalTag}>ΑΠΑΝΤΗΣΕΙΣ ΑΝΑ ΝΟΜΟ</span>
-    <strong>{internalCoverage?anyQA:regionalCoverage} / 55 νομοί με {internalCoverage?"ολοκληρωμένες απαντήσεις":"διαθέσιμη τιμή"}</strong>
-    <p>{hasMetric?"Κάθε ποσοστό βασίζεται στις ολοκληρωμένες απαντήσεις του αντίστοιχου νομού. Τα ποσοστά των νομών δεν αθροίζονται σε 100%.":"Οι νομοί με λίγες ολοκληρωμένες απαντήσεις εμφανίζονται ως γεωγραφική κάλυψη χωρίς δημοσίευση μικρών κελιών. Η συνολική βάση περιλαμβάνει όλες τις ολοκληρωμένες απαντήσεις."}</p>
-    {hasMetric&&nationalValue!==undefined&&<p>{internalCoverage?"Οι συγκρίσεις είναι περιγραφικές και μη σταθμισμένες· δεν αποτελούν στατιστικά τεστ.":"Η σύγκριση γίνεται με την ξεχωριστά σταθμισμένη εθνική εκτίμηση. Δεν αποτελεί από μόνη της έλεγχο στατιστικής σημαντικότητας."}</p>}
-    <div className={styles.allRegionsGrid}>
-     {prefectureValues.map(cell=><div key={cell.key} className={styles.allRegionsRow}>
-      <span>{cell.label}</span><strong>{showGeoValue(cell)}</strong>
-      {cell.value!==undefined&&hasMetric&&<small>n={cell.n??"—"} · Δ Ελλάδα {formatDiff(nationalDiff(cell.value))}</small>}
-      {cell.value!==undefined&&!hasMetric&&<small>{Math.round(cell.value).toLocaleString("el-GR")} {internalCoverage?"QA απαντήσεις":"ενάρξεις"}</small>}
-     </div>)}
-    </div>
-   </div>
-  </section>
-  {isDemo&&<div className={styles.demoStrip}>ΔΕΙΓΜΑ ΠΡΟΕΠΙΣΚΟΠΗΣΗΣ — Δεν απεικονίζονται πραγματικές συμμετοχές ή αποτελέσματα.</div>}
-  <div className={styles.mapLayout}>
    <div className={styles.mapCanvas}>
     <div className={styles.mapToolbar}><strong>{hasMetric?"Περιφερειακή εικόνα · "+question.id:"Κατανομή ολοκληρωμένων απαντήσεων"}</strong>
-     <label className={styles.mapLabelToggle}><input type="checkbox" checked={showLabels} onChange={e=>setShowLabels(e.target.checked)}/> Τιμές πάνω στον χάρτη</label>
      <div className={styles.mapZoom}>
       <button type="button" aria-label="Σμίκρυνση" disabled={zoom<=1} onClick={()=>setZoom(z=>Math.max(1,z/1.4))}>−</button>
       <button type="button" aria-label="Μεγέθυνση" disabled={zoom>=3.5} onClick={()=>setZoom(z=>Math.min(3.5,z*1.4))}>+</button>
@@ -291,11 +247,9 @@ export function ResearchPublicationMap({
       </defs>
       {geo.features.map(feature=>{
        const region=currentValues.find(x=>x.key===feature.properties.name);
-       const status=coverageByKey.get(feature.properties.name);
-       const fill=region&&region.value!==undefined?heat(region.value,domain,palette):
-        status?.band==="under10"?"#eadbb6":status&&status.band!=="none"?"#d1dfd1":"#e4e8e1";
+       const fill=region&&region.value!==undefined?heat(region.value,domain,palette):"#dfe3dc";
        return <path key={feature.properties.name} d={polygonPath(feature.geometry)}
-        fill={density?"#eaf0e5":fill} stroke="#8ca99a" strokeWidth={1.1/zoom}
+        fill={density?"#dfe3dc":fill} stroke="#f8efcf" strokeWidth={1.2/zoom}
         opacity={selected&&selected!==feature.properties.name?.95:1}
         fillRule="evenodd" className={styles.mapRegion}
         onClick={()=>setSelected(s=>s===feature.properties.name?"":feature.properties.name)}>
@@ -304,29 +258,24 @@ export function ResearchPublicationMap({
       })}
       {density&&<image href={density} x="0" y="0" width="810" height="650" preserveAspectRatio="none"
         clipPath="url(#results-greece-land)" pointerEvents="none"/>}
-      {showLabels&&geo.features.map(feature=>{
+      {geo.features.map(feature=>{
        const cell=currentValues.find(r=>r.key===feature.properties.name);
        if(!cell||cell.value===undefined||cell.n===undefined)return null;
        const anchor=featureAnchor(feature.geometry);
+       const valueLabel=!hasMetric?showGeoValue(cell):legendValue(cell.value);
+       const labelWidth=Math.max(42,Math.min(104,valueLabel.length*6.7+16));
        return <g key={"label:"+feature.properties.name} transform={"translate("+anchor.x+" "+anchor.y+")"}
          className={styles.mapValueOverlay} pointerEvents="none" aria-hidden="true">
-        <rect x={granularity==="prefecture"?-33:-48} y={granularity==="prefecture"?-15:-19} width={granularity==="prefecture"?66:96} height={granularity==="prefecture"?30:38} rx="8" fill="#fffdf6" fillOpacity=".95" stroke="#9cb7a0" strokeWidth=".8"/>
-        <text textAnchor="middle" y={granularity==="prefecture"?-4:-6} fontSize={granularity==="prefecture"?7:9} fontWeight="700" fill="#315d43">{granularity==="prefecture"?cell.label.slice(0,11):compactRegion[cell.key]??cell.label}</text>
-        <text textAnchor="middle" y={granularity==="prefecture"?8:9} fontSize={granularity==="prefecture"?11:14} fontWeight="900" fill="#164f32">{!hasMetric?showGeoValue(cell):legendValue(cell.value)}</text>
-        <title>{cell.label}: {legendValue(cell.value)} · n={cell.n}</title>
+        <rect x={-labelWidth/2} y={-12} width={labelWidth} height={24} rx="7" fill="#fffdf2" fillOpacity=".96" stroke="#7b5b35" strokeWidth=".6"/>
+        <text textAnchor="middle" y="4" fontSize={11} fontWeight="800" fill="#4b281e">{valueLabel}</text>
        </g>;
       })}
      </svg>}
-    {internalCoverage&&<p role="note" style={{fontSize:12,color:"#385a41",lineHeight:1.7,margin:"14px 0"}}>
+    {internalCoverage&&<p role="note" className={styles.mapPrivacyNote}>
       <strong>{anyQA} / {55}</strong> νομοί έχουν ολοκληρωμένες απαντήσεις.
-      Η μπεζ σκίαση δείχνει n&lt;10, χωρίς δημοσίευση ακριβούς αριθμού ή αποτελέσματος.
+      Οι ουδέτεροι γκρίζοι νομοί δεν έχουν δημοσιεύσιμη τιμή. Για n&lt;10 δεν εμφανίζεται ακριβής αριθμός ή αποτέλεσμα.
       Τα αποτελέσματα n=10–29 είναι προκαταρκτικά, μη σταθμισμένα και μόνο για εσωτερική χρήση.
     </p>}
-    <div className={styles.legend}><span>{legendValue(domain.minimum)}</span>
-     <span className={styles.colorRamp}
-       style={{background:"linear-gradient(90deg,"+rgb(palette.from)+","+rgb(palette.to)+")"}}/>
-     <span>{legendValue(domain.maximum)}</span><span className={styles.legendNoData}>■ χωρίς δημοσιεύσιμα δεδομένα</span>
-    </div>
     {focused&&<div className={styles.regionFocus}><strong>{focused.label}</strong>
      <span>{showGeoValue(focused)}
        {!hasMetric&&focused.value!==undefined?" · "+Math.round(focused.value).toLocaleString("el-GR")+(internalCoverage?" QA απαντήσεις":" ενάρξεις"):""}
@@ -334,6 +283,24 @@ export function ResearchPublicationMap({
        {hasMetric&&nationalDiff(focused.value)!==undefined?" · Δ έναντι Ελλάδας "+formatDiff(nationalDiff(focused.value)):""}
       </span></div>}
    </div>
+   </div>
+   <div className={styles.nationalDetails}>
+    <span className={styles.nationalTag}>ΑΠΑΝΤΗΣΕΙΣ ΑΝΑ ΝΟΜΟ</span>
+    <strong>{internalCoverage?anyQA:regionalCoverage} / 55 νομοί με {internalCoverage?"ολοκληρωμένες απαντήσεις":"διαθέσιμη τιμή"}</strong>
+    <p>{hasMetric?"Κάθε ποσοστό βασίζεται στις ολοκληρωμένες απαντήσεις του αντίστοιχου νομού. Τα ποσοστά των νομών δεν αθροίζονται σε 100%.":"Οι νομοί με λίγες ολοκληρωμένες απαντήσεις εμφανίζονται ως γεωγραφική κάλυψη χωρίς δημοσίευση μικρών κελιών. Η συνολική βάση περιλαμβάνει όλες τις ολοκληρωμένες απαντήσεις."}</p>
+    {hasMetric&&nationalValue!==undefined&&<p>{internalCoverage?"Οι συγκρίσεις είναι περιγραφικές και μη σταθμισμένες· δεν αποτελούν στατιστικά τεστ.":"Η σύγκριση γίνεται με την ξεχωριστά σταθμισμένη εθνική εκτίμηση. Δεν αποτελεί από μόνη της έλεγχο στατιστικής σημαντικότητας."}</p>}
+    <div className={styles.allRegionsGrid}>
+     {prefectureValues.map(cell=><div key={cell.key} className={styles.allRegionsRow}>
+      <span>{cell.label}</span><strong>{showGeoValue(cell)}</strong>
+      {cell.value!==undefined&&hasMetric&&<small>n={cell.n??"—"} · Δ Ελλάδα {formatDiff(nationalDiff(cell.value))}</small>}
+      {cell.value!==undefined&&!hasMetric&&<small>{Math.round(cell.value).toLocaleString("el-GR")} {internalCoverage?"QA απαντήσεις":"ενάρξεις"}</small>}
+     </div>)}
+    </div>
+   </div>
+  </section>
+  {isDemo&&<div className={styles.demoStrip}>ΔΕΙΓΜΑ ΠΡΟΕΠΙΣΚΟΠΗΣΗΣ — Δεν απεικονίζονται πραγματικές συμμετοχές ή αποτελέσματα.</div>}
+  <details className={styles.mapCountyDirectory}>
+   <summary>Αναλυτικός πίνακας νομών · αναζήτηση και σύγκριση</summary>
    <div className={styles.mapSide}>
     <label>Αναζήτηση νομού<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="π.χ. Λακωνία"/></label>
     <div className={styles.regionList}>
@@ -349,7 +316,7 @@ export function ResearchPublicationMap({
      </button>)}
     </div>
    </div>
-  </div>
+  </details>
   {hasMetric&&<p className={styles.note}>Το «Σύνολο Ελλάδας» προκύπτει από όλες τις σχετικές ολοκληρωμένες απαντήσεις (στην εσωτερική προεπισκόπηση), ποτέ από άθροισμα ποσοστών νομών. Στη δημόσια έκδοση απαιτείται ανεξάρτητη εγκεκριμένη ανάλυση.</p>}
   {hasMetric?<p className={styles.note}>
    Η επιλογή διαφορετικής ερώτησης ή απάντησης επαναχρωματίζει τον χάρτη, ενημερώνει
