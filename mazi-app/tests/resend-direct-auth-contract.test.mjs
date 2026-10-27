@@ -33,6 +33,10 @@ test("passwordless flow never creates or authorizes unapproved accounts and cann
 
 test("Resend email points directly at safe production callback, bypassing localhost",()=>{
  assert.ok(delivery.includes('FIXED_MAZI_CALLBACK="https://mazi.kontamou.site/auth/callback"'));
+ assert.ok(delivery.includes('"hashed_token" in raw'));
+ assert.ok(delivery.includes('const token=topLevel??property?.hashed_token'));
+ assert.ok(invitation.includes('"hashed_token" in payload'));
+ assert.ok(invitation.includes('const hash=topLevel??detail?.hashed_token'));
  assert.ok(delivery.includes('loginUrl.searchParams.set("token_hash",token)'));
  assert.ok(delivery.includes('loginUrl.searchParams.set("type","magiclink")'));
  assert.ok(delivery.includes("https://api.resend.com/emails"));
@@ -41,4 +45,15 @@ test("Resend email points directly at safe production callback, bypassing localh
  assert.ok(callback.includes('db.auth.verifyOtp({ token_hash: hash, type })'));
  assert.ok(invitation.includes('type=existing?"magiclink":"invite"'));
  assert.ok(invitation.includes("resend_invite_new"));
+});
+
+
+test("failed provider stages are auditable without exposing account or token data",()=>{
+ assert.ok(delivery.includes('let deliveryStage:"auth_generate"|"auth_payload"|"resend_send"'));
+ assert.ok(delivery.includes('upstreamStatus=auth.status'));
+ assert.ok(delivery.includes('upstreamStatus=delivery.status'));
+ assert.ok(delivery.includes('stage:deliveryStage,http_status:upstreamStatus||null'));
+ assert.ok(!delivery.includes('console.warn(email'));
+ assert.ok(!delivery.includes('console.warn(token'));
+ assert.ok(!delivery.includes('console.warn(raw'));
 });

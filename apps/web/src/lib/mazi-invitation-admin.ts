@@ -88,7 +88,12 @@ async function sendVerifiedAuthInvitation(email:string):Promise<InviteProviderMe
  const payload:unknown=await generate.json();
  const detail=payload&&typeof payload==="object"&&"properties" in payload
   ?(payload as {properties?:{hashed_token?:unknown}}).properties:null;
- const hash=detail?.hashed_token;
+ // GoTrue /admin/generate_link returns hashed_token at the REST root.
+ // Keep the SDK properties shape as compatibility, but never parse action_link
+ // (which may point to an incorrect hosted Supabase SITE_URL).
+ const topLevel=payload&&typeof payload==="object"&&"hashed_token" in payload
+  ?(payload as {hashed_token?:unknown}).hashed_token:null;
+ const hash=topLevel??detail?.hashed_token;
  if(typeof hash!=="string"||!/^[a-zA-Z0-9_-]{20,256}$/.test(hash))
   throw Error("MAZI_AUTH_TOKEN_HASH_UNAVAILABLE");
  const callback=new URL(CALLBACK);
