@@ -5,7 +5,8 @@ import {isMaziSuperAdmin} from "../../../../lib/mazi-superadmin";
 import {maziOperationsSnapshot,maziLaunchGateStates,maziLaunchGateHistory,
  type MaziOperationsSnapshot,type MaziLaunchGateKey,type MaziLaunchGateReview
 } from "../../../../lib/mazi-operations";
-import {reviewMaziLaunchGateAction} from "./actions";
+import {reviewMaziLaunchGateAction,probeMaziAuthDeliveryAction} from "./actions";
+import {getMaziAuthEmailProbes,getMaziAuthProbeTargets,type MaziAuthProbeRow} from "../../../../lib/mazi-auth-probe";
 import {requiredMaziChecks} from "../../../../lib/mazi-release-checklist";
 import {maziRetentionInventory,proposedMaziRetention,type MaziRetentionInventory} from "../../../../lib/mazi-retention-readiness";
 import {assessMaziReleaseReadiness} from "../../../../lib/mazi-readiness";
@@ -104,6 +105,11 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
  let gates:MaziLaunchGateReview[]=[];
  let gateHistory:MaziLaunchGateReview[]=[];
  let retention:MaziRetentionInventory|null=null;
+ let probes:MaziAuthProbeRow[]=[];
+ let probeTargets:Array<{id:string;legal_name:string}>=[];
+ try{[probes,probeTargets]=await Promise.all([
+  getMaziAuthEmailProbes(principal),getMaziAuthProbeTargets(principal)
+ ]);}catch{}
  try{retention=await maziRetentionInventory(principal);}catch{}
  try{[state,gates,gateHistory]=await Promise.all([
   maziOperationsSnapshot(principal),maziLaunchGateStates(principal),
@@ -142,6 +148,13 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
   </header>
   {notice==="gate_recorded"?<p className={s.notice} role="status">Η χειροκίνητη επαλήθευση καταχωρίστηκε στο αμετάβλητο ιστορικό. Δεν ενεργοποιήθηκε υπηρεσία ή πληρωμή.</p>:null}
   {notice==="gate_not_saved"?<p className={s.notice} role="alert">Δεν καταχωρίστηκε απόφαση. Ελέγξτε τα αποδεικτικά, την επιβεβαίωση και τον ενεργό Super Admin ρόλο.</p>:null}
+  {notice==="probe_provider_accepted"?<p className={s.notice} role="status">Το Supabase Auth αποδέχθηκε το δοκιμαστικό αίτημα σύνδεσης. Αυτό δεν αποδεικνύει παραλαβή email. Έλεγξε το inbox και το dashboard του Resend πριν επιβεβαιώσεις την αποστολή.</p>:null}
+  {notice==="probe_provider_failed"?<p className={s.notice} role="alert">Ο δοκιμαστικός έλεγχος απέτυχε στον πάροχο ή στο δίκτυο. Δες τον κωδικό στο ιδιωτικό ιστορικό παρακάτω. Η πύλη Auth παραμένει κλειστή.</p>:null}
+  {notice==="probe_cooldown"?<p className={s.notice} role="alert">Έχει ήδη γίνει δοκιμή εντός 15 λεπτών για αυτή την επιχείρηση. Δεν στάλθηκε δεύτερο αίτημα.</p>:null}
+  {notice==="probe_recipient_unverified"?<p className={s.notice} role="alert">Δεν βρέθηκε ήδη επαληθευμένος χρήστης Auth συνδεδεμένος με την εγκεκριμένη αίτηση. Δεν δημιουργήθηκε λογαριασμός.</p>:null}
+  {notice==="probe_configuration_missing"?<p className={s.notice} role="alert">Το server-only project Supabase Auth δεν ταυτίζεται με το επιτρεπόμενο έργο ΜΑΖΙ ή λείπει το διαπιστευτήριο.</p>:null}
+  {notice==="probe_not_authorized"?<p className={s.notice} role="alert">Απαιτείται επιβεβαίωση ότι ο παραλήπτης συναινεί στην πραγματική δοκιμή email.</p>:null}
+  {notice==="probe_system_error"?<p className={s.notice} role="alert">Η ασφαλής δοκιμή δεν ολοκληρώθηκε. Δεν έγινε καμία αλλαγή σε πρόσκληση ή μέλος.</p>:null}
 
   <section className={s.section} aria-label="Εκτίμηση ετοιμότητας έναρξης" style={{marginTop:32}}>
    <div className={s.sectionTop}>
@@ -262,6 +275,34 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
     <ExternalGate gateKey="auth_email_delivery" review={latestGate("auth_email_delivery")} csrf={principal.csrfToken}
      title="Supabase Auth email, SMTP και redirect"
      description="Ελέγξτε τον πραγματικό χρόνο λήξης OTP, τις δύο φόρμες email, παράδοση SMTP και το callback allowlist στο ίδιο Supabase project."/>
+    <article className={s.card} style={{display:"block"}}>
+     <span className={s.tag}>ΖΩΝΤΑΝΗ ΔΟΚΙΜΗ · ΜΟΝΟ SUPER ADMIN</span>
+     <h3>Δοκιμαστική αποστολή μέσω Supabase Auth</h3>
+     <p className={s.body}>Αυτή η δοκιμή ζητά πραγματικό email σύνδεσης μόνο για υπάρχοντα και επιβεβαιωμένο λογαριασμό Auth, συνδεδεμένο με εγκεκριμένη επιχείρηση. Δεν δημιουργεί χρήστη, δεν εκδίδει πρόσκληση, δεν ενεργοποιεί συμμετοχή και δεν εγκρίνει τον έλεγχο Auth αυτόματα.</p>
+     {probeTargets.length?<form action={probeMaziAuthDeliveryAction} className={s.action} style={{display:"grid",gap:12,maxWidth:530}}>
+      <input type="hidden" name="csrf" value={principal.csrfToken}/>
+      <label style={{display:"grid",gap:6}}>Υπάρχων λογαριασμός για ελεγχόμενη δοκιμή
+       <select name="interest_id" required style={{font:"inherit",padding:12,width:"100%"}}>
+        {probeTargets.map(p=><option key={p.id} value={p.id}>{p.legal_name}</option>)}
+       </select>
+      </label>
+      <label style={{display:"flex",gap:9,alignItems:"start"}}>
+       <input name="recipient_has_consented" type="checkbox" required/>
+       <span>Βεβαιώνω ότι ο παραλήπτης έχει συμφωνήσει να λάβει ένα πραγματικό δοκιμαστικό email σύνδεσης. Δεν θα δημιουργηθεί νέο μέλος.</span>
+      </label>
+      <button className={s.primary} type="submit">Αποστολή ενός δοκιμαστικού Auth email ↗</button>
+     </form>:<p className={s.meta}>Δεν υπάρχει διαθέσιμος ήδη επιβεβαιωμένος Auth χρήστης που να συνδέεται με εγκεκριμένη αίτηση.</p>}
+     <p className={s.meta} style={{marginTop:14}}>Δοκιμές: καταγράφονται ιδιωτικά μόνο κατάσταση, HTTP status και ασφαλής κωδικός παρόχου. Ούτε emails ούτε σύνδεσμοι/OTP καταχωρίζονται στο ιστορικό.</p>
+     {probes.length?<div style={{display:"grid",gap:8,marginTop:12}}>{probes.map(p=>
+      <div key={p.id} style={{borderTop:"1px solid #ccd8cb",paddingTop:8,fontSize:13}}>
+       <strong>{new Date(p.requested_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})}</strong>
+       {" · "}{p.status==="provider_accepted"?"Αποδοχή από Auth (όχι επιβεβαιωμένη παράδοση)":
+       p.status==="provider_rejected"?"Απόρριψη από Auth":
+       p.status==="network_failed"?"Αποτυχία δικτύου":"Εκκρεμεί"}
+       {p.provider_http_status?" · HTTP "+p.provider_http_status:""}
+       {p.provider_error_code?" · Κωδικός: "+p.provider_error_code:""}
+      </div>)}</div>:<p className={s.meta}>Δεν υπάρχει προηγούμενη δοκιμαστική αποστολή.</p>}
+    </article>
     <ExternalGate gateKey="legal_and_retention" review={latestGate("legal_and_retention")} csrf={principal.csrfToken}
      title="Νομικός έλεγχος και διατήρηση δεδομένων"
      description="Καταγράψτε τον πραγματικό νομικό έλεγχο, τις εκδόσεις όρων/ενημέρωσης και τον δημοσιευμένο χρόνο διατήρησης. Οι οικονομικοί όροι παραμένουν ανεξάρτητοι."/>
