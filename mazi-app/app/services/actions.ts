@@ -52,3 +52,21 @@ export async function transitionService(form:FormData){
  const outcome=await maziServiceRequest("admin_transition",{request_id:id,status,note});
  redirect("/admin/services?notice="+(outcome.ok?"updated":"transition_failed"));
 }
+export async function sendServiceMessage(form:FormData){
+ await current();
+ const id=String(form.get("request_id")||"").trim();
+ const kind=String(form.get("kind")||"").trim();
+ const message=String(form.get("message")||"").trim();
+ const deliveryUrl=String(form.get("delivery_url")||"").trim();
+ const isAdmin=["admin_message","delivery"].includes(kind);
+ const back=isAdmin?"/admin/services":"/services";
+ const jump=(notice:string):never=>redirect(back+"?notice="+encodeURIComponent(notice));
+ if(!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id)||
+    !["member_message","admin_message","delivery","revision_request","acceptance"].includes(kind)||
+    message.length<10||message.length>3000||deliveryUrl.length>1200)jump("message_invalid");
+ const outcome=await maziServiceRequest("service_message",{
+  request_id:id,kind,message,delivery_url:deliveryUrl
+ });
+ if(!outcome.ok)jump(["revision_window_closed","revision_limit_reached","already_accepted","invalid_message_state","invalid_delivery_url","delivery_summary_required"].includes(outcome.error)?outcome.error:"message_failed");
+ jump(kind==="delivery"?"delivered":kind==="revision_request"?"revision_sent":kind==="acceptance"?"accepted":"message_sent");
+}
