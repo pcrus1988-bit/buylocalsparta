@@ -21,8 +21,9 @@ create unique index if not exists mazi_one_proposal_per_legal_business_cycle
 create or replace function mazi_private.validate_project_minimum_and_identity()
 returns trigger language plpgsql security definer set search_path=pg_catalog
 as $$
-declare c record;
-declare m record;
+declare
+ c record;
+ m record;
 begin
  if tg_op<>'INSERT' then raise exception 'MAZI_GRANT_APPLICATION_IMMUTABLE_IDENTITY'; end if;
  select kind,status,starts_at,ends_at,finance_activated,funding_budget_cents
