@@ -92,3 +92,21 @@ export async function getMaziAuthEmailProbes(principal:SessionPrincipal):Promise
  `);
  return result.rows;
 }
+
+export async function getMaziAuthProbeTargets(
+ principal:SessionPrincipal
+):Promise<Array<{id:string;legal_name:string}>>{
+ await marketplaceMaziActor(principal);
+ const result=await getAdminPostgresRuntime().nativePool.query<{id:string;legal_name:string}>(`
+  SELECT a.id::text,coalesce(a.registry_legal_name,'Επαληθευμένη επιχείρηση') AS legal_name
+  FROM public.mazi_interest_applications a
+  JOIN auth.users u ON lower(u.email)=lower(a.contact_email)
+    AND u.email_confirmed_at IS NOT NULL
+  WHERE a.status='approved_pending_invite'
+    AND a.representation_verified_at IS NOT NULL
+    AND a.business_contact_verified_at IS NOT NULL
+    AND a.company_active_verified_at IS NOT NULL
+  ORDER BY a.submitted_at DESC LIMIT 10
+ `);
+ return result.rows;
+}
