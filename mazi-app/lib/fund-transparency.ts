@@ -59,7 +59,7 @@ export function parsePublicFundReport(v:unknown):PublicFundReport|null{
   if(!object(row)||!validMonth(row.month)||!count(row.receipts_cents)
    ||!count(row.expenses_cents)||!count(row.allocations_cents))return null;
  }
- return v as PublicFundReport;
+ return v as unknown as PublicFundReport;
 }
 export const euroCents=(cents:number)=>new Intl.NumberFormat("el-GR",{
  style:"currency",currency:"EUR",minimumFractionDigits:2,maximumFractionDigits:2
