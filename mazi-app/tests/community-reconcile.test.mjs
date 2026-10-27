@@ -25,7 +25,7 @@ test("private inquiries are only readable by participants using member JWT",()=>
  for(const op of ["community_inbox","community_start_inquiry","community_reply_inquiry"]){
   assert.ok(edge.includes('operation==="'+op+'"'),'missing private '+op);
  }
- assert.match(edge,/\["community_inbox","community_start_inquiry","community_reply_inquiry","community_inquiry_action"\]\.includes\(operation\)/);
+ assert.match(edge,/\["community_inbox","community_inquiry_thread","community_start_inquiry","community_reply_inquiry","community_inquiry_action"\]\.includes\(operation\)/);
  assert.match(edge,/sender_user_id\.eq\.\$\{user\.id\},recipient_user_id\.eq\.\$\{user\.id\}/);
  assert.match(edge,/inquiry\.sender_user_id!==user\.id&&inquiry\.recipient_user_id!==user\.id/);
  assert.match(edge,/table==="mazi_listing_inquiries"\?"sender_user_id":"member_user_id"/);
