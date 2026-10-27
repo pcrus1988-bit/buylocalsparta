@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type {MaziListing} from "../../lib/mazi-community";
 import {goodsCategories,goodsConditions,goodsUnits,goodsFulfillment,goodsPriceTypes,goodsVatBasis} from "../../lib/mazi-community";
 import s from "../community.module.css";
@@ -43,6 +44,8 @@ export function GoodsFields({item}:{item?:MaziListing}){
     {Object.entries(goodsVatBasis).map(([value,label])=><option key={value} value={value}>{label}</option>)}
    </select></label>
   </div>
+  <p className={s.hint}>Διάβασε τους <Link href="/marketplace/rules">κανόνες της αγοράς φυσικών ειδών</Link> (mazi-goods-v1)
+   πριν από τη δημοσίευση. Η αποδοχή καταγράφεται με χρονοσήμανση.</p>
   <label className={s.goodsConsent}><input type="checkbox" name="goods_policy_accepted" required/>
    <span>Δηλώνω ότι πρόκειται αποκλειστικά για νόμιμα φυσικά αγαθά που δικαιούμαι να διαθέσω
     ή να ζητήσω, ότι τα στοιχεία είναι αληθή, και ότι δεν αναρτώ απαγορευμένα,
