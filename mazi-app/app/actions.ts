@@ -151,7 +151,7 @@ export async function castMaziFundBallot(form:FormData){
 /** Exact integer-cent parsing protects project budgets from floats. */
 function euroAmountCents(value:FormDataEntryValue|null):number|null{
  const raw=asText(value).replace(",",".");
- if(!/^\\d{1,6}(\\.\\d{1,2})?$/.test(raw))return null;
+ if(!/^\d{1,6}(\.\d{1,2})?$/.test(raw))return null;
  const [euros,decimals=""]=raw.split(".");
  const cents=Number(euros)*100+Number(decimals.padEnd(2,"0"));
  return Number.isSafeInteger(cents)?cents:null;
