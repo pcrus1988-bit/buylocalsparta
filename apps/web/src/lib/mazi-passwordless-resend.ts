@@ -94,7 +94,11 @@ export async function sendMaziExistingAccountResendLogin(rawEmail:string):Promis
   const raw:unknown=await auth.json();
   const property=raw&&typeof raw==="object"&&"properties" in raw
    ?(raw as {properties?:{hashed_token?:unknown}}).properties:null;
-  const token=property?.hashed_token;
+  // Direct GoTrue REST returns hashed_token at the response root. The SDK
+  // wraps it under data.properties; support both without exposing the token.
+  const topLevel=raw&&typeof raw==="object"&&"hashed_token" in raw
+   ?(raw as {hashed_token?:unknown}).hashed_token:null;
+  const token=topLevel??property?.hashed_token;
   if(typeof token!=="string"||!/^[a-zA-Z0-9_-]{20,256}$/.test(token))
    throw Error("auth_token_hash_missing");
   const loginUrl=new URL(FIXED_MAZI_CALLBACK);
