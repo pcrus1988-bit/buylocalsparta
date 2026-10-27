@@ -41,7 +41,7 @@ export default async function Dashboard(){
  const ownProposals=state.proposals.filter(p=>p.created_by===user.id);
  const cards=[
   {title:"Η συμμετοχή μου",label:"01 / ΕΠΙΧΕΙΡΗΣΗ",href:"/members",desc:"Αίτηση, επαλήθευση, πραγματική κατάσταση και διευκρινίσεις ελέγχου."},
-  {title:"Marketplace συνεργασίας",label:"02 / ΑΓΟΡΑ",href:"/marketplace",desc:"Προϊόντα, υπηρεσίες, προσφορές και ανάγκες επαληθευμένων επιχειρήσεων."},
+  {title:"Αγορά φυσικών ειδών",label:"02 / ΑΓΟΡΑ",href:"/marketplace",desc:"Προσφέρω ή αναζητώ πραγματικά αγαθά: εξοπλισμό, αποθέματα, υλικά, με ιδιωτική επικοινωνία μελών."},
   {title:"Το Forum",label:"03 / ΚΟΙΝΟΤΗΤΑ",href:"/forum",desc:"Συζητήσεις, εμπειρία, συμβουλές και νέες επαγγελματικές συνεργασίες."},
   {title:"Livechat",label:"04 / ΣΥΝΟΜΙΛΙΑ",href:"/livechat",desc:"Συνομιλία με τις άλλες επαληθευμένες επιχειρήσεις της κοινότητας."},
   {title:"Ιδιωτικά μηνύματα",label:"05 / ΕΠΙΚΟΙΝΩΝΙΑ",href:"/inbox",desc:"Προσωπικά αιτήματα συνεργασίας και απαντήσεις για τις καταχωρίσεις σου."},
@@ -62,7 +62,7 @@ export default async function Dashboard(){
     <div><span>Κατάσταση μέλους</span><strong>{isVerified?"Επαληθευμένη":"Σε αξιολόγηση"}</strong>
       <small>{state.member?.admitted_at?"Από "+new Date(state.member.admitted_at).toLocaleDateString("el-GR"):"Χωρίς ενεργή οικονομική συμφωνία"}</small></div>
     <div><span>Οι προτάσεις μου</span><strong>{ownProposals.length}</strong><small>Στον τρέχοντα κύκλο</small></div>
-    <div><span>Ανοιχτές καταχωρίσεις</span><strong>{display(activity?.active_listings)}</strong><small>Πραγματικές καταχωρίσεις μου</small></div>
+    <div><span>Καταχωρίσεις ειδών</span><strong>{display(activity?.active_listings)}</strong><small>Πραγματικές καταχωρίσεις μου</small></div>
     <div><span>Θέματα Forum</span><strong>{display(activity?.threads)}</strong><small>Θέματα που έχω ανοίξει</small></div>
     <div><span>Αδιάβαστα μηνύματα</span><strong>{display(inbox?.ok?unread.length:undefined)}</strong><small>{inbound.length} ενεργά αιτήματα συνεργασίας</small></div>
    </section>
