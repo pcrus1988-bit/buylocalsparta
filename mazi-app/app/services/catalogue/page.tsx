@@ -1,6 +1,6 @@
 import type {Metadata} from "next";
 import Link from "next/link";
-import {createClient} from "../../../lib/supabase/server";
+import {maziPublicServiceCatalogue} from "../../../lib/mazi-services-api";
 
 export const dynamic="force-dynamic";
 export const metadata:Metadata={
@@ -10,12 +10,9 @@ export const metadata:Metadata={
 type Service={id:string;title:string;category:string;description:string;deliverable:string;tokens:number;turnaround_business_days:number;revisions_included:number};
 
 export default async function PublicServiceCatalogue(){
- const db=await createClient();
- // RLS exposes only active catalogue rows to the public; no member financial data.
- const {data,error}=await db.from("mazi_service_catalog")
-  .select("id,title,category,description,deliverable,tokens,turnaround_business_days,revisions_included")
-  .eq("is_active",true).order("category").order("tokens");
- const services=(data||[]) as Service[];
+ const response=await maziPublicServiceCatalogue<{services:Service[]}>();
+ const error=!response.ok;
+ const services=response.ok?response.services:[];
  const categories=[...new Set(services.map(s=>s.category))];
  return <main id="content">
   <section className="subhero"><div className="shell">
