@@ -4,10 +4,10 @@
  */
 export const MAZI_AUTH_RELEASE_CHECKS=[
  {id:"auth.project",label:"Επιβεβαίωσα το σωστό Supabase project και τη server-only διαμόρφωση του Auth."},
- {id:"auth.smtp",label:"Έλεγξα στο Supabase την ενεργοποίηση και πραγματική διαμόρφωση custom SMTP και τη διεύθυνση αποστολέα."},
+ {id:"auth.smtp",label:"Επαλήθευσα ότι οι προσωπικοί σύνδεσμοι ΜΑΖΙ παράγονται από Supabase Auth και αποστέλλονται μέσω του υπάρχοντος Resend API από server-only credentials (χωρίς προεπιλεγμένο Supabase SMTP)."},
  {id:"auth.dns",label:"Επαλήθευσα SPF, DKIM και DMARC στον πάροχο αποστολής."},
- {id:"auth.redirect",label:"Επαλήθευσα το allowlist redirect και το callback στο mazi.kontamou.site χωρίς ανοικτά wildcards."},
- {id:"auth.otp",label:"Έλεγξα την πραγματική διάρκεια OTP, το όριο αποδοχής των 45 λεπτών και τις δύο φόρμες email."},
+ {id:"auth.redirect",label:"Επαλήθευσα πραγματικό Resend email που οδηγεί απευθείας στο https://mazi.kontamou.site/auth/callback και ολοκληρώνει την ταυτοποίηση χωρίς localhost."},
+ {id:"auth.otp",label:"Έλεγξα ότι τα magic links είναι μιας χρήσης, το Supabase expiry και την ανεξάρτητη λήξη πρόσκλησης ΜΑΖΙ στις 45 λεπτά."},
  {id:"auth.delivery",label:"Έκανα εξουσιοδοτημένο πραγματικό τεστ αποστολής/παράδοσης σε συναινούντα παραλήπτη και έλεγξα callback/email ownership."},
  {id:"auth.reconcile",label:"Επιβεβαίωσα ότι μπορώ να διαγνώσω αποτυχία, bounce και διπλή πρόσκληση πριν από οποιαδήποτε επανέκδοση."}
 ] as const;
