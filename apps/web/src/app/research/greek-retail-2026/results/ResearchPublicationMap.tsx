@@ -3,6 +3,7 @@
 import { useEffect,useMemo,useState } from "react";
 import { GREECE_REGIONS } from "../../../../lib/research-geographic-core";
 import { GREECE_PREFECTURES,PREFECTURE_NAMES } from "../../../../lib/research-prefectures";
+import { researchSectorLabel, sortResearchSectors } from "../../../../lib/research-sector-labels";
 import type { SafePublicResultPoint,SafeParticipationGeography,InternalResearchGeographicCoverage } from "../../../../lib/research-public-results-data";
 import { PUBLIC_MAP_QUESTIONS,mapAnswers,mapLegendDomain,mapColorStrength,safeMapSelection } from "../../../../lib/research-public-map-questions";
 import styles from "./ResultsWorkbench.module.css";
@@ -111,7 +112,7 @@ export function ResearchPublicationMap({
  const hasMetric=mode==="answers";
  const selectedKey=hasMetric?answer:"participation";
  const visibleAnswers=mapAnswers(question);
- const sectors=[...new Set(points.flatMap(p=>p.segment.sectorCode?[p.segment.sectorCode]:[]))].sort();
+ const sectors=sortResearchSectors([...new Set(points.flatMap(p=>p.segment.sectorCode?[p.segment.sectorCode]:[]))]);
  const hasApprovedCrossSections=points.some(p=>p.segment.sectorCode&&p.segment.prefectureCode);
  const regionalApproved=new Set(points.filter(p=>typeof p.segment.prefectureCode==="string").map(p=>p.metricKey));
  const regionValues=useMemo(()=>{
@@ -211,7 +212,7 @@ export function ResearchPublicationMap({
     </select>
    </label>}
    {hasMetric&&<label>Κλάδος (όπου έχει εγκριθεί διασταύρωση)<select value={sector} onChange={e=>{setSector(e.target.value);setSelected("");}}>
-     <option value="">Όλοι οι κλάδοι</option>{sectors.map(v=><option key={v} value={v}>{v.replaceAll("_"," ")}</option>)}
+     <option value="">Όλοι οι κλάδοι</option>{sectors.map(v=><option key={v} value={v}>{researchSectorLabel(v)}</option>)}
     </select></label>}
    <label>Ταξινόμηση περιοχών
     <select value={sort} onChange={e=>setSort(e.target.value)}>
