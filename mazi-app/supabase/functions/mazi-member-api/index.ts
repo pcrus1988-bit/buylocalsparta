@@ -76,15 +76,6 @@ Deno.serve(async(req:Request)=>{
     return out({ok:false,error:"status_unavailable"},503);
    return out({ok:true,cycle:{status:c.status,starts_at:c.starts_at,ends_at:c.ends_at,title:c.title}});
   }
-  // Read-only public accountability. SQL RPC returns *only* an aggregate,
-  // manually reviewed disclosures and redacted evidence digests.
-  // No bank references, donor identities, authentication or money writes.
-  if(req.method==="GET"&&url.searchParams.get("operation")==="fund_transparency"){
-   const {data,error}=await admin.rpc("mazi_fund_public_report");
-   if(error||!data||typeof data!=="object"||Array.isArray(data))
-     return out({ok:false,error:"fund_report_unavailable"},503);
-   return out({ok:true,report:data});
-  }
   if(req.method!=="POST")return out({error:"method_not_allowed"},405);
   // Reject large untrusted payloads; authenticated actions only.
   const length=Number(req.headers.get("content-length")||0);
