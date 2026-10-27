@@ -10,6 +10,7 @@ const cash=(v:string|number)=>new Intl.NumberFormat("el-GR",{style:"currency",cu
 type Totals={receipts:string;expenses:string;allocations:string;reversals:string;ledger_entries:string;last_entry_at:Date|null};
 type Round={id:string;slug:string;title:string;kind:string;status:string;funding_budget_cents:string;finance_activated:boolean;starts_at:Date;ends_at:Date};
 type Ledger={id:string;event_type:string;amount_cents:string;external_reference:string;created_at:Date;cycle_slug:string|null};
+type OfferTotals={reserved_cents:string;offer_count:string};
 type Offer={id:string;title:string;assigned_amount_cents:string;requested_amount_cents:string;additional_months:string;offered_at:Date;expires_at:Date};
 type Recon={period_end:Date;statement_balance_cents:string;ledger_balance_cents:string;statement_sha256:string;reviewed_at:Date};
 type Disclosure={id:string;kind:string;summary:string;amount_cents:string|null;published_at:Date};
@@ -22,7 +23,7 @@ export default async function MaziFundAdmin(){
  try{
   await marketplaceMaziActor(principal);
   const q=getAdminPostgresRuntime().nativePool;
-  const [totals,rounds,ledger,offers,recons,disclosures,queue]=await Promise.all([
+  const [totals,rounds,ledger,offers,offerTotals,recons,disclosures,queue]=await Promise.all([
    q.query<Totals>(`select
      coalesce(sum(amount_cents) filter(where event_type='receipt'),0)::text receipts,
      coalesce(sum(amount_cents) filter(where event_type='expense'),0)::text expenses,
@@ -39,6 +40,8 @@ export default async function MaziFundAdmin(){
      o.additional_months::text,o.offered_at,o.expires_at
      from public.mazi_grant_award_offers o join public.mazi_proposals p on p.id=o.proposal_id
      order by o.offered_at desc limit 60`),
+   q.query<OfferTotals>(`select coalesce(sum(assigned_amount_cents),0)::text reserved_cents, count(*)::text offer_count
+     from public.mazi_grant_award_offers`),
    q.query<Recon>(`select period_end,statement_balance_cents::text,ledger_balance_cents::text,
      statement_sha256,reviewed_at from public.mazi_fund_reconciliations order by period_end desc limit 12`),
    q.query<Disclosure>(`select id::text,kind,summary,amount_cents::text,published_at
@@ -48,7 +51,7 @@ export default async function MaziFundAdmin(){
   ]);
   const t=totals.rows[0];
   const balance=BigInt(t.receipts)-BigInt(t.expenses);
-  const committed=offers.rows.reduce((v,o)=>v+BigInt(o.assigned_amount_cents),0n);
+  const committed=BigInt(offerTotals.rows[0].reserved_cents);
   const unverified=t.reversals!=="0"||!recons.rows.length||
     BigInt(recons.rows[0].statement_balance_cents)!==balance;
   const realActive=rounds.rows.some(x=>x.kind==="fund_allocation"&&x.finance_activated);
@@ -64,7 +67,7 @@ export default async function MaziFundAdmin(){
    <div className={s.stats}>
     <div><small>01 / ΕΙΣΡΟΕΣ ΣΤΟ ΒΙΒΛΙΟ</small><strong style={{fontSize:30}}>{cash(t.receipts)}</strong><span>{t.ledger_entries} εγγραφές</span></div>
     <div><small>02 / ΠΡΑΓΜΑΤΙΚΑ ΕΞΟΔΑ ΒΙΒΛΙΟΥ</small><strong style={{fontSize:30}}>{cash(t.expenses)}</strong><span>Χωρίς υπόθεση για τραπεζικό υπόλοιπο</span></div>
-    <div><small>03 / ΔΕΣΜΕΥΣΕΙΣ ΠΡΟΣΦΟΡΩΝ</small><strong style={{fontSize:30}}>{cash(String(committed))}</strong><span>{offers.rows.length} ορατές τελευταίες προσφορές</span></div>
+    <div><small>03 / ΔΕΣΜΕΥΣΕΙΣ ΠΡΟΣΦΟΡΩΝ</small><strong style={{fontSize:30}}>{cash(String(committed))}</strong><span>{offerTotals.rows[0].offer_count} συνολικές προσφορές</span></div>
     <div className={s.fund}><small>04 / ΛΟΓΙΣΤΙΚΟ ΥΠΟΛΟΙΠΟ</small><strong style={{fontSize:30}}>{cash(String(balance))}</strong><span>{unverified?"ΟΧΙ ΕΠΑΛΗΘΕΥΜΕΝΟ ΜΕ ΤΡΑΠΕΖΑ":"ΚΑΤΑΧΩΡΙΣΜΕΝΗ ΕΣΩΤΕΡΙΚΗ ΣΥΜΦΩΝΙΑ"}</span></div>
    </div>
    <section className={s.section}><div className={s.sectionTop}><div><p>01 / SAFETY GATES</p><h2>Έλεγχοι πριν από κάθε ευρώ</h2></div><span>Οικονομική κατάσταση: {realActive?"ενεργή":"ανενεργή"}</span></div>
