@@ -76,7 +76,7 @@ test("gateway protects schema isolation, member ownership and token-only financi
  assert.match(edge,/isAdmin\(user.id\)/);
  assert.match(edge,/eligible\(user.id\)/);
  assert.match(edge,/p_actor:user.id/);
- assert.match(edge,/operation==="catalogue"/);
+ assert.ok(edge.includes('url.searchParams.get("operation")==="catalogue"'));
  assert.match(api,/functions\/v1\/mazi-service-api/);
  assert.doesNotMatch(member,/db.from\("mazi_service_/);
  assert.doesNotMatch(admin,/db.from\("mazi_service_/);
