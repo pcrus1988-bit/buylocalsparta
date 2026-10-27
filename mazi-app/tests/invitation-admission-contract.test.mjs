@@ -26,7 +26,8 @@ test("invitation is delivered only by the existing verified Super Admin to verif
  assert.match(admin,/!app\.representation_verified_at\|\|!app\.business_contact_verified_at/);
  assert.match(admin,/MAZI_SUPABASE_SERVICE_ROLE_KEY/);
  assert.match(admin,/url!==AUTH_PROJECT_URL/);
- assert.match(admin,/auth\/v1\/invite/);
+ assert.match(admin,/auth\\/v1\\/admin\\/generate_link/);
+ assert.match(admin,/https:\\/\\/api\\.resend\\.com\\/emails/);
  assert.match(action,/assertAdminCsrf\(principal/);
  assert.match(review,/action=\{issueMaziInvitationAction\}/);
  assert.match(review,/!latest/);
@@ -95,12 +96,12 @@ test("invitation expiry is capped below Supabase Auth's default one-hour invite 
  assert.doesNotMatch(admin,/now\(\)\+interval '24 hours'/);
 });
 
-test("already registered Supabase users receive a verified no-signup email flow",()=>{
- assert.match(admin,/\["email_exists","user_already_exists"\]/);
- assert.match(admin,/response\.status!==400&&response\.status!==422/);
- assert.match(admin,/new URL\("\/auth\/v1\/otp",AUTH_PROJECT_URL\)/);
- assert.match(admin,/JSON\.stringify\(\{email,create_user:false\}\)/);
- assert.match(admin,/existing_auth_email_otp/);
+test("confirmed existing Auth accounts receive magic links through Resend, never re-invitations",()=>{
+ assert.match(admin,/email_confirmed_at IS NOT NULL/);
+ assert.match(admin,/const type=existing\?"magiclink":"invite"/);
+ assert.match(admin,/callback\.searchParams\.set\("token_hash",hash\)/);
+ assert.match(admin,/callback\.searchParams\.set\("type",type\)/);
+ assert.match(admin,/resend_magiclink_existing/);
  assert.match(admin,/providerMethod=await sendVerifiedAuthInvitation/);
  assert.doesNotMatch(admin,/create_user:true/);
 });
