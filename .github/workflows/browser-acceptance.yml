@@ -11,7 +11,8 @@ concurrency:
 
 jobs:
   chromium:
-    runs-on: ubuntu-latest
+    # Playwright 1.55 Chromium is supported on Ubuntu 24.04, not Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:
