@@ -46,7 +46,8 @@ export default async function Dashboard(){
   {title:"Livechat",label:"04 / ΣΥΝΟΜΙΛΙΑ",href:"/livechat",desc:"Συνομιλία με τις άλλες επαληθευμένες επιχειρήσεις της κοινότητας."},
   {title:"Ιδιωτικά μηνύματα",label:"05 / ΕΠΙΚΟΙΝΩΝΙΑ",href:"/inbox",desc:"Προσωπικά αιτήματα συνεργασίας και απαντήσεις για τις καταχωρίσεις σου."},
   {title:"Προτάσεις και ψηφοφορίες",label:"06 / ΣΥΜΜΕΤΟΧΗ",href:"/proposals",desc:"Παρακολούθηση πραγματικών προτάσεων, καταστάσεων και δικαιωμάτων."},
-  {title:"Ενισχύσεις",label:"07 / ΑΝΑΠΤΥΞΗ",href:"/awards",desc:"Ατομικές προσφορές, όροι και καταγεγραμμένες αποδοχές. Χωρίς ενεργή εκταμίευση."}
+  {title:"Ενισχύσεις",label:"07 / ΑΝΑΠΤΥΞΗ",href:"/awards",desc:"Ατομικές προσφορές, όροι και καταγεγραμμένες αποδοχές. Χωρίς ενεργή εκταμίευση."},
+  {title:"Η διαφάνεια του Ταμείου",label:"08 / ΟΙΚΟΝΟΜΙΚΗ ΛΟΓΟΔΟΣΙΑ",href:"/fund/transparency",desc:"Εισροές, εκροές, δεσμεύσεις, λογιστικό υπόλοιπο, καταχωρισμένες συμφωνίες και δημόσια τεκμήρια."}
  ];
  return <main id="content" className="com-shell">
    <div className="com-top"><div><span className="com-kicker">ΜΑΖΙ / Η ΕΠΙΧΕΙΡΗΣΗ ΜΟΥ</span>
@@ -67,7 +68,7 @@ export default async function Dashboard(){
     <div><span>Αδιάβαστα μηνύματα</span><strong>{display(inbox?.ok?unread.length:undefined)}</strong><small>{inbound.length} ενεργά αιτήματα συνεργασίας</small></div>
    </section>
    <nav aria-label="Εργαλεία της επιχείρησης" className="com-dashboard-grid">
-    {cards.map(card=><Link key={card.href} href={isVerified||card.href==="/members"?card.href:"/members"} className="com-nav-card">
+    {cards.map(card=><Link key={card.href} href={isVerified||card.href==="/members"||card.href==="/fund/transparency"?card.href:"/members"} className="com-nav-card">
       <span>{card.label}</span><h2>{card.title} ↗</h2><p>{card.desc}</p>
     </Link>)}
    </nav>
