@@ -366,8 +366,8 @@ Deno.serve(async(req:Request)=>{
    const paged=!mine&&input.page!==undefined;
    const page=Number(input.page??0),category=text(input.category),kind=text(input.kind),search=text(input.query);
    if(!mine&&(!Number.isInteger(page)||page<0||page>99||
-     (category&& !["goods","services","partnerships"].includes(category))||
-     (kind&& !["offer","request"].includes(kind))||search.length>80))
+     (category&&!["goods","services","partnerships"].includes(category))||
+     (kind&&!["offer","request"].includes(kind))||search.length>80))
     return out({error:"invalid_filter"},400);
    let query=admin.from("mazi_marketplace_listings")
     .select("id,member_user_id,kind,category,title,description,status,created_at,updated_at")
@@ -375,24 +375,13 @@ Deno.serve(async(req:Request)=>{
    query=mine?query.eq("member_user_id",user.id):query.eq("status","active");
    if(!mine&&category)query=query.eq("category",category);
    if(!mine&&kind)query=query.eq("kind",kind);
-   // PostgREST builder parameterizes values; escape SQL LIKE wildcard characters.
-   if(!mine&&search)query=query.ilike("title",`%${search.replace(/[\\%_]/g,"\\if(operation==="marketplace_list"||operation==="marketplace_my"){
-   const m=await verifiedMember(user.id);
-   if(!m)return out({error:"not_verified"},403);
-   const mine=operation==="marketplace_my";
-   let query=admin.from("mazi_marketplace_listings")
-    .select("id,member_user_id,kind,category,title,description,status,created_at,updated_at")
-    .is("hidden_at",null).order("created_at",{ascending:false}).limit(60);
-   query=mine?query.eq("member_user_id",user.id):query.eq("status","active");
-   const {data,error}=await query;
-   if(error)return out({error:"data_unavailable"},503);
-   return out({ok:true,listings:await communityVisible((data||[]) as CommunityRow[],user.id)});
-  }")}%`);
+   // Strip SQL LIKE wildcard characters so search treats titles literally.
+   if(!mine&&search)query=query.ilike("title","%"+search.replace(/[%_\\]/g,"")+"%");
    const {data,error}=paged?await query.range(page*24,page*24+24):await query.limit(60);
    if(error)return out({error:"data_unavailable"},503);
-   const listingRows=(data||[]) as CommunityRow[];
-   return out({ok:true,listings:await communityVisible((paged?listingRows.slice(0,24):listingRows),user.id),
-     has_more:paged&&listingRows.length>24,page:paged?page:0});
+   const rows=(data||[]) as CommunityRow[];
+   return out({ok:true,listings:await communityVisible(paged?rows.slice(0,24):rows,user.id),
+     has_more:paged&&rows.length>24,page:paged?page:0});
   }
   if(operation==="marketplace_create"){
    if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
@@ -424,20 +413,13 @@ Deno.serve(async(req:Request)=>{
    const paged=input.page!==undefined,page=Number(input.page??0),
     category=text(input.category),search=text(input.query);
    if(!Number.isInteger(page)||page<0||page>99||
-      (category&& !["general","advice","collaboration"].includes(category))||
+      (category&&!["general","advice","collaboration"].includes(category))||
       search.length>80)return out({error:"invalid_filter"},400);
    let query=admin.from("mazi_forum_threads")
      .select("id,member_user_id,category,title,body,locked,created_at")
      .is("hidden_at",null).order("created_at",{ascending:false}).order("id",{ascending:false});
    if(category)query=query.eq("category",category);
-   if(search)query=query.ilike("title",`%${search.replace(/[\\%_]/g,"\\if(operation==="forum_list"){
-   if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
-   const {data,error}=await admin.from("mazi_forum_threads")
-     .select("id,member_user_id,category,title,body,locked,created_at")
-     .is("hidden_at",null).order("created_at",{ascending:false}).limit(60);
-   if(error)return out({error:"data_unavailable"},503);
-   return out({ok:true,threads:await communityVisible((data||[]) as CommunityRow[],user.id)});
-  }")}%`);
+   if(search)query=query.ilike("title","%"+search.replace(/[%_\\]/g,"")+"%");
    const {data,error}=paged?await query.range(page*24,page*24+24):await query.limit(60);
    if(error)return out({error:"data_unavailable"},503);
    const rows=(data||[]) as CommunityRow[];
