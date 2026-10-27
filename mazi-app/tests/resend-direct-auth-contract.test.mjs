@@ -33,6 +33,10 @@ test("passwordless flow never creates or authorizes unapproved accounts and cann
 
 test("Resend email points directly at safe production callback, bypassing localhost",()=>{
  assert.ok(delivery.includes('FIXED_MAZI_CALLBACK="https://mazi.kontamou.site/auth/callback"'));
+ assert.ok(delivery.includes('"hashed_token" in raw'));
+ assert.ok(delivery.includes('const token=topLevel??property?.hashed_token'));
+ assert.ok(invitation.includes('"hashed_token" in payload'));
+ assert.ok(invitation.includes('const hash=topLevel??detail?.hashed_token'));
  assert.ok(delivery.includes('loginUrl.searchParams.set("token_hash",token)'));
  assert.ok(delivery.includes('loginUrl.searchParams.set("type","magiclink")'));
  assert.ok(delivery.includes("https://api.resend.com/emails"));
