@@ -1,0 +1,1 @@
+import type {Metadata} from "next";import {LegalView} from "../legal/legal-document";export const metadata:Metadata={title:"Όροι συμμετοχής και χρήσης ΜΑΖΙ",description:"Αναλυτικοί συμβατικοί όροι για τις υφιστάμενες και προτεινόμενες υπηρεσίες του ΜΑΖΙ."};export default function Terms(){return <LegalView slug="terms"/>;}
