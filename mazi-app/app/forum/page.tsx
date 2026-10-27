@@ -10,11 +10,15 @@ import s from "../community.module.css";
 
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"Forum επιχειρήσεων",robots:{index:false,follow:false}};
-export default async function Forum({searchParams}:{searchParams:Promise<{notice?:string}>}){
+export default async function Forum({searchParams}:{searchParams:Promise<{notice?:string;page?:string;category?:string;q?:string}>}){
  const db=await createClient();const {data:{user}}=await db.auth.getUser();
  if(!user)redirect("/join");
- const result=await maziMemberRequest<{threads:MaziForumThread[]}>("forum_list");
- const {notice}=await searchParams;
+ const {notice,category:rawCategory,q:rawQuery,page:rawPage}=await searchParams;
+ const category=["general","advice","collaboration"].includes(rawCategory||"")?rawCategory||"":"";
+ const q=(rawQuery||"").trim().slice(0,80);
+ const page=/^(0|[1-9][0-9]{0,1})$/.test(rawPage||"0")?Number(rawPage||0):0;
+ const linkFor=(nextPage:number)=>"/forum?"+new URLSearchParams({page:String(nextPage),...(category?{category}:{}),...(q?{q}:{})}).toString();
+ const result=await maziMemberRequest<{threads:MaziForumThread[];has_more:boolean}>("forum_list",{page,category,query:q});
  return <main id="content" className={s.stage}><div className={s.shell}>
   <section className={s.intro}><span className={s.eyebrow}>ΜΑΖΙ / ΣΥΛΛΟΓΙΚΗ ΓΝΩΣΗ</span>
    <h1>Forum <em>επιχειρήσεων.</em></h1>
@@ -33,7 +37,12 @@ export default async function Forum({searchParams}:{searchParams:Promise<{notice
     </form>
     <p className={s.hint}>Οι αναφορές παραβιάσεων αποστέλλονται για χειροκίνητο έλεγχο και δεν αποκρύπτονται αυτόματα.</p>
    </section>
-   <section className={s.feed}><h2>Πρόσφατες συζητήσεις ({result.threads.length})</h2>
+   <section className={s.feed}><h2>Συζητήσεις επιχειρήσεων · Σελίδα {page+1}</h2>
+    <form method="get" action="/forum" className={s.discovery} role="search">
+     <label>Αναζήτηση τίτλου<input name="q" defaultValue={q} maxLength={80} placeholder="Τι θέμα ψάχνεις;" /></label>
+     <label>Θεματική<select name="category" defaultValue={category}><option value="">Όλες οι θεματικές</option><option value="general">Γενική συζήτηση</option><option value="advice">Συμβουλές</option><option value="collaboration">Συνεργασίες</option></select></label>
+     <button type="submit" className={s.action}>Εύρεση συζητήσεων</button>
+    </form>
     {!result.threads.length?<div className={s.empty}>Δεν έχουν ξεκινήσει ακόμη συζητήσεις.</div>:result.threads.map(item=>
       <article key={item.id} className={s.entry}>
        <div className={s.tags}><span className={s.tag}>{forumCategories[item.category]}</span>{item.locked?<span className={s.tag}>Κλειδωμένη</span>:null}</div>
@@ -43,6 +52,7 @@ export default async function Forum({searchParams}:{searchParams:Promise<{notice
        <Link className={s.minor} href={`/forum/${item.id}`}>Διάβασε και απάντησε ↗</Link>
       </article>
     )}
+    <nav className={s.pagination} aria-label="Σελίδες forum">{page>0?<Link className={s.minor} href={linkFor(page-1)}>← Προηγούμενη</Link>:<span/>}{result.has_more&&page<99?<Link className={s.minor} href={linkFor(page+1)}>Επόμενη →</Link>:null}</nav>
    </section></div>
   </>}
  </div></main>;
