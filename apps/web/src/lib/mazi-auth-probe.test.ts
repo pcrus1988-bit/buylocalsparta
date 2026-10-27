@@ -39,7 +39,7 @@ test("probe evidence table and admin UI keep secrets out of logs",()=>{
  assert.ok(!migration.includes("recipient_email"));
  assert.ok(!migration.includes("access_token"));
  assert.ok(page.includes("getMaziAuthEmailProbes"));
- assert.ok(page.includes("Δοκιμαστική αποστολή μέσω Supabase Auth"));
+ assert.ok(page.includes("Δοκιμαστική αποστολή Supabase Auth × Resend"));
  assert.ok(page.includes("όχι επιβεβαιωμένη παράδοση"));
  assert.ok(page.includes("recipient_has_consented"));
  assert.ok(!lib.includes("console.log(recipient)"));
