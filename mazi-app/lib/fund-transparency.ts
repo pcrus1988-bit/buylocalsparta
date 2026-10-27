@@ -24,9 +24,9 @@ export type PublicFundReport = {
  evidence_notice:string;
 };
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==="object"&&!Array.isArray(v);
-const money=(v:unknown)=>typeof v==="number"&&Number.isSafeInteger(v)&&Math.abs(v)<9e15;
-const count=(v:unknown)=>money(v)&&v>=0;
-const text=(v:unknown)=>typeof v==="string"&&v.length>0;
+const money=(v:unknown):v is number=>typeof v==="number"&&Number.isSafeInteger(v)&&Math.abs(v)<9e15;
+const count=(v:unknown):v is number=>money(v)&&v>=0;
+const text=(v:unknown):v is string=>typeof v==="string"&&v.length>0;
 const validDate=(v:unknown)=>text(v)&&/^\d{4}-\d{2}-\d{2}$/.test(v);
 const validMonth=(v:unknown)=>text(v)&&/^\d{4}-\d{2}$/.test(v);
 const kinds=new Set(["receipt","award","disbursement","expense","reconciliation","correction","milestone"]);
