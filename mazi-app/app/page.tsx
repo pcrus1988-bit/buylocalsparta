@@ -15,7 +15,7 @@ export default function HomePage() {
         <span className="eyebrow light"><span className="signal"/> Η ΝΕΑ ΣΥΛΛΟΓΙΚΗ ΔΥΝΑΜΗ ΤΩΝ ΜΙΚΡΩΝ</span>
         <h1>Μόνος παλεύεις.<br/><em>Μαζί</em> αλλάζουμε τα πράγματα.</h1>
         <p className="hero-intro">Μια νέα πρωτοβουλία για τις ανεξάρτητες ελληνικές επιχειρήσεις. Ενώνουμε πόρους, ιδέες και ανθρώπους — για να αποκτήσουμε δυνατότητες που μόνοι μας δεν έχουμε.</p>
-        <div className="hero-actions"><Link className="button peach" href="/fund">Γνώρισε το Ταμείο <span aria-hidden="true">↗</span></Link><Link className="text-link white" href="/interest">Εκδήλωσε ενδιαφέρον <span aria-hidden="true">↗</span></Link></div>
+        <div className="hero-actions"><Link className="button peach" href="/fund">Γνώρισε το Ταμείο <span aria-hidden="true">↗</span></Link><Link className="text-link white" href="/services/catalogue">250 Tokens υπηρεσιών ↗</Link><Link className="text-link white" href="/interest">Εκδήλωσε ενδιαφέρον <span aria-hidden="true">↗</span></Link></div>
         <p className="hero-note">Δεχόμαστε πραγματικές αιτήσεις ενδιαφέροντος. Δεν υπάρχουν ακόμη συνδρομές, δεσμεύσεις ή χρηματοδοτήσεις.</p>
       </div>
       <div className="hero-art" aria-label="Αφηρημένη σύνθεση συμβολίζει τις ανεξάρτητες επιχειρήσεις που ενώνονται" role="img">
