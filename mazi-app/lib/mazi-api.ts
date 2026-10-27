@@ -1,3 +1,4 @@
+import {parsePublicFundReport,type PublicFundReport} from "./fund-transparency";
 import { createClient } from "./supabase/server";
 
 const base=process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/,"");
@@ -74,5 +75,19 @@ export async function maziPublicCycle():Promise<{status:string;starts_at:string;
   if(typeof c.status!=="string"||typeof c.starts_at!=="string"||
     typeof c.ends_at!=="string"||typeof c.title!=="string")return null;
   return {status:c.status,starts_at:c.starts_at,ends_at:c.ends_at,title:c.title};
+ }catch{return null;}
+}
+
+/** Public, non-personal financial disclosure. Network failures never become €0. */
+export async function maziPublicFundReport():Promise<PublicFundReport|null>{
+ if(!base||!key)return null;
+ try {
+  const res=await fetch(endpoint()+"?operation=fund_transparency",{
+   method:"GET",headers:{apikey:key},next:{revalidate:60},signal:AbortSignal.timeout(8000)
+  });
+  if(!res.ok)return null;
+  const data:unknown=await res.json();
+  if(!isObject(data)||data.ok!==true)return null;
+  return parsePublicFundReport(data.report);
  }catch{return null;}
 }
