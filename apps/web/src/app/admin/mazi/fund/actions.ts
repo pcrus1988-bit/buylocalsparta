@@ -150,3 +150,53 @@ export async function maziFundGovernanceAction(form:FormData){
  revalidatePath("/admin/mazi/fund/governance");
  redirect("/admin/mazi/fund/governance?notice=updated");
 }
+
+/** Publish a vetted project progress record; never a payment or award mutation. */
+export async function maziFundPublishProgress(form:FormData){
+ const principal=await getAdminSession();
+ if(!principal)redirect("/admin/login");
+ const actor=await marketplaceMaziActor(principal);
+ assertAdminCsrf(principal,str(form,"csrf"));
+ const offerId=str(form,"offer_id");
+ const kind=str(form,"update_kind");
+ const summary=str(form,"public_summary");
+ const digest=str(form,"evidence_sha256").toLowerCase();
+ const reference=str(form,"private_evidence_reference");
+ const supersedes=str(form,"supersedes_id");
+ if(!uuid(offerId)||!["milestone","evidence_verified","completion","correction"].includes(kind)
+   ||summary.length<50||summary.length>750||
+   (digest!==""&&!/^[a-f0-9]{64}$/.test(digest))||
+   (["evidence_verified","completion"].includes(kind)&&!digest)||
+   (reference!==""&&(reference.length<8||reference.length>300))||
+   ((kind==="correction")!==Boolean(supersedes))||
+   (supersedes!==""&&!uuid(supersedes)))
+  throw new Error("MAZI_FUND_PROGRESS_INVALID");
+ const cx=await getAdminPostgresRuntime().nativePool.connect();
+ try{
+  await cx.query("begin");
+  const {rows:[offer]}=await cx.query<{id:string;cycle_id:string;acknowledged:boolean}>(
+   "select o.id::text,o.cycle_id::text, "+
+   "(ack.affirmatively_accepted is true) as acknowledged "+
+   "from public.mazi_grant_award_offers o "+
+   "left join public.mazi_grant_award_acknowledgements ack on ack.offer_id=o.id "+
+   "where o.id=$1::uuid for share of o",[offerId]);
+  if(!offer?.acknowledged)throw new Error("MAZI_FUND_PROGRESS_AWARD_NOT_ACCEPTED");
+  const {rows:[row]}=await cx.query<{id:string}>(
+   "insert into public.mazi_fund_project_updates "+
+   "(offer_id,update_kind,public_summary,evidence_sha256,private_evidence_reference,supersedes_id,reviewed_by) "+
+   "values($1::uuid,$2,$3,$4,$5,$6::uuid,$7::uuid) returning id::text",
+   [offerId,kind,summary,digest||null,reference||null,supersedes||null,actor]);
+  if(!row)throw new Error("MAZI_FUND_PROGRESS_SAVE_FAILED");
+  await cx.query(
+   "insert into public.mazi_audit_events "+
+   "(entity_type,entity_id,action,marketplace_actor_user_id,evidence) "+
+   "values($1,$2::uuid,$3,$4::uuid,$5::jsonb)",
+   ["fund_project_progress",row.id,"reviewed_progress_published",actor,
+    JSON.stringify({offer_id:offerId,cycle_id:offer.cycle_id,update_kind:kind,
+     evidence_sha256:digest||null,supersedes_id:supersedes||null})]);
+  await cx.query("commit");
+ }catch(e){await cx.query("rollback");throw e;}
+ finally{cx.release();}
+ revalidatePath("/admin/mazi/fund/projects");
+ redirect("/admin/mazi/fund/projects?notice=published");
+}
