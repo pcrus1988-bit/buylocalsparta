@@ -1,12 +1,14 @@
 import type {Metadata} from "next";
 import Link from "next/link";
-import {maziPublicFundTally} from "../../../lib/mazi-api";
+import {maziPublicFundTally,maziPublicFundArchive} from "../../../lib/mazi-api";
 import {euroCents} from "../../../lib/fund-transparency";
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"Αποτελέσματα Αναπτυξιακού Ταμείου · ΜΑΖΙ",
  description:"Οριστικοποιημένα αποτελέσματα των πραγματικών ψηφοφοριών, κανόνες, απαρτία και ψήφοι ανά αναπτυξιακό έργο."};
-export default async function FundResults(){
- const r=await maziPublicFundTally();
+export default async function FundResults({searchParams}:{searchParams:Promise<{cycle?:string}>}){
+ const {cycle}=await searchParams;
+ const selected=cycle&&/^[a-z0-9][a-z0-9-]{2,90}$/.test(cycle)?cycle:undefined;
+ const [r,archive]=await Promise.all([maziPublicFundTally(selected),maziPublicFundArchive()]);
  const quorum=r?.finalized&&typeof r.valid_ballots==="number"&&typeof r.electorate_count==="number"&&
    typeof r.quorum_percent==="number"&&r.electorate_count>0&&
    r.valid_ballots*100>=r.electorate_count*r.quorum_percent;
@@ -74,6 +76,25 @@ export default async function FundResults(){
     <Link href="/fund/transparency" style={{textDecoration:"underline"}}>Δείτε τις πραγματικές οικονομικές κινήσεις →</Link>
    </section>
   </>}
+  <section style={{marginTop:72,paddingTop:34,borderTop:"1px solid #b9cbb6"}}>
+   <span style={{fontSize:12,letterSpacing:".16em",color:"#688370"}}>ΙΣΤΟΡΙΚΟ / ΜΟΝΙΜΗ ΔΙΑΦΑΝΕΙΑ</span>
+   <h2 style={{fontSize:37,letterSpacing:"-.045em",margin:"14px 0 12px"}}>Αρχείο χρηματοδοτικών αποφάσεων</h2>
+   <p style={{lineHeight:1.75,maxWidth:780}}>Κάθε οριστικοποιημένος χρηματοδοτικός κύκλος διατηρεί το δικό του αποτέλεσμα, τον αριθμό επιλέξιμων επιχειρήσεων και το ακριβές αμετάβλητο κείμενο των προδημοσιευμένων κανόνων. Οι προσωπικές ψήφοι δεν δημοσιεύονται.</p>
+   {archive===null?<p role="alert">Το αρχείο δεν είναι διαθέσιμο. Δεν μπορούν να επιβεβαιωθούν τα ιστορικά στοιχεία.</p>:
+    archive.length===0?<p>Δεν έχει οριστικοποιηθεί κανένας πραγματικός χρηματοδοτικός κύκλος.</p>:
+    <div style={{display:"grid",gap:11,marginTop:28}}>
+     {archive.map((item)=><Link key={item.cycle_slug} href={"/fund/results?cycle="+encodeURIComponent(item.cycle_slug)}
+      style={{padding:24,background:"#fff",border:"1px solid #d6e0d4",textDecoration:"none",color:"inherit"}}>
+      <span style={{fontSize:12,color:"#65816c"}}>{new Date(item.finalized_at).toLocaleDateString("el-GR",{timeZone:"Europe/Athens"})} · {item.cycle_slug}</span>
+      <h3 style={{fontSize:23,margin:"12px 0"}}>{item.title}</h3>
+      <p style={{margin:0,fontSize:14,color:"#596d5f"}}>
+       {item.valid_ballots} έγκυρα ψηφοδέλτια · {item.electorate_count} δικαιούχοι ψήφου · {item.project_count} προτάσεις
+      </p>
+      <span style={{display:"inline-block",marginTop:14,textDecoration:"underline",fontSize:14}}>Αποτελέσματα, κανόνες και αποτύπωμα ελέγχου →</span>
+     </Link>)}
+    </div>}
+   {selected?<p style={{marginTop:23}}><Link href="/fund/results" style={{textDecoration:"underline"}}>Επιστροφή στον πιο πρόσφατο κύκλο →</Link></p>:null}
+  </section>
   </div>
  </main>;
 }
