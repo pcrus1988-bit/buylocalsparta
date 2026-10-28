@@ -48,7 +48,7 @@ export function LegalView({slug}:{slug:LegalSlug}){
      <h2>Νομοθετικές πηγές της συγκεκριμένης πολιτικής</h2>
      <p>Οι παρακάτω επίσημες ή νομοθετικές παραπομπές αφορούν το συγκεκριμένο αντικείμενο. Η εφαρμογή τους εξαρτάται από τη φύση της υπηρεσίας και τα πραγματικά περιστατικά.</p>
      {legalSourceMap[slug].map(source=><a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">{source.label}</a>)}
-     <a href="mailto:info@kontamou.site">info@kontamou.site</a>
+     <Link href="/legal/report">Αναφορά περιεχομένου, ένσταση ή GDPR αίτημα</Link><a href="mailto:info@kontamou.site">info@kontamou.site</a>
     </aside>
    </article>
   </div>
