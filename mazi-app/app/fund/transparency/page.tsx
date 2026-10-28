@@ -40,6 +40,10 @@ export default async function FundTransparency(){
        <span style={{fontSize:12,color:"#557263"}}>{label}</span><strong style={{fontSize:24,display:"block",marginTop:14,letterSpacing:"-.04em",overflowWrap:"anywhere"}}>{value}</strong>
      </div>)}
    </div>
+   <div style={{display:"flex",flexWrap:"wrap",gap:16,marginBottom:24,fontSize:14,fontWeight:700}}>
+    <a href="/fund/transparency/export?format=csv" style={{textDecoration:"underline"}}>Εξαγωγή διαφάνειας CSV ↗</a>
+    <a href="/fund/transparency/export?format=json" style={{textDecoration:"underline"}}>Δημόσια μηχαναγνώσιμα δεδομένα JSON ↗</a>
+   </div>
    <p style={{lineHeight:1.7,padding:"18px 22px",borderLeft:"3px solid #ddaa87",background:"#eeeae1"}}>
      <strong>Πώς διαβάζονται τα ποσά:</strong> Το λογιστικό υπόλοιπο ισούται με τις καταχωρισμένες εισροές μείον τα καταχωρισμένα έξοδα. Δεν αποδεικνύει τραπεζικό υπόλοιπο. Οι προσφορές ενίσχυσης δεν είναι εκταμιεύσεις. Τα ποσά «κατανομής» καταγράφονται ξεχωριστά ώστε να μην υπολογίζονται δύο φορές.
    </p>
