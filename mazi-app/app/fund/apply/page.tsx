@@ -43,7 +43,7 @@ export default async function ApplyForFund({searchParams}:{searchParams:Promise<
     <p>Αιτούμενο ποσό: <strong>{euroCents(state.my_proposal.amount_cents)}</strong></p>
     <p>Ελάχιστο χρήσιμο ποσό: {state.my_proposal.minimum_useful_cents===null?"—":euroCents(state.my_proposal.minimum_useful_cents)}</p>
     <p style={{lineHeight:1.7}}>Έχει καταχωριστεί μία αίτηση για τη συγκεκριμένη νομική επιχείρηση και τον κύκλο. Ο έλεγχος δεν αποτελεί χρηματοδοτική δέσμευση.</p>
-   </section>:state.cycle.status!=="submissions"||Date.parse(state.cycle.starts_at)>Date.now()||Date.parse(state.cycle.ends_at)<=Date.now()?
+   </section>:state.cycle.status!=="submissions"||Number(new Intl.DateTimeFormat("en-US",{timeZone:"Europe/Athens",day:"numeric"}).format(new Date()))>10||Date.parse(state.cycle.starts_at)>Date.now()||Date.parse(state.cycle.ends_at)<=Date.now()?
     <section style={{background:"#fff",padding:30}}><h2>Ο κύκλος δεν δέχεται νέες αιτήσεις</h2>
     <p>Κατάσταση: {state.cycle.status}. Η περίοδος ή η διαδικασία υποβολής έχει κλείσει.</p></section>:
    <form action={submitMaziFundingApplication} style={{display:"grid",gap:22,background:"#fff",padding:"clamp(22px,5vw,42px)",border:"1px solid #d2ded1"}}>
