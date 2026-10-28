@@ -7,6 +7,7 @@ const BASE=Deno.env.get("SUPABASE_URL")||"";
 const SECRET=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
 const admin=createClient(BASE,SECRET,{auth:{persistSession:false,autoRefreshToken:false}});
 const ORIGIN="https://mazi.kontamou.site";
+const ORDER_POLICY_VERSION="mazi-service-order-v1-2026-10-28";
 const H={"content-type":"application/json;charset=utf-8",
  "access-control-allow-origin":ORIGIN,
  "access-control-allow-methods":"GET,POST,OPTIONS",
@@ -17,7 +18,7 @@ const send=(body:Dict,status=200)=>new Response(JSON.stringify(body),{status,hea
 const str=(v:unknown)=>typeof v==="string"?v.trim():"";
 const uuid=(v:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 const issueCodes=new Set(["not_authorized","invoice_reference_required","invalid_billing_period","member_not_eligible","overlapping_period","invoice_reference_conflict","subscription_not_activated"]);
-const requestCodes=new Set(["not_authenticated","invalid_request","member_not_eligible","allowance_inactive","unknown_service","insufficient_tokens","cannot_cancel","unknown_request","invalid_transition","reason_required","note_too_long","invalid_message","invalid_message_kind","invalid_message_state","invalid_delivery_url","delivery_summary_required","revision_window_closed","revision_limit_reached","already_accepted","not_delivered"]);
+const requestCodes=new Set(["not_authenticated","invalid_request","member_not_eligible","allowance_inactive","unknown_service","insufficient_tokens","cannot_cancel","unknown_request","invalid_transition","reason_required","note_too_long","invalid_message","invalid_message_kind","invalid_message_state","invalid_delivery_url","delivery_summary_required","revision_window_closed","revision_limit_reached","already_accepted","not_delivered","service_conditions_not_accepted","idempotency_conflict","subscription_not_activated"]);
 const friendly=(error:{message?:string}|null,allowed:Set<string>)=>{
  const message=String(error?.message||"");
  for(const code of allowed)if(message.includes(code))return code;
@@ -81,15 +82,23 @@ Deno.serve(async(req:Request)=>{
     .select("id,request_id,author_user_id,kind,body,delivery_url,created_at")
     .in("request_id",ids).order("id",{ascending:true}).limit(1000):{data:[],error:null};
    if(messages.error)throw messages.error;
-   return send({ok:true,services,periods:periods.data||[],requests:requests.data||[],messages:messages.data||[]});
+   const receipts=ids.length?await admin.from("mazi_service_order_acceptances")
+    .select("request_id,policy_version,accepted_at,token_price_snapshot,deliverable_snapshot,turnaround_business_days_snapshot,revisions_included_snapshot")
+    .in("request_id",ids).eq("member_user_id",user.id).limit(100):{data:[],error:null};
+   if(receipts.error)throw receipts.error;
+   return send({ok:true,services,periods:periods.data||[],requests:requests.data||[],messages:messages.data||[],acceptances:receipts.data||[]});
   }
   if(operation==="service_request"){
    if(!await eligible(user.id))return send({ok:false,error:"member_not_eligible"},403);
    const service=str(body.service_id),brief=str(body.brief),idempotency=str(body.idempotency_key);
+   const terms=str(body.terms_version),accepted=body.terms_accepted===true;
+   if(!accepted||terms!==ORDER_POLICY_VERSION)
+    return send({ok:false,error:"service_conditions_not_accepted"},400);
    if(!/^[a-z0-9-]{3,64}$/.test(service)||brief.length<20||brief.length>3000||!uuid(idempotency))
     return send({ok:false,error:"invalid_request"},400);
-   const {data,error}=await admin.rpc("mazi_services_internal_request",
-    {p_actor:user.id,p_service_id:service,p_brief:brief,p_idempotency_key:idempotency});
+   const {data,error}=await admin.rpc("mazi_services_internal_request_v2",
+    {p_actor:user.id,p_service_id:service,p_brief:brief,p_idempotency_key:idempotency,
+     p_terms_version:terms,p_terms_accepted:true});
    if(error)return send({ok:false,error:friendly(error,requestCodes)},409);
    return send({ok:true,request_id:data});
   }
@@ -135,7 +144,11 @@ Deno.serve(async(req:Request)=>{
     admin.from("mazi_service_release_state").select("paid_enabled").eq("id",true).single()
    ]);
    if(messages.error||release.error)throw messages.error||release.error;
-   return send({ok:true,requests:requests.data||[],periods:periods.data||[],members:members.data||[],messages:messages.data||[],paid_enabled:release.data?.paid_enabled===true});
+   const receipts=ids.length?await admin.from("mazi_service_order_acceptances")
+     .select("request_id,policy_version,accepted_at,token_price_snapshot,deliverable_snapshot,turnaround_business_days_snapshot,revisions_included_snapshot")
+     .in("request_id",ids).limit(150):{data:[],error:null};
+   if(receipts.error)throw receipts.error;
+   return send({ok:true,requests:requests.data||[],periods:periods.data||[],members:members.data||[],messages:messages.data||[],acceptances:receipts.data||[],paid_enabled:release.data?.paid_enabled===true});
   }
   if(operation==="admin_issue_period"){
    const id=str(body.member_user_id),start=str(body.starts_at),end=str(body.ends_at),invoice=str(body.invoice_reference);
