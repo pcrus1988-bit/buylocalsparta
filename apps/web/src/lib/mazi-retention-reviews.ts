@@ -9,16 +9,16 @@ import {getAdminPostgresRuntime} from "./postgres-runtime";
  */
 export const MAZI_RETENTION_CATEGORIES=[
  {key:"interest_intake",title:"Αιτήσεις ενδιαφέροντος και ΓΕΜΗ",sources:["mazi_interest_applications","mazi_interest_events","mazi_interest_registry_rechecks"],focus:"Απορριφθείσες, εγκαταλειμμένες, επανέλεγχοι, νόμιμο συμφέρον"},
- {key:"invitations_acceptance",title:"Προσκλήσεις, Auth και αποδοχές",sources:["mazi_invitations","mazi_invitation_acceptances","mazi_passwordless_email_attempts"],focus:"Μη χρησιμοποιημένοι σύνδεσμοι, αποδείξεις αποδοχής και πάροχος email"},
+ {key:"invitations_acceptance",title:"Προσκλήσεις, Auth και αποδοχές",sources:["mazi_invitations","mazi_invitation_acceptances","mazi_passwordless_email_attempts","mazi_auth_delivery_probes"],focus:"Μη χρησιμοποιημένοι σύνδεσμοι, αποδείξεις αποδοχής και πάροχος email"},
  {key:"members_identity",title:"Μέλη, KYB και εκπροσώπηση",sources:["mazi_members","mazi_membership_applications","mazi_application_followups"],focus:"Ατομικά επαγγελματικά δεδομένα και διακοπή συμμετοχής"},
  {key:"community_content",title:"Forum, Livechat, ιδιωτικά μηνύματα",sources:["mazi_chat_messages","mazi_forum_threads","mazi_forum_replies","mazi_inquiry_messages"],focus:"Δικαιώματα συνομιλητών, ορατότητα, διαγραφή ή ανωνυμοποίηση"},
  {key:"marketplace_listings",title:"B2B αγγελίες και συναλλακτικές αποδοχές",sources:["mazi_marketplace_listings","mazi_listing_inquiries","mazi_goods_terms_acceptances"],focus:"Λήξη αγγελίας, ανοιχτές διαφορές και εκδόσεις συμφωνιών"},
  {key:"moderation",title:"Αναφορές και διαχείριση περιεχομένου",sources:["mazi_community_reports"],focus:"Ιδιωτικότητα καταγγέλλοντος, ενστάσεις και εκκρεμείς υποθέσεις"},
- {key:"marketing",title:"Συλλογικό marketing και δημιουργικά",sources:["mazi_marketing_preferences","mazi_marketing_briefs","mazi_marketing_creative_invitations","mazi_marketing_creative_events"],focus:"Ανακλητές επιλογές, δικαιώματα δημιουργικού και αποδεικτικά ενεργειών"},
- {key:"services",title:"Tokens, παροχή υπηρεσιών και briefs",sources:["mazi_service_requests","mazi_service_messages","mazi_service_events","mazi_service_order_acceptances"],focus:"Επαγγελματικά αρχεία, παραδοτέα και συμβατικές αποδείξεις"},
- {key:"finance",title:"Λογιστικά, ταμείο και οικονομικές δεσμεύσεις",sources:["mazi_service_periods","mazi_fund_ledger","mazi_grant_award_offers","mazi_fund_reconciliations"],focus:"Αρχεία συναλλαγών, ελληνικές νόμιμες διατηρήσεις, ενεργές αξιώσεις"},
- {key:"votes_governance",title:"Ψηφοφορίες και διακυβέρνηση",sources:["mazi_votes","mazi_fund_ballots","mazi_vote_conflicts","mazi_fund_electorate"],focus:"Μυστικότητα ατομικής ψήφου, αναγκαία επαληθευσιμότητα"},
- {key:"audit_and_rights",title:"Αιτήματα GDPR, ελεγκτικό ιστορικό και approvals",sources:["mazi_privacy_requests","mazi_privacy_request_events","mazi_audit_events","mazi_launch_gate_reviews"],focus:"Ελαχιστοποίηση αρχείων, νόμιμα holds και όριο immutable-audit"},
+ {key:"marketing",title:"Συλλογικό marketing και δημιουργικά",sources:["mazi_marketing_preferences","mazi_marketing_briefs","mazi_marketing_creative_invitations","mazi_marketing_creative_events","mazi_marketing_brief_events"],focus:"Ανακλητές επιλογές, δικαιώματα δημιουργικού και αποδεικτικά ενεργειών"},
+ {key:"services",title:"Tokens, παροχή υπηρεσιών και briefs",sources:["mazi_service_requests","mazi_service_messages","mazi_service_events","mazi_service_order_acceptances","mazi_service_catalog","mazi_service_release_state"],focus:"Επαγγελματικά αρχεία, παραδοτέα και συμβατικές αποδείξεις"},
+ {key:"finance",title:"Λογιστικά, ταμείο και οικονομικές δεσμεύσεις",sources:["mazi_service_periods","mazi_fund_ledger","mazi_grant_award_offers","mazi_fund_reconciliations","mazi_grant_award_acknowledgements","mazi_fund_project_updates","mazi_fund_public_events"],focus:"Αρχεία συναλλαγών, ελληνικές νόμιμες διατηρήσεις, ενεργές αξιώσεις"},
+ {key:"votes_governance",title:"Ψηφοφορίες και διακυβέρνηση",sources:["mazi_votes","mazi_fund_ballots","mazi_vote_conflicts","mazi_fund_electorate","mazi_cycles","mazi_cycle_results","mazi_fund_ballot_invalidations","mazi_fund_cycle_rules","mazi_fund_round_finalizations","mazi_fund_vote_results","mazi_vote_invalidations","mazi_proposals","mazi_proposal_results"],focus:"Μυστικότητα ατομικής ψήφου, αναγκαία επαληθευσιμότητα"},
+ {key:"audit_and_rights",title:"Αιτήματα GDPR, ελεγκτικό ιστορικό και approvals",sources:["mazi_privacy_requests","mazi_privacy_request_events","mazi_audit_events","mazi_launch_gate_reviews","mazi_administrators"],focus:"Ελαχιστοποίηση αρχείων, νόμιμα holds και όριο immutable-audit"},
  {key:"infrastructure_processors",title:"Εξωτερικά συστήματα, cookies, backups, processors",sources:[],focus:"Resend, Supabase Auth, Vercel, logs, backups, μεταφορές εκτός ΕΟΧ, πραγματικές DPAs"}
 ] as const;
 export type MaziRetentionCategoryKey=(typeof MAZI_RETENTION_CATEGORIES)[number]["key"];
@@ -46,7 +46,7 @@ export function validateRetentionReview(input:{
   && [...actual].every(id=>required.has(id as (typeof MAZI_RETENTION_CHECKS)[number]["id"]));
 }
 export async function readMaziRetentionReviews(principal:SessionPrincipal):Promise<{
- latest:RecordRow[];history:RecordRow[];missingSources:string[]
+ latest:RecordRow[];history:RecordRow[];missingSources:string[];unmappedSources:string[]
 }>{
  await marketplaceMaziActor(principal);
  const [a,b,tables]=await Promise.all([
@@ -60,14 +60,17 @@ export async function readMaziRetentionReviews(principal:SessionPrincipal):Promi
    WHERE schemaname='public' AND tablename LIKE 'mazi_%'`)
  ]);
  const names=new Set(tables.rows.map(row=>row.tablename));
- const missingSources=MAZI_RETENTION_CATEGORIES.flatMap(c=>c.sources.filter(source=>!names.has(source)));
- return {latest:a.rows,history:b.rows,missingSources};
+ const covered=new Set<string>(MAZI_RETENTION_CATEGORIES.flatMap(c=>[...c.sources]));
+ const missingSources=[...covered].filter(source=>!names.has(source)).sort();
+ const unmappedSources=[...names].filter(source=>!covered.has(source)
+  && source!=="mazi_retention_category_reviews").sort();
+ return {latest:a.rows,history:b.rows,missingSources,unmappedSources};
 }
 /** All categories must have independently documented real evidence; this is
  * an additional fail-closed release prerequisite, never automatic counsel approval. */
 export async function maziRetentionReviewsComplete(principal:SessionPrincipal):Promise<boolean>{
- const {latest,missingSources}=await readMaziRetentionReviews(principal);
- return missingSources.length===0&&MAZI_RETENTION_CATEGORIES.every(c=>
+ const {latest,missingSources,unmappedSources}=await readMaziRetentionReviews(principal);
+ return missingSources.length===0&&unmappedSources.length===0&&MAZI_RETENTION_CATEGORIES.every(c=>
   latest.find(r=>r.category_key===c.key)?.review_state==="evidence_recorded");
 }
 export async function recordMaziRetentionCategoryReview(principal:SessionPrincipal,input:{
