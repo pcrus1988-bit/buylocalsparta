@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {legalRecords,legalOrder,legalRelations,legalUrl,LEGAL_DATE,LEGAL_VERSION,type LegalSlug} from "../../lib/legal-documents";
 import styles from "./legal.module.css";
+import {legalSourceMap} from "../../lib/legal/v31-sources";
 const policyRoute=/^(\/legal\/[a-z]+|\/privacy|\/terms|\/invitation-terms|\/marketplace\/rules|\/services\/catalogue|\/hubs\/join)$/;
 const policySplit=/(\/legal\/[a-z]+|\/privacy|\/terms|\/invitation-terms|\/marketplace\/rules|\/services\/catalogue|\/hubs\/join)/g;
 function LinkedParagraph({value}:{value:string}){
@@ -16,7 +17,7 @@ export function LegalView({slug}:{slug:LegalSlug}){
    <span className="eyebrow light">ΜΑΖΙ · ΝΟΜΙΚΗ ΤΕΚΜΗΡΙΩΣΗ / {doc.eyebrow}</span>
    <h1>{doc.title}</h1><p>{doc.summary}</p>
    <div className={styles.heroMeta}>
-    <span>Κωδικοποίηση 3.0 · {LEGAL_DATE} · {LEGAL_VERSION}</span>
+    <span>Κωδικοποίηση 3.1 · {LEGAL_DATE} · {LEGAL_VERSION}</span>
     <span>{current?"Κανόνες και ενημέρωση τρέχουσας λειτουργίας":"Ειδικό πλαίσιο πληρωμένης συμμετοχής · εφαρμογή μετά από ατομική αποδοχή"}</span>
    </div>
   </div></section>
@@ -29,7 +30,7 @@ export function LegalView({slug}:{slug:LegalSlug}){
    </nav>
    <article className={styles.article}>
     <p className={styles.notice}><strong>{current?"Τρέχουσα εφαρμογή:":"Συμβατική ενεργοποίηση:"}</strong> {slug==="retention"?
-      "Το δικαίωμα προστασίας δεδομένων ισχύει ανεξάρτητα από τη λειτουργία αυτοματισμών διαγραφής. Οι εσωτερικές προθεσμίες χρειάζονται πραγματική εφαρμογή και τεχνικό έλεγχο.":
+      "Η προστασία των δεδομένων και η αρχή χρονικού περιορισμού ισχύουν ήδη για τον πιλοτικό λογαριασμό. Η δημοσίευση προθεσμιών δεν αποδεικνύει ότι έχει ολοκληρωθεί η επαλήθευση κάθε εργασίας εκκαθάρισης.":
       current?"Οι κανόνες χρήσης και η υποχρεωτική ενημέρωση ισχύουν κατά το πραγματικό πεδίο της τρέχουσας υπηρεσίας. Για την πιλοτική πρόσκληση εφαρμοστέα παραμένει η χωριστά αποδεκτή έκδοση /invitation-terms.":
       "Το παρόν κείμενο ρυθμίζει αποκλειστικά το αντίστοιχο αντικείμενο της πληρωμένης λειτουργίας. Η υπάρχουσα μη οικονομική πρόσκληση δεν χρεώνεται ούτε ενεργοποιεί οικονομική υποχρέωση ή ενίσχυση. Απαιτείται χωριστή ατομική αποδοχή και νόμιμη έναρξη."}</p>
     <div className={styles.toc}><strong>Περιεχόμενα</strong><ol>{sections.map((section,i)=><li key={section.heading}><a href={`#article-${i+1}`}>{section.heading}</a></li>)}</ol></div>
@@ -44,13 +45,9 @@ export function LegalView({slug}:{slug:LegalSlug}){
      {slug==="terms"||slug==="membership"||slug==="compliance"?<Link href="/invitation-terms">Ενεργή έκδοση όρων πιλοτικής πρόσκλησης</Link>:null}
     </aside>
     <aside className={styles.sources}>
-     <h2>Νομοθετικές πηγές και επικοινωνία</h2>
-     <a href="https://eur-lex.europa.eu/eli/reg/2016/679/oj" target="_blank" rel="noopener noreferrer">ΓΚΠΔ · Κανονισμός (ΕΕ) 2016/679</a>
-     <a href="https://eur-lex.europa.eu/eli/reg/2022/2065/oj" target="_blank" rel="noopener noreferrer">Digital Services Act · Κανονισμός (ΕΕ) 2022/2065</a>
-     <a href="https://eur-lex.europa.eu/eli/reg/2019/1150/oj" target="_blank" rel="noopener noreferrer">P2B · Κανονισμός (ΕΕ) 2019/1150, μόνο όπου εφαρμόζεται</a>
-     <a href="https://www.dpa.gr/en/enimerwtiko/legal_framework/personal_data/personal_legislation" target="_blank" rel="noopener noreferrer">Αρχή Προστασίας Δεδομένων · Ελληνική νομοθεσία</a>
-     <a href="https://www.taxheaven.gr/law/4308/2014/arthro/7" target="_blank" rel="noopener noreferrer">Ν. 4308/2014 · Διατήρηση λογιστικών αρχείων</a>
-     <a href="https://kontamou.site/hubs/join" target="_blank" rel="noopener noreferrer">Επίσημες παροχές KONTA ΜΟΥ HUB PRO</a>
+     <h2>Νομοθετικές πηγές της συγκεκριμένης πολιτικής</h2>
+     <p>Οι παρακάτω επίσημες ή νομοθετικές παραπομπές αφορούν το συγκεκριμένο αντικείμενο. Η εφαρμογή τους εξαρτάται από τη φύση της υπηρεσίας και τα πραγματικά περιστατικά.</p>
+     {legalSourceMap[slug].map(source=><a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">{source.label}</a>)}
      <a href="mailto:info@kontamou.site">info@kontamou.site</a>
     </aside>
    </article>
