@@ -60,7 +60,7 @@ export default async function MaziFundGovernance({searchParams}:{searchParams:Pr
     <h1>Κανόνες.<em>Επαληθευμένες αποφάσεις.</em></h1>
     <p className={s.subtitle}>Επιλεξιμότητα, προδημοσιευμένοι κανόνες, πάγωμα εκλογικού σώματος ανά ΓΕΜΗ, αιτιολογημένες αποφάσεις και οριστικοποίηση. Οι ενέργειες δεν εισπράττουν ούτε εκταμιεύουν χρήματα.</p>
    </div><div className={s.lock}><strong>SUPER ADMIN ONLY</strong><span>Η παρούσα σελίδα δεν μπορεί να ενεργοποιήσει χρηματοδότηση.</span>
-    <Link href="/admin/mazi/fund">Οικονομική κατάσταση ↗</Link><a href="https://mazi.kontamou.site/fund/results" target="_blank" rel="noreferrer">Δημόσια αποτελέσματα ↗</a></div></header>
+    <Link href="/admin/mazi/fund">Οικονομική κατάσταση ↗</Link><Link href="/admin/mazi/fund/projects">Έλεγχος έργων ↗</Link><a href="https://mazi.kontamou.site/fund/results" target="_blank" rel="noreferrer">Δημόσια αποτελέσματα ↗</a></div></header>
    {notice==="updated"?<div className={s.notice} role="status">Η αλλαγή καταχωρίστηκε με μόνιμο ίχνος ελέγχου.</div>:null}
    <section className={s.section}><div className={s.sectionTop}><div><p>01 / FUNDING ROUNDS</p><h2>Πραγματικοί χρηματοδοτικοί κύκλοι</h2></div><span>Δεν δημιουργούνται εικονικοί κύκλοι, ποσά ή μέλη.</span></div>
    {!cycles.rows.length?<div className={s.empty}><strong>Δεν έχουν ενεργοποιηθεί χρηματοδοτικοί κύκλοι.</strong>
