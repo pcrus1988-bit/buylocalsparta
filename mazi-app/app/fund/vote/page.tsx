@@ -3,7 +3,7 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {createClient} from "../../../lib/supabase/server";
 import {maziFundMemberRequest,type MaziFundBallotState} from "../../../lib/mazi-api";
-import {castMaziFundBallot} from "../../actions";
+import FundVoteForm from "./fund-vote-form";
 import {euroCents} from "../../../lib/fund-transparency";
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"Ψηφοφορία Αναπτυξιακού Ταμείου · ΜΑΖΙ",
@@ -68,21 +68,10 @@ export default async function MaziFundVote({searchParams}:{searchParams:Promise<
     <h2 style={{fontSize:32,letterSpacing:"-.04em"}}>Προτάσεις προς στήριξη</h2>
     <p style={{lineHeight:1.7}}>Η επιλογή πολλών έργων γίνεται με ένα ψηφοδέλτιο, όχι με πολλαπλές ψήφους. Η δική σου πρόταση δεν εμφανίζεται ως επιλέξιμη. Συνδεδεμένα έργα αποκλείονται από τον έλεγχο συμφερόντων.</p>
     {!result.proposals.length?<div style={{background:"#fff",padding:28}}>Δεν υπάρχουν εγκεκριμένες προτάσεις για επιλογή.</div>:
-    <form action={castMaziFundBallot} style={{display:"grid",gap:12}}>
-    <div style={{display:"grid",gap:12}}>{[...result.proposals].sort((a,b)=>Number(b.first_time_support_request)-Number(a.first_time_support_request)).map(p=><label key={p.id} style={{display:"flex",gap:20,background:"#fff",padding:25,border:"1px solid #d4ddd3",cursor:result.has_voted?"default":"pointer"}}>
-     <input type="checkbox" name="proposal_id" value={p.id} disabled={result.has_voted||result.cycle?.status!=="voting"||!result.voting_eligible} style={{width:21,height:21,flexShrink:0,marginTop:5}}/>
-     <span><span style={{fontSize:12,color:"#68836e"}}>{p.first_time_support_request?"ΠΡΩΤΗ ΑΙΤΗΣΗ · ΠΡΟΤΕΡΑΙΟΤΗΤΑ":"ΠΡΟΗΓΟΥΜΕΝΗ ΣΥΜΜΕΤΟΧΗ"} · {p.category}</span>
-     <strong style={{display:"block",fontSize:22,margin:"8px 0"}}>{p.title}</strong>
-     <span style={{display:"block",fontSize:14,lineHeight:1.65}}>{p.details}</span>
-     <span style={{display:"block",fontWeight:700,marginTop:14}}>Αιτούμενο: {euroCents(p.amount_cents)}</span></span>
-    </label>)}</div>
-    {!result.has_voted&&result.cycle.status==="voting"&&result.voting_eligible&&localDay>=16&&localDay<=23&&
-     Date.parse(result.cycle.starts_at)<=Date.now()&&Date.parse(result.cycle.ends_at)>Date.now()?
-     <div style={{padding:25,background:"#e8ebe3"}}>
-      <p>Με την καταχώριση επιβεβαιώνεις οριστικά τις προτάσεις που επιλέγεις. Ο ίδιος αριθμός ΓΕΜΗ δεν μπορεί να ψηφίσει ξανά στον κύκλο.</p>
-      <button type="submit" style={{padding:"17px 28px",background:"#153d30",color:"#fff",border:0,cursor:"pointer",fontWeight:700}}>Οριστική υποβολή ψηφοδελτίου</button>
-     </div>:null}
-    </form>}
+    <FundVoteForm proposals={result.proposals}
+     enabled={!result.has_voted&&result.cycle.status==="voting"&&
+      result.voting_eligible&&result.paid_eligible&&localDay>=16&&localDay<=23&&
+      Date.parse(result.cycle.starts_at)<=Date.now()&&Date.parse(result.cycle.ends_at)>Date.now()}/>}
    </section>
    </>}
    <section style={{marginTop:55,borderTop:"1px solid #bed1bf",paddingTop:25,fontSize:14,lineHeight:1.7}}>
