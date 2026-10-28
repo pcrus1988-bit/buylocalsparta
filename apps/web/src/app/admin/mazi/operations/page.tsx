@@ -10,6 +10,7 @@ import {getMaziAuthEmailProbes,getMaziAuthProbeTargets,type MaziAuthProbeRow} fr
 import {requiredMaziChecks} from "../../../../lib/mazi-release-checklist";
 import {maziRetentionInventory,proposedMaziRetention,type MaziRetentionInventory} from "../../../../lib/mazi-retention-readiness";
 import {assessMaziReleaseReadiness} from "../../../../lib/mazi-readiness";
+import {maziRetentionReviewsComplete} from "../../../../lib/mazi-retention-reviews";
 import s from "../mazi.module.css";
 
 export const dynamic="force-dynamic";
@@ -28,11 +29,12 @@ function OperationalIssue({title,count,description}:{
   <strong>{count.toLocaleString("el-GR")}</strong>
  </article>;
 }
-function ExternalGate({title,description,gateKey,review,csrf}:{
+function ExternalGate({title,description,gateKey,review,csrf,retentionEvidenceComplete}:{
  title:string;description:string;gateKey:MaziLaunchGateKey;
- review:MaziLaunchGateReview|undefined;csrf:string;
+ review:MaziLaunchGateReview|undefined;csrf:string;retentionEvidenceComplete?:boolean;
 }){
- const verified=review?.decision==="verified";
+ const verified=review?.decision==="verified" &&
+  (gateKey!=="legal_and_retention"||retentionEvidenceComplete===true);
  const checklist=requiredMaziChecks(gateKey);
  const evidenceDoc=gateKey==="auth_email_delivery"
   ?"https://github.com/pcrus1988-bit/buylocalsparta/blob/main/mazi-app/legal/MAZI-AUTH-DELIVERY-RELEASE-2026-10-25.md"
@@ -44,6 +46,8 @@ function ExternalGate({title,description,gateKey,review,csrf}:{
    <span className={s.tag}>{verified?"ΧΕΙΡΟΚΙΝΗΤΗ ΕΠΙΒΕΒΑΙΩΣΗ":"ΕΚΚΡΕΜΕΙ ΕΠΑΛΗΘΕΥΣΗ"}</span>
    <h3>{title}</h3>
    <p className={s.body}>{description}</p>
+   {gateKey==="legal_and_retention" && review?.decision==="verified" && !retentionEvidenceComplete?
+    <p className={s.meta} role="alert">Προηγούμενη βεβαίωση δεν ισχύει για την τρέχουσα ετοιμότητα: η απογραφή διατήρησης είναι ελλιπής ή επανενεργοποιήθηκε.</p>:null}
    {evidenceDoc?<p className={s.meta}><a href={evidenceDoc} target="_blank" rel="noreferrer" style={{textDecoration:"underline"}}>Άνοιγμα αναλυτικού φακέλου τεκμηρίωσης και οδηγιών (GitHub) ↗</a></p>:null}
    {gateKey==="legal_and_retention"?<p className={s.meta}>
     <a href="https://mazi.kontamou.site/privacy" target="_blank" rel="noreferrer" style={{textDecoration:"underline"}}>Τρέχουσα ενημέρωση GDPR</a>
@@ -124,7 +128,16 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
  </div></main>;
  const {notice}=await searchParams;
  const latestGate=(key:MaziLaunchGateKey)=>gates.find(gate=>gate.gate_key===key);
- const assessment=assessMaziReleaseReadiness(state,gates);
+ let retentionEvidenceComplete=false;
+ try{retentionEvidenceComplete=await maziRetentionReviewsComplete(principal);}catch{}
+ const assessed=assessMaziReleaseReadiness(state,gates);
+ const assessment=retentionEvidenceComplete?assessed:{
+  ...assessed,
+  evidenceGatesVerified:Math.max(0,assessed.evidenceGatesVerified-
+   (latestGate("legal_and_retention")?.decision==="verified"?1:0)),
+  prerequisitesRecorded:false,
+  blockers:[...assessed.blockers,"Απαιτείται πλήρης, ισχύουσα τεκμηρίωση διατήρησης για όλες τις 12 κατηγορίες και τον εξωτερικό κύκλο παρόχων."]
+ };
  const financeLocked=state.finance_enabled_cycles===0&&state.ledger_total===0&&
   state.grant_offers_total===0&&state.safe_founding_cycles===1;
  const auditCoherent=state.acceptances===state.invitations_consumed;
@@ -144,7 +157,7 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
     <span>{snapshotAt.toLocaleString("el-GR",{timeZone:"Europe/Athens"})}</span>
     <span>Μόνο αναγνωστική πρόσβαση. Δεν δημιουργούνται ή αλλάζουν μέλη.</span>
     <Link href="/admin/mazi/interest">Διαχείριση αιτήσεων ΑΦΜ ↗</Link><Link href="/admin/mazi/moderation">Αναφορές κοινότητας ↗</Link>
-    <Link href="/admin/mazi">Διακυβέρνηση ↗</Link><Link href="/admin/mazi/privacy-requests">Αιτήματα GDPR · δικαιώματα ↗</Link>
+    <Link href="/admin/mazi">Διακυβέρνηση ↗</Link><Link href="/admin/mazi/privacy-requests">Αιτήματα GDPR · δικαιώματα ↗</Link><Link href="/admin/mazi/retention">Έλεγχος διατήρησης δεδομένων ↗</Link>
    </div>
   </header>
   {notice==="gate_recorded"?<p className={s.notice} role="status">Η χειροκίνητη επαλήθευση καταχωρίστηκε στο αμετάβλητο ιστορικό. Δεν ενεργοποιήθηκε υπηρεσία ή πληρωμή.</p>:null}
@@ -305,7 +318,7 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
        {p.provider_error_code?" · Κωδικός: "+p.provider_error_code:""}
       </div>)}</div>:<p className={s.meta}>Δεν υπάρχει προηγούμενη δοκιμαστική αποστολή.</p>}
     </article>
-    <ExternalGate gateKey="legal_and_retention" review={latestGate("legal_and_retention")} csrf={principal.csrfToken}
+    <ExternalGate gateKey="legal_and_retention" review={latestGate("legal_and_retention")} csrf={principal.csrfToken} retentionEvidenceComplete={retentionEvidenceComplete}
      title="Νομικός έλεγχος και διατήρηση δεδομένων"
      description="Καταγράψτε τον πραγματικό νομικό έλεγχο, τις εκδόσεις όρων/ενημέρωσης και τον δημοσιευμένο χρόνο διατήρησης. Οι οικονομικοί όροι παραμένουν ανεξάρτητοι."/>
     <ExternalGate gateKey="consenting_business_e2e" review={latestGate("consenting_business_e2e")} csrf={principal.csrfToken}
