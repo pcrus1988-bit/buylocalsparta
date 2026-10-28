@@ -26,7 +26,7 @@ test("review submissions are authenticated, CSRF protected and not self-deleting
  assert.match(library,/actual\.size===required\.size/);
  assert.match(library,/input\.checks\.length===required\.size/);
  assert.doesNotMatch(library,/DELETE FROM|TRUNCATE|DROP TABLE|UPDATE public\.mazi_|pg_cron/);
- assert.match(page,/δεν εκτελούνται διαγραφές|Δεν εκτελούνται διαγραφές/);
+ assert.match(page,/δεν εκτελούνται διαγραφές|Δεν εκτελούνται διαγραφές/);\n assert.match(page,/Απουσιάζοντες ονομασμένοι πίνακες/);\n assert.match(page,/Νέοι \/ αταξινόμητοι πίνακες MAZI/);
 });
 test("RLS uses backend-only grants, immutable events, no public access",()=>{
  assert.match(sql,/ENABLE ROW LEVEL SECURITY/);
