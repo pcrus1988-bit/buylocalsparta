@@ -14,7 +14,7 @@ const channels=[
 ] as const;
 type Preference={wants_collective_campaigns:boolean;channels:string[];region:string;member_note:string;updated_at:string};
 type Invite={id:string;campaign_title:string;channel:string;creative_text:string;asset_description:string;destination_url:string;status:string;created_at:string;expires_at:string;responded_at:string|null};
-const inviteState:Record<string,string>={pending:"Αναμένει απόφαση",approved:"Εγκρίθηκε ως προεπισκόπηση",declined:"Δεν εγκρίθηκε",withdrawn:"Ανακλήθηκε από το μέλος",revoked:"Ανακλήθηκε από τον διαχειριστή"};
+const inviteState:Record<string,string>={issued:"Πρόταση υποβλήθηκε για έλεγχο",pending:"Αναμένει απόφαση",approved:"Εγκρίθηκε ως προεπισκόπηση",declined:"Δεν εγκρίθηκε",withdrawn:"Ανακλήθηκε από το μέλος",revoked:"Ανακλήθηκε από τον διαχειριστή"};
 export default async function MemberMarketing({searchParams}:{searchParams:Promise<{notice?:string}>}){
  const db=await createClient();
  const {data:{user}}=await db.auth.getUser();
