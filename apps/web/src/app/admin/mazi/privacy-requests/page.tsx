@@ -87,7 +87,7 @@ export default async function MaziPrivacyRequestsPage({searchParams}:{searchPara
      <p className={s.meta}>Τελευταία αποδεικτικά:</p>
      <ul style={{paddingLeft:20}}>
       {snapshot.events.filter(e=>e.request_id===item.id).slice(0,6).map((ev,i)=><li key={i} className={s.meta}>
-       {ev.event_kind} · {ev.evidence_ref} · {new Date(ev.recorded_at).toLocaleDateString("el-GR",{timeZone:"Europe/Athens"})}
+       {ev.event_kind} · {ev.evidence_ref} · {ev.effective_on||"—"} {ev.response_outcome||ev.documented_reason||""} · καταχώριση {new Date(ev.recorded_at).toLocaleDateString("el-GR",{timeZone:"Europe/Athens"})}
       </li>)}
      </ul>
     </div>
