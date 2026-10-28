@@ -47,3 +47,20 @@ Every specialist page renders clickable related-policy links and hyperlinks to c
 
 ## Verified operating boundaries
 The founding needs cycle `founding-needs-2026` is non-financial with budget €0 and runs against its own saved dates. Paid subscriptions and awards are not enabled by publication. B2B Marketplace is a members-only physical-goods advertisement/communications platform, separate from the main KONTA MOU seller-of-record marketplace.
+
+## V3.1 review — operational clarity (28 October 2026)
+- The publicly effective /legal/retention policy is explicitly **current** for present pilot personal data, while the status of individual automated purges remains subject to live verification. This removes a contradictory prospective-paid label from GDPR duties.
+- Legal source citations are now per-policy: civil-law liability and disproportionate penalties beside Terms/Award; GDPR and Greek data-authority materials beside Privacy/Retention/Cookies; DSA beside hosted member content; VAT/voucher statute beside the actual commercial offering.
+- Marketing creative approvals and opt-in preferences are **currently permitted pilot data operations**, not automatic legal consent to send promotional mail or spend on advertising.
+- Dedicated /legal/report provides a plain-electronic notice/contact workflow for purported illegal content, ordinary moderation objections and data subject rights. It provides an email handoff, **not an automated ticketing receipt**, so delivery and replies must be operationally verified.
+- Greek direct electronic marketing: evaluate Article 11 of Law 3471/2006, independent of GDPR contract consent; objecting data subjects are removed from further direct marketing processing.
+- Strengthened automatic legal QA: source-scoped statutes, document ownership, numbered sections, local legal link referential integrity, no numeric commercial terms in General Terms, and current GDPR status.
+
+### Remaining implementation evidence needed for full compliance
+1. Live cookie and local-storage inventory with first/third-party names, lifetime and consent-blocking test.
+2. Confirm processor DPAs, subprocessor list and international transfer instruments for Supabase/Vercel and any mail provider.
+3. Real data-retention execution logs and backup restore/re-deletion test, with GDPR access/erasure response evidence.
+4. Test the DSA reporting mailbox for inbound delivery, confirmation and reasoned response; consider a proper structured web submission form as operational capacity scales.
+5. Verify final legal identity/GEMI address immediately before paid launch; confirm competent Greek counsel's enforceability opinion on lengthy grant-linked membership obligations.
+6. Confirm pricing/VAT/voucher treatment with Greek tax adviser; activate no paid agreement without exact-version affirmative acceptance.
+7. Keep accepted invitation agreement and B2B goods agreement immutable; publishing version 3.1 does not change previously accepted versions.
