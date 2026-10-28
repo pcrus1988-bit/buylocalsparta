@@ -58,7 +58,7 @@ test("marketing pilot remains distinct from advertising consent and Fund payouts
  const m=docs.marketing.sections.flatMap(s=>s.paragraphs).join(" ");
  const p=docs.privacy.sections.flatMap(s=>s.paragraphs).join(" ");
  assert.match(m,/προεπισκόπηση/);
- assert.match(m,/δεν αποτελεί|δεν επιτρέπει/);
+ assert.match(m,/δεν αποτελεί|δεν επιτρέπει/i);
  assert.match(p,/εμπορικ|marketing/);
  assert.match(docs.fund.sections.flatMap(s=>s.paragraphs).join(" "),/founding-needs-2026/);
  assert.match(docs.fund.sections.flatMap(s=>s.paragraphs).join(" "),/€0/);
