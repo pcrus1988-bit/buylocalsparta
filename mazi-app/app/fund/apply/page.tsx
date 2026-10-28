@@ -44,6 +44,11 @@ export default async function ApplyForFund({searchParams}:{searchParams:Promise<
     <p>Αιτούμενο ποσό: <strong>{euroCents(state.my_proposal.amount_cents)}</strong></p>
     <p>Ελάχιστο χρήσιμο ποσό: {state.my_proposal.minimum_useful_cents===null?"—":euroCents(state.my_proposal.minimum_useful_cents)}</p>
     <p style={{lineHeight:1.7}}>Έχει καταχωριστεί μία αίτηση για τη συγκεκριμένη νομική επιχείρηση και τον κύκλο. Ο έλεγχος δεν αποτελεί χρηματοδοτική δέσμευση.</p>
+   </section>:!state.paid_eligible?<section style={{background:"#fff",padding:32,border:"1px solid #d1ddcf"}}>
+    <span style={{fontSize:12,color:"#7e7454",letterSpacing:".13em"}}>ΕΚΚΡΕΜΕΙ Ο ΕΛΕΓΧΟΣ ΣΥΝΔΡΟΜΗΣ</span>
+    <h2 style={{fontSize:29,margin:"15px 0"}}>Απαιτείται ενεργή και εξοφλημένη συνδρομή.</h2>
+    <p style={{lineHeight:1.8}}>Η ταυτοποίηση της επιχείρησης από μόνη της δεν επιτρέπει χρηματοδοτική αίτηση. Χρειάζεται ενεργός συνδρομητικός κύκλος με επαληθευμένο νόμιμο παραστατικό. Η δοκιμαστική, μη οικονομική συμμετοχή διατηρείται ανεξάρτητα.</p>
+    <Link href="/dashboard" style={{textDecoration:"underline"}}>Επιστροφή στο Dashboard →</Link>
    </section>:state.cycle.status!=="submissions"||Number(new Intl.DateTimeFormat("en-US",{timeZone:"Europe/Athens",day:"numeric"}).format(new Date()))>10||Date.parse(state.cycle.starts_at)>Date.now()||Date.parse(state.cycle.ends_at)<=Date.now()?
     <section style={{background:"#fff",padding:30}}><h2>Ο κύκλος δεν δέχεται νέες αιτήσεις</h2>
     <p>Κατάσταση: {state.cycle.status}. Η περίοδος ή η διαδικασία υποβολής έχει κλείσει.</p></section>:
