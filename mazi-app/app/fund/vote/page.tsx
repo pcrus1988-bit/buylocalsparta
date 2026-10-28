@@ -24,6 +24,7 @@ export default async function MaziFundVote({searchParams}:{searchParams:Promise<
  const result=await maziFundMemberRequest<MaziFundBallotState>("state");
  if(!result.ok&&result.error==="membership_required")redirect("/members");
  const params=await searchParams;
+ const localDay=Number(new Intl.DateTimeFormat("en-US",{timeZone:"Europe/Athens",day:"numeric"}).format(new Date()));
  return <main id="content" style={{minHeight:"100vh",background:"#f4f2e9",color:"#14392d"}}>
   <header style={{background:"#153c31",color:"#fff",padding:"78px max(24px,calc((100vw - 1080px)/2)) 70px"}}>
    <span style={{fontSize:12,letterSpacing:".17em",color:"#bcd1c4"}}>ΜΑΖΙ / ΑΝΑΠΤΥΞΙΑΚΟ ΤΑΜΕΙΟ / ΜΕΛΟΣ</span>
@@ -54,7 +55,7 @@ export default async function MaziFundVote({searchParams}:{searchParams:Promise<
     <p>Αριθμός έργων που υποστήριξες: {result.my_vote?.proposal_ids.length||0}.</p>
     <p style={{fontSize:13}}>Η ψήφος δεν αποτελεί πληρωμή ούτε εγγύηση ενίσχυσης. Το τελικό αποτέλεσμα και οι κατανομές υπόκεινται στους δημοσιευμένους κανόνες.</p>
    </section>:result.cycle.status!=="voting"||!result.voting_eligible||
-      Number(new Intl.DateTimeFormat("en-US",{timeZone:"Europe/Athens",day:"numeric"}).format(new Date()))<16||Number(new Intl.DateTimeFormat("en-US",{timeZone:"Europe/Athens",day:"numeric"}).format(new Date()))>23||Date.parse(result.cycle.starts_at)>Date.now()||Date.parse(result.cycle.ends_at)<=Date.now()?
+      localDay<16||localDay>23||Date.parse(result.cycle.starts_at)>Date.now()||Date.parse(result.cycle.ends_at)<=Date.now()?
     <section style={{padding:28,background:"#fff"}}><h3>Η ψηφοφορία δεν είναι ανοιχτή για την επιχείρησή σου.</h3>
     <p>Οι προτάσεις μπορούν να προβληθούν, αλλά η υποβολή δεν επιτρέπεται εκτός της ελεγμένης περιόδου.</p></section>:null}
    <section style={{marginTop:38}}>
@@ -69,7 +70,7 @@ export default async function MaziFundVote({searchParams}:{searchParams:Promise<
      <span style={{display:"block",fontSize:14,lineHeight:1.65}}>{p.details}</span>
      <span style={{display:"block",fontWeight:700,marginTop:14}}>Αιτούμενο: {euroCents(p.amount_cents)}</span></span>
     </label>)}</div>
-    {!result.has_voted&&result.cycle.status==="voting"&&result.voting_eligible&&
+    {!result.has_voted&&result.cycle.status==="voting"&&result.voting_eligible&&localDay>=16&&localDay<=23&&
      Date.parse(result.cycle.starts_at)<=Date.now()&&Date.parse(result.cycle.ends_at)>Date.now()?
      <div style={{padding:25,background:"#e8ebe3"}}>
       <p>Με την καταχώριση επιβεβαιώνεις οριστικά τις προτάσεις που επιλέγεις. Ο ίδιος αριθμός ΓΕΜΗ δεν μπορεί να ψηφίσει ξανά στον κύκλο.</p>
