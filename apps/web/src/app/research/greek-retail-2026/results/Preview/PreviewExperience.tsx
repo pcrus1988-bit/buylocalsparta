@@ -10,7 +10,7 @@ import type { SafeParticipationGeography } from "../../../../../lib/research-pub
 const LIVE_URL = "/api/research/greek-retail-2026/results-preview-live";
 const REFRESH_MS = 60_000;
 
-export function ResearchResultsPreviewExperience({initial,geography}:{initial:LiveGreekRetailPreview|null;geography?:SafeParticipationGeography}) {
+export function ResearchResultsPreviewExperience({initial,geography,restrictedViewer=false}:{initial:LiveGreekRetailPreview|null;geography?:SafeParticipationGeography;restrictedViewer?:boolean}) {
   const [snapshot,setSnapshot] = useState<LiveGreekRetailPreview|null>(initial);
   const [error,setError] = useState(!initial);
   const [refreshing,setRefreshing] = useState(false);
@@ -81,6 +81,6 @@ export function ResearchResultsPreviewExperience({initial,geography}:{initial:Li
       </button>
     </div>
     {error && <p role="alert" style={{padding:16}}>Η ζωντανή ανάκτηση απέτυχε. Δεν εμφανίζονται αποθηκευμένα ή υποθετικά αποτελέσματα. Δοκιμάστε ξανά την ανανέωση.</p>}
-    <ResearchResultsWorkbench mode="live" points={snapshot?.points??[]} geography={geography} coverage={snapshot?.coverage} />
+    <ResearchResultsWorkbench mode="live" points={snapshot?.points??[]} geography={geography} coverage={snapshot?.coverage} restrictedViewer={restrictedViewer} />
   </div>;
 }
