@@ -78,6 +78,10 @@ test("manual release gates record immutable authorization and never launch money
  assert.match(action,/form\.get\("affirmed"\)!=="on"/);
  assert.match(page,/name="gate_key" value=\{gateKey\}/);
  assert.match(page,/name="evidence" required minLength=\{40\} maxLength=\{700\}/);
+ assert.match(aggregate,/text\.length<40\|\|text\.length>700/);
+ assert.match(aggregate,/MAZI_LAUNCH_GATE_EVIDENCE_TOO_LONG/);
+ assert.match(action,/gate_evidence_too_long/);
+ assert.match(page,/Το τελικό κείμενο μαζί με την αναφορά/);
  assert.match(page,/name="decision" value="verified"/);
  assert.match(page,/name="decision" value="reopened"/);
  assert.match(page,/Δεν ενεργοποιήθηκε υπηρεσία ή πληρωμή/);
