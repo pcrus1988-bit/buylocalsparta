@@ -31,6 +31,9 @@ export default async function MemberMarketing({searchParams}:{searchParams:Promi
   .select("id,campaign_title,channel,creative_text,asset_description,destination_url,status,created_at,expires_at,responded_at")
   .eq("member_user_id",user.id).order("created_at",{ascending:false}).limit(50);
  const invites=(invitations||[]) as Invite[];
+ const {data:decisionHistory,error:historyError}=await db.from("mazi_marketing_creative_events")
+  .select("invitation_id,event_kind,event_at").order("event_at",{ascending:false}).limit(300);
+ const history=(decisionHistory||[]) as {invitation_id:string;event_kind:string;event_at:string}[];
  const params=await searchParams;
  return <main id="content" className="com-shell">
  <div className="com-top"><div><span className="com-kicker">ΜΑΖΙ / Η ΠΡΟΒΟΛΗ ΜΟΥ</span><h1>Συλλογική<br/><em>προβολή.</em></h1>
@@ -78,6 +81,9 @@ export default async function MemberMarketing({searchParams}:{searchParams:Promi
   {inv.asset_description?<p><strong>Υλικό:</strong> {inv.asset_description}</p>:null}
   <p><strong>Προορισμός:</strong> <a href={inv.destination_url} target="_blank" rel="noopener noreferrer" style={{textDecoration:"underline"}}>{inv.destination_url}</a></p>
   <p className="com-meta">Πρόταση έως {new Date(inv.expires_at).toLocaleDateString("el-GR",{timeZone:"Europe/Athens"})} · Έκδοση creative-preview-v1</p>
+  {!historyError?<details style={{margin:"15px 0"}}><summary style={{cursor:"pointer",fontWeight:700}}>Ιστορικό προεπισκόπησης</summary>
+   <ol style={{paddingLeft:20}}>{history.filter(ev=>ev.invitation_id===inv.id).map(ev=><li key={ev.event_at+ev.event_kind} style={{marginTop:8,fontSize:12}}>{inviteState[ev.event_kind]||ev.event_kind} · {new Date(ev.event_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})}</li>)}</ol>
+  </details>:<p className="com-meta">Το ιστορικό ελέγχου δεν είναι προσωρινά διαθέσιμο.</p>}
   {inv.status==="pending"&&Date.parse(inv.expires_at)>Date.now()?
    <form action={respondCreativeInvitation} style={{display:"flex",gap:10,flexWrap:"wrap"}}>
     <input type="hidden" name="invitation_id" value={inv.id}/>
