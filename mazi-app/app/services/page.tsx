@@ -13,6 +13,7 @@ export const metadata:Metadata={title:"Υπηρεσίες κατ’ απαίτη
 type Service={id:string;title:string;category:string;description:string;deliverable:string;tokens:number;turnaround_business_days:number;revisions_included:number;is_active:boolean};
 type Period={id:string;starts_at:string;ends_at:string;allowance_tokens:number};
 type Request={id:string;service_title_snapshot:string;token_price:number;status:string;created_at:string;period_id:string;brief:string;admin_note:string|null;completed_at:string|null;revisions_included_snapshot:number};
+type AcceptanceReceipt={request_id:string;policy_version:string;accepted_at:string;token_price_snapshot:number;deliverable_snapshot:string;turnaround_business_days_snapshot:number;revisions_included_snapshot:number};
 type ServiceMessage={id:number;request_id:string;author_user_id:string;kind:string;body:string;delivery_url:string|null;created_at:string};
 const statusText:Record<string,string>={requested:"Αναμονή ελέγχου",accepted:"Εγκρίθηκε",in_progress:"Σε εκτέλεση",completed:"Παραδόθηκε",rejected:"Απορρίφθηκε",cancelled:"Ακυρώθηκε"};
 const feedback:Record<string,string>={
@@ -25,6 +26,9 @@ const feedback:Record<string,string>={
  unknown_service:"Η υπηρεσία δεν προσφέρεται πλέον.",
  request_failed:"Το αίτημα δεν καταχωρίστηκε· δεν έγινε δέσμευση.",
  cancel_failed:"Δεν ήταν δυνατή η ακύρωση. Ίσως το αίτημα έχει ήδη αναληφθεί.",
+ service_conditions_not_accepted:"Πρέπει να αποδεχτείς ρητά τους όρους του συγκεκριμένου αιτήματος.",
+ idempotency_conflict:"Το αναγνωριστικό της αίτησης έχει χρησιμοποιηθεί διαφορετικά. Ξαναφόρτωσε τη σελίδα.",
+ subscription_not_activated:"Το οικονομικό πρόγραμμα υπηρεσιών δεν έχει ενεργοποιηθεί ακόμη.",
  message_sent:"Το μήνυμα καταχωρίστηκε στην επικοινωνία της υπηρεσίας.",
  message_failed:"Δεν έγινε καταχώριση μηνύματος· δοκίμασε ξανά.",
  message_invalid:"Το μήνυμα πρέπει να περιέχει 10–3.000 χαρακτήρες.",
@@ -46,12 +50,13 @@ export default async function Services({searchParams}:{searchParams:Promise<{not
  const verified=state.application.status==="approved"&&state.member?.status==="verified"&&Boolean(state.member.identity_verified_at);
  const [catalogue,wallet]=await Promise.all([
   maziPublicServiceCatalogue<{services:Service[]}>(),
-  verified?maziServiceRequest<{services:Service[];periods:Period[];requests:Request[];messages:ServiceMessage[]}>("member_wallet"):Promise.resolve(null)
+  verified?maziServiceRequest<{services:Service[];periods:Period[];requests:Request[];messages:ServiceMessage[];acceptances:AcceptanceReceipt[]}>("member_wallet"):Promise.resolve(null)
  ]);
  const services=wallet?.ok?wallet.services:catalogue.ok?catalogue.services:[];
  const periods=wallet?.ok?wallet.periods:[];
  const requests=wallet?.ok?wallet.requests:[];
  const messages=wallet?.ok?wallet.messages:[];
+ const acceptances=wallet?.ok?wallet.acceptances:[];
  const serviceUnavailable=!catalogue.ok||(verified&&!wallet?.ok);
  const now=Date.now();
  const active=periods.find(p=>Date.parse(p.starts_at)<=now&&Date.parse(p.ends_at)>now);
@@ -90,9 +95,14 @@ export default async function Services({searchParams}:{searchParams:Promise<{not
        <form action={requestService} className="com-form">
         <input type="hidden" name="service_id" value={s.id}/>
         <input type="hidden" name="idempotency_key" value={randomUUID()}/>
+        <input type="hidden" name="terms_version" value="mazi-service-order-v1-2026-10-28"/>
         <label>Περιγραφή ανάγκης (20–3.000 χαρακτήρες)
          <textarea name="brief" minLength={20} maxLength={3000} required rows={5} placeholder="Σκοπός, κοινό, στοιχεία και επιθυμητά παραδοτέα…"/></label>
-        <button type="submit" className="com-button">Δέσμευση {s.tokens} Tokens ↗</button>
+        <label style={{display:"flex",alignItems:"flex-start",gap:10,marginTop:12}}>
+         <input name="terms_accepted" type="checkbox" value="yes" required style={{marginTop:5}}/>
+         <span>Αποδέχομαι ειδικά για αυτό το αίτημα τη δέσμευση <strong>{s.tokens} Tokens</strong>, το περιγραφόμενο παραδοτέο, τον ενδεικτικό χρόνο {s.turnaround_business_days} εργάσιμων ημερών, τις {s.revisions_included} περιλαμβανόμενες διορθώσεις και ότι εξωτερικά έξοδα δεν καλύπτονται. Τα μη χρησιμοποιημένα Tokens λήγουν στο τέλος του μήνα. Έχω διαβάσει τους <Link href="/terms">όρους συμμετοχής</Link> και τον <Link href="/services/catalogue">κατάλογο υπηρεσιών</Link>. Η αποδοχή καταγράφεται με ημερομηνία και έκδοση.</span>
+        </label>
+        <button type="submit" className="com-button">Αποδοχή όρων και δέσμευση {s.tokens} Tokens ↗</button>
        </form></details>:
        <p className="com-meta">{!verified?"Διαθέσιμη μετά την επαλήθευση και ενεργοποίηση πληρωμένης συνδρομής":!active?"Εκκρεμεί ενεργός κύκλος":available<s.tokens?"Δεν επαρκούν τα διαθέσιμα Tokens":"Προσωρινά μη διαθέσιμη"}</p>}
     </article>)}
@@ -106,6 +116,14 @@ export default async function Services({searchParams}:{searchParams:Promise<{not
      <div className="com-meta"><span>{fmt(r.created_at)}</span><strong>{statusText[r.status]||r.status}</strong></div>
      <h3>{r.service_title_snapshot} · {r.token_price} Tokens</h3>
      <p>{r.brief}</p>
+     {acceptances.find(a=>a.request_id===r.id)?<details style={{margin:"10px 0"}}>
+      <summary className="com-minor" style={{cursor:"pointer"}}>Αποδεικτικό αποδοχής παραγγελίας</summary>
+      {acceptances.filter(a=>a.request_id===r.id).map(a=><div key={a.request_id} style={{marginTop:9}}>
+       <p><strong>Έκδοση:</strong> {a.policy_version} · <strong>Αποδοχή:</strong> {new Date(a.accepted_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})}</p>
+       <p><strong>Δεσμευμένα Tokens:</strong> {a.token_price_snapshot} · <strong>Διορθώσεις:</strong> {a.revisions_included_snapshot} · <strong>Χρόνος:</strong> {a.turnaround_business_days_snapshot} εργάσιμες</p>
+       <p><strong>Συμφωνημένο παραδοτέο:</strong> {a.deliverable_snapshot}</p>
+      </div>)}
+     </details>:null}
      {r.admin_note?<p><strong>Τελευταία σημείωση ομάδας:</strong> {r.admin_note}</p>:null}
      <div style={{margin:"18px 0",paddingTop:12,borderTop:"1px solid var(--line, #d8ded8)"}}>
       <span className="com-kicker">ΙΣΤΟΡΙΚΟ ΕΠΙΚΟΙΝΩΝΙΑΣ ΚΑΙ ΠΑΡΑΔΟΣΗΣ</span>
