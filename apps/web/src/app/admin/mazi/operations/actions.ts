@@ -25,8 +25,10 @@ export async function reviewMaziLaunchGateAction(form:FormData){
    evidenceReference:field(form,"evidence_reference"),
    checkedItems:form.getAll("review_checks").filter((v):v is string=>typeof v==="string")
   });
- }catch{
-  redirect("/admin/mazi/operations?notice=gate_not_saved");
+ }catch(error){
+  const notice=error instanceof Error&&error.message==="MAZI_LAUNCH_GATE_EVIDENCE_TOO_LONG"
+   ?"gate_evidence_too_long":"gate_not_saved";
+  redirect("/admin/mazi/operations?notice="+notice);
  }
  revalidatePath("/admin/mazi/operations");
  redirect("/admin/mazi/operations?notice=gate_recorded");

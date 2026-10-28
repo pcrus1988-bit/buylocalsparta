@@ -63,6 +63,7 @@ function ExternalGate({title,description,gateKey,review,csrf}:{
    <textarea id={"gate-evidence-"+gateKey} name="evidence" required minLength={40} maxLength={700} rows={4}
     style={{font:"inherit",padding:12,border:"1px solid #adbdac"}}
     placeholder="Ημερομηνία, ποιος έκανε τον έλεγχο, πραγματικά αποτελέσματα και τυχόν εκκρεμότητες. Μην προσθέτετε προσωπικά δεδομένα ή κλειδιά."/>
+   {checklist.length?<p className={s.meta}>Για επιβεβαίωση, το συνολικό αποθηκευμένο κείμενο μαζί με αναφορά αποδεικτικών και βεβαιωμένα σημεία πρέπει να μην υπερβαίνει τους 1.200 χαρακτήρες.</p>:null}
    {checklist.length?<fieldset style={{border:"1px solid #bac7b9",padding:12,margin:0,display:"grid",gap:12}}>
     <legend style={{fontWeight:700,fontSize:13}}>Υποχρεωτικά σημεία για «Επιβεβαιώθηκε»</legend>
     {checklist.map(item=><label key={item.id} style={{display:"flex",gap:9,alignItems:"start",fontSize:13}}>
@@ -148,6 +149,7 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
   </header>
   {notice==="gate_recorded"?<p className={s.notice} role="status">Η χειροκίνητη επαλήθευση καταχωρίστηκε στο αμετάβλητο ιστορικό. Δεν ενεργοποιήθηκε υπηρεσία ή πληρωμή.</p>:null}
   {notice==="gate_not_saved"?<p className={s.notice} role="alert">Δεν καταχωρίστηκε απόφαση. Ελέγξτε τα αποδεικτικά, την επιβεβαίωση και τον ενεργό Super Admin ρόλο.</p>:null}
+  {notice==="gate_evidence_too_long"?<p className={s.notice} role="alert">Το τελικό κείμενο μαζί με την αναφορά και τα βεβαιωμένα σημεία υπερβαίνει το όριο των 1.200 χαρακτήρων. Συντόμευσε την τεκμηρίωση και προσπάθησε ξανά.</p>:null}
   {notice==="probe_provider_accepted"?<p className={s.notice} role="status">Το Supabase Auth αποδέχθηκε το δοκιμαστικό αίτημα σύνδεσης. Αυτό δεν αποδεικνύει παραλαβή email. Έλεγξε το inbox και το dashboard του Resend πριν επιβεβαιώσεις την αποστολή.</p>:null}
   {notice==="probe_provider_failed"?<p className={s.notice} role="alert">Ο δοκιμαστικός έλεγχος απέτυχε στον πάροχο ή στο δίκτυο. Δες τον κωδικό στο ιδιωτικό ιστορικό παρακάτω. Η πύλη Auth παραμένει κλειστή.</p>:null}
   {notice==="probe_cooldown"?<p className={s.notice} role="alert">Έχει ήδη γίνει δοκιμή εντός 15 λεπτών για αυτή την επιχείρηση. Δεν στάλθηκε δεύτερο αίτημα.</p>:null}
