@@ -46,6 +46,10 @@ export default async function FundResults(){
     <h3 style={{margin:"0 0 10px",fontSize:23}}>Οι όροι της συγκεκριμένης ψηφοφορίας</h3>
     <p style={{margin:0}}>Προϋπολογισμός κύκλου: <strong>{euroCents(r.funding_budget_cents!)}</strong> · Ελάχιστο ποσοστό απαρτίας: <strong>{r.quorum_percent}%</strong> · Ελάχιστες ψήφοι ανά πρόταση: <strong>{r.minimum_support_votes}</strong> · Ανώτατος αριθμός έργων: <strong>{r.max_awards}</strong> · Ανώτατη ενίσχυση ανά έργο: <strong>{euroCents(r.project_cap_cents!)}</strong>.</p>
     <p style={{overflowWrap:"anywhere",fontSize:13}}>Αμετάβλητο SHA-256 δημοσιευμένου κανονισμού: <code>{r.rules_sha256}</code> · Έκδοση κατανομής: {r.policy_version}</p>
+    <details style={{marginTop:22}}>
+     <summary style={{cursor:"pointer",fontWeight:700}}>Πλήρες αμετάβλητο κείμενο κανόνων της ψηφοφορίας</summary>
+     <div style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",background:"#fff",padding:22,marginTop:18,border:"1px solid #cbd8c8"}}>{r.public_policy_text}</div>
+    </details>
    </section>
    <section style={{marginTop:60}}>
     <span style={{letterSpacing:".16em",fontSize:12,color:"#678371"}}>ΠΡΟΤΑΣΕΙΣ / ΕΓΚΥΡΗ ΣΤΗΡΙΞΗ</span>
