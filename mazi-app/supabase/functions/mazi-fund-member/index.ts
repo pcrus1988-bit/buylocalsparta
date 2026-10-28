@@ -18,6 +18,7 @@ const out=(value:Record<string,unknown>,status=200)=>new Response(JSON.stringify
 const uuid=(x:unknown)=>typeof x==="string"&&/^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i.test(x);
 type Member={user_id:string;status:string;voting_eligible:boolean;identity_verified_at:string|null;gemi_number:string|null;application_id:string};
 const inWindow=(c:{starts_at:string;ends_at:string})=>Date.parse(c.starts_at)<=Date.now()&&Date.parse(c.ends_at)>Date.now();
+const athensDay=()=>Number(new Intl.DateTimeFormat("en-US",{timeZone:"Europe/Athens",day:"numeric"}).format(new Date()));
 Deno.serve(async(req:Request)=>{
  try{
   const origin=req.headers.get("origin");
@@ -52,7 +53,7 @@ Deno.serve(async(req:Request)=>{
   if(!cycle||cycle.finance_activated!==true||cycle.funding_budget_cents<=0)
     return out({ok:true,cycle:null,proposals:[],has_voted:false,voting_eligible:false,my_vote:null,my_proposal:null});
   if(input.operation==="apply"){
-   if(cycle.status!=="submissions"||!inWindow(cycle))
+   if(cycle.status!=="submissions"||!inWindow(cycle)||athensDay()>10)
     return out({ok:false,error:"applications_not_open"},403);
    const title=typeof input.title==="string"?input.title.trim():"";
    const details=typeof input.details==="string"?input.details.trim():"";
@@ -102,7 +103,7 @@ Deno.serve(async(req:Request)=>{
    voting_eligible:memberEligible,my_proposal:ownProposalResponse.data||null});
   // The database trigger validates cycle, legal identity, every selected
   // proposal and conflict, and freezes the ballot against later edits.
-  if(!memberEligible||cycle.status!=="voting"||!inWindow(cycle))
+  if(!memberEligible||cycle.status!=="voting"||!inWindow(cycle)||athensDay()<16||athensDay()>23)
     return out({ok:false,error:"voting_not_open"},403);
   if(ballotResponse.data)return out({ok:false,error:"already_voted"},409);
   if(!Array.isArray(input.proposal_ids)||input.proposal_ids.length<1||input.proposal_ids.length>20
