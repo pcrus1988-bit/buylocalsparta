@@ -2,7 +2,8 @@ import type {Metadata} from "next";
 import Link from "next/link";
 import {redirect} from "next/navigation";
 import {createClient} from "../../lib/supabase/server";
-import {maziMemberRequest,type MaziState} from "../../lib/mazi-api";
+import {maziMemberRequest,maziFundMemberRequest,maziPublicFundReport,type MaziState,type MaziFundBallotState} from "../../lib/mazi-api";
+import {euroCents} from "../../lib/fund-transparency";
 import {isInquiryUnread,type CommunityInbox} from "../../lib/community";
 import type {MaziListing,MaziForumThread} from "../../lib/mazi-community";
 import "../community.css";
@@ -38,6 +39,10 @@ export default async function Dashboard(){
  const conversations=inbox?.ok?inbox.inquiries:[];
  const inbound=conversations.filter(q=>q.recipient_user_id===user.id&&q.status==="open");
  const unread=conversations.filter(q=>isInquiryUnread(q,user.id));
+ const [fundState,financeState]=await Promise.all([
+  isVerified?maziFundMemberRequest<MaziFundBallotState>("state"):Promise.resolve(null),
+  maziPublicFundReport()
+ ]);
  const ownProposals=state.proposals.filter(p=>p.created_by===user.id);
  const cards=[
   {title:"Η συμμετοχή μου",label:"01 / ΕΠΙΧΕΙΡΗΣΗ",href:"/members",desc:"Αίτηση, επαλήθευση, πραγματική κατάσταση και διευκρινίσεις ελέγχου."},
@@ -68,6 +73,39 @@ export default async function Dashboard(){
     <div><span>Ανοιχτές καταχωρίσεις</span><strong>{display(activity?.active_listings)}</strong><small>Πραγματικές καταχωρίσεις μου</small></div>
     <div><span>Θέματα Forum</span><strong>{display(activity?.threads)}</strong><small>Θέματα που έχω ανοίξει</small></div>
     <div><span>Αδιάβαστα μηνύματα</span><strong>{display(inbox?.ok?unread.length:undefined)}</strong><small>{inbound.length} ενεργά αιτήματα συνεργασίας</small></div>
+   </section>
+   <section className="com-recent" aria-label="Το Αναπτυξιακό Ταμείο μου">
+    <div style={{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",flexWrap:"wrap"}}>
+     <div><span className="com-kicker">ΜΑΖΙ / BUSINESS GROWTH FUND</span><h2>Το Ταμείο στην επιχείρησή μου</h2></div>
+     <Link href="/fund/transparency">Ο δημόσιος οικονομικός απολογισμός →</Link>
+    </div>
+    <div className="com-dashboard-grid" style={{marginTop:22}}>
+     <article className="com-nav-card">
+      <span>ΑΡΧΕΙΟ ΕΝΙΣΧΥΣΕΩΝ</span>
+      <h3>{fundState?.ok&&fundState.my_proposal?"1 αίτηση":"Καμία χρηματοδοτική αίτηση"}</h3>
+      <p>{fundState?.ok&&fundState.my_proposal?fundState.my_proposal.title+" · "+fundState.my_proposal.status:
+       "Οι αιτήσεις αναπτυξιακής ενίσχυσης θα εμφανιστούν εδώ μόλις υπάρξει νόμιμα ενεργός χρηματοδοτικός κύκλος."}</p>
+      <Link href="/fund/apply">Τα αιτήματά μου →</Link>
+     </article>
+     <article className="com-nav-card">
+      <span>ΨΗΦΟΣ & ΔΙΑΚΥΒΕΡΝΗΣΗ</span>
+      <h3>{fundState?.ok&&fundState.has_voted?"Η ψήφος καταχωρίστηκε":
+       fundState?.ok&&fundState.cycle?.status==="voting"&&fundState.voting_eligible?"Ανοιχτή ψηφοφορία":"Δεν υπάρχει ανοιχτή ψηφοφορία"}</h3>
+      <p>{fundState?.ok&&fundState.my_vote?"Στήριξες "+fundState.my_vote.proposal_ids.length+" προτάσεις.":
+        "Μία έγκυρη ψήφος ανά επαληθευμένη επιχείρηση και κύκλο."}</p>
+      <Link href="/fund/vote">Οι ψηφοφορίες μου →</Link>
+     </article>
+     <article className="com-nav-card">
+      <span>ΟΙΚΟΝΟΜΙΚΗ ΛΟΓΟΔΟΣΙΑ</span>
+      <h3>{financeState?euroCents(financeState.book_cash_balance_cents):"Μη διαθέσιμο"}</h3>
+      <p>{financeState
+        ?financeState.financial_operations_enabled
+          ?"Λογιστικό υπόλοιπο (όχι επιβεβαιωμένο τραπεζικό υπόλοιπο)."
+          :"Ανενεργό Ταμείο · χωρίς ενεργή χρηματοδότηση."
+        :"Δεν επιβεβαιώθηκε η σύνδεση με τα οικονομικά στοιχεία. Δεν προβάλλουμε εικονικό μηδενικό υπόλοιπο."}</p>
+      <Link href="/fund/transparency">Αναλυτική διαφάνεια →</Link>
+     </article>
+    </div>
    </section>
    <nav aria-label="Εργαλεία της επιχείρησης" className="com-dashboard-grid">
     {cards.map(card=><Link key={card.href} href={isVerified||card.href==="/members"||card.href==="/fund/transparency"?card.href:"/members"} className="com-nav-card">
