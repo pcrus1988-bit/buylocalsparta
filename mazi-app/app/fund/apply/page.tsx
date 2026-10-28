@@ -14,6 +14,7 @@ const labels:Record<string,string>={
  applications_not_open:"Η περίοδος χρηματοδοτικών αιτήσεων δεν είναι ανοιχτή.",
  invalid_project_application:"Έλεγξε τίτλο, ποσά, περιγραφή και αποδοχή όρων.",
  application_not_eligible:"Δεν ήταν δυνατή η υποβολή. Ελέγχονται η ταυτότητα ΓΕΜΗ και οι προϋποθέσεις.",
+ paid_membership_required:"Η πραγματική χρηματοδοτική αίτηση απαιτεί τρέχουσα εξοφλημένη επαγγελματική συνδρομή με επαληθευμένο παραστατικό.",
  service_unavailable:"Δεν ολοκληρώθηκε η καταχώριση. Δεν δημιουργήθηκε ενίσχυση."
 };
 export default async function ApplyForFund({searchParams}:{searchParams:Promise<{notice?:string}>}){
