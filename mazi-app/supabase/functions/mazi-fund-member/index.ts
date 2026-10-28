@@ -91,20 +91,26 @@ Deno.serve(async(req:Request)=>{
     insertError.code==="23505"?409:403);
    return out({ok:true,submitted:true});
   }
-  const [proposalResponse,ballotResponse,ownProposalResponse]=await Promise.all([
+  const [proposalResponse,ballotResponse,ownProposalResponse,conflictResponse,linkedResponse]=await Promise.all([
    admin.from("mazi_proposals").select("id,title,details,category,amount_cents,created_by,first_time_support_request")
     .eq("cycle_id",cycle.id).eq("status","approved").order("created_at",{ascending:true}).limit(100),
    admin.from("mazi_fund_ballots").select("id,proposal_ids,created_at")
     .eq("cycle_id",cycle.id).eq("voter_id",user.id).maybeSingle(),
    admin.from("mazi_proposals").select("id,title,status,amount_cents,minimum_useful_cents")
-    .eq("cycle_id",cycle.id).eq("created_by",user.id).limit(1).maybeSingle()
+    .eq("cycle_id",cycle.id).eq("created_by",user.id).limit(1).maybeSingle(),
+   admin.from("mazi_vote_conflicts").select("proposal_id")
+    .eq("cycle_id",cycle.id).eq("voter_id",user.id).limit(100),
+   admin.from("mazi_members").select("user_id").eq("gemi_number",member.gemi_number).limit(20)
   ]);
-  if(proposalResponse.error||ballotResponse.error||ownProposalResponse.error)return out({ok:false,error:"service_unavailable"},503);
+  if(proposalResponse.error||ballotResponse.error||ownProposalResponse.error||conflictResponse.error||linkedResponse.error)return out({ok:false,error:"service_unavailable"},503);
   const {data:electorate,error:eError}=await admin.from("mazi_fund_electorate")
    .select("voter_user_id").eq("cycle_id",cycle.id).eq("voter_user_id",user.id).maybeSingle();
   if(eError)return out({ok:false,error:"service_unavailable"},503);
   const memberEligible=paidEligible&&member.voting_eligible===true&&Boolean(electorate);
-  const proposals=(proposalResponse.data||[]).filter(p=>p.created_by!==user.id).map(p=>({
+  const connectedIds=new Set((linkedResponse.data||[]).map(m=>m.user_id));
+  const conflictIds=new Set((conflictResponse.data||[]).map(cf=>cf.proposal_id));
+  const proposals=(proposalResponse.data||[])
+   .filter(p=>p.created_by!==user.id&&!connectedIds.has(p.created_by)&&!conflictIds.has(p.id)).map(p=>({
    id:p.id,title:p.title,details:p.details,category:p.category,
    amount_cents:p.amount_cents,first_time_support_request:p.first_time_support_request
   }));
