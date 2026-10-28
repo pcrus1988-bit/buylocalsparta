@@ -128,10 +128,11 @@ export type MaziPublicFundTally={
  proposals?:{id:string;title:string;amount_cents:number;minimum_useful_cents:number;
  supporting_ballots:number;first_time_support_request:boolean}[];
 };
-export async function maziPublicFundTally():Promise<MaziPublicFundTally|null>{
+export async function maziPublicFundTally(cycleSlug?:string):Promise<MaziPublicFundTally|null>{
+ if(cycleSlug&&!/^[a-z0-9][a-z0-9-]{2,90}$/.test(cycleSlug))return null;
  if(!base||!key)return null;
  try{
-  const response=await fetch(`${base}/functions/v1/mazi-fund-public?view=governance`,{
+  const response=await fetch(`${base}/functions/v1/mazi-fund-public?view=governance${cycleSlug?"&cycle="+encodeURIComponent(cycleSlug):""}`,{
    method:"GET",headers:{apikey:key},next:{revalidate:60},signal:AbortSignal.timeout(8000)
   });
   if(!response.ok)return null;
@@ -152,5 +153,36 @@ export async function maziPublicFundTally():Promise<MaziPublicFundTally|null>{
       !safeInt(p.amount_cents)||!safeInt(p.minimum_useful_cents)||
       !safeInt(p.supporting_ballots)))return null;
   return v as unknown as MaziPublicFundTally;
+ }catch{return null;}
+}
+
+/** Public archive metadata only: no personal votes, recipients or accounts. */
+export type MaziFundArchiveItem={
+ cycle_slug:string;title:string;finalized_at:string;
+ funding_budget_cents:number;valid_ballots:number;invalidated_ballots:number;
+ electorate_count:number;quorum_percent:number;rules_sha256:string;project_count:number
+};
+export async function maziPublicFundArchive():Promise<MaziFundArchiveItem[]|null>{
+ if(!base||!key)return null;
+ try{
+  const response=await fetch(`${base}/functions/v1/mazi-fund-public?view=archive`,{
+   method:"GET",headers:{apikey:key},next:{revalidate:60},signal:AbortSignal.timeout(8000)
+  });
+  if(!response.ok)return null;
+  const payload:unknown=await response.json();
+  if(!isObject(payload)||payload.ok!==true||!Array.isArray(payload.report)||
+   payload.report.length>60)return null;
+  for(const row of payload.report){
+   if(!isObject(row)||typeof row.cycle_slug!=="string"||
+    !/^[a-z0-9][a-z0-9-]{2,90}$/.test(row.cycle_slug)||
+    typeof row.title!=="string"||row.title.length<1||
+    typeof row.finalized_at!=="string"||
+    !/^[a-f0-9]{64}$/.test(String(row.rules_sha256))||
+    !["funding_budget_cents","valid_ballots","invalidated_ballots",
+      "electorate_count","quorum_percent","project_count"].every(
+       x=>typeof row[x]==="number"&&Number.isSafeInteger(row[x])&&(row[x] as number)>=0
+      ))return null;
+  }
+  return payload.report as MaziFundArchiveItem[];
  }catch{return null;}
 }
