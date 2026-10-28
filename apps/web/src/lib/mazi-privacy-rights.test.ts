@@ -69,4 +69,8 @@ test("only server-side trusted runtime roles can read or write GDPR records unde
  assert.doesNotMatch(rls,/CREATE POLICY [^\n]+[\s\S]*? TO anon|CREATE POLICY [^\n]+[\s\S]*? TO authenticated/i);
  assert.doesNotMatch(rls,/GRANT .* TO anon|GRANT .* TO authenticated/i);
  assert.doesNotMatch(rls,/FOR DELETE/i);
+ const grants=read("../../../../mazi-app/sql/mazi_privacy_rights_minimal_grants_20261028.sql");
+ assert.match(grants,/REVOKE DELETE ON TABLE public\.mazi_privacy_requests/);
+ assert.match(grants,/REVOKE UPDATE, DELETE ON TABLE public\.mazi_privacy_request_events/);
+ assert.match(grants,/FROM bls_app_runtime, bls_platform_runtime/);
 });
