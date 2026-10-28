@@ -110,7 +110,7 @@ export async function recordMaziLaunchGateReview(principal:SessionPrincipal,inpu
  const reference=input.evidenceReference?.trim()??"";
  if(!allowedGateKeys.has(gateKey as MaziLaunchGateKey)||
    !["verified","reopened"].includes(decision)||
-   text.length<40||text.length>900||
+   text.length<40||text.length>700||
    !validateMaziGateChecklist(gateKey,decision,checked,reference))
   throw Error("MAZI_LAUNCH_GATE_REVIEW_INVALID");
  const evidence=decision==="verified"&&
