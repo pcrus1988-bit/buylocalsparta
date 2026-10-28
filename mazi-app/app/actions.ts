@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import {createHmac} from "node:crypto";
 import { createClient } from "../lib/supabase/server";
 import { asText, validEmail, validateProposal } from "../lib/validation";
-import {maziMemberRequest} from "../lib/mazi-api";
+import {maziMemberRequest,maziFundMemberRequest} from "../lib/mazi-api";
 
 const DESTINATION = "https://mazi.kontamou.site/auth/callback";
 function urlMessage(path:string,reason:string): never { redirect(path+"?notice="+encodeURIComponent(reason)); }
@@ -134,4 +134,45 @@ export async function acceptMaziInvitation(form:FormData){
  });
  if(!outcome.ok)urlMessage("/onboarding","invitation_not_eligible");
  redirect("/members?notice=invitation_accepted");
+}
+
+/** One immutable ballot per verified GEMI in a future funded round. */
+export async function castMaziFundBallot(form:FormData){
+ await authenticated();
+ const ids=form.getAll("proposal_id").map(x=>String(x));
+ if(!ids.length||ids.length>20||ids.some(x=>!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(x))
+    ||new Set(ids).size!==ids.length)urlMessage("/fund/vote","invalid_choices");
+ const result=await maziFundMemberRequest("vote",{proposal_ids:ids});
+ if(!result.ok)urlMessage("/fund/vote",
+  ["already_voted","invalid_choices","voting_not_open","ballot_not_eligible"].includes(result.error)?result.error:"service_unavailable");
+ redirect("/fund/vote?notice=voted");
+}
+
+/** Exact integer-cent parsing protects project budgets from floats. */
+function euroAmountCents(value:FormDataEntryValue|null):number|null{
+ const raw=asText(value).replace(",",".");
+ if(!/^\d{1,6}(\.\d{1,2})?$/.test(raw))return null;
+ const [euros,decimals=""]=raw.split(".");
+ const cents=Number(euros)*100+Number(decimals.padEnd(2,"0"));
+ return Number.isSafeInteger(cents)?cents:null;
+}
+/** Future funding cycle application, distinct from €0 founding needs intake. */
+export async function submitMaziFundingApplication(form:FormData){
+ await authenticated();
+ const title=asText(form.get("title"));
+ const details=asText(form.get("details"));
+ const category=asText(form.get("category"));
+ const amount=euroAmountCents(form.get("amount_eur"));
+ const minimum=euroAmountCents(form.get("minimum_useful_eur"));
+ if(title.length<8||title.length>140||details.length<80||details.length>4000||
+    !["resilience","growth","joint"].includes(category)||amount===null||minimum===null||
+    amount<50000||amount>20000000||minimum<1||minimum>amount||
+    form.get("grant_terms_acknowledged")!=="on")urlMessage("/fund/apply","invalid_project_application");
+ const r=await maziFundMemberRequest("apply",{
+  title,details,category,amount_cents:amount,minimum_useful_cents:minimum,
+  acknowledge_grant_terms:true,grant_policy_version:"mazi-grant-retention-v1"
+ });
+ if(!r.ok)urlMessage("/fund/apply",
+  ["already_submitted","applications_not_open","invalid_project_application","application_not_eligible"].includes(r.error)?r.error:"service_unavailable");
+ redirect("/fund/apply?notice=submitted");
 }
