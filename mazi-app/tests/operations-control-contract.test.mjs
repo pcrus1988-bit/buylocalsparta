@@ -77,7 +77,7 @@ test("manual release gates record immutable authorization and never launch money
  assert.match(action,/assertAdminCsrf\(principal/);
  assert.match(action,/form\.get\("affirmed"\)!=="on"/);
  assert.match(page,/name="gate_key" value=\{gateKey\}/);
- assert.match(page,/name="evidence" required minLength=\{40\} maxLength=\{1200\}/);
+ assert.match(page,/name="evidence" required minLength=\{40\} maxLength=\{700\}/);
  assert.match(page,/name="decision" value="verified"/);
  assert.match(page,/name="decision" value="reopened"/);
  assert.match(page,/Δεν ενεργοποιήθηκε υπηρεσία ή πληρωμή/);
