@@ -54,7 +54,7 @@ export default async function MaziFundVote({searchParams}:{searchParams:Promise<
     <p>Αριθμός έργων που υποστήριξες: {result.my_vote?.proposal_ids.length||0}.</p>
     <p style={{fontSize:13}}>Η ψήφος δεν αποτελεί πληρωμή ούτε εγγύηση ενίσχυσης. Το τελικό αποτέλεσμα και οι κατανομές υπόκεινται στους δημοσιευμένους κανόνες.</p>
    </section>:result.cycle.status!=="voting"||!result.voting_eligible||
-      Date.parse(result.cycle.starts_at)>Date.now()||Date.parse(result.cycle.ends_at)<=Date.now()?
+      Number(new Intl.DateTimeFormat("en-US",{timeZone:"Europe/Athens",day:"numeric"}).format(new Date()))<16||Number(new Intl.DateTimeFormat("en-US",{timeZone:"Europe/Athens",day:"numeric"}).format(new Date()))>23||Date.parse(result.cycle.starts_at)>Date.now()||Date.parse(result.cycle.ends_at)<=Date.now()?
     <section style={{padding:28,background:"#fff"}}><h3>Η ψηφοφορία δεν είναι ανοιχτή για την επιχείρησή σου.</h3>
     <p>Οι προτάσεις μπορούν να προβληθούν, αλλά η υποβολή δεν επιτρέπεται εκτός της ελεγμένης περιόδου.</p></section>:null}
    <section style={{marginTop:38}}>
