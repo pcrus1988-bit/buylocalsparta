@@ -9,15 +9,17 @@ import "../../community.css";
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"MAZI · Διαχείριση υπηρεσιών",robots:{index:false,follow:false}};
 type Row={id:string;member_user_id:string;service_title_snapshot:string;token_price:number;status:string;brief:string;created_at:string;admin_note:string|null;completed_at:string|null;revisions_included_snapshot:number};
+type Receipt={request_id:string;policy_version:string;accepted_at:string;token_price_snapshot:number;deliverable_snapshot:string;turnaround_business_days_snapshot:number;revisions_included_snapshot:number};
 type Note={id:number;request_id:string;author_user_id:string;kind:string;body:string;delivery_url:string|null;created_at:string};
 export default async function ServicesAdmin({searchParams}:{searchParams:Promise<{notice?:string}>}){
  const db=await createClient();
  const {data:{user}}=await db.auth.getUser();
  if(!user)redirect("/join");
- const dashboard=await maziServiceRequest<{requests:Row[];messages:Note[];paid_enabled:boolean;periods:Array<{id:string;member_user_id:string;starts_at:string;ends_at:string;verified_invoice_ref:string;issued_at:string}>;members:Array<{user_id:string;status:string;identity_verified_at:string|null}>}>("admin_dashboard");
+ const dashboard=await maziServiceRequest<{requests:Row[];messages:Note[];acceptances:Receipt[];paid_enabled:boolean;periods:Array<{id:string;member_user_id:string;starts_at:string;ends_at:string;verified_invoice_ref:string;issued_at:string}>;members:Array<{user_id:string;status:string;identity_verified_at:string|null}>}>("admin_dashboard");
  if(!dashboard.ok)redirect("/dashboard");
  const rows=dashboard.requests;
  const messages=dashboard.messages;
+ const acceptances=dashboard.acceptances;
  const periods=dashboard.periods;
  const members=dashboard.members;
  const {notice}=await searchParams;
@@ -55,6 +57,14 @@ export default async function ServicesAdmin({searchParams}:{searchParams:Promise
    <div className="com-list">{rows.map(r=><article className="com-card" key={r.id}>
     <div className="com-meta"><span>{new Date(r.created_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})}</span><strong>{r.status} · {r.token_price} Tokens</strong></div>
     <h3>{r.service_title_snapshot}</h3><p><strong>Μέλος:</strong> <code>{r.member_user_id}</code></p><p>{r.brief}</p>
+    {acceptances.find(a=>a.request_id===r.id)?<div className="com-meta" style={{display:"block",padding:"10px 0"}}>
+     {acceptances.filter(a=>a.request_id===r.id).map(a=><div key={a.request_id}>
+      <strong>Καταγεγραμμένη αποδοχή αιτήματος</strong>
+      <p>{new Date(a.accepted_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})} · {a.policy_version}</p>
+      <p>{a.token_price_snapshot} Tokens · {a.revisions_included_snapshot} διορθώσεις · {a.turnaround_business_days_snapshot} εργάσιμες</p>
+      <p><strong>Παραδοτέο:</strong> {a.deliverable_snapshot}</p>
+     </div>)}
+    </div>:<p className="com-alert">Δεν υπάρχει καταχωρισμένο αποδεικτικό αποδοχής για αυτό το αίτημα.</p>}
     {r.admin_note?<p><strong>Τελευταία σημείωση:</strong> {r.admin_note}</p>:null}
     <div className="com-list" style={{margin:"16px 0"}}>
      {messages.filter(m=>m.request_id===r.id).map(m=><div className="com-meta" key={m.id} style={{display:"block",padding:"9px 0"}}>
