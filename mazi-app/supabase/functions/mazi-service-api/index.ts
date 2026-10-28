@@ -125,9 +125,14 @@ Deno.serve(async(req:Request)=>{
    if(error)return send({ok:false,error:friendly(error,requestCodes)},409);
    return send({ok:true,message_id:data});
   }
-  if(!["admin_dashboard","admin_issue_period","admin_transition"].includes(operation))
+  if(!["admin_dashboard","admin_issue_period","admin_transition","admin_health"].includes(operation))
     return send({ok:false,error:"unknown_operation"},400);
   if(!await isAdmin(user.id))return send({ok:false,error:"not_authorized"},403);
+  if(operation==="admin_health"){
+   const {data,error}=await admin.rpc("mazi_services_internal_admin_health",{p_actor:user.id});
+   if(error)throw error;
+   return send({ok:true,report:data});
+  }
   if(operation==="admin_dashboard"){
    const [requests,periods,members]=await Promise.all([
     admin.from("mazi_service_requests").select("id,member_user_id,service_title_snapshot,token_price,status,brief,created_at,admin_note,completed_at,revisions_included_snapshot").order("created_at",{ascending:false}).limit(150),
