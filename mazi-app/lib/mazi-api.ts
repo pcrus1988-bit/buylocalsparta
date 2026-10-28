@@ -124,7 +124,7 @@ export type MaziPublicFundTally={
  total_ballots?:number;valid_ballots?:number;invalidated_ballots?:number;
  electorate_count?:number;quorum_percent?:number;minimum_support_votes?:number;
  max_awards?:number;project_cap_cents?:number;policy_version?:string;
- rules_sha256?:string;finalized_at?:string;
+ rules_sha256?:string;public_policy_text?:string;finalized_at?:string;
  proposals?:{id:string;title:string;amount_cents:number;minimum_useful_cents:number;
  supporting_ballots:number;first_time_support_request:boolean}[];
 };
@@ -141,7 +141,7 @@ export async function maziPublicFundTally():Promise<MaziPublicFundTally|null>{
   const v=data.report;
   if(!v.finalized)return {finalized:false};
   const safeInt=(x:unknown)=>typeof x==="number"&&Number.isSafeInteger(x)&&x>=0;
-  if(!["cycle_slug","title","policy_version","rules_sha256","finalized_at"]
+  if(!["cycle_slug","title","policy_version","rules_sha256","public_policy_text","finalized_at"]
       .every(k=>typeof v[k]==="string"&&(v[k] as string).length>0)
     ||!["funding_budget_cents","total_ballots","valid_ballots",
          "invalidated_ballots","electorate_count","quorum_percent",
