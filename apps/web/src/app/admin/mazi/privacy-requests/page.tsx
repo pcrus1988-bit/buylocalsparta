@@ -28,8 +28,6 @@ export default async function MaziPrivacyRequestsPage({searchParams}:{searchPara
  try{snapshot=await readMaziPrivacyRequests(principal);}catch{}
  const {notice}=await searchParams;
  const today=todayAthens();
- const open=snapshot?.cases.filter(x=>x.case_status==="open")??[];
- const late=open.filter(x=>x.due_on<today);
  return <main className={s.stage}><div className={s.shell}>
   <div className={s.breadcrumb}><Link href="/admin">ADMIN</Link><span>↗</span>
    <Link href="/admin/mazi">ΜΑΖΙ</Link><span>↗</span>
@@ -52,10 +50,10 @@ export default async function MaziPrivacyRequestsPage({searchParams}:{searchPara
   </div>
    {!snapshot?<p className={s.empty} role="alert">Το μητρώο δεν είναι διαθέσιμο. Δεν παρουσιάζονται ψευδή μηδενικά· ελέγξτε τη βάση και την εφαρμογή της νέας μετανάστευσης.</p>:
     <div className={s.stats} style={{gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))"}}>
-     <div><small>ΕΚΚΡΕΜΗ</small><strong>{open.length}</strong><span>Πρώτες 150 υποθέσεις κατά προτεραιότητα</span></div>
-     <div><small>ΕΚΠΡΟΘΕΣΜΑ</small><strong>{late.length}</strong><span>Απαιτείται άμεση πραγματική απάντηση</span></div>
-     <div><small>ΑΝΟΙΧΤΕΣ ΠΑΡΑΤΑΣΕΙΣ</small><strong>{open.filter(x=>!!x.extension_notified_on).length}</strong><span>Πρέπει να υπάρχει πραγματική εμπρόθεσμη ειδοποίηση</span></div>
-     <div><small>ΝΟΜΙΚΑ HOLDS</small><strong>{snapshot.cases.filter(x=>x.legal_hold_active).length}</strong><span>Δεν συνεπάγονται γενική παράταση απάντησης</span></div>
+     <div><small>ΕΚΚΡΕΜΗ</small><strong>{snapshot.stats.open}</strong><span>Σύνολο μητρώου · εμφανίζονται έως 150</span></div>
+     <div><small>ΕΚΠΡΟΘΕΣΜΑ</small><strong>{snapshot.stats.overdue}</strong><span>Απαιτείται άμεση πραγματική απάντηση</span></div>
+     <div><small>ΑΝΟΙΧΤΕΣ ΠΑΡΑΤΑΣΕΙΣ</small><strong>{snapshot.stats.extended_open}</strong><span>Πρέπει να υπάρχει πραγματική εμπρόθεσμη ειδοποίηση</span></div>
+     <div><small>ΝΟΜΙΚΑ HOLDS</small><strong>{snapshot.stats.legal_holds}</strong><span>Δεν συνεπάγονται γενική παράταση απάντησης</span></div>
     </div>}
    <p className={s.disclaimer}>Άρθρο 12§3 GDPR: απάντηση χωρίς αδικαιολόγητη καθυστέρηση και, κατά κανόνα, εντός ενός μήνα. Παράταση έως δύο επιπλέον μήνες μόνο λόγω πολυπλοκότητας ή πλήθους αιτημάτων, με έγκαιρη ενημέρωση μέσα στον πρώτο μήνα. Το μητρώο δεν υποκαθιστά την παρακολούθηση του info@kontamou.site.</p>
   </section>
