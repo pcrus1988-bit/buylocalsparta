@@ -99,8 +99,8 @@ Deno.serve(async(req:Request)=>{
    admin.from("mazi_proposals").select("id,title,status,amount_cents,minimum_useful_cents")
     .eq("cycle_id",cycle.id).eq("created_by",user.id).limit(1).maybeSingle(),
    admin.from("mazi_vote_conflicts").select("proposal_id")
-    .eq("cycle_id",cycle.id).eq("voter_id",user.id).limit(100),
-   admin.from("mazi_members").select("user_id").eq("gemi_number",member.gemi_number).limit(20)
+    .eq("cycle_id",cycle.id).eq("voter_id",user.id).limit(1000),
+   admin.from("mazi_members").select("user_id").eq("gemi_number",member.gemi_number).limit(1000)
   ]);
   if(proposalResponse.error||ballotResponse.error||ownProposalResponse.error||conflictResponse.error||linkedResponse.error)return out({ok:false,error:"service_unavailable"},503);
   const {data:electorate,error:eError}=await admin.from("mazi_fund_electorate")
