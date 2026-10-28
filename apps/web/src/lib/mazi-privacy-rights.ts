@@ -35,8 +35,8 @@ export async function readMaziPrivacyRequests(principal:SessionPrincipal):Promis
   SELECT id::text,case_ref,request_kind,received_on::text,identity_status,case_status,
    extension_notified_on::text,extension_reason,response_sent_on::text,response_outcome,
    legal_hold_active,created_at,
-   (received_on + CASE WHEN extension_notified_on IS NULL THEN interval '1 month'
-    ELSE interval '3 months' END)::date::text AS due_on
+   (received_on + interval '1 month' +
+    CASE WHEN extension_notified_on IS NULL THEN interval '0 months' ELSE interval '2 months' END)::date::text AS due_on
   FROM public.mazi_privacy_requests ORDER BY
    CASE WHEN case_status='open' THEN 0 ELSE 1 END,received_on ASC,created_at DESC
   LIMIT 150`);
@@ -47,8 +47,8 @@ export async function readMaziPrivacyRequests(principal:SessionPrincipal):Promis
    SELECT count(*)::int AS total,
     count(*) FILTER (WHERE case_status='open')::int AS open,
     count(*) FILTER (WHERE case_status='open' AND
-      (received_on + CASE WHEN extension_notified_on IS NULL THEN interval '1 month'
-       ELSE interval '3 months' END)::date < (now() AT TIME ZONE 'Europe/Athens')::date)::int AS overdue,
+      (received_on + interval '1 month' +
+       CASE WHEN extension_notified_on IS NULL THEN interval '0 months' ELSE interval '2 months' END)::date < (now() AT TIME ZONE 'Europe/Athens')::date)::int AS overdue,
     count(*) FILTER (WHERE case_status='open' AND extension_notified_on IS NOT NULL)::int AS extended_open,
     count(*) FILTER (WHERE legal_hold_active)::int AS legal_holds
    FROM public.mazi_privacy_requests`);
