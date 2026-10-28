@@ -48,7 +48,7 @@ export function assessMaziReleaseReadiness(
  for(const key of requiredGates){
   if(latest.get(key)?.decision!=="verified"){
    const labels:Record<MaziLaunchGateKey,string>={
-    auth_email_delivery:"Ο έλεγχος Supabase Auth/SMTP/callback δεν έχει τεκμηριωθεί ως ολοκληρωμένος.",
+    auth_email_delivery:"Ο έλεγχος Supabase Auth, παράδοσης μέσω Resend και πραγματικού MAZI callback δεν έχει τεκμηριωθεί ως ολοκληρωμένος.",
     legal_and_retention:"Δεν έχει τεκμηριωθεί ολοκληρωμένος νομικός έλεγχος και πολιτική διατήρησης δεδομένων.",
     consenting_business_e2e:"Δεν έχει καταγραφεί ολοκληρωμένη ένταξη πραγματικής συναινούσας επιχείρησης."
    };
