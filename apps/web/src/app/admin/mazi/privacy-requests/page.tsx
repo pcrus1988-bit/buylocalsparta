@@ -2,7 +2,7 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {getAdminSession} from "../../../../lib/admin-session";
 import {isMaziSuperAdmin} from "../../../../lib/mazi-superadmin";
-import {MAZI_RIGHTS_KIN,readMaziPrivacyRequests} from "../../../../lib/mazi-privacy-rights";
+import {MAZI_RIGHTS_KINDS,readMaziPrivacyRequests} from "../../../../lib/mazi-privacy-rights";
 import {createMaziPrivacyCaseAction,transitionMaziPrivacyCaseAction} from "./actions";
 import s from "../mazi.module.css";
 
