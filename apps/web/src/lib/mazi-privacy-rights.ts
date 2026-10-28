@@ -20,6 +20,7 @@ export type MaziRightsCase={
 export type MaziRightsEvent={
  request_id:string;event_kind:string;evidence_ref:string;recorded_at:Date;
 };
+export type MaziRightsStats={total:number;open:number;overdue:number;extended_open:number;legal_holds:number};
 const pool=()=>getAdminPostgresRuntime().nativePool;
 const validDate=(raw:string)=>/^\d{4}-\d{2}-\d{2}$/.test(raw) &&
  !Number.isNaN(Date.parse(raw+"T00:00:00.000Z")) &&
@@ -28,7 +29,7 @@ const today=()=>new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Athens",year:"
 const validEvidence=(v:string)=>v.length>=12&&v.length<=180&&/^[A-Za-z0-9_./:#-]+$/.test(v);
 const ensure=(ok:boolean):void=>{if(!ok)throw Error("MAZI_PRIVACY_CASE_INVALID");};
 
-export async function readMaziPrivacyRequests(principal:SessionPrincipal):Promise<{cases:MaziRightsCase[];events:MaziRightsEvent[]}>{
+export async function readMaziPrivacyRequests(principal:SessionPrincipal):Promise<{cases:MaziRightsCase[];events:MaziRightsEvent[];stats:MaziRightsStats}>{
  await marketplaceMaziActor(principal);
  const cases=await pool().query<MaziRightsCase>(`
   SELECT id::text,case_ref,request_kind,received_on::text,identity_status,case_status,
@@ -42,7 +43,17 @@ export async function readMaziPrivacyRequests(principal:SessionPrincipal):Promis
  const events=await pool().query<MaziRightsEvent>(`
   SELECT request_id::text,event_kind,evidence_ref,recorded_at
   FROM public.mazi_privacy_request_events ORDER BY recorded_at DESC,id DESC LIMIT 300`);
- return {cases:cases.rows,events:events.rows};
+ const summary=await pool().query<MaziRightsStats>(`
+   SELECT count(*)::int AS total,
+    count(*) FILTER (WHERE case_status='open')::int AS open,
+    count(*) FILTER (WHERE case_status='open' AND
+      (received_on + CASE WHEN extension_notified_on IS NULL THEN interval '1 month'
+       ELSE interval '3 months' END)::date < (now() AT TIME ZONE 'Europe/Athens')::date)::int AS overdue,
+    count(*) FILTER (WHERE case_status='open' AND extension_notified_on IS NOT NULL)::int AS extended_open,
+    count(*) FILTER (WHERE legal_hold_active)::int AS legal_holds
+   FROM public.mazi_privacy_requests`);
+ if(!summary.rows[0])throw Error("MAZI_PRIVACY_REGISTER_UNAVAILABLE");
+ return {cases:cases.rows,events:events.rows,stats:summary.rows[0]};
 }
 
 export async function createMaziPrivacyRequest(principal:SessionPrincipal,input:{
