@@ -39,7 +39,7 @@ export default async function MaziPrivacyRequestsPage({searchParams}:{searchPara
    <p className={s.subtitle}>Πραγματικά περιστατικά, ημερομηνία παραλαβής, νόμιμες προθεσμίες και εσωτερικές αναφορές αποδεικτικών. Δεν συλλέγονται ονόματα, emails, ΑΦΜ, συνομιλίες ή έγγραφα ταυτότητας εδώ.</p>
   </div><div className={s.lock}><strong>ΔΕΝ ΕΚΤΕΛΕΙ ΔΙΑΓΡΑΦΗ / ΑΠΑΝΤΗΣΗ</strong>
    <span>Η απάντηση, ο έλεγχος ταυτότητας και η επικοινωνία με το υποκείμενο γίνονται στην πραγματικότητα, εκτός μητρώου, με ελέγξιμο αποδεικτικό.</span>
-   <a href="https://www.dpa.gr/el/polites/gkpd" target="_blank" rel="noreferrer">ΑΠΔΠΧ / GDPR ↗</a>
+   <a href="https://www.dpa.gr/el/polites/gkpd" target="_blank" rel="noreferrer">ΑΠΔΠΧ / GDPR ↗</a><a href="https://github.com/pcrus1988-bit/buylocalsparta/blob/main/mazi-app/legal/MAZI-GDPR-OPERATING-PROTOCOL-2026-10-28.md" target="_blank" rel="noreferrer">Πρωτόκολλο χειρισμού και αποδεικτικών ↗</a>
   </div></header>
   {notice==="created"?<p role="status" className={s.notice}>Η υπόθεση καταχωρίστηκε με γεγονός παραλαβής.</p>:null}
   {notice==="updated"?<p role="status" className={s.notice}>Το γεγονός και το τεκμήριο καταχωρίστηκαν στο αμετάβλητο ιστορικό.</p>:null}
