@@ -62,7 +62,7 @@ export default async function MaziFundAdmin(){
     <p className={s.subtitle}>Πραγματική εικόνα του καθολικού, των δεσμεύσεων, των ελεγμένων δημοσιεύσεων και των καταχωρισμένων συμφωνιών. Καμία δυνατότητα ενεργοποίησης πληρωμών από αυτή τη σελίδα.</p></div>
     <div className={s.lock}><strong>MARKETPLACE SUPER ADMIN ONLY</strong>
      <span>{realActive?"ΥΠΑΡΧΕΙ ΚΥΚΛΟΣ ΜΕ ΕΝΕΡΓΟΠΟΙΗΜΕΝΗ ΧΡΗΜΑΤΟΔΟΤΗΣΗ":"ΕΚΚΡΕΜΕΙ ΝΟΜΙΚΗ & ΟΙΚΟΝΟΜΙΚΗ ΕΝΕΡΓΟΠΟΙΗΣΗ"}</span>
-     <a href="https://mazi.kontamou.site/fund/transparency" target="_blank" rel="noreferrer">Δημόσια διαφάνεια ↗</a>
+     <a href="https://mazi.kontamou.site/fund/transparency" target="_blank" rel="noreferrer">Δημόσια διαφάνεια ↗</a><Link href="/admin/mazi/fund/governance">Ψηφοφορίες · έλεγχοι · οριστικοποίηση ↗</Link>
     </div></header>
    <div className={s.stats}>
     <div><small>01 / ΕΙΣΡΟΕΣ ΣΤΟ ΒΙΒΛΙΟ</small><strong style={{fontSize:30}}>{cash(t.receipts)}</strong><span>{t.ledger_entries} εγγραφές</span></div>
