@@ -2,6 +2,7 @@ import type {SessionPrincipal} from "@buy-local-sparta/core";
 import {getAdminPostgresRuntime} from "./postgres-runtime";
 import {marketplaceMaziActor} from "./mazi-superadmin";
 import {formatMaziEvidence,validateMaziGateChecklist} from "./mazi-release-checklist";
+import {maziRetentionReviewsComplete} from "./mazi-retention-reviews";
 
 /** Live, aggregate-only MAZI operations. Never expose applicants' AFM,
  * contacts, identifiers or individual audit evidence on this overview.
@@ -117,6 +118,10 @@ export async function recordMaziLaunchGateReview(principal:SessionPrincipal,inpu
   (gateKey==="auth_email_delivery"||gateKey==="legal_and_retention")
   ? formatMaziEvidence(text,reference,checked) : text;
  if(evidence.length>1200)throw Error("MAZI_LAUNCH_GATE_REVIEW_INVALID");
+ // A form checkbox cannot bypass the independently documented retention matrix.
+ if(gateKey==="legal_and_retention"&&decision==="verified"&&
+    !(await maziRetentionReviewsComplete(principal)))
+   throw Error("MAZI_RETENTION_MATRIX_NOT_DOCUMENTED");
  // Passing a checklist does not attest SMTP delivery or replace actual counsel.
  // For Auth, enforce that the privileged issuer has an exact project binding.
  if(gateKey==="auth_email_delivery"&&decision==="verified"&&
