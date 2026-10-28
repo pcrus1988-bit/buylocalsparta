@@ -95,7 +95,7 @@ export async function maziPublicFundReport():Promise<PublicFundReport|null>{
 export type MaziFundBallotState={
  cycle:{id:string;title:string;status:string;starts_at:string;ends_at:string;funding_budget_cents:number}|null;
  proposals:{id:string;title:string;details:string;category:string;amount_cents:number;first_time_support_request:boolean}[];
- has_voted:boolean;voting_eligible:boolean;
+ has_voted:boolean;voting_eligible:boolean;paid_eligible:boolean;
  my_vote:{proposal_ids:string[];created_at:string}|null;
  my_proposal:{id:string;title:string;status:string;amount_cents:number;minimum_useful_cents:number|null}|null;
 };
