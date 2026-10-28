@@ -3,7 +3,7 @@ import {redirect} from "next/navigation";
 import {getAdminSession} from "../../../../lib/admin-session";
 import {isMaziSuperAdmin} from "../../../../lib/mazi-superadmin";
 import {readMaziMarketingAdmin} from "../../../../lib/mazi-marketing-admin";
-import {createMarketingBriefAction,transitionMarketingBriefAction} from "./actions";
+import {createMarketingBriefAction,transitionMarketingBriefAction,issueCreativeInvitationAction,revokeCreativeInvitationAction} from "./actions";
 import s from "../mazi.module.css";
 
 export const dynamic="force-dynamic";
@@ -37,6 +37,9 @@ export default async function MaziMarketingAdmin({searchParams}:{searchParams:Pr
   </header>
   {params.notice==="created"?<p className={s.notice} role="status">Το προσχέδιο καταχωρίστηκε με ίχνος ελέγχου.</p>:null}
   {params.notice==="updated"?<p className={s.notice} role="status">Η κατάσταση του προσχεδίου ενημερώθηκε και καταγράφηκε.</p>:null}
+  {params.notice==="creative_issued"?<p className={s.notice} role="status">Η πρόταση δημιουργικού στάλθηκε στο εσωτερικό dashboard του μέλους. Δεν ξεκίνησε διαφήμιση.</p>:null}
+  {params.notice==="creative_revoked"?<p className={s.notice} role="status">Η πρόταση ανακλήθηκε και καταγράφηκε στο ιστορικό.</p>:null}
+  {params.notice==="creative_invalid"||params.notice==="creative_duplicate"?<p className={s.notice} role="alert">Η πρόταση δεν καταχωρίστηκε. Έλεγξε έγκριση μέλους, κανάλι, προσχέδιο σε έλεγχο ή προηγούμενη πρόσκληση.</p>:null}
   {params.notice==="invalid"?<p className={s.notice} role="alert">Έλεγξε τα όρια πεδίων και τις ημερομηνίες.</p>:null}
   <div className={s.stats} style={{gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))"}}>
    <div><small>ΕΓΚΥΡΑ ΠΡΟΣΧΕΔΙΑ</small><strong>{snapshot?snapshot.briefs.filter(b=>b.status==="draft").length:"—"}</strong><span>Καμία αυτόματη προώθηση</span></div>
@@ -78,7 +81,25 @@ export default async function MaziMarketingAdmin({searchParams}:{searchParams:Pr
     </form>:<span className={s.tag}>ΟΡΙΣΤΙΚΟ ΑΡΧΕΙΟ</span>}
    </article>)}</div>}
   </section>
-  <section className={s.section}><div className={s.sectionTop}><div><p>03 / MEMBER SIGNALS</p><h2>Εθελοντικές προτιμήσεις</h2></div><span>Μόνο συγκεντρωτικά στοιχεία και χωρίς προσωπικά δεδομένα</span></div>
+  <section className={s.section}><div className={s.sectionTop}><div><p>03 / MEMBER CREATIVE REVIEW</p><h2>Ατομική έγκριση δημιουργικού</h2></div><span>Εσωτερική πρόσκληση · καμία αποστολή email, καμία διαφημιστική δαπάνη</span></div>
+  {!snapshot?<p className={s.empty}>Τα δεδομένα προτάσεων δεν είναι διαθέσιμα.</p>:<>
+  {snapshot.briefs.some(b=>b.status==="review")&&snapshot.candidates.length?
+   <form action={issueCreativeInvitationAction} className={s.card} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(245px,1fr))",gap:18}}>
+    <input type="hidden" name="csrf" value={principal.csrfToken}/>
+    <label className={s.field}>Καμπάνια υπό έλεγχο<select name="brief_id" required>{snapshot.briefs.filter(b=>b.status==="review").map(b=><option key={b.id} value={b.id}>{b.title} · {channels[b.channel]}</option>)}</select></label>
+    <label className={s.field}>Επαληθευμένο μέλος που έχει δηλώσει ενδιαφέρον<select name="member_user_id" required>{snapshot.candidates.map(m=><option key={m.user_id} value={m.user_id}>{m.business_name}</option>)}</select></label>
+    <label className={s.field} style={{gridColumn:"1/-1"}}>Ακριβές διαφημιστικό κείμενο<textarea name="creative_text" required minLength={20} maxLength={1500} rows={5} placeholder="Το ακριβές περιεχόμενο που προτείνεται για μελλοντική προβολή"/></label>
+    <label className={s.field}>Προτεινόμενη σελίδα KONTA ΜΟΥ<input name="destination_url" type="url" required placeholder="https://kontamou.site/hubs/..."/></label>
+    <label className={s.field}>Αναγνωριστικό υλικού / περιγραφή (προαιρετικό)<input name="asset_description" maxLength={500} placeholder="Προσφορά, προϊόν, όνομα εικόνας ή περιγραφή"/></label>
+    <p className={s.disclaimer} style={{gridColumn:"1/-1",margin:0}}>Η αποδοχή αφορά αποκλειστικά την προεπισκόπηση του ακριβούς κειμένου και της σελίδας. Δεν αδειοδοτεί αυτομάτως φωτογραφίες, λογότυπα ή πληρωμένη διαφήμιση. Κάθε καμπάνια απαιτεί ξεχωριστές τελικές εγκρίσεις.</p>
+    <button className={s.primary} type="submit" style={{justifySelf:"start"}}>Αποστολή στο dashboard μέλους</button>
+   </form>:<p className={s.empty}>Για πρόσκληση απαιτείται καμπάνια «Προς εσωτερικό έλεγχο» και μέλος με επαληθευμένη, ενεργή εθελοντική προτίμηση. Δεν γίνεται αυτόματη επιλογή.</p>}
+  <div className={s.stack} style={{marginTop:18}}>{snapshot.invitations.length?snapshot.invitations.map(inv=><article className={s.member} key={inv.id}>
+   <div><strong>{inv.business_name} · {inv.campaign_title}</strong><span>{channels[inv.channel]} · {inv.status} · {new Date(inv.created_at).toLocaleString("el-GR",{timeZone:"Europe/Athens"})}</span><span>{inv.creative_text.slice(0,170)}</span></div>
+   {["pending","approved"].includes(inv.status)?<form action={revokeCreativeInvitationAction} className={s.action}><input type="hidden" name="csrf" value={principal.csrfToken}/><input type="hidden" name="invitation_id" value={inv.id}/><button type="submit" className={s.secondary}>Ανάκληση</button></form>:<span className={s.tag}>ΚΑΤΑΓΕΓΡΑΜΜΕΝΟ</span>}
+   </article>):<p className={s.empty}>Δεν έχουν αποσταλεί ατομικές προτάσεις δημιουργικού.</p>}</div>
+  </>}</section>
+  <section className={s.section}><div className={s.sectionTop}><div><p>04 / MEMBER SIGNALS</p><h2>Εθελοντικές προτιμήσεις</h2></div><span>Μόνο συγκεντρωτικά στοιχεία και χωρίς προσωπικά δεδομένα</span></div>
    {snapshot?<div className={s.stack}>{snapshot.channelCounts.length?snapshot.channelCounts.map(x=><article key={x.channel} className={s.member}><div><strong>{channels[x.channel]||x.channel}</strong><span>Εθελοντικές θετικές δηλώσεις ενδιαφέροντος, όχι άδεια χρήσης δημιουργικών</span></div><strong>{x.count}</strong></article>):<p className={s.empty}>Δεν υπάρχουν ακόμα εθελοντικές προτιμήσεις μελών.</p>}</div>:<p className={s.empty}>Μη διαθέσιμα δεδομένα.</p>}
   </section>
   <section className={s.section}><div className={s.sectionTop}><div><p>04 / FINANCIAL RELEASE GATES</p><h2>Πριν από πραγματική προβολή</h2></div><span>Κάθε όριο ελέγχεται ξεχωριστά πριν από δαπάνες</span></div>
