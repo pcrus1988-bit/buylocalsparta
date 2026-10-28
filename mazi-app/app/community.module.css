@@ -8,3 +8,46 @@
 .pagination{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
 .pagination a:focus-visible,.discovery input:focus-visible,.discovery select:focus-visible{outline:3px solid #417a57;outline-offset:2px}
 @media(max-width:600px){.discovery{grid-template-columns:1fr}.discovery button{grid-column:auto}.pagination{align-items:stretch}}
+
+/* MAZI physical-goods exchange: editorial cards and accessible controls. */
+.goodsHeroLinks{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
+.goodsHeroLinks a{color:#e0efdf;padding:12px 17px;border:1px solid #7c9e84;border-radius:3px;font-weight:700;font-size:13px}
+.goodsHeroLinks a:focus-visible{outline:3px solid #e6de9b;outline-offset:3px}
+.goodsFormGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.goodsFormGrid label{min-width:0}
+.goodsFormGrid strong{padding:12px 0;display:block}
+.goodsConsent{display:flex!important;gap:12px!important;align-items:flex-start;line-height:1.55;font-size:12px!important;font-weight:500!important;border-top:1px solid #d9e2d4;padding-top:16px}
+.goodsConsent input{width:19px!important;min-width:19px;min-height:19px;margin-top:2px;accent-color:#1a6042}
+.goodsFeedTop{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0 0 16px}
+.goodsFeedTop h2{font-size:clamp(22px,3vw,31px);line-height:1.1;letter-spacing:-.035em;margin:5px 0}
+.goodsDiscovery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;background:#e5ece1;border:1px solid #ccdbca;padding:18px;border-radius:4px}
+.goodsDiscovery label{display:grid;gap:7px;font-size:12px;font-weight:800;min-width:0}
+.goodsDiscovery input,.goodsDiscovery select{width:100%;min-width:0;padding:11px;background:#fff;border:1px solid #adbdaf;border-radius:3px;color:#18382d;font:inherit}
+.goodsDiscovery button{grid-column:1/-1}
+.goodsKind{background:#d3e4c6;color:#185038;text-transform:uppercase;font-size:10px;font-weight:800;letter-spacing:.075em;padding:6px 10px}
+.goodsSpecs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:16px;padding:18px 0;border-block:1px solid #e0e6da}
+.goodsSpecs div{display:grid;gap:4px;min-width:0}
+.goodsSpecs small{color:#66796c;font-size:10px;font-weight:800;letter-spacing:.08em}
+.goodsSpecs strong{font-size:13px;overflow-wrap:anywhere}
+.goodsPrice{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+.goodsPrice span{font-size:12px;color:#506c58}
+.goodsPrice strong{font-size:16px;color:#174b37}
+.goodsDetails{margin-top:16px;border-top:1px solid #dbe5db;padding-top:15px}
+.goodsDetails summary{cursor:pointer;font-size:13px;font-weight:800;color:#174b37;list-style-position:inside}
+.goodsDetails summary:focus-visible,.goodsDiscovery input:focus-visible,.goodsDiscovery select:focus-visible,.form input:focus-visible,.form select:focus-visible,.form textarea:focus-visible{outline:3px solid #437a54;outline-offset:2px}
+.goodsDetails form{margin-top:18px}
+.goodsOwnerActions{display:flex;align-items:start;flex-wrap:wrap;gap:10px;margin-top:16px}
+.goodsOwnerActions details{width:100%}
+@media(max-width:560px){.goodsFormGrid,.goodsDiscovery,.goodsSpecs{grid-template-columns:1fr}.goodsFeedTop{align-items:flex-start;flex-direction:column}.goodsPrice{align-items:flex-start;flex-direction:column}}
+
+/* Member B2B legal terms: readable, accessible and navigable. */
+.rulesContents{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 24px;margin-top:20px}
+.rulesContents a{color:#24553e;text-decoration:underline;text-underline-offset:3px;padding:7px 4px;font-size:13px;line-height:1.4}
+.rulesContents a:focus-visible{outline:3px solid #386d50;outline-offset:3px}
+.rulesSection{padding:20px 0 27px;border-bottom:1px solid #dce5db;scroll-margin-top:100px}
+.rulesSection:first-child{padding-top:0}
+.rulesSection h2{font-size:clamp(20px,2.9vw,29px);line-height:1.22;max-width:830px}
+.rulesSection p{max-width:850px;font-size:15px;line-height:1.8;margin:12px 0;color:#2b4135}
+.rulesSection a{color:#17694a;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
+.rulesSection li{padding:5px 0;line-height:1.65}
+@media(max-width:680px){.rulesContents{grid-template-columns:1fr}.rulesSection{padding:20px 0}.rulesSection p{font-size:14px}}

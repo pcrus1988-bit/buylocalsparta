@@ -46,15 +46,17 @@ export default async function Dashboard(){
  const ownProposals=state.proposals.filter(p=>p.created_by===user.id);
  const cards=[
   {title:"Η συμμετοχή μου",label:"01 / ΕΠΙΧΕΙΡΗΣΗ",href:"/members",desc:"Αίτηση, επαλήθευση, πραγματική κατάσταση και διευκρινίσεις ελέγχου."},
-  {title:"Marketplace συνεργασίας",label:"02 / ΑΓΟΡΑ",href:"/marketplace",desc:"Προϊόντα, υπηρεσίες, προσφορές και ανάγκες επαληθευμένων επιχειρήσεων."},
+  {title:"Αγορά φυσικών ειδών",label:"02 / ΑΓΟΡΑ",href:"/marketplace",desc:"Προσφέρω ή αναζητώ πραγματικά αγαθά: εξοπλισμό, αποθέματα, υλικά, με ιδιωτική επικοινωνία μελών."},
   {title:"Το Forum",label:"03 / ΚΟΙΝΟΤΗΤΑ",href:"/forum",desc:"Συζητήσεις, εμπειρία, συμβουλές και νέες επαγγελματικές συνεργασίες."},
   {title:"Livechat",label:"04 / ΣΥΝΟΜΙΛΙΑ",href:"/livechat",desc:"Συνομιλία με τις άλλες επαληθευμένες επιχειρήσεις της κοινότητας."},
   {title:"Ιδιωτικά μηνύματα",label:"05 / ΕΠΙΚΟΙΝΩΝΙΑ",href:"/inbox",desc:"Προσωπικά αιτήματα συνεργασίας και απαντήσεις για τις καταχωρίσεις σου."},
   {title:"Προτάσεις και ψηφοφορίες",label:"06 / ΣΥΜΜΕΤΟΧΗ",href:"/proposals",desc:"Παρακολούθηση πραγματικών προτάσεων, καταστάσεων και δικαιωμάτων."},
   {title:"Ενισχύσεις",label:"07 / ΑΝΑΠΤΥΞΗ",href:"/awards",desc:"Ατομικές προσφορές, όροι και καταγεγραμμένες αποδοχές. Χωρίς ενεργή εκταμίευση."},
-  {title:"Η διαφάνεια του Ταμείου",label:"08 / ΟΙΚΟΝΟΜΙΚΗ ΛΟΓΟΔΟΣΙΑ",href:"/fund/transparency",desc:"Εισροές, εκροές, δεσμεύσεις, λογιστικό υπόλοιπο, καταχωρισμένες συμφωνίες και δημόσια τεκμήρια."},
-  {title:"Ψηφοφορία Αναπτυξιακού Ταμείου",label:"09 / ΔΗΜΟΚΡΑΤΙΚΗ ΕΠΙΛΟΓΗ",href:"/fund/vote",desc:"Ένα αμετάβλητο ψηφοδέλτιο ανά επαληθευμένη επιχείρηση και δυνατότητα επιλογής πολλών έργων όταν ανοίξει ο χρηματοδοτικός κύκλος."},
-  {title:"Αίτηση στο Αναπτυξιακό Ταμείο",label:"10 / ΧΡΗΜΑΤΟΔΟΤΙΚΗ ΠΡΟΤΑΣΗ",href:"/fund/apply",desc:"Προσωπική αίτηση με αιτούμενο ποσό, ελάχιστο χρήσιμο ποσό, αναλυτική τεκμηρίωση και αποδοχή των μελλοντικών όρων."}
+  {title:"250 Tokens υπηρεσιών",label:"08 / ΥΠΗΡΕΣΙΕΣ",href:"/services",desc:"Κατάλογος, αιτήματα και υπόλοιπο του δικού σου μηνιαίου κύκλου. Η ενεργοποίηση απαιτεί επαληθευμένη πληρωμή."},
+  {title:"Η συλλογική προβολή μου",label:"09 / MARKETING",href:"/dashboard/marketing",desc:"Σχεδιασμός καμπανιών και μελλοντική παρακολούθηση πραγματικής διαφημιστικής προβολής. Χωρίς ενεργές καμπάνιες."},
+  {title:"Η διαφάνεια του Ταμείου",label:"10 / ΟΙΚΟΝΟΜΙΚΗ ΛΟΓΟΔΟΣΙΑ",href:"/fund/transparency",desc:"Εισροές, εκροές, δεσμεύσεις, λογιστικό υπόλοιπο, καταχωρισμένες συμφωνίες και δημόσια τεκμήρια."},
+  {title:"Ψηφοφορία Αναπτυξιακού Ταμείου",label:"11 / ΔΗΜΟΚΡΑΤΙΚΗ ΕΠΙΛΟΓΗ",href:"/fund/vote",desc:"Ένα αμετάβλητο ψηφοδέλτιο ανά επαληθευμένη επιχείρηση, με δυνατότητα στήριξης πολλών έργων όταν ανοίξει ο χρηματοδοτικός κύκλος."},
+  {title:"Αίτηση στο Αναπτυξιακό Ταμείο",label:"12 / ΧΡΗΜΑΤΟΔΟΤΙΚΗ ΠΡΟΤΑΣΗ",href:"/fund/apply",desc:"Προσωπική αίτηση με αιτούμενο ποσό, ελάχιστο χρήσιμο ποσό, τεκμηρίωση και όρους."}
  ];
  return <main id="content" className="com-shell">
    <div className="com-top"><div><span className="com-kicker">ΜΑΖΙ / Η ΕΠΙΧΕΙΡΗΣΗ ΜΟΥ</span>
@@ -70,7 +72,7 @@ export default async function Dashboard(){
     <div><span>Κατάσταση μέλους</span><strong>{isVerified?"Επαληθευμένη":"Σε αξιολόγηση"}</strong>
       <small>{state.member?.admitted_at?"Από "+new Date(state.member.admitted_at).toLocaleDateString("el-GR"):"Χωρίς ενεργή οικονομική συμφωνία"}</small></div>
     <div><span>Οι προτάσεις μου</span><strong>{ownProposals.length}</strong><small>Στον τρέχοντα κύκλο</small></div>
-    <div><span>Ανοιχτές καταχωρίσεις</span><strong>{display(activity?.active_listings)}</strong><small>Πραγματικές καταχωρίσεις μου</small></div>
+    <div><span>Καταχωρίσεις ειδών</span><strong>{display(activity?.active_listings)}</strong><small>Πραγματικές καταχωρίσεις μου</small></div>
     <div><span>Θέματα Forum</span><strong>{display(activity?.threads)}</strong><small>Θέματα που έχω ανοίξει</small></div>
     <div><span>Αδιάβαστα μηνύματα</span><strong>{display(inbox?.ok?unread.length:undefined)}</strong><small>{inbound.length} ενεργά αιτήματα συνεργασίας</small></div>
    </section>

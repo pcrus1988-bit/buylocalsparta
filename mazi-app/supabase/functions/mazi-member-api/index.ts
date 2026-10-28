@@ -345,7 +345,8 @@ Deno.serve(async(req:Request)=>{
    if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
    const [listings,threads,replies,chat]=await Promise.all([
     admin.from("mazi_marketplace_listings").select("id",{count:"exact",head:true})
-     .eq("member_user_id",user.id).eq("status","active").is("hidden_at",null),
+     .eq("member_user_id",user.id).eq("category","goods").eq("status","active")
+     .gt("expires_at",new Date().toISOString()).is("hidden_at",null),
     admin.from("mazi_forum_threads").select("id",{count:"exact",head:true})
      .eq("member_user_id",user.id).is("hidden_at",null),
     admin.from("mazi_forum_replies").select("id",{count:"exact",head:true})
@@ -362,39 +363,97 @@ Deno.serve(async(req:Request)=>{
   }
   if(operation==="marketplace_list"||operation==="marketplace_my"){
    if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
-   const mine=operation==="marketplace_my";
-   const paged=!mine&&input.page!==undefined;
-   const page=Number(input.page??0),category=text(input.category),kind=text(input.kind),search=text(input.query);
+   const mine=operation==="marketplace_my",paged=!mine&&input.page!==undefined;
+   const page=Number(input.page??0),category=text(input.category),kind=text(input.kind),
+    search=text(input.query),itemCategory=text(input.item_category),city=text(input.city);
+   const categories=["equipment","inventory","materials","furniture","electronics","packaging","vehicles","other"];
    if(!mine&&(!Number.isInteger(page)||page<0||page>99||
-     (category&&!["goods","services","partnerships"].includes(category))||
-     (kind&&!["offer","request"].includes(kind))||search.length>80))
-    return out({error:"invalid_filter"},400);
+      (category&&category!=="goods")||(kind&&!["offer","request"].includes(kind))||
+      (itemCategory&&!categories.includes(itemCategory))||search.length>80||city.length>100))
+     return out({error:"invalid_filter"},400);
    let query=admin.from("mazi_marketplace_listings")
-    .select("id,member_user_id,kind,category,title,description,status,created_at,updated_at")
-    .is("hidden_at",null).order("created_at",{ascending:false}).order("id",{ascending:false});
-   query=mine?query.eq("member_user_id",user.id):query.eq("status","active");
-   if(!mine&&category)query=query.eq("category",category);
+    .select("id,member_user_id,kind,category,item_category,item_condition,quantity,quantity_unit,location_city,fulfillment,price_type,price_cents,price_vat_basis,expires_at,title,description,status,created_at,updated_at")
+    .eq("category","goods").is("hidden_at",null)
+    .order("created_at",{ascending:false}).order("id",{ascending:false});
+   query=mine?query.eq("member_user_id",user.id)
+    :query.eq("status","active").gt("expires_at",new Date().toISOString());
    if(!mine&&kind)query=query.eq("kind",kind);
-   // Strip SQL LIKE wildcard characters so search treats titles literally.
+   if(!mine&&itemCategory)query=query.eq("item_category",itemCategory);
+   if(!mine&&city)query=query.ilike("location_city",city.replace(/[%_\\]/g,""));
+   // Title search uses literal user input, never raw PostgREST filter operators.
    if(!mine&&search)query=query.ilike("title","%"+search.replace(/[%_\\]/g,"")+"%");
    const {data,error}=paged?await query.range(page*24,page*24+24):await query.limit(60);
    if(error)return out({error:"data_unavailable"},503);
    const rows=(data||[]) as CommunityRow[];
    return out({ok:true,listings:await communityVisible(paged?rows.slice(0,24):rows,user.id),
-     has_more:paged&&rows.length>24,page:paged?page:0});
+    has_more:paged&&rows.length>24,page:paged?page:0});
   }
+  // Physical goods only. All amounts are optional indicative euro cents;
+  // MAZI never creates an order, processes payment or makes tax representations.
+  const validateGoods=()=>{
+   const kind=text(input.kind),title=text(input.title),description=text(input.description),
+    item_category=text(input.item_category),item_condition=text(input.item_condition),
+    quantity=Number(input.quantity),quantity_unit=text(input.quantity_unit),
+    location_city=text(input.location_city),fulfillment=text(input.fulfillment),
+    price_type=text(input.price_type),price_vat_basis=text(input.price_vat_basis);
+   const price_cents=input.price_cents===null?null:Number(input.price_cents);
+   if(!["offer","request"].includes(kind)||
+     !["equipment","inventory","materials","furniture","electronics","packaging","vehicles","other"].includes(item_category)||
+     !["new","used","refurbished","any"].includes(item_condition)||
+     (kind==="offer"&&item_condition==="any")||
+     !Number.isFinite(quantity)||quantity<=0||quantity>1000000||
+     !Number.isInteger(quantity*100)||
+     !["piece","set","box","pallet","kg","liter"].includes(quantity_unit)||
+     location_city.length<2||location_city.length>100||
+     !["pickup","shipping","either"].includes(fulfillment)||
+     !["fixed","negotiable","on_request"].includes(price_type)||
+     !["included","excluded","unspecified"].includes(price_vat_basis)||
+     (price_cents!==null&&(!Number.isSafeInteger(price_cents)||price_cents<1||price_cents>100000000000))||
+     (price_type==="fixed"&&price_cents===null)||
+     (price_type==="on_request"&&price_cents!==null)||
+     title.length<8||title.length>140||description.length<30||description.length>2500||
+     input.goods_policy_accepted!==true||input.goods_b2b_acknowledged!==true||
+     text(input.goods_policy_version)!=="mazi-goods-v2")return null;
+   return {kind,category:"goods",title,description,item_category,item_condition,
+     quantity,quantity_unit,location_city,fulfillment,price_type,price_cents,
+     price_vat_basis,goods_policy_version:"mazi-goods-v2",
+     goods_policy_accepted_at:new Date().toISOString()};
+  };
   if(operation==="marketplace_create"){
    if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
-   const kind=text(input.kind),category=text(input.category),
-     title=text(input.title),description=text(input.description);
-   if(!["offer","request"].includes(kind)||!["goods","services","partnerships"].includes(category)||
-    title.length<8||title.length>140||description.length<30||description.length>2500)
-     return out({error:"invalid_listing"},400);
+   const listing=validateGoods();
+   if(!listing)return out({error:"invalid_listing"},400);
    // No price, checkout, invoice, grant or money movement is created here.
    const {error}=await admin.from("mazi_marketplace_listings").insert({
-    member_user_id:user.id,kind,category,title,description,status:"active"
+    ...listing,member_user_id:user.id,status:"active",
+    expires_at:new Date(Date.now()+60*86400000).toISOString()
    });
    if(error)return out({error:"listing_not_saved"},409);
+   return out({ok:true});
+  }
+  if(operation==="marketplace_edit"){
+   if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
+   const id=text(input.listing_id),listing=validateGoods();
+   if(!uuid(id)||!listing)return out({error:"invalid_listing"},400);
+   const {data,error}=await admin.from("mazi_marketplace_listings")
+    .update({...listing,updated_at:new Date().toISOString()})
+    .eq("id",id).eq("member_user_id",user.id).eq("category","goods")
+    .eq("status","active").is("hidden_at",null).select("id").maybeSingle();
+   if(error||!data)return out({error:"listing_not_available"},409);
+   return out({ok:true});
+  }
+  if(operation==="marketplace_renew"){
+   if(!await verifiedMember(user.id))return out({error:"not_verified"},403);
+   const id=text(input.listing_id);
+   if(!uuid(id))return out({error:"invalid_listing"},400);
+   const {data,error}=await admin.from("mazi_marketplace_listings")
+    .update({expires_at:new Date(Date.now()+60*86400000).toISOString(),
+      updated_at:new Date().toISOString()})
+    .eq("id",id).eq("member_user_id",user.id).eq("category","goods")
+    .eq("status","active").is("hidden_at",null)
+    .lt("expires_at",new Date(Date.now()+14*86400000).toISOString())
+    .select("id").maybeSingle();
+   if(error||!data)return out({error:"listing_not_available"},409);
    return out({ok:true});
   }
   if(operation==="marketplace_close"){
@@ -403,8 +462,8 @@ Deno.serve(async(req:Request)=>{
    if(!uuid(id))return out({error:"invalid_listing"},400);
    const {data,error}=await admin.from("mazi_marketplace_listings")
     .update({status:"closed",updated_at:new Date().toISOString()})
-    .eq("id",id).eq("member_user_id",user.id).eq("status","active")
-    .select("id").maybeSingle();
+    .eq("id",id).eq("member_user_id",user.id).eq("category","goods")
+    .eq("status","active").select("id").maybeSingle();
    if(error||!data)return out({error:"listing_not_available"},409);
    return out({ok:true});
   }
