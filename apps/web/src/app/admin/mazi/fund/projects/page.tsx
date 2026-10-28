@@ -1,10 +1,10 @@
 import Link from "next/link";
 import {redirect} from "next/navigation";
-import {getAdminSession} from "../../../../../../lib/admin-session";
-import {getAdminPostgresRuntime} from "../../../../../../lib/postgres-runtime";
-import {isMaziSuperAdmin,marketplaceMaziActor} from "../../../../../../lib/mazi-superadmin";
+import {getAdminSession} from "../../../../../lib/admin-session";
+import {getAdminPostgresRuntime} from "../../../../../lib/postgres-runtime";
+import {isMaziSuperAdmin,marketplaceMaziActor} from "../../../../../lib/mazi-superadmin";
 import {maziFundPublishProgress} from "../actions";
-import s from "../../../mazi.module.css";
+import s from "../../mazi.module.css";
 export const dynamic="force-dynamic";
 export const metadata={title:"ΜΑΖΙ · Έλεγχος αναπτυξιακών έργων",robots:{index:false,follow:false}};
 type Accepted={id:string;cycle_id:string;proposal_title:string;cycle_title:string;assigned_amount_cents:string;
