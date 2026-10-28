@@ -1,7 +1,6 @@
 // MAZI: future financed-round member ballot gateway (funds remain gated).
 // Deliberately isolated from both the public read-only financial report and
 // the independently evolving marketplace/community member API.
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {createClient} from "npm:@supabase/supabase-js@2.118.0";
 const base=Deno.env.get("SUPABASE_URL")||"";
 const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
