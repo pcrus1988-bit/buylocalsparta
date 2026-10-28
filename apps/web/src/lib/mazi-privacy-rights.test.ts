@@ -12,8 +12,9 @@ const operationsPage=read("../app/admin/mazi/operations/page.tsx");
 
 test("live GDPR rights register has real receipt-based deadlines and auditable extension",()=>{
  assert.match(sql,/received_on date NOT NULL/);
- assert.match(svc,/received_on \+ CASE WHEN extension_notified_on IS NULL THEN interval '1 month'/);
- assert.match(svc,/ELSE interval '3 months'/);
+ assert.match(svc,/received_on \+ interval '1 month' \+/);
+ assert.match(svc,/ELSE interval '2 months'/);
+ assert.doesNotMatch(svc,/interval '3 months'/);
  assert.match(svc,/d<=record.original_due_on/);
  assert.match(svc,/d<=today\(\)/);
  assert.match(svc,/\["complexity","number_of_requests"\]/);
