@@ -1,12 +1,12 @@
 import Link from "next/link";
 import {redirect} from "next/navigation";
-import {getAdminSession} from "../../../../../../lib/admin-session";
-import {getAdminPostgresRuntime} from "../../../../../../lib/postgres-runtime";
-import {isMaziSuperAdmin,marketplaceMaziActor} from "../../../../../../lib/mazi-superadmin";
+import {getAdminSession} from "../../../../../lib/admin-session";
+import {getAdminPostgresRuntime} from "../../../../../lib/postgres-runtime";
+import {isMaziSuperAdmin,marketplaceMaziActor} from "../../../../../lib/mazi-superadmin";
 import {
  MAZI_FUND_ALLOCATION_VERSION,previewFundAllocation,type FundCandidate,type FundAllocationRules
-} from "../../../../../../lib/mazi-fund-allocation-policy";
-import s from "../../../mazi.module.css";
+} from "../../../../../lib/mazi-fund-allocation-policy";
+import s from "../../mazi.module.css";
 export const dynamic="force-dynamic";
 export const metadata={title:"ΜΑΖΙ · Κατανομή αναπτυξιακών ενισχύσεων",robots:{index:false,follow:false}};
 type RuleCycle={id:string;slug:string;title:string;funding_budget_cents:string;
