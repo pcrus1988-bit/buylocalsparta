@@ -14,7 +14,7 @@ create table if not exists public.mazi_marketing_creative_invitations (
  status text not null default 'pending' check (status in ('pending','approved','declined','withdrawn','revoked')),
  response_note text not null default '' check (char_length(response_note)<=500),
  invited_by uuid not null references public.users(id),
- last_actor_id uuid references public.users(id),
+ last_actor_id uuid,
  responded_at timestamptz,
  expires_at timestamptz not null default (now()+interval '14 days'),
  created_at timestamptz not null default now(),
@@ -40,7 +40,7 @@ create table if not exists public.mazi_marketing_creative_events (
  id bigint generated always as identity primary key,
  invitation_id uuid not null references public.mazi_marketing_creative_invitations(id),
  event_kind text not null check (event_kind in ('issued','approved','declined','withdrawn','revoked')),
- actor_user_id uuid not null references public.users(id),
+ actor_user_id uuid not null,
  event_at timestamptz not null default now(),
  snapshot jsonb not null
 );
@@ -82,6 +82,10 @@ begin
      where m.user_id=v_actor and m.status='verified' and m.identity_verified_at is not null
      and a.status='approved'
    ) then raise exception 'MAZI_MARKETING_MEMBERSHIP_NOT_VERIFIED'; end if;
+   if new.status='approved' and not exists (
+    select 1 from public.mazi_marketing_preferences p
+    where p.member_user_id=v_actor and p.wants_collective_campaigns
+   ) then raise exception 'MAZI_MARKETING_INTEREST_WITHDRAWN'; end if;
    new.last_actor_id:=v_actor;
  else
    if not (old.status in ('pending','approved') and new.status='revoked')
