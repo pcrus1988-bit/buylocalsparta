@@ -38,6 +38,8 @@ export async function maziFundGovernanceAction(form:FormData){
    "from public.mazi_cycles where id=$1::uuid for update",[cycleId]);
   if(!cycle||cycle.kind!=="fund_allocation"||!cycle.finance_activated||BigInt(cycle.funding_budget_cents)<=0n)
    throw new Error("MAZI_FUND_NOT_ACTIVATED");
+  // Canonical month stages: 1–10 submit, 11–15 review, 16–23 vote, 24–27 objections/finalization.
+  const localDay=Number(new Intl.DateTimeFormat("en-US",{timeZone:"Europe/Athens",day:"numeric"}).format(new Date()));
   const audit=async(type:string,id:string,action:string,evidence:Record<string,unknown>)=>{
    await cx.query("insert into public.mazi_audit_events "+
     "(entity_type,entity_id,action,marketplace_actor_user_id,evidence) "+
@@ -45,6 +47,7 @@ export async function maziFundGovernanceAction(form:FormData){
     [type,id,action,actor,JSON.stringify(evidence)]);
   };
   if(kind==="publish_rules"){
+   if(localDay<11||localDay>15)throw new Error("MAZI_FUND_REVIEW_DAYS_11_15");
    if(cycle.status!=="review")throw new Error("MAZI_FUND_WRONG_STAGE");
    const policyText=str(form,"policy_text");
    if(policyText.length<400||policyText.length>20000)throw new Error("MAZI_FUND_PUBLIC_RULEBOOK_REQUIRED");
@@ -64,6 +67,7 @@ export async function maziFundGovernanceAction(form:FormData){
      {quorum_percent:quorum,minimum_support_votes:min,max_awards:awards,
       project_cap_cents:cap,policy_sha256:digest});
   }else if(kind==="review_approve"||kind==="review_reject"){
+   if(localDay<11||localDay>15)throw new Error("MAZI_FUND_REVIEW_DAYS_11_15");
    if(cycle.status!=="review")throw new Error("MAZI_FUND_WRONG_STAGE");
    const status=kind==="review_approve"?"approved":"rejected";
    const result=await cx.query("update public.mazi_proposals "+
@@ -73,6 +77,7 @@ export async function maziFundGovernanceAction(form:FormData){
    if(result.rowCount!==1)throw new Error("MAZI_FUND_PROPOSAL_NOT_PENDING");
    await audit("fund_proposal",recordId,status,{cycle_id:cycleId,reason});
   }else if(kind==="open_voting"){
+   if(localDay<16||localDay>23)throw new Error("MAZI_FUND_VOTE_DAYS_16_23");
    if(cycle.status!=="review")throw new Error("MAZI_FUND_WRONG_STAGE");
    const rules=await cx.query("select cycle_id from public.mazi_fund_cycle_rules where cycle_id=$1::uuid",[cycleId]);
    if(rules.rowCount!==1)throw new Error("MAZI_FUND_PUBLISH_RULES_FIRST");
@@ -97,6 +102,7 @@ export async function maziFundGovernanceAction(form:FormData){
    await audit("fund_cycle",cycleId,"electorate_frozen_and_voting_opened",
     {eligible_businesses:electorate.rowCount});
   }else if(kind==="invalidate"){
+   if(localDay<24||localDay>27)throw new Error("MAZI_FUND_OBJECTIONS_DAYS_24_27");
    if(cycle.status!=="voting")throw new Error("MAZI_FUND_WRONG_STAGE");
    const result=await cx.query("insert into public.mazi_fund_ballot_invalidations "+
     "(ballot_id,cycle_id,reason,invalidated_by) "+
@@ -106,8 +112,8 @@ export async function maziFundGovernanceAction(form:FormData){
    if(result.rowCount!==1)throw new Error("MAZI_FUND_BALLOT_NOT_INVALIDATABLE");
    await audit("fund_ballot",recordId,"ballot_invalidated",{cycle_id:cycleId,reason});
   }else if(kind==="finalize"){
-   if(cycle.status!=="voting"||Date.now()<new Date(cycle.ends_at).getTime())
-    throw new Error("MAZI_FUND_VOTING_NOT_EXPIRED");
+   if(cycle.status!=="voting"||localDay!==27)
+    throw new Error("MAZI_FUND_FINALIZATION_ONLY_AFTER_OBJECTION_REVIEW");
    const rule=await cx.query<{published_policy_sha256:string}>(
     "select published_policy_sha256 from public.mazi_fund_cycle_rules where cycle_id=$1::uuid",[cycleId]);
    if(!rule.rows[0])throw new Error("MAZI_FUND_RULES_NOT_FROZEN");
