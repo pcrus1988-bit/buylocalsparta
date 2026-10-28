@@ -1,28 +1,49 @@
-# MAZI — Supabase Auth delivery release dossier (DRAFT · 2026-10-25)
+# MAZI — Supabase Auth × Resend production verification dossier
 
-**Owner:** KONTA MOY Super Admin. **Status:** NOT VERIFIED. This file is a verification protocol, not a claim that email delivery succeeded. No trial/simulation users or unsolicited test invites. No production invitation until the existing two human release gates have real documentary evidence.
+**Owner:** KONTA MOY Super Admin  
+**Last independently checked:** 2026-10-28 (UTC)  
+**Release status:** **NOT VERIFIED — PENDING HUMAN ATTESTATION**  
+**Scope:** Login-link generation, transactional delivery, callback, session, one-use authentication and separate 45-minute admission limit. This document records evidence, not permission to issue an invitation, accept a member or activate finance.
 
-## Architecture — as implemented
-- MAZI app `https://mazi.kontamou.site` uses Supabase's **public** publishable key only; it does not send administrative invites.
-- Marketplace Admin `/admin/mazi/interest` is the sole invitation issuer. Server-only Supabase project: `eemihhfreggbigxejjhj`.
-- New contacts: Supabase Auth admin `POST /auth/v1/invite` to verified contact email. Existing confirmed accounts: one `POST /auth/v1/otp` with `create_user:false` only upon a recognized account-exists response. No public signup.
-- Fixed same-origin callback: `https://mazi.kontamou.site/auth/callback` with PKCE/token-hash exchange. Invitation admission is separately authorized in PostgreSQL; merely following an email link is not membership.
-- Local invitation admission expires 45 minutes after issue (database constraint). Provider email OTP expiration must be recorded and reconciled, ideally **no more than 45 minutes**. Revoked and expired invitation records must never admit members.
-- A provider HTTP success is **acceptance for processing**, not proof of SMTP delivery or recipient receipt.
+## Actual production architecture (supersedes the pre-27 October SMTP instructions)
 
-## Verification checklist — Super Admin must complete with real evidence
-1. **Supabase project identity:** Authentication configuration belongs to `eemihhfreggbigxejjhj`. Make sure `SUPABASE_URL` and server-only service credentials match this project. Do not paste secrets into audit notes.
-2. **Custom SMTP:** In Supabase Dashboard → Authentication → Emails → SMTP Settings, configure an authorized production transactional provider (e.g. Resend/SES via an approved sending domain). Confirm SMTP enabled, verified from-address, and sent/failed event access. Supabase's default shared SMTP is not production suitable and can reject non-team recipients.
-3. **Domain authentication:** Verify SPF, DKIM, DMARC for the From domain using the provider's verified-domain dashboard. Do not assume a Resend API key on the KONTA MOY frontend proves Supabase Auth SMTP is configured.
-4. **Redirect settings:** Authentication → URL Configuration: Site URL `https://mazi.kontamou.site`; redirect allowlist explicitly includes `https://mazi.kontamou.site/auth/callback`; verify no untrusted wildcard or foreign callback. Document actual settings.
-5. **Expiration and templates:** In Auth provider settings, confirm exact OTP expiry, email confirmation behavior, invite template and existing-user magic-link template. Test that links, subject, From identity and Greek content are appropriate. The 45-minute MAZI application limit still applies.
-6. **Real controlled test:** With a **consenting recipient** who is entitled to access a real approved business, issue one operator-authorized invitation. Record provider message acceptance, delivery/bounce where possible, inbox receipt, callback completion, and the confirmed email/account identity. Verify that there are no duplicate invites and that an expired/revoked record cannot be accepted. Do not send emails merely to fill a checkbox. Existing-account flow should be verified only when a real consenting existing account exists.
-7. **Incident response:** If email is bounced/blocked or provider status is uncertain, keep the delivery gate reopened and reconcile the provider log before any resend. Do not reissue on blind retry. Store only evidence references and outcome, never message tokens or full email addresses in the release-gate evidence.
+1. MAZI login form at `https://mazi.kontamou.site/join` calls a server action. MAZI uses a production-only HMAC secret to contact `https://kontamou.site/api/mazi-auth-email`; the browser never receives the bridge secret, a Supabase service-role key or a Resend key.
+2. The marketplace backend checks an **existing, email-confirmed Supabase Auth account** against an approved and independently verified MAZI interest application **or** an existing verified member. A public login request creates no user and authorizes no membership. Abuse controls include advisory-locked 180-second cooldown and five attempts per 24 hours.
+3. The backend calls the production Auth project `eemihhfreggbigxejjhj` at `POST /auth/v1/admin/generate_link`. It reads the hashed token from the actual GoTrue REST payload, builds `https://mazi.kontamou.site/auth/callback?token_hash=…&type=magiclink`, and sends the first-party link **directly through the Resend API** with a server-only key and idempotency key.
+4. For a **new, individually approved invitation**, the separate Super Admin issuer uses the same Auth `generate_link` / Resend transport, with `type=invite`; the 45-minute admission cutoff remains stored in `mazi_invitations.expires_at`. Invitation approval and member admission remain separate SQL-verified steps.
+5. The production callback supports an Auth PKCE code, a generated token hash, and legacy implicit-fragment links. It verifies on the server when possible and routes implicit credentials to `/auth/finish` without exposing them to the server. The destination is fixed to the MAZI origin.
+6. **Supabase's default SMTP and hosted `SITE_URL` are not used to transport or build the direct Resend links above.** They can still affect unrelated/legacy Auth flows and require a separate configuration review. Do not use a successful Resend test as evidence that Supabase custom SMTP has been configured.
 
-## Required evidence to accompany `auth_email_delivery` verification
-- Timestamp and operator; Supabase project ref; sender domain and provider (no passwords).
-- Evidence location / ticket reference for SMTP/domain/redirect/OTP configuration.
-- One authorized delivery test reference and exact type (new invite vs existing account OTP), outcome of callback/admission, and confirmation of no duplicate email.
-- Follow-up owner for any remaining provider error. Gate must remain **reopened** if any critical item is unverified.
+## Independently observed results (2026-10-28)
 
-**No automatic grant, paid membership, community privileges, or voter eligibility is enabled by this verification.**
+| Component | Observation | Evidence category |
+| --- | --- | --- |
+| Supabase project | `eemihhfreggbigxejjhj` active; server code binds the specific Auth project | Project and code inspection |
+| Server credentials | Required MAZI/marketplace production environment-variable **names** present; secret values not retrieved or recorded | Vercel metadata |
+| Sending domain | `kontamou.site` verified in Resend; SPF and DKIM verified | Resend domain details |
+| DMARC | DNS TXT `v=DMARC1; p=none;` (monitoring only, not enforcement) | Vercel DNS record |
+| Existing-account Auth token | 2026-10-28 06:36:27 UTC `/auth/v1/admin/generate_link` HTTP 200 | Supabase Auth logs |
+| Email transport | Resend recorded two delivered MAZI login messages on 2026-10-27 and 2026-10-28; latest 06:36 UTC | Resend delivery and API logs |
+| Auth token verification | 2026-10-28 06:37:00 UTC `POST /verify` HTTP 200, followed by `GET /user` HTTP 200 | Supabase Auth logs |
+| Callback reachability | `/auth/callback` HTTP 200 and invalid-token request returned to `/join?notice=expired_link`; unauthenticated `/members` redirected to login | Vercel protected live fetch |
+| Browser-session provenance | Auth service logs reported `http://localhost:3000` as a **referer** for the successful verification. This does not prove production-browser callback completion; it also does not prove the direct Resend link itself points to localhost. | Supabase request logs |
+| Admission records | One approved application; no invitations, invitation acceptances, verified members or Super Admin release reviews at inspection | Read-only database queries |
+| Private tables | MAZI invitation and auth audit tables protected by RLS; no direct `anon` / `authenticated` SELECT grants in checked set | PostgreSQL privilege checks |
+
+**Earlier regression:** 2026-10-27 09:18 UTC Auth link generation returned HTTP 200 but code misparsed the REST `hashed_token` and did not send an email. The top-level hash extraction was corrected in PR #1820; subsequent recorded delivery and verification succeeded. This is not evidence that every failure/retry scenario passes.
+
+## Evidence still needed before the Super Admin may tick all seven checkboxes
+
+1. Confirm the actual Supabase Auth project, role binding and browser/server configuration without writing secrets to evidence.
+2. Examine one **consenting recipient's original delivered Resend message** and confirm its action URL points to `https://mazi.kontamou.site/auth/callback`, not localhost. Verify full browser login on the deployed MAZI site and durable server-side cookie/session access to `/members`, not merely an Auth `/verify` response.
+3. Inspect live Supabase Auth OTP expiry setting; test one-use and expired-link behavior using authorized credentials. Separately verify the independent 45-minute *invitation admission* cutoff in the server-side SQL. Do not confuse the two clocks.
+4. Verify SPF, DKIM and **DMARC alignment** against an actual delivered MAZI email. Because `p=none` is monitor-only, decide whether a staged stronger policy is appropriate only after inventorying all legitimate senders.
+5. Exercise one real, consent-based business invitation and acceptance once the two prerequisite launch reviews are valid. Confirm ΓΕΜΗ/AFM representation, email ownership, terms acceptance, one-time consumption, rejection on retry/expiry/revocation and **no** billing or voting privilege.
+6. For a bounced/failed/ambiguous email, reconcile provider records and the private attempt/invitation log **before** any individual resend. Test repeat-request throttling and incident response without soliciting unsolicited emails.
+7. Keep `auth_email_delivery`, `legal_and_retention` and `consenting_business_e2e` decisions pending until the **actual** prerequisites have evidence and the authenticated Super Admin records the legally appropriate decision. Do not mark these automatically from documentation, CI, DNS or a successful provider API response.
+
+## Audit protocol
+
+Record timestamp, testing role, real result and a restricted evidence reference in the Super Admin operations review. Never put a recipient's email, access token, token hash, provider credentials or a personal callback URL in the review. **The review screen is an attestation form, not a test runner or automatic release decision.** An explicit `reopened` review supersedes a previous `verified` review.
+
+Production deployment is allowed to remain live in non-financial, invite-gated mode. These findings do **not** authorize invitations, automatic retries, paid subscriptions, fund custody, grant awards or voting.
