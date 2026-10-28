@@ -37,7 +37,8 @@ export default async function MaziRetentionAdmin({searchParams}:{searchParams:Pr
    {!snapshot||!inventory?<p className={s.empty} role="alert">Η πραγματική βάση ή ο κατάλογος τεκμηρίων δεν είναι διαθέσιμος. Δεν εμφανίζουμε ψευδή ολοκλήρωση.</p>:
     <div className={s.card}><div><strong>Πηγές από τη βάση</strong>
      <p className={s.body}>Αιτήσεις σε αναμονή: {inventory.awaiting_review} · Μη χρησιμοποιημένες προσκλήσεις: {inventory.unused_invitations} · Μηνύματα: {inventory.community_messages} · Ελεγκτικά συμβάντα: {inventory.immutable_audit_rows}</p>
-     <p className={s.meta}>Απουσιάζοντες ονομασμένοι πίνακες: {snapshot.missingSources.length?snapshot.missingSources.join(", "):"κανένας από τις καταγεγραμμένες πηγές"}</p>
+     <p className={s.meta}>Απουσιάζοντες ονομασμένοι πίνακες: {snapshot.missingSources.length?snapshot.missingSources.join(", "):"κανένας"}</p>
+     <p className={s.meta}>Νέοι / αταξινόμητοι πίνακες MAZI: {snapshot.unmappedSources.length?snapshot.unmappedSources.join(", "):"κανένας από τους πραγματικούς πίνακες"}</p>
      <p className={s.body}><strong>Μόνο ενημερωτική απογραφή:</strong> τα χρονικά όρια της δημοσιευμένης πολιτικής δεν ισοδυναμούν με ενεργή διαγραφή, συμφωνία με τους παρόχους ή εξουσιοδότηση δημοσίευσης.</p>
     </div></div>}
   </section>
