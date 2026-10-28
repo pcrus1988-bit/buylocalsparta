@@ -2,6 +2,7 @@ import {randomUUID} from "node:crypto";
 import type {SessionPrincipal} from "@buy-local-sparta/core";
 import {marketplaceMaziActor} from "./mazi-superadmin";
 import {getAdminPostgresRuntime} from "./postgres-runtime";
+import {parseBreachInstant,needsBreachLateReason} from "./mazi-breach-time";
 
 /** Actual breach assessment is a human/controller decision. This is only an evidence register.
  * Never store victims, email addresses, secrets, access tokens, or raw incident logs here.
@@ -33,12 +34,6 @@ const fail=(test:boolean)=>{if(!test)throw Error("MAZI_BREACH_CASE_INVALID");};
 const evidence=(s:string)=>s.length>=12 && s.length<=180 &&
  /^[A-Za-z0-9_./:#-]+$/.test(s);
 const validId=(s:string)=>/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(s);
-/** ISO8601 instant with explicit timezone prevents silent Athens/DST interpretation bugs. */
-export function parseBreachInstant(raw:string):Date|null{
- if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/.test(raw))return null;
- const d=new Date(raw);
- return Number.isFinite(d.getTime())?d:null;
-}
 const inPast=(d:Date)=>d.getTime()<=Date.now()+60000;
 const allowed=(s:string,opts:readonly string[])=>opts.includes(s);
 
@@ -117,7 +112,7 @@ export async function transitionMaziBreachCase(principal:SessionPrincipal,input:
    effective=parseBreachInstant(input.effectiveAt??"");
    fail(Boolean(effective)&&inPast(effective!)&&effective!.getTime()>=new Date(row.aware_at).getTime());
    lateReason=input.lateReasonRef?.trim()||null;
-   if(effective!.getTime()>new Date(row.aware_at).getTime()+72*60*60*1000)
+   if(needsBreachLateReason(new Date(row.aware_at),effective!))
     fail(Boolean(lateReason)&&evidence(lateReason!));
    else fail(!lateReason);
    change="authority_notified_at=$2::timestamptz";
