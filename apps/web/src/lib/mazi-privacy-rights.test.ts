@@ -56,3 +56,17 @@ test("MAZI legal-gate evidence textarea limits match server-side validation",()=
  assert.match(operations,/if\(evidence.length>1200\)/);
  assert.match(operationsPage,/href="\/admin\/mazi\/privacy-requests"/);
 });
+
+test("only server-side trusted runtime roles can read or write GDPR records under RLS",()=>{
+ const rls=read("../../../../mazi-app/sql/mazi_privacy_rights_backend_rls_20261028.sql");
+ for(const action of ["backend_select","backend_insert"]){
+  assert.match(rls,new RegExp("mazi_privacy_request_events_"+action));
+  assert.match(rls,new RegExp("mazi_privacy_requests_"+action));
+ }
+ assert.match(rls,/mazi_privacy_requests_backend_update/);
+ assert.match(rls,/TO bls_app_runtime, bls_platform_runtime/);
+ assert.match(rls,/REVOKE ALL ON TABLE public\.mazi_privacy_requests/);
+ assert.doesNotMatch(rls,/CREATE POLICY [^\n]+[\s\S]*? TO anon|CREATE POLICY [^\n]+[\s\S]*? TO authenticated/i);
+ assert.doesNotMatch(rls,/GRANT .* TO anon|GRANT .* TO authenticated/i);
+ assert.doesNotMatch(rls,/FOR DELETE/i);
+});
