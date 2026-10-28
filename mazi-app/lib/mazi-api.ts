@@ -186,3 +186,37 @@ export async function maziPublicFundArchive():Promise<MaziFundArchiveItem[]|null
   return payload.report as MaziFundArchiveItem[];
  }catch{return null;}
 }
+
+/** Public project milestones, independently reviewed and pre-redacted by SQL. */
+export type MaziFundPublicProjectUpdate={
+ id:string;offer_id:string;cycle_slug:string;proposal_title:string;
+ assigned_amount_cents:number;update_kind:"milestone"|"evidence_verified"|"completion"|"correction";
+ summary:string;evidence_sha256:string|null;supersedes_id:string|null;published_at:string
+};
+export async function maziPublicFundProjectUpdates():Promise<MaziFundPublicProjectUpdate[]|null>{
+ if(!base||!key)return null;
+ try{
+  const response=await fetch(base+"/functions/v1/mazi-fund-public?view=projects",{
+   method:"GET",headers:{apikey:key},next:{revalidate:60},signal:AbortSignal.timeout(8000)
+  });
+  if(!response.ok)return null;
+  const payload:unknown=await response.json();
+  if(!isObject(payload)||payload.ok!==true||!Array.isArray(payload.report)||
+    payload.report.length>200)return null;
+  const allowed=new Set(["milestone","evidence_verified","completion","correction"]);
+  for(const event of payload.report){
+   if(!isObject(event)||typeof event.id!=="string"||typeof event.offer_id!=="string"||
+     typeof event.cycle_slug!=="string"||typeof event.proposal_title!=="string"||
+     event.proposal_title.length===0||event.proposal_title.length>300||
+     !allowed.has(String(event.update_kind))||
+     typeof event.summary!=="string"||event.summary.length<50||event.summary.length>750||
+     typeof event.published_at!=="string"||
+     typeof event.assigned_amount_cents!=="number"||
+     !Number.isSafeInteger(event.assigned_amount_cents)||event.assigned_amount_cents<0||
+     (event.evidence_sha256!==null&&
+       (typeof event.evidence_sha256!=="string"||!/^[a-f0-9]{64}$/.test(event.evidence_sha256)))||
+     (event.supersedes_id!==null&&typeof event.supersedes_id!=="string"))return null;
+  }
+  return payload.report as MaziFundPublicProjectUpdate[];
+ }catch{return null;}
+}
