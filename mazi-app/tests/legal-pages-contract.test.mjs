@@ -2,7 +2,7 @@ import test from "node:test";import assert from "node:assert/strict";import {rea
 const read=p=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
 test("canonical legal registry isolates tariffs and offers in dedicated policies",()=>{
  const registry=read("lib/legal-documents.ts"), terms=read("lib/legal/v3-core.ts");
- assert.match(registry,/LEGAL_VERSION="mazi-legal-v3-20261028"/);
+ assert.match(registry,/LEGAL_VERSION="mazi-legal-v3.1-20261028"/);
  for(const item of ["terms","membership","services","fund","award","marketing","community","governance","privacy","retention","cookies","compliance"])assert.match(registry,new RegExp('"'+item+'"'));
  const prefix=terms.slice(terms.indexOf('"terms"'),terms.indexOf('"membership"'));
  assert.doesNotMatch(prefix,/€\s*\d|\b(?:HUB_PRO_MONTHLY_EUR|MEMBERSHIP_MONTHLY_EUR|SERVICE_CREDIT_MONTHLY_EUR)\b|\b250\b|ceil\(/);
@@ -12,7 +12,7 @@ test("canonical legal registry isolates tariffs and offers in dedicated policies
  const membership=terms.slice(terms.indexOf('"membership"'),terms.indexOf('"services"'));
  assert.match(membership,/€250/);
  assert.match(membership,/€99/);
- assert.match(terms,/(?:δεν συσσωρεύ|δεν αποτελούν συσσωρευόμενη|χωρίς rollover, συσσώρευση)/);
+ assert.match(terms,/δεν συσσωρεύ/);
  assert.match(read("lib/legal/v3-finance.ts"),/ceil\(/);
  assert.match(read("lib/legal/v3-data.ts"),/ν\. 4308\/2014/);
 });

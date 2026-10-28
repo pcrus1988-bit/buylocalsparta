@@ -21,7 +21,8 @@ test("grant milestone publication requires actual accepted offer and immutable e
  assert.match(sql,/mazi_fund_project_updates_single_correction/);
  assert.match(sql,/revoke all on public\.mazi_fund_project_updates from public,anon,authenticated,service_role/);
  assert.match(sql,/grant execute on function public\.mazi_fund_public_project_updates\(\) to service_role/);
- assert.doesNotMatch(sql,/private_evidence_reference.*jsonb_build_object/s);
+ const publicReader=sql.slice(sql.indexOf("create or replace function public.mazi_fund_public_project_updates()"));
+ assert.doesNotMatch(publicReader,/private_evidence_reference/);
 });
 test("Super Admin project review writes evidence, not a payment instruction",()=>{
  const admin=load("../apps/web/src/app/admin/mazi/fund/actions.ts");
