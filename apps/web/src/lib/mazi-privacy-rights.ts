@@ -18,7 +18,7 @@ export type MaziRightsCase={
  legal_hold_active:boolean;due_on:string;created_at:Date;
 };
 export type MaziRightsEvent={
- request_id:string;event_kind:string;evidence_ref:string;recorded_at:Date;
+ request_id:string;event_kind:string;evidence_ref:string;recorded_at:Date;effective_on:string|null;documented_reason:string|null;response_outcome:string|null;
 };
 export type MaziRightsStats={total:number;open:number;overdue:number;extended_open:number;legal_holds:number};
 const pool=()=>getAdminPostgresRuntime().nativePool;
@@ -41,7 +41,7 @@ export async function readMaziPrivacyRequests(principal:SessionPrincipal):Promis
    CASE WHEN case_status='open' THEN 0 ELSE 1 END,received_on ASC,created_at DESC
   LIMIT 150`);
  const events=await pool().query<MaziRightsEvent>(`
-  SELECT request_id::text,event_kind,evidence_ref,recorded_at
+  SELECT request_id::text,event_kind,evidence_ref,recorded_at,effective_on::text,documented_reason,response_outcome
   FROM public.mazi_privacy_request_events ORDER BY recorded_at DESC,id DESC LIMIT 300`);
  const summary=await pool().query<MaziRightsStats>(`
    SELECT count(*)::int AS total,
@@ -72,8 +72,8 @@ export async function createMaziPrivacyRequest(principal:SessionPrincipal,input:
    (id,case_ref,request_kind,received_on,created_by) VALUES($1::uuid,$2,$3,$4::date,$5::uuid)`,
    [id,ref,input.requestKind,input.receivedOn,actor]);
   await client.query(`INSERT INTO public.mazi_privacy_request_events
-   (request_id,event_kind,evidence_ref,actor_user_id) VALUES($1::uuid,'received',$2,$3::uuid)`,
-   [id,input.evidenceRef,actor]);
+   (request_id,event_kind,evidence_ref,actor_user_id,effective_on) VALUES($1::uuid,'received',$2,$3::uuid,$4::date)`,
+   [id,input.evidenceRef,actor,input.receivedOn]);
   await client.query("COMMIT");
   return ref;
  }catch(err){await client.query("ROLLBACK");throw err;}finally{client.release();}
@@ -132,8 +132,12 @@ export async function transitionMaziPrivacyRequest(principal:SessionPrincipal,in
   }
   await client.query(`UPDATE public.mazi_privacy_requests SET ${changes},updated_at=now() WHERE id=$1::uuid`,args);
   await client.query(`INSERT INTO public.mazi_privacy_request_events
-   (request_id,event_kind,evidence_ref,actor_user_id) VALUES($1::uuid,$2,$3,$4::uuid)`,
-   [input.id,input.action,input.evidenceRef,actor]);
+   (request_id,event_kind,evidence_ref,actor_user_id,effective_on,documented_reason,response_outcome)
+    VALUES($1::uuid,$2,$3,$4::uuid,$5::date,$6,$7)`,
+   [input.id,input.action,input.evidenceRef,actor,
+    ["extension_notified","response_sent"].includes(input.action)?input.eventOn:null,
+    input.action==="extension_notified"?input.reason:null,
+    input.action==="response_sent"?input.outcome:null]);
   await client.query("COMMIT");
  }catch(err){await client.query("ROLLBACK");throw err;}finally{client.release();}
 }
