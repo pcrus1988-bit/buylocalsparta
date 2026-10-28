@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { ResearchPublicNavigation } from "../../../../../components/ResearchPublicNavigation";
 import { SiteFooter } from "../../../../../components/SiteFooter";
 import shell from "../../../../../components/ResearchSurveyPage.module.css";
-import { getAdminSession } from "../../../../../lib/admin-session";
-import { hasAdminPermission } from "../../../../../lib/admin-runtime";
-import { rawResearchAnswerAccess } from "../../../../../lib/research-survey-response-admin";
+import { canReadResearchResultsPreview } from "../../../../../lib/research-preview-authorization";
+import { RESEARCH_PREVIEW_LOGIN_PATH } from "../../../../../lib/research-preview-access";
 import { getLiveGreekRetailPreview, type LiveGreekRetailPreview } from "../../../../../lib/research-live-preview-data";
 import { publicResearchStudy } from "../../../../../lib/research-observatory-runtime";
 import type { SafeParticipationGeography } from "../../../../../lib/research-public-results-data";
@@ -21,8 +20,7 @@ export const metadata: Metadata = {
 
 /** Pre-release aggregate findings are confidential, including over React Flight. */
 export default async function GreekRetailResultsLivePreview() {
-  const principal = await getAdminSession();
-  if (!principal || !hasAdminPermission(principal,"research.read") || !rawResearchAnswerAccess(principal)) notFound();
+  if (!(await canReadResearchResultsPreview())) redirect(RESEARCH_PREVIEW_LOGIN_PATH);
   let initial: LiveGreekRetailPreview | null = null;
   try {
     initial = await getLiveGreekRetailPreview();
