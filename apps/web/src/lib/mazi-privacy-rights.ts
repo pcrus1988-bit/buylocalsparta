@@ -24,7 +24,7 @@ const pool=()=>getAdminPostgresRuntime().nativePool;
 const validDate=(raw:string)=>/^\d{4}-\d{2}-\d{2}$/.test(raw) &&
  !Number.isNaN(Date.parse(raw+"T00:00:00.000Z")) &&
  new Date(raw+"T00:00:00.000Z").toISOString().slice(0,10)===raw;
-const today=()=>new Date().toISOString().slice(0,10);
+const today=()=>new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Athens",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 const validEvidence=(v:string)=>v.length>=12&&v.length<=180&&/^[A-Za-z0-9_./:#-]+$/.test(v);
 const ensure=(ok:boolean):void=>{if(!ok)throw Error("MAZI_PRIVACY_CASE_INVALID");};
 
