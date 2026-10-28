@@ -1,5 +1,6 @@
 "use server";
 import {redirect} from "next/navigation";
+import {createHash} from "node:crypto";
 import {revalidatePath} from "next/cache";
 import {getAdminSession} from "../../../../lib/admin-session";
 import {assertAdminCsrf} from "../../../../lib/admin-runtime";
@@ -45,18 +46,20 @@ export async function maziFundGovernanceAction(form:FormData){
   };
   if(kind==="publish_rules"){
    if(cycle.status!=="review")throw new Error("MAZI_FUND_WRONG_STAGE");
-   const digest=str(form,"policy_sha256");
-   if(!/^[a-f0-9]{64}$/.test(digest))throw new Error("MAZI_FUND_POLICY_DIGEST_REQUIRED");
+   const policyText=str(form,"policy_text");
+   if(policyText.length<400||policyText.length>20000)throw new Error("MAZI_FUND_PUBLIC_RULEBOOK_REQUIRED");
+   const digest=createHash("sha256").update(policyText,"utf8").digest("hex");
    const quorum=integer(str(form,"quorum_percent"),1,100),
     min=integer(str(form,"minimum_support_votes"),1,10000000),
     awards=integer(str(form,"max_awards"),1,1000),
     cap=integer(str(form,"project_cap_cents"),1,20000000);
    if(BigInt(cap)>BigInt(cycle.funding_budget_cents))throw new Error("MAZI_FUND_CAP_EXCEEDS_BUDGET");
-   const result=await cx.query("insert into public.mazi_fund_cycle_rules "+
-    "(cycle_id,quorum_percent,minimum_support_votes,max_awards,project_cap_cents,published_policy_sha256,published_by) "+
-    "values($1::uuid,$2,$3,$4,$5,$6,$7::uuid) on conflict do nothing",
-    [cycleId,quorum,min,awards,cap,digest,actor]);
+   const result=await cx.query<{published_policy_sha256:string}>("insert into public.mazi_fund_cycle_rules "+
+    "(cycle_id,quorum_percent,minimum_support_votes,max_awards,project_cap_cents,published_policy_sha256,published_by,public_policy_text) "+
+    "values($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8) on conflict do nothing returning published_policy_sha256",
+    [cycleId,quorum,min,awards,cap,digest,actor,policyText]);
    if(result.rowCount!==1)throw new Error("MAZI_FUND_RULES_ALREADY_FROZEN");
+   if(result.rows[0]?.published_policy_sha256!==digest)throw new Error("MAZI_FUND_RULES_HASH_MISMATCH");
    await audit("fund_cycle",cycleId,"rules_published",
      {quorum_percent:quorum,minimum_support_votes:min,max_awards:awards,
       project_cap_cents:cap,policy_sha256:digest});
