@@ -59,7 +59,7 @@ export default async function FundResults(){
        <strong style={{fontSize:26}}>{p.supporting_ballots} ψήφοι</strong>
       </div>
       <div style={{background:"#e9eee7",height:8,borderRadius:5,overflow:"hidden"}}>
-       <div style={{background:"#3b7756",height:"100%",width:${Math.min(100,p.supporting_ballots/Math.max(1,r.valid_ballots!)*100)}+"%"}}/>
+       <div style={{background:"#3b7756",height:"100%",width:Math.min(100,p.supporting_ballots/Math.max(1,r.valid_ballots!)*100)+"%"}}/>
       </div>
       <p style={{fontSize:14,color:"#62776a"}}>Αιτούμενα: {euroCents(p.amount_cents)} · Ελάχιστο χρήσιμο: {euroCents(p.minimum_useful_cents)}</p>
      </article>)}</div>}
