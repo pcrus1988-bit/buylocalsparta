@@ -2,7 +2,7 @@
  * Historical reference ONLY. Publication itself is not evidence of any member's acceptance.
  * Changes to this file require an intentional archive review and must update the pinned test checksum.
  */
-import type {LegalRecord} from "../legal-documents";
+import type {LegalRecord} from "../../legal-documents";
 export const MAZI_LEGAL_V31_ARCHIVE={
   version:"mazi-legal-v3.1-20261028",
   recordedFromGitCommit:"c5abb830aa26e1e189ab35c5d4f3e96aed438e54",
