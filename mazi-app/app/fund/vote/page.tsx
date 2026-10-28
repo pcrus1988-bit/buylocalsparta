@@ -4,6 +4,7 @@ import {redirect} from "next/navigation";
 import {createClient} from "../../../lib/supabase/server";
 import {maziFundMemberRequest,type MaziFundBallotState} from "../../../lib/mazi-api";
 import FundVoteForm from "./fund-vote-form";
+import FundCycleSteps from "../fund-cycle-steps";
 import {euroCents} from "../../../lib/fund-transparency";
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"Ψηφοφορία Αναπτυξιακού Ταμείου · ΜΑΖΙ",
@@ -34,6 +35,7 @@ export default async function MaziFundVote({searchParams}:{searchParams:Promise<
    <Link href="/dashboard" style={{color:"#eabb9f",display:"inline-block",marginTop:22}}>← Η επιχείρησή μου</Link>
   </header>
   <section style={{maxWidth:1080,margin:"0 auto",padding:"50px 24px 110px"}}>
+   <FundCycleSteps fundedCycleExists={result.ok&&Boolean(result.cycle)}/>
    {params.notice&&notices[params.notice]?<p role="status" style={{background:"#fff",padding:20,border:"1px solid #b4c6b8"}}>{notices[params.notice]}</p>:null}
    {!result.ok?<div role="alert" style={{background:"#fff",padding:32}}>
     <h2>Η ψηφοφορία δεν είναι διαθέσιμη</h2><p>Δεν εμφανίζονται μη επαληθευμένα στοιχεία και δεν έγινε καμία καταχώριση.</p>
