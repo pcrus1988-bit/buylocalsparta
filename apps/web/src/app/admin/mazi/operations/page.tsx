@@ -143,7 +143,7 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
     <span>{snapshotAt.toLocaleString("el-GR",{timeZone:"Europe/Athens"})}</span>
     <span>Μόνο αναγνωστική πρόσβαση. Δεν δημιουργούνται ή αλλάζουν μέλη.</span>
     <Link href="/admin/mazi/interest">Διαχείριση αιτήσεων ΑΦΜ ↗</Link><Link href="/admin/mazi/moderation">Αναφορές κοινότητας ↗</Link>
-    <Link href="/admin/mazi">Διακυβέρνηση ↗</Link><Link href="/admin/mazi/privacy-requests">Αιτήματα GDPR · δικαιώματα ↗</Link>
+    <Link href="/admin/mazi">Διακυβέρνηση ↗</Link><Link href="/admin/mazi/privacy-requests">Αιτήματα GDPR · δικαιώματα ↗</Link><Link href="/admin/mazi/retention">Έλεγχος διατήρησης δεδομένων ↗</Link>
    </div>
   </header>
   {notice==="gate_recorded"?<p className={s.notice} role="status">Η χειροκίνητη επαλήθευση καταχωρίστηκε στο αμετάβλητο ιστορικό. Δεν ενεργοποιήθηκε υπηρεσία ή πληρωμή.</p>:null}
@@ -246,7 +246,7 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
   </section>
 
   <section className={s.section} aria-label="GDPR data inventory" style={{marginTop:32}}>
-   <div className={s.sectionTop}><div><p>04 / LEGAL RETENTION — DRAFT</p><h2>Διατήρηση δεδομένων και δικαιώματα</h2><Link href="/admin/mazi/privacy-requests">Μητρώο αιτημάτων GDPR και προθεσμιών ↗</Link></div>
+   <div className={s.sectionTop}><div><p>04 / LEGAL RETENTION — DRAFT</p><h2>Διατήρηση δεδομένων και δικαιώματα</h2><Link href="/admin/mazi/privacy-requests">Μητρώο αιτημάτων GDPR και προθεσμιών ↗</Link><Link href="/admin/mazi/retention">Απογραφή και τεκμηρίωση διατήρησης ανά κατηγορία ↗</Link></div>
     <span>Προτάσεις προς νομική έγκριση, όχι ενεργές προθεσμίες διαγραφής</span></div>
    <div className={s.card} style={{display:"block"}}>
     <h3>Πραγματική απογραφή · μόνο συγκεντρωτικά στοιχεία</h3>
