@@ -43,3 +43,12 @@ test("funded ballot UI requires explicit confirmation before irreversible submit
  assert.match(page,/result\.paid_eligible/);
  assert.match(page,/enabled=\{!result\.has_voted/);
 });
+
+test("member ballot choices hide own legal entity and recorded conflicts",()=>{
+ const api=read("supabase/functions/mazi-fund-member/index.ts");
+ assert.match(api,/mazi_vote_conflicts/);
+ assert.match(api,/\.eq\("gemi_number",member\.gemi_number\)/);
+ assert.match(api,/connectedIds\.has\(p\.created_by\)/);
+ assert.match(api,/conflictIds\.has\(p\.id\)/);
+ assert.match(api,/input\.proposal_ids\.some\(x=>!proposals\.some/);
+});
