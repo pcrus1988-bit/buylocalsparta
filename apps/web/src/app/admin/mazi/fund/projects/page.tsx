@@ -44,7 +44,7 @@ export default async function MaziFundProjectAdmin({searchParams}:{searchParams:
      <h1>Κάθε ενίσχυση.<em>Πραγματικό αποτύπωμα.</em></h1>
      <p className={s.subtitle}>Δημοσίευση μόνο πραγματικών οροσήμων και επαληθευμένων τεκμηρίων, μετά την αποδοχή της ατομικής σύμβασης. Κάθε διόρθωση διατηρεί το ιστορικό της. Δεν γίνεται πληρωμή από την παρούσα οθόνη.</p>
    </div><div className={s.lock}><strong>SUPER ADMIN ONLY</strong>
-    <Link href="/admin/mazi/fund/governance">Διακυβέρνηση ↗</Link>
+    <Link href="/admin/mazi/fund/governance">Διακυβέρνηση ↗</Link><Link href="/admin/mazi/fund/allocations">Προεπισκόπηση κατανομών ↗</Link>
     <a href="https://mazi.kontamou.site/fund/projects" target="_blank" rel="noreferrer">Δημόσια έργα ↗</a>
    </div></header>
    {notice==="published"?<p className={s.notice} role="status">Η αναφορά καταχωρίστηκε αμετάκλητα και είναι διαθέσιμη στο δημόσιο χρονολόγιο.</p>:null}
