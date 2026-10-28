@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { ResearchPublicNavigation } from "../../../../../components/ResearchPublicNavigation";
 import { SiteFooter } from "../../../../../components/SiteFooter";
 import shell from "../../../../../components/ResearchSurveyPage.module.css";
-import { getAdminSession } from "../../../../../lib/admin-session";
-import { hasAdminPermission } from "../../../../../lib/admin-runtime";
-import { rawResearchAnswerAccess } from "../../../../../lib/research-survey-response-admin";
+import { canReadResearchResultsPreview } from "../../../../../lib/research-preview-authorization";
+import { RESEARCH_PREVIEW_COOKIE, RESEARCH_PREVIEW_LOGIN_PATH, validResearchPreviewTicket } from "../../../../../lib/research-preview-access";
 import { getLiveGreekRetailPreview, type LiveGreekRetailPreview } from "../../../../../lib/research-live-preview-data";
 import { publicResearchStudy } from "../../../../../lib/research-observatory-runtime";
 import type { SafeParticipationGeography } from "../../../../../lib/research-public-results-data";
@@ -21,8 +21,8 @@ export const metadata: Metadata = {
 
 /** Pre-release aggregate findings are confidential, including over React Flight. */
 export default async function GreekRetailResultsLivePreview() {
-  const principal = await getAdminSession();
-  if (!principal || !hasAdminPermission(principal,"research.read") || !rawResearchAnswerAccess(principal)) notFound();
+  if (!(await canReadResearchResultsPreview())) redirect(RESEARCH_PREVIEW_LOGIN_PATH);
+  const restrictedViewer = validResearchPreviewTicket((await cookies()).get(RESEARCH_PREVIEW_COOKIE)?.value);
   let initial: LiveGreekRetailPreview | null = null;
   try {
     initial = await getLiveGreekRetailPreview();
@@ -49,7 +49,10 @@ export default async function GreekRetailResultsLivePreview() {
 
   return <main className={shell.shell}>
     <ResearchPublicNavigation active="results" studySlug="greek-retail-2026" />
-    <ResearchResultsPreviewExperience initial={initial} geography={geography} />
+    {restrictedViewer && <form action="/api/research/greek-retail-2026/results-preview-logout" method="POST" style={{textAlign:"right",padding:"10px 24px"}}>
+      <button type="submit" style={{padding:"9px 14px",background:"#153d2a",color:"#fff",border:0,borderRadius:7,cursor:"pointer"}}>Αποσύνδεση προεπισκόπησης</button>
+    </form>}
+    <ResearchResultsPreviewExperience initial={initial} geography={geography} restrictedViewer={restrictedViewer} />
     <SiteFooter />
   </main>;
 }

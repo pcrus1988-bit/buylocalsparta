@@ -38,13 +38,14 @@ const matches=(p:SafePublicResultPoint,dimension:GroupBy,level:string)=>
 function csvValue(s:string){const safe=/^[=+@\\-\\t\\r]/.test(s)?"'"+s:s;return '"'+safe.replaceAll('"','""')+'"';}
 
 export function ResearchResultsWorkbench({
- mode,points:publishedPoints=[],geography,coverage,voices
+ mode,points:publishedPoints=[],geography,coverage,voices,restrictedViewer=false
 }:{
  mode:"preview"|"live"|"published"|"unpublished";
  points?:readonly SafePublicResultPoint[];
  geography?:SafeParticipationGeography;
  coverage?:InternalResearchGeographicCoverage;
  voices?:PublicVoiceData;
+ restrictedViewer?:boolean;
 }){
  const demo=mode==="preview";
  const points=useMemo(()=>demo?demoResultPoints():publishedPoints,[demo,publishedPoints]);
@@ -147,7 +148,7 @@ export function ResearchResultsWorkbench({
       {id:"graphs",name:"Graph Explorer",icon:"02",detail:"Γραφήματα & πίνακες"},
       {id:"map",name:"Heatmap Ελλάδας",icon:"03",detail:"Διαδραστικός χάρτης"},
       {id:"county",name:"Νομός",icon:"04",detail:"Επιστημονική αναφορά ανά νομό"},
-      {id:"voices",name:"Η φωνή της Ελλάδας",icon:"05",detail:"Q18 · Θεματικές & μαρτυρίες"}] as const).map(tab=>
+      {id:"voices",name:"Η φωνή της Ελλάδας",icon:"05",detail:"Q18 · Θεματικές & μαρτυρίες"}] as const).filter(tab=>!restrictedViewer || tab.id!=="voices").map(tab=>
     <button key={tab.id} type="button" aria-current={menu===tab.id?"page":undefined}
      aria-pressed={menu===tab.id} onClick={()=>setMenu(tab.id)}
      className={menu===tab.id?styles.menuActive:styles.menuButton}>
