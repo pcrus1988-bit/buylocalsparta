@@ -151,6 +151,6 @@ export async function maziPublicFundTally():Promise<MaziPublicFundTally|null>{
       typeof p.title!=="string"||typeof p.first_time_support_request!=="boolean"||
       !safeInt(p.amount_cents)||!safeInt(p.minimum_useful_cents)||
       !safeInt(p.supporting_ballots)))return null;
-  return v as MaziPublicFundTally;
+  return v as unknown as MaziPublicFundTally;
  }catch{return null;}
 }
