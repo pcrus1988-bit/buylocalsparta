@@ -1,5 +1,7 @@
 # MAZI invitation-only onboarding — production activation gates
 
+> **Update, 28 October 2026:** The older SMTP/`/invite` instructions in the historical 23–25 October sections below are superseded for the currently deployed MAZI flow. Production now uses server-only Supabase Auth `/admin/generate_link` + direct Resend API for both existing-account magic links and new approved invitations, with a fixed `https://mazi.kontamou.site/auth/callback` token-hash URL. The main Auth email delivery, new-invite E2E, provider OTP expiry and full production browser-session attestation remain separate pending checks. See `mazi-app/legal/MAZI-AUTH-DELIVERY-RELEASE-2026-10-25.md` for verified observations and the current protocol. No release gate is automatically approved.
+
 **Candidate:** PR #1760, SQL migrations 016–017. Draft marketplace and MAZI website code is not production-active merely because it is committed.
 The existing founding needs-assessment round stays zero-funded. Membership invoicing, fund custody, marketing credits, award payout and automatic voting eligibility remain disabled.
 

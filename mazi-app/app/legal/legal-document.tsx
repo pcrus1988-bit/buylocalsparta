@@ -2,6 +2,7 @@ import Link from "next/link";
 import {legalRecords,legalOrder,legalRelations,legalUrl,LEGAL_DATE,LEGAL_VERSION,type LegalSlug} from "../../lib/legal-documents";
 import styles from "./legal.module.css";
 import {legalSourceMap} from "../../lib/legal/v31-sources";
+import {archivePageUrl,archiveExportUrl,MAZI_ARCHIVED_VERSION} from "../../lib/legal/legal-archive";
 const policyRoute=/^(\/legal\/[a-z]+|\/privacy|\/terms|\/invitation-terms|\/marketplace\/rules|\/services\/catalogue|\/hubs\/join)$/;
 const policySplit=/(\/legal\/[a-z]+|\/privacy|\/terms|\/invitation-terms|\/marketplace\/rules|\/services\/catalogue|\/hubs\/join)/g;
 function LinkedParagraph({value}:{value:string}){
@@ -39,6 +40,13 @@ export function LegalView({slug}:{slug:LegalSlug}){
     {sections.map((section,i)=><section className={styles.section} id={`article-${i+1}`} key={section.heading}>
      <h2>{section.heading}</h2>{section.paragraphs.map((paragraph,j)=><LinkedParagraph key={j} value={paragraph}/>)}
     </section>)}
+    <aside className={styles.sources}>
+     <h2>Έκδοση και αναγνωσιμότητα</h2>
+     <p>Αναγνωριστικό τρέχουσας κωδικοποίησης: {LEGAL_VERSION}. Η προβολή ή λήψη του κειμένου δεν τεκμηριώνει ατομική αποδοχή της πολιτικής.</p>
+     <Link href={archivePageUrl(slug)}>Αρχειοθετημένο κείμενο {MAZI_ARCHIVED_VERSION}</Link>
+     <Link href={archiveExportUrl(slug)}>Λήψη ιστορικής έκδοσης (.txt)</Link>
+     <Link href="/legal/changes">Ιστορικό νομικών εκδόσεων</Link>
+    </aside>
     <aside className={styles.sources}>
      <h2>Σχετικές πολιτικές</h2>
      <p>Οι λεπτομέρειες κάθε διαφορετικού αντικειμένου ορίζονται στο αντίστοιχο ειδικό κείμενο. Η παραπομπή δεν δημιουργεί νέα αυτόματη χρέωση ή αναδρομική αποδοχή.</p>
