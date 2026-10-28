@@ -19,14 +19,17 @@ Deno.serve(async(req:Request)=>{
  if(method==="OPTIONS")return new Response(null,{status:204,headers});
  if(method!=="GET")return json({ok:false,error:"method_not_allowed"},405);
  const url=new URL(req.url);
- if(url.pathname.replace(/\/$/,"").split("/").pop()!=="mazi-fund-public"||url.search!=="")
+ if(url.pathname.replace(/\/$/,"").split("/").pop()!=="mazi-fund-public"||
+    (url.search!==""&&url.search!=="?view=governance"))
   return json({ok:false,error:"not_found"},404);
  const base=Deno.env.get("SUPABASE_URL");
  const secret=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
  if(!base||!secret)return json({ok:false,error:"service_unavailable"},503);
  try {
   const service=createClient(base,secret,{auth:{persistSession:false,autoRefreshToken:false}});
-  const {data,error}=await service.rpc("mazi_fund_public_report");
+  const reportName=url.searchParams.get("view")==="governance"
+    ?"mazi_fund_public_vote_report":"mazi_fund_public_report";
+  const {data,error}=await service.rpc(reportName);
   if(error||!data||typeof data!=="object"||Array.isArray(data))
    return json({ok:false,error:"report_unavailable"},503);
   return json({ok:true,report:data});
