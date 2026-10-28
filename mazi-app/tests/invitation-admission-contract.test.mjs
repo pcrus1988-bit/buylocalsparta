@@ -70,13 +70,13 @@ test("JWT verified by Edge, acceptance is explicit and versioned",()=>{
 test("public privacy notice discloses AFM/GEMI verification, invite records and nonmarketing purpose",()=>{
  const route=read("../app/privacy/page.tsx");
  assert.match(route,/LegalView slug="privacy"/);
- const notice=read("../lib/legal-documents.ts");
+ const notice=read("../lib/legal/v3-data.ts");
  assert.match(notice,/ΑΦΜ/);
  assert.match(notice,/ΓΕΜΗ/);
  assert.match(notice,/Supabase Authentication/);
- assert.match(notice,/αναγνωριστικό προσωπικής πρόσκλησης/);
+ assert.match(notice,/ταυτοποιητικά πρόσκλησης/);
  assert.match(notice,/διεύθυνση IP/);
- assert.match(notice,/δεν αποτελεί συγκατάθεση για άλλους σκοπούς/);
+ assert.match(notice,/δεν αποτελούν από μόνα τους συγκατάθεση/);
 });
 
 test("ambiguous invite delivery never silently retries and revocation is documented",()=>{

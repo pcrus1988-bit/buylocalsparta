@@ -21,7 +21,7 @@ export default async function PublicServiceCatalogue(){
    <p>Στο μελλοντικό πρόγραμμα πληρωμένης συμμετοχής, κάθε εξοφλημένος μηνιαίος κύκλος παρέχει 250 νέα Tokens για υπηρεσίες κατ’ απαίτηση. Βλέπεις το κόστος πριν από κάθε αίτημα.</p>
    <div style={{display:"flex",gap:15,flexWrap:"wrap",marginTop:24}}>
     <Link href="/interest" className="button peach">Εκδήλωσε ενδιαφέρον ↗</Link>
-    <Link href="/join" className="button dark">Είμαι ήδη μέλος ↗</Link>
+    <Link href="/join" className="button dark">Είμαι ήδη μέλος ↗</Link><Link href="/legal/services" className="button dark">Κανονισμός υπηρεσιών ↗</Link>
    </div>
   </div></section>
   <section className="section shell">
