@@ -86,7 +86,10 @@ Deno.serve(async(req:Request)=>{
     .eq("cycle_id",cycle.id).eq("created_by",user.id).limit(1).maybeSingle()
   ]);
   if(proposalResponse.error||ballotResponse.error||ownProposalResponse.error)return out({ok:false,error:"service_unavailable"},503);
-  const memberEligible=member.voting_eligible===true;
+  const {data:electorate,error:eError}=await admin.from("mazi_fund_electorate")
+   .select("voter_user_id").eq("cycle_id",cycle.id).eq("voter_user_id",user.id).maybeSingle();
+  if(eError)return out({ok:false,error:"service_unavailable"},503);
+  const memberEligible=member.voting_eligible===true&&Boolean(electorate);
   const proposals=(proposalResponse.data||[]).filter(p=>p.created_by!==user.id).map(p=>({
    id:p.id,title:p.title,details:p.details,category:p.category,
    amount_cents:p.amount_cents,first_time_support_request:p.first_time_support_request
