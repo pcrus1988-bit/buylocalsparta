@@ -40,3 +40,18 @@ test("project and archive public endpoints have strict fixed operation whitelist
  assert.match(edge,/url\.searchParams\.getAll\("cycle"\)\.length>1/);
  assert.doesNotMatch(edge,/from\("mazi_fund_project_updates"\)/);
 });
+
+test("marketplace Super Admin and MAZI must calculate identically",()=>{
+ const mazi=load("lib/fund-allocation-policy.ts");
+ const admin=load("../apps/web/src/lib/mazi-fund-allocation-policy.ts");
+ assert.equal(admin,mazi,"Policy duplication must be byte-for-byte identical");
+});
+test("allocation dashboard refuses unverified funds and existing offers",()=>{
+ const page=load("../apps/web/src/app/admin/mazi/fund/allocations/page.tsx");
+ assert.match(page,/available===null/);
+ assert.match(page,/alreadyCommitted/);
+ assert.match(page,/c\.allocation_policy_version!==MAZI_FUND_ALLOCATION_VERSION/);
+ assert.match(page,/previewFundAllocation/);
+ assert.doesNotMatch(page,/\.query\(.*insert into public\.mazi_grant_award_offers/s);
+ assert.doesNotMatch(page,/\.query\(.*update public\.mazi_fund_ledger/s);
+});
