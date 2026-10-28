@@ -94,8 +94,13 @@ export async function maziFundGovernanceAction(form:FormData){
     "(cycle_id,voter_user_id,voter_gemi_number) "+
     "select $1::uuid,m.user_id,m.gemi_number from public.mazi_members m "+
     "join public.mazi_membership_applications a on a.id=m.application_id "+
+    "join public.mazi_service_release_state release on release.id=true "+
+    "and release.paid_enabled=true and release.activated_at is not null "+
     "where m.status='verified' and m.identity_verified_at is not null "+
     "and m.voting_eligible=true and m.gemi_number is not null and a.status='approved' "+
+    "and exists (select 1 from public.mazi_service_periods period "+
+    "where period.member_user_id=m.user_id and period.starts_at<=now() "+
+    "and period.ends_at>now() and length(btrim(period.verified_invoice_ref))>=8) "+
     "on conflict do nothing",[cycleId]);
    if(!electorate.rowCount)throw new Error("MAZI_FUND_EMPTY_ELECTORATE");
    await cx.query("update public.mazi_cycles set status='voting' where id=$1::uuid",[cycleId]);
