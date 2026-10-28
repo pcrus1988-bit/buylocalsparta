@@ -28,7 +28,10 @@ export default async function ServicesAdmin({searchParams}:{searchParams:Promise
   <div className="com-top"><div><span className="com-kicker">MAZI / SUPER ADMIN</span>
    <h1>Αιτήματα υπηρεσιών.<br/><em>Με τεκμηρίωση.</em></h1>
    <p>Ατομική παρακολούθηση υπηρεσιών, κρατήσεων Tokens και μηνιαίων πληρωμένων κύκλων.</p>
-  </div><Link href="/services" className="com-back">Υπηρεσίες μέλους ↗</Link></div>
+  </div><div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
+    <Link href="/admin/services/operations" className="com-back">Οικονομικός έλεγχος Tokens ↗</Link>
+    <Link href="/services" className="com-back">Υπηρεσίες μέλους ↗</Link>
+   </div></div>
   {notice&&feedback[notice]?<p className="com-feedback" role="status">{feedback[notice]}</p>:null}
   
   <section className="com-card" style={{marginBottom:26}}>
