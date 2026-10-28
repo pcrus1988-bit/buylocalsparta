@@ -4,6 +4,7 @@ import {redirect} from "next/navigation";
 import {createClient} from "../../../lib/supabase/server";
 import {maziFundMemberRequest,type MaziFundBallotState} from "../../../lib/mazi-api";
 import {submitMaziFundingApplication} from "../../actions";
+import FundCycleSteps from "../fund-cycle-steps";
 import {euroCents} from "../../../lib/fund-transparency";
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"Αίτηση Αναπτυξιακής Ενίσχυσης · ΜΑΖΙ",
@@ -32,6 +33,7 @@ export default async function ApplyForFund({searchParams}:{searchParams:Promise<
    <Link href="/dashboard" style={{color:"#edb99a",display:"inline-block",marginTop:22}}>← Πίνακας μέλους</Link>
   </header>
   <div style={{maxWidth:1000,margin:"0 auto",padding:"55px 24px 100px"}}>
+   <FundCycleSteps fundedCycleExists={state.ok&&Boolean(state.cycle)}/>
    {p.notice&&labels[p.notice]?<p role="status" style={{padding:20,background:"#fff",border:"1px solid #bac8b9"}}>{labels[p.notice]}</p>:null}
    {!state.ok?<section style={{background:"#fff",padding:30}}><h2>Η αίτηση δεν είναι διαθέσιμη</h2><p>Η υπηρεσία δεν επέστρεψε επαληθευμένη κατάσταση. Δεν επιχειρείται καταχώριση.</p></section>:
    !state.cycle?<section style={{background:"#fff",padding:30}}>
