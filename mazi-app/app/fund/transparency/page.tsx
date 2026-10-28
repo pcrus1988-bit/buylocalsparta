@@ -83,7 +83,7 @@ export default async function FundTransparency(){
    <section style={{marginTop:65,borderTop:"1px solid #becdbb",paddingTop:26,fontSize:14,lineHeight:1.7}}>
     <h2 style={{fontSize:26}}>Κανόνες λογοδοσίας</h2>
     <p>Όλες οι αλλαγές σε οικονομικά τεκμήρια δημοσιεύονται ως νέες διορθωτικές εγγραφές και όχι με σιωπηρή αντικατάσταση του ιστορικού. Η απογραφή των πραγματικών ποσών δεν επιτρέπει από μόνη της εκταμιεύσεις· απαιτούνται νόμιμη ενεργοποίηση, επαληθεύσεις, συμφωνίες, συμβάσεις και τεκμηρίωση δαπανών.</p>
-    <p><Link href="/fund/procedures" style={{textDecoration:"underline"}}>Διαδικασία ψήφων, ενισχύσεων και ελέγχου →</Link></p>
+    <p><Link href="/fund/procedures" style={{textDecoration:"underline"}}>Διαδικασία ψήφων, ενισχύσεων και ελέγχου →</Link> · <Link href="/fund/results" style={{textDecoration:"underline"}}>Οριστικά αποτελέσματα ψηφοφοριών →</Link></p>
    </section>
    </>}
   </div>
