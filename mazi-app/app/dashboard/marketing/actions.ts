@@ -29,6 +29,21 @@ export async function saveMarketingPreferences(form:FormData) {
  go("saved");
 }
 
+export async function respondCreativeInvitation(form:FormData){
+ const db=await createClient();
+ const {data:{user}}=await db.auth.getUser();if(!user)redirect("/join");
+ const id=String(form.get("invitation_id")||"");
+ const status=String(form.get("status")||"");
+ if(!/^[0-9a-f-]{36}$/i.test(id)||!["approved","declined","withdrawn"].includes(status))go("creative_invalid");
+ const expected=status==="withdrawn"?"approved":"pending";
+ const {data,error}=await db.from("mazi_marketing_creative_invitations")
+  .update({status,response_note:""})
+  .eq("id",id).eq("member_user_id",user.id).eq("status",expected).select("id").maybeSingle();
+ if(error||!data)go("creative_failed");
+ revalidatePath("/dashboard/marketing");
+ go("creative_saved");
+}
+
 export async function deleteMarketingPreferences(){
  const db=await createClient();
  const {data:{user}}=await db.auth.getUser();
