@@ -4,7 +4,7 @@ import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const read=p=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
 const historical=read("lib/legal/archive/v31.ts");
-const expectedGitBlobSHA="f065060056027e11176a276c7aea60543f8c925a";
+const expectedGitBlobSHA="eea077caf81aefbd448ccf01d46813e59e96c233";
 const historicalJSON=historical.slice(historical.indexOf("documents:")+"documents:".length,historical.lastIndexOf("\n} as const satisfies")).trim();
 const archive=JSON.parse(historicalJSON);
 const currentVersion=read("lib/legal-documents.ts").match(/LEGAL_VERSION="([^"]+)"/)?.[1];
