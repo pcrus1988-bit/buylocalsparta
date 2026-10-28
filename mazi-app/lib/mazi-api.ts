@@ -117,3 +117,40 @@ export async function maziFundMemberRequest<T extends object>(operation:"state"|
   return {ok:false,error:isObject(data)&&typeof data.error==="string"?data.error:"service_unavailable"};
  }catch{return fail;}
 }
+
+export type MaziPublicFundTally={
+ finalized:boolean;
+ cycle_slug?:string;title?:string;funding_budget_cents?:number;
+ total_ballots?:number;valid_ballots?:number;invalidated_ballots?:number;
+ electorate_count?:number;quorum_percent?:number;minimum_support_votes?:number;
+ max_awards?:number;project_cap_cents?:number;policy_version?:string;
+ rules_sha256?:string;finalized_at?:string;
+ proposals?:{id:string;title:string;amount_cents:number;minimum_useful_cents:number;
+ supporting_ballots:number;first_time_support_request:boolean}[];
+};
+export async function maziPublicFundTally():Promise<MaziPublicFundTally|null>{
+ if(!base||!key)return null;
+ try{
+  const response=await fetch(`${base}/functions/v1/mazi-fund-public?view=governance`,{
+   method:"GET",headers:{apikey:key},next:{revalidate:60},signal:AbortSignal.timeout(8000)
+  });
+  if(!response.ok)return null;
+  const data:unknown=await response.json();
+  if(!isObject(data)||data.ok!==true||!isObject(data.report)||
+     typeof data.report.finalized!=="boolean")return null;
+  const v=data.report;
+  if(!v.finalized)return {finalized:false};
+  const safeInt=(x:unknown)=>typeof x==="number"&&Number.isSafeInteger(x)&&x>=0;
+  if(!["cycle_slug","title","policy_version","rules_sha256","finalized_at"]
+      .every(k=>typeof v[k]==="string"&&(v[k] as string).length>0)
+    ||!["funding_budget_cents","total_ballots","valid_ballots",
+         "invalidated_ballots","electorate_count","quorum_percent",
+         "minimum_support_votes","max_awards","project_cap_cents"].every(k=>safeInt(v[k]))
+    ||!Array.isArray(v.proposals)||v.proposals.length>1000
+    ||v.proposals.some(p=>!isObject(p)||typeof p.id!=="string"||
+      typeof p.title!=="string"||typeof p.first_time_support_request!=="boolean"||
+      !safeInt(p.amount_cents)||!safeInt(p.minimum_useful_cents)||
+      !safeInt(p.supporting_ballots)))return null;
+  return v as MaziPublicFundTally;
+ }catch{return null;}
+}
