@@ -14,10 +14,13 @@ export async function requestService(form:FormData){
  const service=String(form.get("service_id")||"");
  const brief=String(form.get("brief")||"").trim();
  const idempotency=String(form.get("idempotency_key")||"");
+ const termsVersion=String(form.get("terms_version")||"");
+ const termsAccepted=form.get("terms_accepted")==="yes";
+ if(!termsAccepted||termsVersion!=="mazi-service-order-v1-2026-10-28")go("service_conditions_not_accepted");
  if(!/^[a-z0-9-]{3,64}$/.test(service)||brief.length<20||brief.length>3000||
  !/^[0-9a-f-]{36}$/i.test(idempotency))go("invalid_request");
- const outcome=await maziServiceRequest("service_request",{service_id:service,brief,idempotency_key:idempotency});
- if(!outcome.ok)go(["insufficient_tokens","allowance_inactive","member_not_eligible","unknown_service"].includes(outcome.error)?outcome.error:"request_failed");
+ const outcome=await maziServiceRequest("service_request",{service_id:service,brief,idempotency_key:idempotency,terms_version:termsVersion,terms_accepted:true});
+ if(!outcome.ok)go(["insufficient_tokens","allowance_inactive","member_not_eligible","unknown_service","service_conditions_not_accepted","idempotency_conflict","subscription_not_activated"].includes(outcome.error)?outcome.error:"request_failed");
  go("requested");
 }
 export async function cancelService(form:FormData){
