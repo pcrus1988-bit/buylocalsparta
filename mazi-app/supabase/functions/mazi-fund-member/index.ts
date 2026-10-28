@@ -51,8 +51,22 @@ Deno.serve(async(req:Request)=>{
    .eq("kind","fund_allocation").order("created_at",{ascending:false}).limit(1).maybeSingle();
   if(cError)return out({ok:false,error:"service_unavailable"},503);
   if(!cycle||cycle.finance_activated!==true||cycle.funding_budget_cents<=0)
-    return out({ok:true,cycle:null,proposals:[],has_voted:false,voting_eligible:false,my_vote:null,my_proposal:null});
+    return out({ok:true,cycle:null,proposals:[],has_voted:false,voting_eligible:false,paid_eligible:false,my_vote:null,my_proposal:null});
+  // Eligibility for actual funding is stricter than a verified pilot account.
+  // Current invoice-backed paid periods are required by DB triggers as well.
+  const now=new Date().toISOString();
+  const [release,period]=await Promise.all([
+   admin.from("mazi_service_release_state").select("paid_enabled,activated_at")
+    .eq("id",true).maybeSingle(),
+   admin.from("mazi_service_periods").select("id,verified_invoice_ref")
+    .eq("member_user_id",user.id).lte("starts_at",now).gt("ends_at",now).limit(1).maybeSingle()
+  ]);
+  if(release.error||period.error)return out({ok:false,error:"service_unavailable"},503);
+  const paidEligible=release.data?.paid_enabled===true&&Boolean(release.data?.activated_at)
+   &&typeof period.data?.verified_invoice_ref==="string"
+   &&period.data.verified_invoice_ref.trim().length>=8;
   if(input.operation==="apply"){
+   if(!paidEligible)return out({ok:false,error:"paid_membership_required"},403);
    if(cycle.status!=="submissions"||!inWindow(cycle)||athensDay()>10)
     return out({ok:false,error:"applications_not_open"},403);
    const title=typeof input.title==="string"?input.title.trim():"";
@@ -89,7 +103,7 @@ Deno.serve(async(req:Request)=>{
   const {data:electorate,error:eError}=await admin.from("mazi_fund_electorate")
    .select("voter_user_id").eq("cycle_id",cycle.id).eq("voter_user_id",user.id).maybeSingle();
   if(eError)return out({ok:false,error:"service_unavailable"},503);
-  const memberEligible=member.voting_eligible===true&&Boolean(electorate);
+  const memberEligible=paidEligible&&member.voting_eligible===true&&Boolean(electorate);
   const proposals=(proposalResponse.data||[]).filter(p=>p.created_by!==user.id).map(p=>({
    id:p.id,title:p.title,details:p.details,category:p.category,
    amount_cents:p.amount_cents,first_time_support_request:p.first_time_support_request
@@ -100,7 +114,7 @@ Deno.serve(async(req:Request)=>{
    },proposals,has_voted:Boolean(ballotResponse.data),
    my_vote:ballotResponse.data?{proposal_ids:ballotResponse.data.proposal_ids,
     created_at:ballotResponse.data.created_at}:null,
-   voting_eligible:memberEligible,my_proposal:ownProposalResponse.data||null});
+   voting_eligible:memberEligible,paid_eligible:paidEligible,my_proposal:ownProposalResponse.data||null});
   // The database trigger validates cycle, legal identity, every selected
   // proposal and conflict, and freezes the ballot against later edits.
   if(!memberEligible||cycle.status!=="voting"||!inWindow(cycle)||athensDay()<16||athensDay()>23)
