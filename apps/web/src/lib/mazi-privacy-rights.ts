@@ -60,7 +60,7 @@ export async function createMaziPrivacyRequest(principal:SessionPrincipal,input:
  requestKind:string;receivedOn:string;evidenceRef:string
 }):Promise<string>{
  const actor=await marketplaceMaziActor(principal);
- ensure((MAZI_RIGHTS_KIN as readonly string[]).includes(input.requestKind));
+ ensure((MAZI_RIGHTS_KINDS as readonly string[]).includes(input.requestKind));
  ensure(validDate(input.receivedOn)&&input.receivedOn<=today());
  ensure(validEvidence(input.evidenceRef));
  const id=randomUUID();
