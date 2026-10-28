@@ -82,7 +82,7 @@ export default async function MaziFundGovernance({searchParams}:{searchParams:Pr
        <label>Ελάχιστες ψήφοι στήριξης<input name="minimum_support_votes" type="number" min={1} required style={{display:"block",padding:12,width:"100%"}}/></label>
        <label>Μέγιστος αριθμός έργων<input name="max_awards" type="number" min={1} max={1000} required style={{display:"block",padding:12,width:"100%"}}/></label>
        <label>Μέγιστο ποσό ανά έργο σε λεπτά του ευρώ<input name="project_cap_cents" type="number" min={1} max={20000000} required style={{display:"block",padding:12,width:"100%"}}/></label>
-       <label>Αποτύπωμα SHA-256 επίσημα δημοσιευμένων κανόνων<input name="policy_sha256" pattern="[a-f0-9]{64}" minLength={64} maxLength={64} required style={{display:"block",padding:12,width:"100%"}}/></label>
+       <label>Πλήρες δημόσιο κείμενο προδημοσιευμένων κανόνων (400–20.000 χαρακτήρες)<textarea name="policy_text" minLength={400} maxLength={20000} rows={12} required placeholder="Δημοσιευμένοι όροι: προθεσμίες, μέλη και συγκρούσεις συμφερόντων, ελάχιστη στήριξη, απαρτία, ισοβαθμίες, κατανομή και διαδικασία ενστάσεων." style={{display:"block",padding:12,width:"100%",font:"inherit"}}/></label>
        <p className={s.disclaimer}>Οι κανόνες δημοσιεύονται πριν από την έναρξη ψηφοφορίας και δεν μπορούν να τροποποιηθούν αργότερα.</p>
        <button type="submit" className={s.primary}>Οριστική δημοσίευση κανόνων</button>
       </form>:null}
