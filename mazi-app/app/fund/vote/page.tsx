@@ -50,6 +50,11 @@ export default async function MaziFundVote({searchParams}:{searchParams:Promise<
      <p style={{fontSize:13}}>Αρχή: {date(result.cycle.starts_at)} · Λήξη: {date(result.cycle.ends_at)}</p></div>
     <strong style={{padding:"13px 20px",background:"#d9e9d8"}}>Στάδιο: {result.cycle.status}</strong>
    </div>
+   {!result.paid_eligible?<aside style={{padding:26,background:"#fff4e7",border:"1px solid #d7b99a",marginBottom:26}}>
+    <strong>Προϋπόθεση οικονομικής ψηφοφορίας</strong>
+    <p style={{lineHeight:1.7}}>Για να ψηφίσει πραγματικά μια επιχείρηση στον χρηματοδοτικό κύκλο χρειάζεται ενεργή εξοφλημένη συνδρομή, καταχωρισμένο επαληθευμένο παραστατικό και ένταξη στο παγωμένο εκλογικό σώμα. Η απλή πρόσκληση ή ταυτοποίηση ΓΕΜΗ δεν αρκούν.</p>
+    <Link href="/dashboard" style={{textDecoration:"underline"}}>Ο λογαριασμός της επιχείρησής μου →</Link>
+   </aside>:null}
    {result.has_voted?<section style={{padding:30,background:"#fff",border:"1px solid #b9cbbd"}}>
     <h3 style={{fontSize:28}}>Η ψήφος σου έχει καταχωριστεί</h3>
     <p>Η καταχώριση έγινε στις {result.my_vote?date(result.my_vote.created_at):"—"}. Το ψηφοδέλτιο είναι αμετάβλητο και δεν μπορεί να αποσυρθεί ή να ξαναυποβληθεί.</p>
