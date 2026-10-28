@@ -14,6 +14,7 @@ test("retention review covers real MAZI categories, including third parties and 
  "audit_and_rights","infrastructure_processors"])assert.ok(library.includes('key:"'+k+'"'),k);
  assert.match(library,/MAZI_RETENTION_CATEGORIES\.every/);
  assert.match(library,/missingSources\.length===0/);
+ assert.match(library,/unmappedSources\.length===0/);
  assert.match(gate,/maziRetentionReviewsComplete\(principal\)/);
  assert.match(gate,/MAZI_RETENTION_MATRIX_NOT_DOCUMENTED/);
 });
@@ -26,7 +27,9 @@ test("review submissions are authenticated, CSRF protected and not self-deleting
  assert.match(library,/actual\.size===required\.size/);
  assert.match(library,/input\.checks\.length===required\.size/);
  assert.doesNotMatch(library,/DELETE FROM|TRUNCATE|DROP TABLE|UPDATE public\.mazi_|pg_cron/);
- assert.match(page,/δεν εκτελούνται διαγραφές|Δεν εκτελούνται διαγραφές/);\n assert.match(page,/Απουσιάζοντες ονομασμένοι πίνακες/);\n assert.match(page,/Νέοι \/ αταξινόμητοι πίνακες MAZI/);
+ assert.match(page,/δεν εκτελούνται διαγραφές|Δεν εκτελούνται διαγραφές/);
+ assert.match(page,/Απουσιάζοντες ονομασμένοι πίνακες/);
+ assert.match(page,/Νέοι \/ αταξινόμητοι πίνακες MAZI/);
 });
 test("RLS uses backend-only grants, immutable events, no public access",()=>{
  assert.match(sql,/ENABLE ROW LEVEL SECURITY/);
