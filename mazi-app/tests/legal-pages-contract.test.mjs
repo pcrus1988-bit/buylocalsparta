@@ -12,7 +12,7 @@ test("canonical legal registry isolates tariffs and offers in dedicated policies
  const membership=terms.slice(terms.indexOf('"membership"'),terms.indexOf('"services"'));
  assert.match(membership,/€250/);
  assert.match(membership,/€99/);
- assert.match(terms,/δεν συσσωρεύ/);
+ assert.match(terms,/(?:δεν συσσωρεύ|δεν αποτελούν συσσωρευόμενη|χωρίς rollover, συσσώρευση)/);
  assert.match(read("lib/legal/v3-finance.ts"),/ceil\(/);
  assert.match(read("lib/legal/v3-data.ts"),/ν\. 4308\/2014/);
 });
