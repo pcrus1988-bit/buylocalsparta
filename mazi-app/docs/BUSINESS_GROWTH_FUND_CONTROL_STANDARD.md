@@ -64,3 +64,15 @@ The calculation applies to the **requested** amount even if the project ultimate
 - [ ] Programmed recipient milestone/evidence submissions and audited project close-out.
 - [ ] Pass CI, Vercel preview production-like QA, accessibility and privacy review.
 - [ ] Separate written authorization before real financial activation.
+
+
+## 11. Durable voting archive, project accountability and allocation review
+
+- Migrations 036 and 037 preserve append-only finalized cycle summaries, historic per-cycle rulebooks, voting tallies, and verified project milestones. The public archive index returns the latest 60 finalized cycles; each cycle remains addressable by its immutable slug.
+- Public path /fund/results?cycle=<slug> displays the historic vote and applicable rules. Public path /fund/projects displays only Super Admin-reviewed milestone summaries, dates and verification hashes, never restricted file references or bank details.
+- Only the established marketplace Super Admin can publish project updates at /admin/mazi/fund/projects. A true affirmative grant acknowledgment is mandatory. Corrections refer to the earlier record rather than overwriting it.
+- Evidence hashes demonstrate integrity relative to the reviewed evidence file; they do not independently certify expenditure or substitute for lawful invoice/payment verification. A project milestone does not create a disbursement.
+- Super Admin route /admin/mazi/fund/allocations performs nonbinding allocation calculations after finalized voting; it requires the matching policy version, complete frozen vote tally, no existing round offers, and reconciliation-backed non-null available funding.
+- The preview budget is the lesser of the declared cycle budget and verified uncommitted Fund availability. It cannot create award offers, change ledgers, or pay recipients.
+- The marketplace and MAZI application contain byte-identical copies of the deterministic algorithm, protected by a source-equality contract test.
+- Every provisional selection remains contingent on legal, tax and conflicts-of-interest review. Algorithmic ranking never promises a grant, and the founding nonfinancial needs-assessment cycle is always excluded.
