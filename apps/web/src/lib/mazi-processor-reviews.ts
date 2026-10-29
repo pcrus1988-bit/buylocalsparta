@@ -60,7 +60,7 @@ export function validateMaziProcessorReview(input:ReviewInput):boolean{
  if(input.usage==="not_used")return !domain.required&&
   input.role==="no_personal_data"&&input.transfer==="not_applicable"&&
   input.checks.length===1&&input.checks[0]==="not_used_verified"&&!input.agreement;
- if(input.role==="pending"||input.role==="no_personal_data"||input.transfer==="not_assessed"||
+ if(input.role==="pending"||input.role==="no_personal_data"||(input.transfer==="not_assessed"||input.transfer==="not_applicable")||
   !ev(input.agreement))return false;
  const expected=new Set<string>(MAZI_PROCESSOR_CHECKS.map(x=>x.id));
  const actual=new Set(input.checks);
