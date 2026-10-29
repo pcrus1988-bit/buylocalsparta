@@ -1,6 +1,8 @@
 import type {SessionPrincipal} from "@buy-local-sparta/core";
 import {getAdminPostgresRuntime} from "./postgres-runtime";
 import {marketplaceMaziActor} from "./mazi-superadmin";
+import {maziRetentionReviewsComplete} from "./mazi-retention-reviews";
+import {maziProcessorReviewsComplete} from "./mazi-processor-reviews";
 
 const AUTH_PROJECT_URL="https://eemihhfreggbigxejjhj.supabase.co";
 const CALLBACK="https://mazi.kontamou.site/auth/callback";
@@ -33,13 +35,16 @@ export async function maziInvitationPreflight(principal:SessionPrincipal):Promis
  `);
  const row=rows[0];
  if(!row)throw Error("MAZI_INVITATION_PREFLIGHT_UNAVAILABLE");
+ const [retentionVerified,processorVerified]=await Promise.all([
+  maziRetentionReviewsComplete(principal),maziProcessorReviewsComplete(principal)
+ ]);
  return {
   authConfigured:Boolean(
    (process.env.MAZI_SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY) &&
    (process.env.MAZI_SUPABASE_URL||process.env.SUPABASE_URL)===AUTH_PROJECT_URL &&
    Boolean(process.env.RESEND_API_KEY)),
   authEmailVerified:row.auth_email_verified===true,
-  legalVerified:row.legal_verified===true,
+  legalVerified:row.legal_verified===true&&retentionVerified&&processorVerified,
   financeLocked:row.finance_locked===true
  };
 }
@@ -159,6 +164,13 @@ export async function issueMaziInvitation(principal:SessionPrincipal,interestId:
    ) AS ready
   `);
   if(gateCheck.rows[0]?.ready!==true)
+   throw Error("MAZI_INVITATION_RELEASE_NOT_VERIFIED");
+  // Re-check current evidence at the action boundary: previous legal approvals
+  // do not remain effective if a processor or retention domain is reopened.
+  const [retentionCurrent,processorsCurrent]=await Promise.all([
+   maziRetentionReviewsComplete(principal),maziProcessorReviewsComplete(principal)
+  ]);
+  if(!retentionCurrent||!processorsCurrent)
    throw Error("MAZI_INVITATION_RELEASE_NOT_VERIFIED");
   const financeCheck=await conn.query<{safe:boolean}>(`
    SELECT

@@ -3,6 +3,7 @@ import {getAdminPostgresRuntime} from "./postgres-runtime";
 import {marketplaceMaziActor} from "./mazi-superadmin";
 import {formatMaziEvidence,validateMaziGateChecklist} from "./mazi-release-checklist";
 import {maziRetentionReviewsComplete} from "./mazi-retention-reviews";
+import {maziProcessorReviewsComplete} from "./mazi-processor-reviews";
 
 /** Live, aggregate-only MAZI operations. Never expose applicants' AFM,
  * contacts, identifiers or individual audit evidence on this overview.
@@ -121,6 +122,9 @@ export async function recordMaziLaunchGateReview(principal:SessionPrincipal,inpu
  if(gateKey==="legal_and_retention"&&decision==="verified"&&
    !(await maziRetentionReviewsComplete(principal)))
   throw Error("MAZI_RETENTION_MATRIX_NOT_DOCUMENTED");
+ if(gateKey==="legal_and_retention"&&decision==="verified"&&
+   !(await maziProcessorReviewsComplete(principal)))
+  throw Error("MAZI_PROCESSOR_EVIDENCE_NOT_DOCUMENTED");
  // Passing a checklist does not prove Resend inbox delivery or replace actual counsel.
  // For Auth, enforce that the privileged issuer has an exact project binding.
  if(gateKey==="auth_email_delivery"&&decision==="verified"&&

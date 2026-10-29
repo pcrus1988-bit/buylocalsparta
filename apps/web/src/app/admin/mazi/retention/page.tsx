@@ -28,7 +28,7 @@ export default async function MaziRetentionAdmin({searchParams}:{searchParams:Pr
   </div><div className={s.lock}><strong>PRODUCTION · REVIEW ONLY</strong>
    <span>Καταγεγραμμένες ανθρώπινες δηλώσεις, όχι αυτόματη νομική πιστοποίηση.</span>
    <a href="https://mazi.kontamou.site/legal/retention" target="_blank" rel="noreferrer">Δημοσιευμένη πολιτική ↗</a>
-   <Link href="/admin/mazi/privacy-requests">Αιτήματα δικαιωμάτων GDPR ↗</Link><Link href="/admin/mazi/breaches">Περιστατικά GDPR / 72ωρο ↗</Link>
+   <Link href="/admin/mazi/privacy-requests">Αιτήματα δικαιωμάτων GDPR ↗</Link><Link href="/admin/mazi/breaches">Περιστατικά GDPR / 72ωρο ↗</Link><Link href="/admin/mazi/processors">Εκτελούντες · DPA · Διαβιβάσεις ↗</Link>
   </div></header>
   {notice==="recorded"?<p className={s.notice} role="status">Η απόφαση αποθηκεύτηκε στο αμετάβλητο ιστορικό. Η γενική έγκριση νομικής συμμόρφωσης δεν μεταβλήθηκε.</p>:null}
   {notice==="invalid"?<p className={s.notice} role="alert">Μη έγκυρη δήλωση. Απαιτούνται όλα τα πραγματικά τεκμήρια, αναφορά και αναλυτική τεκμηρίωση.</p>:null}
