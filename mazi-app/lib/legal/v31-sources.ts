@@ -21,7 +21,7 @@ export const legalSourceMap:Record<LegalSlug,readonly LegalSource[]>={
  award:[civil,penalty,deminimis,books],
  marketing:[gdpr,cookies],
  governance:[books,gdpr],
- privacy:[gdpr,hdpa],
+ privacy:[gdpr,hdpa,{label:"Supabase · δημοσιευμένοι όροι DPA / SCC (όχι βεβαίωση ατομικής εφαρμογής)",url:"https://supabase.com/legal/customer-resources/data-processing-addendum"}],
  retention:[gdpr,books],
  cookies:[cookies,gdpr],
  community:[dsa,safety,civil],

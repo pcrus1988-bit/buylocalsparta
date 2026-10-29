@@ -29,6 +29,9 @@ For each active domain the operator must retain separately: (1) real data proces
 
 Inactive optional domains must have evidence of actual absence of data processing; core hosting, database and transactional email cannot be declared inactive. Provider examples are not claims of active deployment.
 
+## Internal review freshness policy
+A verified processor review is eligible to unlock the legal and invitation gate only for **90 calendar days from the documented actual review date** (Athens calendar). This is a stricter, self-imposed operational re-verification cadence, not a time limit prescribed by GDPR. A provider change, discovered change in actual role, region, subprocessors, DPA version or processing scope calls for immediate reopening regardless of age. Historical evidence remains append-only; expired declarations cannot reopen invitations.
+
 ## Release and safeguarding
 Legal-and-retention approval requires the already established 12-domain retention inventory AND the most recent evidence-based 7-domain external processing inventory. An earlier signed approval ceases to be effective for readiness if either domain is reopened. The actual invitation issuance endpoint must recheck both. This is a technical fail-closed safeguard, not a professional legal opinion.
 

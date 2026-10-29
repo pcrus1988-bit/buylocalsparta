@@ -1,6 +1,7 @@
 import type {SessionPrincipal} from "@buy-local-sparta/core";
 import {marketplaceMaziActor} from "./mazi-superadmin";
 import {getAdminPostgresRuntime} from "./postgres-runtime";
+import {isMaziProcessorReviewFresh,maziAthensTodayISO} from "./mazi-processor-review-freshness";
 
 /** Mandatory review categories represent data-flow functions, NOT an assertion that
  * a named vendor is actively processing data. External contracts require real inspection. */
@@ -39,9 +40,7 @@ type Review={
 };
 const pool=()=>getAdminPostgresRuntime().nativePool;
 const ev=(s:string)=>s.length>=12&&s.length<=180&&/^[A-Za-z0-9_./:#-]+$/.test(s);
-const today=()=>new Intl.DateTimeFormat("sv-SE",{
- timeZone:"Europe/Athens",year:"numeric",month:"2-digit",day:"2-digit"
-}).format(new Date());
+const today=maziAthensTodayISO;
 export type ReviewInput={
  domainKey:string;state:string;usage:string;role:string;transfer:string;
  reviewedOn:string;checks:readonly string[];agreement:string;reference:string;findings:string
@@ -57,6 +56,7 @@ export function validateMaziProcessorReview(input:ReviewInput):boolean{
  if(!(MAZI_PROCESSOR_ROLES as readonly string[]).includes(input.role))return false;
  if(!(MAZI_TRANSFER_MECHANISMS as readonly string[]).includes(input.transfer))return false;
  if(input.state==="reopened")return true;
+ if(!isMaziProcessorReviewFresh(input.reviewedOn))return false;
  // The connected MAZI Supabase production project was verified in us-east-1 (2026-10-29).
  // Reject an EEA-only database/Auth/Storage claim until a region migration is verified.
  if(input.domainKey==="database_auth_storage"&&input.transfer==="eea_only_verified")return false;
@@ -90,6 +90,7 @@ export async function maziProcessorReviewsComplete(principal:SessionPrincipal):P
  const {latest}=await readMaziProcessorReviews(principal);
  return MAZI_PROCESSOR_DOMAINS.every(c=>latest.some(r=>
   r.domain_key===c.key&&r.review_state==="evidence_recorded"&&
+  isMaziProcessorReviewFresh(r.reviewed_on)&&
   (!c.required||r.usage_state==="in_use")));
 }
 export async function recordMaziProcessorReview(principal:SessionPrincipal,input:ReviewInput):Promise<void>{

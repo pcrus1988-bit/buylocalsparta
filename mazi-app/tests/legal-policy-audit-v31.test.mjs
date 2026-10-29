@@ -27,7 +27,10 @@ test("every legal policy has one owner, ordered article numbers and meaningful c
 });
 test("cross-policy references all resolve to real policy routes",()=>{
  const all=Object.values(docs).flatMap(x=>x.sections.flatMap(s=>s.paragraphs)).join("\n");
- const routes=[...all.matchAll(/\/legal\/([a-z]+)/g)].map(x=>x[1]);
+ // Only internal relative links count as MAZI policy routes; external provider
+ // URLs such as https://supabase.com/legal/customer-resources/... are not routes.
+ const internal=all.replace(/https?:\/\/\S+/g,"");
+ const routes=[...internal.matchAll(/\/legal\/([a-z]+)/g)].map(x=>x[1]);
  for(const route of routes)assert.ok(Object.hasOwn(docs,route),"Unknown legal reference /legal/"+route);
  const others=[...all.matchAll(/\/(?:terms|privacy|invitation-terms|marketplace\/rules|services\/catalogue|hubs\/join)\b/g)];
  assert.ok(others.length>5,"Missing special policy references");
@@ -71,4 +74,28 @@ test("statutory reference inventory is subject-scoped, not a generic copy-paste 
  assert.match(code,/dpa.gr\/enimerwtiko/);
  assert.match(code,/tax2.taxheaven.gr\/law\/5144/);
  assert.doesNotMatch(read("app/legal/legal-document.tsx"),/legalSourceMap\[slug\][\s\S]*?https:\/\/www\.taxheaven\.gr\/law\/4308/);
+});
+
+test("privacy transparency names the verified US Supabase processing region and does not invent an accepted DPA",()=>{
+ const notices=docs.privacy.sections.flatMap(s=>s.paragraphs).join(" ");
+ assert.match(notices,/us-east-1/);
+ assert.match(notices,/Ηνωμένες Πολιτείες Αμερικής/);
+ assert.match(notices,/supabase\.com\/legal\/customer-resources\/data-processing-addendum/);
+ assert.match(notices,/Τυποποιημένες Συμβατικές Ρήτρες/);
+ assert.match(notices,/δεν αποδεικνύει από μόνη της/);
+ assert.match(notices,/info@kontamou\.site/);
+ assert.doesNotMatch(notices,/όλες οι (διαβιβάσεις|ροές) είναι νόμιμες/);
+});
+
+test("privacy update has a distinct dated revision and preserved historic contract codification",()=>{
+ const registry=read("lib/legal-documents.ts");
+ const page=read("app/legal/legal-document.tsx");
+ const history=read("app/legal/changes/page.tsx");
+ assert.match(registry,/LEGAL_VERSION="mazi-legal-v3\.2-20261029"/);
+ assert.match(registry,/PRIVACY_NOTICE_REVISION="mazi-privacy-us-transfer-20261029"/);
+ assert.match(registry,/PRIVACY_NOTICE_REVISED_ON="29.10.2026"/);
+ assert.match(page,/slug==="privacy"/);
+ assert.match(page,/PRIVACY_NOTICE_REVISION/);
+ assert.match(history,/us-east-1/);
+ assert.match(history,/δεν τροποποιεί σιωπηρά/);
 });
