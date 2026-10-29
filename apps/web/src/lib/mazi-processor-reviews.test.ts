@@ -21,6 +21,8 @@ test("seven processor domains are documented with latest evidence",()=>{
  assert.match(srv,/input\.checks\.length===expected\.size/);
  assert.match(srv,/input\.checks\.length===1&&input\.checks\[0\]==="not_used_verified"/);
  assert.match(srv,/input\.transfer==="not_assessed"\|\|input\.transfer==="not_applicable"/);
+ assert.match(srv,/input.domainKey==="database_auth_storage"&&input.transfer==="eea_only_verified"/);
+ assert.match(sql,/domain_key <> 'database_auth_storage'/);
  assert.match(sql,/transfer_mechanism NOT IN \('not_assessed','not_applicable'\)/);
 });
 test("processor records are private and immutable",()=>{
