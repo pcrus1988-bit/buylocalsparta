@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public.mazi_processor_reviews (
    OR
    (usage_state='in_use' AND processing_role <> 'pending'
     AND processing_role <> 'no_personal_data'
-    AND transfer_mechanism <> 'not_assessed'
+    AND transfer_mechanism NOT IN ('not_assessed','not_applicable')
     AND agreement_reference IS NOT NULL
     AND cardinality(review_checks)=8
     AND review_checks @> ARRAY[
