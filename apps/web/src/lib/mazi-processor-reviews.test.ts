@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {readFileSync} from "node:fs";
+import {isMaziProcessorReviewFresh,MAZI_PROCESSOR_REVIEW_MAX_AGE_DAYS} from "./mazi-processor-review-freshness.ts";
 const read=(p:string)=>readFileSync(new URL(p,import.meta.url),"utf8");
 const srv=read("./mazi-processor-reviews.ts");
 const sql=read("../../../../mazi-app/sql/mazi_processor_reviews_20261029.sql");
@@ -46,4 +47,19 @@ test("legal and real invitation release recheck processor and retention evidence
  assert.match(invitations,/if\(!retentionCurrent\|\|!processorsCurrent\)/);
  assert.match(invitations,/legalVerified:row\.legal_verified===true&&retentionVerified&&processorVerified/);
  assert.match(retention,/"mazi_processor_reviews"/);
+});
+
+test("processor reviews expire after 90 calendar days, across Athens DST, without erasing history",()=>{
+ assert.equal(MAZI_PROCESSOR_REVIEW_MAX_AGE_DAYS,90);
+ assert.equal(isMaziProcessorReviewFresh("2026-10-28","2026-10-29"),true);
+ assert.equal(isMaziProcessorReviewFresh("2026-07-31","2026-10-29"),true);
+ assert.equal(isMaziProcessorReviewFresh("2026-07-30","2026-10-29"),false);
+ assert.equal(isMaziProcessorReviewFresh("2026-10-30","2026-10-29"),false);
+ assert.equal(isMaziProcessorReviewFresh("2026-02-30","2026-10-29"),false);
+ assert.equal(isMaziProcessorReviewFresh("bad","2026-10-29"),false);
+ const logic=read("./mazi-processor-reviews.ts");
+ const ui=read("../app/admin/mazi/processors/page.tsx");
+ assert.match(logic,/isMaziProcessorReviewFresh\(r\.reviewed_on\)/);
+ assert.match(logic,/if\(!isMaziProcessorReviewFresh\(input\.reviewedOn\)\)return false/);
+ assert.match(ui,/isMaziProcessorReviewFresh\(recent\.reviewed_on\)/);
 });
