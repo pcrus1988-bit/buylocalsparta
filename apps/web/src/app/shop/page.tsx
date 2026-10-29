@@ -207,8 +207,8 @@ function shopPageHref(params: Record<string, string | string[] | undefined>, pag
 
 export async function generateMetadata({ searchParams }: ShopProps): Promise<Metadata> {
   const base = await governedStaticSeoMetadata("/shop", {
-    title: "Προϊόντα στη Σπάρτη · κατηγορίες και αναζήτηση",
-    description: "Ανακάλυψε προϊόντα στη Σπάρτη ανά κατηγορία, τιμή και χαρακτηριστικά. Δες τις επιλογές και επιβεβαίωσε τη διαθεσιμότητα πριν από την αγορά."
+    title: "Αγορές στη Σπάρτη · Προϊόντα, μάρκες & καταστήματα",
+    description: "Ψάχνεις προϊόντα στη Σπάρτη; Εξερεύνησε καλλυντικά, μόδα, είδη σπιτιού και άλλες κατηγορίες, σύγκρινε επιλογές και επιβεβαίωσε διαθεσιμότητα και παραλαβή πριν αγοράσεις."
   });
   const params = await searchParams;
   const hasQueryState = Object.entries(params).some(([key, value]) => {
