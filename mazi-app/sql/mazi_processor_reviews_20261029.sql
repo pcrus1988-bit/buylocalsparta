@@ -41,6 +41,9 @@ CREATE TABLE IF NOT EXISTS public.mazi_processor_reviews (
       'return_deletion_backups','controller_counsel_review'
      ]::text[])
  )),
+ -- MAZI Supabase production region verified as us-east-1 on 2026-10-29.
+ CHECK (review_state='reopened' OR domain_key <> 'database_auth_storage'
+   OR transfer_mechanism <> 'eea_only_verified'),
  CHECK (review_state='reopened' OR domain_key NOT IN
    ('hosting_runtime','database_auth_storage','transactional_email')
    OR usage_state='in_use')
