@@ -7,7 +7,7 @@ test("single-owner v3 modules cover all legal sectors",()=>{
  for(const name of ['"privacy"','"retention"','"cookies"','"community"','"compliance"'])assert.ok(data.includes(name),name);
  assert.match(renderer,/const sections=doc\.sections/);
  assert.doesNotMatch(renderer,/MAZI_LEGAL_ADDENDA|doc\.sections\.concat/);
- assert.match(renderer,/Κωδικοποίηση 3\.1/);
+ assert.match(renderer,/Κωδικοποίηση 3\.2/);
 });
 test("Fund periods explicitly exclude non-financial founding needs",()=>{
  const law=read("lib/legal/v3-finance.ts");
