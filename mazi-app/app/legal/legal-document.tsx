@@ -1,5 +1,5 @@
 import Link from "next/link";
-import {legalRecords,legalOrder,legalRelations,legalUrl,LEGAL_DATE,LEGAL_VERSION,type LegalSlug} from "../../lib/legal-documents";
+import {legalRecords,legalOrder,legalRelations,legalUrl,LEGAL_DATE,LEGAL_VERSION,PRIVACY_NOTICE_REVISION,PRIVACY_NOTICE_REVISED_ON,type LegalSlug} from "../../lib/legal-documents";
 import styles from "./legal.module.css";
 import {legalSourceMap} from "../../lib/legal/v31-sources";
 import {archivePageUrl,archiveExportUrl,MAZI_ARCHIVED_VERSION} from "../../lib/legal/legal-archive";
@@ -18,7 +18,9 @@ export function LegalView({slug}:{slug:LegalSlug}){
    <span className="eyebrow light">ΜΑΖΙ · ΝΟΜΙΚΗ ΤΕΚΜΗΡΙΩΣΗ / {doc.eyebrow}</span>
    <h1>{doc.title}</h1><p>{doc.summary}</p>
    <div className={styles.heroMeta}>
-    <span>Κωδικοποίηση 3.1 · {LEGAL_DATE} · {LEGAL_VERSION}</span>
+    <span>{slug==="privacy"?
+     `Ενημέρωση διαφάνειας ${PRIVACY_NOTICE_REVISED_ON} · ${PRIVACY_NOTICE_REVISION} · βάση ${LEGAL_VERSION}`:
+     `Κωδικοποίηση 3.1 · ${LEGAL_DATE} · ${LEGAL_VERSION}`}</span>
     <span>{current?"Κανόνες και ενημέρωση τρέχουσας λειτουργίας":"Ειδικό πλαίσιο πληρωμένης συμμετοχής · εφαρμογή μετά από ατομική αποδοχή"}</span>
    </div>
   </div></section>
@@ -42,7 +44,7 @@ export function LegalView({slug}:{slug:LegalSlug}){
     </section>)}
     <aside className={styles.sources}>
      <h2>Έκδοση και αναγνωσιμότητα</h2>
-     <p>Αναγνωριστικό τρέχουσας κωδικοποίησης: {LEGAL_VERSION}. Η προβολή ή λήψη του κειμένου δεν τεκμηριώνει ατομική αποδοχή της πολιτικής.</p>
+     <p>Αναγνωριστικό τρέχουσας κωδικοποίησης: {LEGAL_VERSION}.{slug==="privacy"?` Επικαιροποίηση διαφάνειας τρίτων χωρών: ${PRIVACY_NOTICE_REVISION}, ${PRIVACY_NOTICE_REVISED_ON}.`:""} Η προβολή ή λήψη του κειμένου δεν τεκμηριώνει ατομική αποδοχή της πολιτικής.</p>
      <Link href={archivePageUrl(slug)}>Αρχειοθετημένο κείμενο {MAZI_ARCHIVED_VERSION}</Link>
      <Link href={archiveExportUrl(slug)}>Λήψη ιστορικής έκδοσης (.txt)</Link>
      <Link href="/legal/changes">Ιστορικό νομικών εκδόσεων</Link>
