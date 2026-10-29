@@ -131,6 +131,8 @@ export default async function MaziOperationsPage({searchParams}:{searchParams:Pr
  const latestGate=(key:MaziLaunchGateKey)=>gates.find(gate=>gate.gate_key===key);
  let retentionEvidenceComplete=false;
  try{retentionEvidenceComplete=await maziRetentionReviewsComplete(principal);}catch{}
+ let processorEvidenceComplete=false;
+ try{processorEvidenceComplete=await maziProcessorReviewsComplete(principal);}catch{}
  const assessed=assessMaziReleaseReadiness(state,gates);
  const assessment=retentionEvidenceComplete&&processorEvidenceComplete?assessed:{
   ...assessed,
