@@ -7,6 +7,14 @@ Official references:
 - https://eur-lex.europa.eu/legal-content/EL/TXT/?uri=CELEX:32016R0679
 - https://commission.europa.eu/law/law-topic/data-protection/information-business-and-organisations/application-gdpr_en
 
+## Verified processing region requiring specific review
+On 29 October 2026 the connected MAZI production Supabase project's own project details returned **us-east-1 (USA)**. This is an infrastructure finding, not evidence that any transfer mechanism was contractually verified. The MAZI register therefore rejects an EEA-only database/Auth/Storage declaration until a later verified region migration and an explicit code/policy update. The controller and legal counsel must review Chapter V safeguards, subprocessor access and regions.
+
+Relevant public contractual documents (their publication does NOT establish execution, applicable plans, or completed transfer compliance):
+- Supabase DPA Version 1, 1 August 2026: https://supabase.com/legal/customer-resources/data-processing-addendum
+- Vercel DPA updated 17 March 2026: https://vercel.com/legal/dpa — check applicability to the actual team's subscription.
+- Resend DPA updated 31 December 2025: https://resend.com/legal/dpa — verify the actual account agreement, service and subprocessor scope.
+
 ## Seven functional domains
 1. Hosting/runtime/CDN (check actual Vercel configuration, providers, access logs and support locations).
 2. Database, Auth and Storage (check actual Supabase contracts, backups, support and credentials governance).
