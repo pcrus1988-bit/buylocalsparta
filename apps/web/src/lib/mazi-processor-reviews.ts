@@ -57,6 +57,9 @@ export function validateMaziProcessorReview(input:ReviewInput):boolean{
  if(!(MAZI_PROCESSOR_ROLES as readonly string[]).includes(input.role))return false;
  if(!(MAZI_TRANSFER_MECHANISMS as readonly string[]).includes(input.transfer))return false;
  if(input.state==="reopened")return true;
+ // The connected MAZI Supabase production project was verified in us-east-1 (2026-10-29).
+ // Reject an EEA-only database/Auth/Storage claim until a region migration is verified.
+ if(input.domainKey==="database_auth_storage"&&input.transfer==="eea_only_verified")return false;
  if(input.usage==="not_used")return !domain.required&&
   input.role==="no_personal_data"&&input.transfer==="not_applicable"&&
   input.checks.length===1&&input.checks[0]==="not_used_verified"&&!input.agreement;
