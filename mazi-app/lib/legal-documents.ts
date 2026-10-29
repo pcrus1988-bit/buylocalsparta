@@ -6,6 +6,9 @@ export type LegalSection = {heading:string; paragraphs:readonly string[]};
 export type LegalRecord = {title:string; eyebrow:string; summary:string; status:"current"|"proposed"; sections:readonly LegalSection[]};
 export const LEGAL_DATE="28.10.2026";
 export const LEGAL_VERSION="mazi-legal-v3.1-20261028";
+export const PRIVACY_NOTICE_REVISION="mazi-privacy-us-transfer-20261029";
+export const PRIVACY_NOTICE_REVISED_ON="29.10.2026";
+// Privacy transparency clarification does not silently rewrite separately accepted contracts.
 // These pricing constants are referenced by commercial UI and regression checks.
 // The General Terms document does NOT contain or render these values.
 export const HUB_PRO_MONTHLY_EUR=99;
