@@ -41,16 +41,31 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const reference: SeoEntityReference = { kind: "category", id: category.slug };
   const { settings } = await getSeoGlobalSettingsSnapshot();
   const overrides = await getSeoEntityOverridesSnapshot();
+  // Category-specific, human-readable Greek search intent. These descriptions
+  // invite discovery, rather than claiming unverified live stock or pricing.
+  const localSearchTitles: Record<string, string> = {
+    "home-living": "Είδη σπιτιού & διακόσμηση στη Σπάρτη",
+    fashion: "Ρούχα, παπούτσια & αξεσουάρ στη Σπάρτη",
+    beauty: "Καλλυντικά & προϊόντα ομορφιάς στη Σπάρτη",
+    kids: "Παιδικά είδη & παιχνίδια στη Σπάρτη",
+    "tools-diy": "Εργαλεία & είδη μαστορέματος στη Σπάρτη",
+    "garden-outdoors": "Είδη κήπου & εξωτερικού χώρου στη Σπάρτη",
+    automotive: "Είδη αυτοκινήτου στη Σπάρτη",
+    technology: "Τεχνολογία & ηλεκτρονικά στη Σπάρτη",
+    gifts: "Δώρα & ιδιαίτερες ιδέες στη Σπάρτη"
+  };
+  const localSearchTitle = localSearchTitles[category.slug] ?? `${category.label} στη Σπάρτη`;
   return buildGovernedSeoMetadata({
     reference,
     settings,
     override: findSeoEntityOverride(overrides.entries, reference),
     defaults: {
-      title: category.label,
-      description: `${category.description} Ανακάλυψε τοπικά διαθέσιμα προϊόντα στη Σπάρτη.`,
+      title: localSearchTitle,
+      description: `${category.description} Εξερεύνησε επιλογές και τοπικά καταστήματα στη Σπάρτη, δες πραγματική διαθεσιμότητα και όρους παραλαβής πριν αγοράσεις.`,
       canonicalPath: `/category/${category.slug}`,
       keywords: [
         category.label,
+        localSearchTitle,
         `${category.label} Σπάρτη`,
         `${category.label} Λακωνία`
       ]
