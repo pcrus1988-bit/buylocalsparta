@@ -84,7 +84,12 @@ const getCachedCrawlerHomepageCards = unstable_cache(
 );
 
 export function generateMetadata(): Promise<Metadata> {
-  return governedStaticSeoMetadata("/", { canonicalPath: "/" });
+  return governedStaticSeoMetadata("/", {
+    canonicalPath: "/",
+    title: "Καταστήματα & προϊόντα στη Σπάρτη · Τοπική αγορά online",
+    description: "Βρες καταστήματα και προϊόντα στη Σπάρτη. Ανακάλυψε επιλογές από την τοπική αγορά, σύγκρινε χαρακτηριστικά και δες διαθεσιμότητα και παραλαβή πριν αγοράσεις.",
+    keywords: ["καταστήματα Σπάρτη", "αγορές στη Σπάρτη", "προϊόντα στη Σπάρτη", "τοπική αγορά Σπάρτη"]
+  });
 }
 
 async function homepageSectionOrFallback<T>(label: string, operation: () => Promise<T>, fallback: T): Promise<T> {
