@@ -4,6 +4,7 @@ import {getAdminSession} from "../../../../lib/admin-session";
 import {isMaziSuperAdmin} from "../../../../lib/mazi-superadmin";
 import {MAZI_PROCESSOR_DOMAINS,MAZI_PROCESSOR_CHECKS,readMaziProcessorReviews} from "../../../../lib/mazi-processor-reviews";
 import {recordMaziProcessorReviewAction} from "./actions";
+import {isMaziProcessorReviewFresh,MAZI_PROCESSOR_REVIEW_MAX_AGE_DAYS} from "../../../../lib/mazi-processor-review-freshness";
 import s from "../mazi.module.css";
 
 export const dynamic="force-dynamic";
@@ -34,6 +35,7 @@ export default async function MaziProcessorDashboard({searchParams}:{searchParam
  const notice=(await searchParams).notice;
  const reviewed=data?MAZI_PROCESSOR_DOMAINS.filter(c=>data!.latest.some(r=>
   r.domain_key===c.key&&r.review_state==="evidence_recorded"&&
+  isMaziProcessorReviewFresh(r.reviewed_on)&&
   (!c.required||r.usage_state==="in_use"))).length:0;
  return <main className={s.stage}><div className={s.shell}>
   <div className={s.breadcrumb}><Link href="/admin">ADMIN</Link><span>↗</span>
@@ -57,24 +59,25 @@ export default async function MaziProcessorDashboard({searchParams}:{searchParam
    <span>{data?reviewed+" / "+MAZI_PROCESSOR_DOMAINS.length:"Μη διαθέσιμο"}</span>
   </div>
   {!data?<p className={s.empty} role="alert">Το μητρώο δεν είναι διαθέσιμο. Η ετοιμότητα δεν θεωρείται επαληθευμένη.</p>:
-   <div className={s.card}><p className={s.body}><strong>Ελεγμένες κατηγορίες: {reviewed} από {MAZI_PROCESSOR_DOMAINS.length}.</strong> Οι τρεις βασικές υποδομές απαιτούν πραγματική επεξεργασία και έλεγχο· οι λοιπές επιτρέπεται να τεκμηριωθούν ως ανενεργές, μόνο με ελέγξιμη απόδειξη.</p>
+   <div className={s.card}><p className={s.body}><strong>Ελεγμένες κατηγορίες: {reviewed} από {MAZI_PROCESSOR_DOMAINS.length}.</strong> Οι τρεις βασικές υποδομές απαιτούν πραγματική επεξεργασία και έλεγχο εντός του εσωτερικού στόχου επανεξέτασης των {MAZI_PROCESSOR_REVIEW_MAX_AGE_DAYS} ημερών· οι λοιπές επιτρέπεται να τεκμηριωθούν ως ανενεργές, μόνο με ελέγξιμη απόδειξη.</p>
     <p className={s.meta}>Οι πάροχοι που αναφέρονται ενδεικτικά δεν αποτελούν καταγεγραμμένη ενεργή λίστα. Εντός κάθε τομέα πρέπει να περιληφθούν ΟΛΟΙ οι πραγματικοί αποδέκτες και υποεκτελούντες. Δεν αποθηκεύουμε συμβάσεις, ονόματα φυσικών προσώπων, email, ΑΦΜ, κλειδιά ή μυστικά στο μητρώο.</p>
    </div>}
   </section>
   <section className={s.section}><div className={s.sectionTop}>
    <div><p>02 / EVIDENCE</p><h2>Έλεγχος ανά λειτουργία</h2></div>
-   <span>Η νεότερη απόφαση ισχύει για κάθε τομέα· η επανέναρξη διατηρεί το ιστορικό.</span>
+   <span>Η νεότερη απόφαση ισχύει για κάθε τομέα μόνο αν ο πραγματικός έλεγχος δεν έχει υπερβεί τις {MAZI_PROCESSOR_REVIEW_MAX_AGE_DAYS} ημέρες· η επανέναρξη διατηρεί το ιστορικό.</span>
   </div>
   {data?<div className={s.stack}>{MAZI_PROCESSOR_DOMAINS.map((domain,i)=>{
    const recent=data!.latest.find(x=>x.domain_key===domain.key);
    return <article key={domain.key} className={s.card}>
     <div style={{flex:1,minWidth:240}}>
-     <span className={s.tag}>{String(i+1).padStart(2,"0")} / {recent?.review_state==="evidence_recorded"?"ΔΗΛΩΘΗΚΕ ΕΛΕΓΧΟΣ":"ΕΚΚΡΕΜΕΙ ΕΛΕΓΧΟΣ"}</span>
+     <span className={s.tag}>{String(i+1).padStart(2,"0")} / {recent?.review_state==="evidence_recorded"&&isMaziProcessorReviewFresh(recent.reviewed_on)?"ΙΣΧΥΕΙ ΠΡΟΣΦΑΤΟΣ ΕΛΕΓΧΟΣ":"ΕΚΚΡΕΜΕΙ / ΕΧΕΙ ΛΗΞΕΙ Ο ΕΛΕΓΧΟΣ"}</span>
      <h3>{domain.title}</h3>
      <p className={s.body}>{domain.examples}</p>
      <p className={s.meta}>{domain.required?"ΒΑΣΙΚΗ ΥΠΟΔΟΜΗ · ΔΕΝ ΕΠΙΤΡΕΠΕΤΑΙ 'ΔΕΝ ΧΡΗΣΙΜΟΠΟΙΕΙΤΑΙ'":"Υποχρεωτική πραγματική απογραφή ακόμη και αν δεν χρησιμοποιείται"}</p>
      {recent?<p className={s.meta}>Τελευταία δήλωση: {recent.usage_state==="in_use"?"Ενεργός τομέας":"Ανενεργός τομέας"} · {recent.processing_role} · {recent.transfer_mechanism} · {recent.evidence_reference} · {new Date(recent.recorded_at).toLocaleDateString("el-GR",{timeZone:"Europe/Athens"})}</p>:null}
      {recent?<p className={s.body}>{recent.findings}</p>:null}
+     {recent?.review_state==="evidence_recorded"&&!isMaziProcessorReviewFresh(recent.reviewed_on)?<p role="alert" className={s.meta}>Απαιτείται νέος πραγματικός έλεγχος πριν από οποιαδήποτε νομική βεβαίωση ή νέα πρόσκληση.</p>:null}
     </div>
     <form action={recordMaziProcessorReviewAction} className={s.action} style={{display:"grid",gap:10,width:"100%",minWidth:235,maxWidth:450}}>
      <input type="hidden" name="csrf" value={principal.csrfToken}/>
