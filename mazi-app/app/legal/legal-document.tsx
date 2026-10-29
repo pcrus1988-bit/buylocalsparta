@@ -20,7 +20,7 @@ export function LegalView({slug}:{slug:LegalSlug}){
    <div className={styles.heroMeta}>
     <span>{slug==="privacy"?
      `Ενημέρωση διαφάνειας ${PRIVACY_NOTICE_REVISED_ON} · ${PRIVACY_NOTICE_REVISION} · βάση ${LEGAL_VERSION}`:
-     `Κωδικοποίηση 3.1 · ${LEGAL_DATE} · ${LEGAL_VERSION}`}</span>
+     `Κωδικοποίηση 3.2 · ${LEGAL_DATE} · ${LEGAL_VERSION}`}</span>
     <span>{current?"Κανόνες και ενημέρωση τρέχουσας λειτουργίας":"Ειδικό πλαίσιο πληρωμένης συμμετοχής · εφαρμογή μετά από ατομική αποδοχή"}</span>
    </div>
   </div></section>
