@@ -72,3 +72,14 @@ test("statutory reference inventory is subject-scoped, not a generic copy-paste 
  assert.match(code,/tax2.taxheaven.gr\/law\/5144/);
  assert.doesNotMatch(read("app/legal/legal-document.tsx"),/legalSourceMap\[slug\][\s\S]*?https:\/\/www\.taxheaven\.gr\/law\/4308/);
 });
+
+test("privacy transparency names the verified US Supabase processing region and does not invent an accepted DPA",()=>{
+ const notices=docs.privacy.sections.flatMap(s=>s.paragraphs).join(" ");
+ assert.match(notices,/us-east-1/);
+ assert.match(notices,/Ηνωμένες Πολιτείες Αμερικής/);
+ assert.match(notices,/supabase\.com\/legal\/customer-resources\/data-processing-addendum/);
+ assert.match(notices,/Τυποποιημένες Συμβατικές Ρήτρες/);
+ assert.match(notices,/δεν αποδεικνύει από μόνη της/);
+ assert.match(notices,/info@kontamou\.site/);
+ assert.doesNotMatch(notices,/όλες οι (διαβιβάσεις|ροές) είναι νόμιμες/);
+});
