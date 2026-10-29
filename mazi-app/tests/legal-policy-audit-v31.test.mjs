@@ -83,3 +83,15 @@ test("privacy transparency names the verified US Supabase processing region and 
  assert.match(notices,/info@kontamou\.site/);
  assert.doesNotMatch(notices,/όλες οι (διαβιβάσεις|ροές) είναι νόμιμες/);
 });
+
+test("privacy update has a distinct dated revision and preserved historic contract codification",()=>{
+ const registry=read("lib/legal-documents.ts");
+ const page=read("app/legal/legal-document.tsx");
+ const history=read("app/legal/changes/page.tsx");
+ assert.match(registry,/PRIVACY_NOTICE_REVISION="mazi-privacy-us-transfer-20261029"/);
+ assert.match(registry,/PRIVACY_NOTICE_REVISED_ON="29.10.2026"/);
+ assert.match(page,/slug==="privacy"/);
+ assert.match(page,/PRIVACY_NOTICE_REVISION/);
+ assert.match(history,/us-east-1/);
+ assert.match(history,/δεν τροποποιεί σιωπηρά/);
+});
