@@ -88,3 +88,13 @@
  .barLabels strong{font-size:26px}
  .barList{gap:23px}
 }
+
+
+/* Compact scientific caveat instead of a second full methodology block. */
+.scientificContext{margin-top:40px;padding:18px 23px;border-radius:15px;background:#eff5ed;border:1px solid #d6e5d3;color:#31543a}
+.scientificContext summary{cursor:pointer;font-size:15px;font-weight:800;line-height:1.55}
+.scientificContext summary:focus-visible{outline:3px solid #295f40;outline-offset:4px}
+.scientificContext>div{padding-top:12px;max-width:880px}
+.scientificContext p{font-size:14px;line-height:1.8;color:#41624b;margin:8px 0 13px}
+.scientificContext a{display:inline-flex;margin-top:3px;font-size:14px;font-weight:800;color:#1e5939;text-underline-offset:4px}
+@media(max-width:700px){.scientificContext{padding:16px 18px;margin-top:30px}.scientificContext summary{font-size:14px}}
