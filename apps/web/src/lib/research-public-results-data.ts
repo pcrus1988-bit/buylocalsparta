@@ -27,7 +27,7 @@ export function publicCountyAvailability(estimates:readonly PublishedResearchEst
      !METRIC_SET.has(e.metricKey)||RESTRICTED.test(e.metricKey)||RESTRICTED.test(e.method)||
      !Number.isSafeInteger(e.unweightedN)||e.unweightedN<1)continue;
   const key=seg[0][1];
-  if(!permittedPrefecture.has(key))continue;
+  if(typeof key!=="string"||!permittedPrefecture.has(key))continue;
   maxima.set(key,Math.max(maxima.get(key)??0,e.unweightedN));
  }
  return [...maxima].map(([key,n])=>({
