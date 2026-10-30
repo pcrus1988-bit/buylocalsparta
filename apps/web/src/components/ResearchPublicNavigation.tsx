@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import styles from "./ResearchPublicNavigation.module.css";
 
-type ResearchSection = "studies" | "overview" | "methodology" | "results" | "other-research" | "compare" | "privacy";
+type ResearchSection = "studies" | "overview" | "methodology" | "results" | "press" | "other-research" | "compare" | "privacy";
 
 type Props = Readonly<{
   active?: ResearchSection;
@@ -21,7 +21,8 @@ export function ResearchPublicNavigation({ active, studySlug }: Props) {
     ...(studyRoot ? [
       { href: studyRoot, label: "Επισκόπηση", section: "overview" as const },
       { href: `${studyRoot}/methodology`, label: "Μεθοδολογία", section: "methodology" as const },
-      { href: `${studyRoot}/results`, label: "Αποτελέσματα", section: "results" as const }
+      { href: `${studyRoot}/results`, label: "Αποτελέσματα", section: "results" as const },
+      ...(studySlug === "greek-retail-2026" ? [{ href: `${studyRoot}/press`, label: "Υλικό για ΜΜΕ", section: "press" as const }] : [])
     ] : []),
     { href: "/research/market-sentiment", label: "Άλλοι φορείς", section: "other-research" },
     { href: "/research/compare", label: "Σύγκριση", section: "compare" },
