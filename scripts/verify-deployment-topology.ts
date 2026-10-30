@@ -45,6 +45,7 @@ const allowedVercelCrons = new Map([
   ["/api/cron/seo-url-registry", "53 4 * * *"],
   ["/api/cron/seo-gsc-diagnostics", "47 */6 * * *"],
   ["/api/cron/research-study-jobs", "*/5 * * * *"],
+  ["/api/cron/research-q18-approved", "*/5 * * * *"],
   ["/api/cron/research-study-email-jobs", "* * * * *"],
 ]);
 assert(
