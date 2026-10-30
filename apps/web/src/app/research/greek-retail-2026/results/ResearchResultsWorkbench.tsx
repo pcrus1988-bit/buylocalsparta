@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo,useState } from "react";
+import { useEffect,useMemo,useState } from "react";
 import Link from "next/link";
 import { PUBLIC_RESULTS_CHAPTERS,PUBLIC_RESULTS_METRICS,publicMetricLabel } from "../../../../lib/research-public-results-sections";
 import { demoResultPoints,type SafeParticipationGeography,type SafePublicResultPoint,type InternalResearchGeographicCoverage } from "../../../../lib/research-public-results-data";
@@ -51,6 +51,17 @@ export function ResearchResultsWorkbench({
  const points=useMemo(()=>demo?demoResultPoints():publishedPoints,[demo,publishedPoints]);
  const [menu,setMenu]=useState<Menu>("chapters");
  const [chapterId,setChapterId]=useState(PUBLIC_RESULTS_CHAPTERS[0]!.id);
+ useEffect(()=>{
+  const select=(event:Event)=>{
+   const id=(event as CustomEvent<string>).detail;
+   const chapter=PUBLIC_RESULTS_CHAPTERS.find(item=>item.id===id);
+   if(!chapter)return;
+   setMenu("chapters");setChapterId(chapter.id);setSubId(chapter.subchapters[0]!.id);
+  };
+  window.addEventListener("research:select-chapter",select);
+  return ()=>window.removeEventListener("research:select-chapter",select);
+ },[]);
+
  const [subId,setSubId]=useState(PUBLIC_RESULTS_CHAPTERS[0]!.subchapters[0]!.id);
  const [group,setGroup]=useState<GroupBy>("overall");
  const [level,setLevel]=useState("");
