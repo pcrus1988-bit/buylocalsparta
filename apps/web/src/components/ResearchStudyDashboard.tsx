@@ -2,6 +2,7 @@ import { ResearchPublicNavigation } from "./ResearchPublicNavigation";
 import Link from "next/link";
 import type { PublicResearchStudySummary } from "../lib/research-observatory-runtime";
 import { ResearchLiveProgress } from "./ResearchLiveProgress";
+import { ResearchFieldworkInsights } from "./ResearchFieldworkInsights";
 import styles from "./ResearchObservatory.module.css";
 
 function dateRange(study: PublicResearchStudySummary): string {
@@ -119,6 +120,8 @@ export function ResearchStudyDashboard({ study, compactIntro = false }: { study:
       <section className={styles.section}>
         <ResearchLiveProgress initialStudy={study} />
       </section>
+
+      {study.slug === "greek-retail-2026" && <ResearchFieldworkInsights studyId={study.id} waveId={study.waveId} />}
 
       <section className={styles.section}>
         <div className={styles.sectionHead}>
