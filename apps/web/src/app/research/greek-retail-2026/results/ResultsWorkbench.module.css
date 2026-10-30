@@ -373,3 +373,7 @@
  .tableScroll{scrollbar-width:thin}
  .shell .voicePage{padding:18px}
 }
+
+/* Stable deep-link targets for each Interactive Explorer panel. */
+.shell{position:relative}
+.anchor{position:absolute;top:0;left:0;height:1px;width:1px;scroll-margin-top:125px;pointer-events:none}
