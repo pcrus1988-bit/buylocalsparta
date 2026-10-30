@@ -45,15 +45,18 @@ test("recovery counters do not rewrite response statuses or manufacture consent"
 const researchLandingSource = readFileSync(new URL("../app/research/page.tsx", import.meta.url), "utf8");
 const liveProgressSource = readFileSync(new URL("../components/ResearchLiveProgress.tsx", import.meta.url), "utf8");
 
-test("active survey progress is shown directly on the public research landing page", () => {
-  assert.match(researchLandingSource, /id="survey-progress"/);
-  assert.match(researchLandingSource, /<ResearchLiveProgress initialStudy={lead} showHeatmap={false}/);
-  assert.match(researchLandingSource, /href={lead\?\.status === "fielding" \? "#survey-progress" : "#studies"}/);
-  assert.match(researchLandingSource, /\{study\.targetCompletes > 0 && <>/);
-  assert.match(researchLandingSource, /<strong>\{study\.started\.toLocaleString\("el-GR"\)\} συμμετοχές που ξεκίνησαν<\/strong>/);
+test("2026 research landing guides readers to released findings, map, and methodology", () => {
+  assert.match(researchLandingSource, /const results =/);
+  assert.match(researchLandingSource, /href: results/);
+  assert.match(researchLandingSource, /#results-map/);
+  assert.match(researchLandingSource, /href: methodology/);
+  assert.match(researchLandingSource, /Δείτε τα ευρήματα/);
+  assert.match(researchLandingSource, /aria-label="Πλοήγηση στη μελέτη Ελληνικό Λιανεμπόριο 2026"/);
+  assert.doesNotMatch(researchLandingSource, /id="survey-progress"|<ResearchLiveProgress/);
+  assert.doesNotMatch(researchLandingSource, /Δεν έχουν δημοσιευθεί ακόμη αποτελέσματα/);
 });
 
-test("the landing progress updates from the main-only public endpoint without duplicating the map", () => {
+test("the reusable live-progress component keeps its main-only refresh and optional map", () => {
   assert.match(liveProgressSource, /fetch\("\/api\/research\/observatory", \{ cache: "no-store" \}\)/);
   assert.match(liveProgressSource, /window\.setInterval\(refresh, 30_000\)/);
   assert.match(liveProgressSource, /showHeatmap = true/);
