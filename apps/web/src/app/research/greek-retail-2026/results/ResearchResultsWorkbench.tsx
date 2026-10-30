@@ -264,6 +264,7 @@ export function ResearchResultsWorkbench({
     <button type="button" onClick={exportData} disabled={graphEntries.length===0}>Εξαγωγή συγκεντρωτικών CSV ↓</button>
    </div>
    {graphDimension==="prefectureCode"&&<p className={styles.note}>Εμφανίζονται και οι 55 νομοί. Το «—» και η διακεκομμένη μπάρα σημαίνουν ότι δεν υπάρχει διαθέσιμη τιμή για τον επιλεγμένο δείκτη και τα φίλτρα — όχι μηδενική επίδοση.</p>}
+   {mode!=="live"&&graphDimension==="prefectureCode"&&<p className={styles.note}>Δημοσιεύονται περιγραφικά αποτελέσματα ανά νομό από τουλάχιστον 5 απαντήσεις. Οι βάσεις n=5–29 είναι ιδιαίτερα μικρές και ασταθείς: δεν αντιπροσωπεύουν κατ’ ανάγκη τον νομό και δεν επιτρέπουν ασφαλείς γενικεύσεις. Οι διασταυρώσεις νομού × κλάδου διατηρούν αυστηρότερους ελέγχους.</p>}
    {graphEntries.length===0?<div className={styles.empty} role="status">Δεν υπάρχουν εγκεκριμένοι συγκεντρωτικοί αριθμοί με αυτά τα φίλτρα.</div>:
     graphKind==="table"?<div className={styles.tableScroll}><table className={styles.table}>
       <thead><tr><th>Ομάδα</th><th>Εκτίμηση</th><th>n</th><th>95% ΔΕ</th></tr></thead>

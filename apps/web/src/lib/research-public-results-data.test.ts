@@ -33,7 +33,7 @@ test("publication client props block private experiment, suppressed and small ce
   estimate({metricKey:"digital_readiness.mean",method:"randomized_profile_amce_clustered_v1"}),
   estimate({metricKey:"digital_readiness.mean",metadata:{experimentCode:"EXP01"}}),
   estimate({suppressed:true,estimate:88}),
-  estimate({unweightedN:29,estimate:70}),
+  estimate({unweightedN:4,estimate:70}),
   estimate({metricKey:"unknown_metric.secret",estimate:88})
  ];
  const out=publicResultPoints(rows as Parameters<typeof publicResultPoints>[0]);
@@ -60,4 +60,20 @@ test("demo fixtures are deterministic, never leak into published adapters",()=>{
  assert.ok(demo.length>200);
  assert.equal(demo.filter(x=>Object.keys(x.segment).length===0).length,PUBLIC_RESULTS_METRICS.length);
  assert.deepEqual(demoResultPoints(),demo);
+});
+
+test("n=5 permits audited single-prefecture estimates, but never under-n5 or unapproved cross-tabs",()=>{
+ const rows=[
+  estimate({segment:{prefectureCode:"Lakonia"},unweightedN:5,metadata:{format:"mean",publicPrefectureApproved:true}}),
+  estimate({segment:{prefectureCode:"Lakonia"},unweightedN:4,metadata:{format:"mean",publicPrefectureApproved:true}}),
+  estimate({segment:{prefectureCode:"Lakonia"},unweightedN:5,metadata:{format:"mean",publicPrefectureApproved:false}}),
+  estimate({segment:{prefectureCode:"Lakonia",sectorCode:"food_groceries"},unweightedN:49,metadata:{format:"mean",publicPrefectureApproved:true,publicCrossTabApproved:true}}),
+  estimate({segment:{prefectureCode:"Lakonia",sectorCode:"food_groceries"},unweightedN:50,metadata:{format:"mean",publicPrefectureApproved:true,publicCrossTabApproved:true}})
+ ];
+ const out=publicResultPoints(rows as Parameters<typeof publicResultPoints>[0]);
+ assert.equal(out.length,2);
+ assert.equal(out[0]!.n,5);
+ assert.deepEqual(out[0]!.segment,{prefectureCode:"Lakonia"});
+ assert.equal(out[1]!.n,50);
+ assert.deepEqual(out[1]!.segment,{prefectureCode:"Lakonia",sectorCode:"food_groceries"});
 });

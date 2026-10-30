@@ -1,4 +1,5 @@
 import type { PublishedResearchEstimate } from "./research-survey-release";
+import { RESEARCH_PUBLIC_MINIMUM_UNWEIGHTED_BASE } from "./research-disclosure-policy.ts";
 import { GREECE_REGIONS } from "./research-geographic-core.ts";
 import { GREECE_PREFECTURES } from "./research-prefectures.ts";
 import { PUBLIC_RESULTS_METRICS } from "./research-public-results-sections.ts";
@@ -41,7 +42,7 @@ const permittedPrefecture=new Set<string>(GREECE_PREFECTURES.map(r=>r.key));
 export function publicResultPoints(estimates: readonly PublishedResearchEstimate[]): SafePublicResultPoint[]{
  return estimates.flatMap(e=>{
   if(e.suppressed || e.estimate===null || !Number.isFinite(e.estimate) ||
-    !Number.isSafeInteger(e.unweightedN)||e.unweightedN<30 ||
+    !Number.isSafeInteger(e.unweightedN)||e.unweightedN<RESEARCH_PUBLIC_MINIMUM_UNWEIGHTED_BASE ||
     !METRIC_SET.has(e.metricKey) || RESTRICTED.test(e.metricKey) || RESTRICTED.test(e.method) ||
     RESTRICTED.test(String(e.metadata.experimentCode??""))) return [];
   const entries=Object.entries(e.segment);
@@ -53,7 +54,7 @@ export function publicResultPoints(estimates: readonly PublishedResearchEstimate
   if(entries.length>2 || entries.some(([key])=>!["regionCode","prefectureCode","sectorCode","sizeBand"].includes(key)) ||
      (entries.length===2&&!isCross) ||
      (isCross&&(e.unweightedN<50||e.metadata.publicCrossTabApproved!==true)) ||
-     (isPrefecture&&(e.unweightedN<50||e.metadata.publicPrefectureApproved!==true)))return [];
+     (isPrefecture&&(e.unweightedN<RESEARCH_PUBLIC_MINIMUM_UNWEIGHTED_BASE||e.metadata.publicPrefectureApproved!==true)))return [];
   if(entries.some(([_,value])=>typeof value!=="string"||!value.trim()))return [];
   // regionCode in the current frozen frame is a HISTORICAL prefecture code.
   // Only explicitly keyed administrative-region names may feed region heatmaps.
