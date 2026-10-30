@@ -1,4 +1,4 @@
-import { archiveApprovedGreekRetailQ18 } from "../../../../../lib/research-q18-approved-sidecar";
+import { archiveApprovedGreekRetailQ18 } from "../../../../lib/research-q18-approved-sidecar";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 export const maxDuration=120;
