@@ -528,6 +528,53 @@ export async function runGreekRetailAnalysis(
   // the nonresponse-rate adjustment across the pre-existing frozen-frame
   // sector classes; retain each respondent's original design base weight.
   // This is an explicit, post-fieldwork methodological contingency.
+  const responseResult = await pool.query<SqlRow>(`
+    WITH latest_quality AS (
+      SELECT DISTINCT ON (qr.response_id)
+        qr.response_id,
+        qr.decision
+      FROM research_response_quality_reviews qr
+      JOIN research_responses rr ON rr.id=qr.response_id
+      WHERE rr.study_id=$1
+        AND rr.wave_id=$2
+      ORDER BY qr.response_id, qr.created_at DESC, qr.id DESC
+    )
+    SELECT
+      r.id AS response_id,
+      COALESCE(su.stratum_id,ctx.stratum_id) AS stratum_id,
+      st.code AS stratum_code,
+      COALESCE(fu.region_code,ctx.region_code,'unknown') AS region_code,
+      COALESCE(fu.sampling_attributes->>'postcode','') AS postcode,
+      COALESCE(NULLIF(NULLIF(ctx.source_prefecture,'unknown'),'Inadequate Info'),NULLIF(NULLIF(fu.sampling_attributes->>'prefecture','unknown'),'Inadequate Info'),'') AS source_prefecture,
+      COALESCE(fu.sector_code,ctx.sector_code,'unknown') AS sector_code,
+      COALESCE(su.base_weight,ctx.base_weight) AS base_weight
+    FROM research_responses r
+    JOIN research_invites ri ON ri.id=r.invite_id AND ri.fieldwork_phase='main'
+    LEFT JOIN research_sample_units su ON su.id=ri.sample_unit_id
+    LEFT JOIN research_frame_units fu ON fu.id=su.frame_unit_id
+    LEFT JOIN research_response_design_context ctx ON ctx.response_id=r.id
+    JOIN research_strata st ON st.id=COALESCE(su.stratum_id,ctx.stratum_id)
+    LEFT JOIN latest_quality q ON q.response_id=r.id
+    WHERE r.study_id=$1
+      AND r.wave_id=$2
+      AND COALESCE(su.sample_draw_id,ctx.sample_draw_id)=$3
+      AND r.status='completed'
+      AND COALESCE(q.decision,'include') <> 'exclude'
+    ORDER BY r.id
+  `, [studyId, waveId, draw.id]);
+  if (!responseResult.rows.length) throw new Error("RESEARCH_ANALYSIS_NO_INCLUDED_RESPONSES");
+
+  const baseResponses: ResponseRow[] = responseResult.rows.map((row) => ({
+    responseId: text(row.response_id),
+    stratumId: text(row.stratum_id),
+    stratumCode: text(row.stratum_code),
+    regionCode: text(row.region_code),
+    administrativeRegionCode: resolveResearchAdministrativeGeography(row.postcode,row.source_prefecture).regionCode,
+    prefectureCode: resolveResearchAdministrativeGeography(row.postcode,row.source_prefecture).prefectureCode,
+    sectorCode: text(row.sector_code),
+    baseWeight: numberValue(row.base_weight)
+  }));
+
   const representedClasses = await pool.query<SqlRow>(`
     WITH latest_disposition AS (
       SELECT DISTINCT ON (e.sample_unit_id) e.sample_unit_id,e.disposition_code
