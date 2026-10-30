@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/research/greek-retail-2026/results", {
     title: "Αποτελέσματα · Ελληνικό Λιανεμπόριο 2026 · KONTA MOY Research",
-    description: "Δημοσιευμένα αποτελέσματα της μελέτης Ελληνικό Λιανεμπόριο 2026 με μέγεθος δείγματος και διαστήματα εμπιστοσύνης όπου είναι διαθέσιμα.",
+    description: "Ελληνικό Λιανεμπόριο 2026: τελικά ευρήματα, τεκμηριωμένα μεγέθη συμμετοχής, στάθμιση, γεωγραφική κάλυψη και μεθοδολογικοί περιορισμοί.",
     keywords: ["αποτελέσματα Ελληνικό Λιανεμπόριο 2026", "στατιστικά ελληνικού λιανεμπορίου", "ψηφιακή ετοιμότητα αποτελέσματα", "δείκτης λειτουργικών δυσκολιών"]
   });
 }
@@ -31,11 +31,11 @@ export default async function GreekRetailResultsPage() {
       <header className={editorialStyles.pending}>
         <span className={editorialStyles.eyebrow}>KONTA MOY RESEARCH · ΕΛΛΗΝΙΚΟ ΛΙΑΝΕΜΠΟΡΙΟ 2026</span>
         <h1>Η αγορά μίλησε.<br /><em>Τα ευρήματα ακολουθούν.</em></h1>
-        <p>Ετοιμάζουμε μια καθαρή, διαδραστική παρουσίαση με τα κύρια αποτελέσματα, τον χάρτη της Ελλάδας και τις θεματικές αναλύσεις. Θα εμφανιστούν μόνο τα επιστημονικά ελεγμένα και εγκεκριμένα ευρήματα.</p>
+        <p>Η ανάλυση της κύριας Ομάδας Α έχει ολοκληρωθεί. Τα επιβεβαιωμένα, εγκεκριμένα ευρήματα, ο χάρτης της Ελλάδας και οι θεματικές αναλύσεις θα εμφανιστούν την προγραμματισμένη ημερομηνία δημοσίευσης.</p>
         <div className={editorialStyles.pendingStatus} role="status">Τα τελικά αποτελέσματα δεν έχουν δημοσιευθεί ακόμη.</div>
         <div className={editorialStyles.pendingDates}>
-          <div><small>ΟΛΟΚΛΗΡΩΣΗ ΣΥΛΛΟΓΗΣ</small><strong>30 Οκτωβρίου 2026</strong><span>18:00 · ώρα Ελλάδας</span></div>
-          <div><small>ΠΡΟΓΡΑΜΜΑΤΙΣΜΕΝΗ ΔΗΜΟΣΙΕΥΣΗ</small><strong>1 Νοεμβρίου 2026</strong><span>Υπό την προϋπόθεση των τελικών ελέγχων</span></div>
+          <div><small>ΠΡΑΓΜΑΤΙΚΗ ΛΗΞΗ ΣΥΛΛΟΓΗΣ</small><strong>30 Οκτωβρίου 2026</strong><span>17:06:23 · ώρα Ελλάδας (αρχικός προγραμματισμός 18:00)</span></div>
+          <div><small>ΠΡΟΓΡΑΜΜΑΤΙΣΜΕΝΗ ΔΗΜΟΣΙΕΥΣΗ</small><strong>1 Νοεμβρίου 2026</strong><span>00:00:01 · ώρα Ελλάδας</span></div>
         </div>
         <nav className={editorialStyles.pendingLinks} aria-label="Σχετικές σελίδες μελέτης">
           <Link href="/research/greek-retail-2026">Επισκόπηση μελέτης ↗</Link>
