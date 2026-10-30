@@ -101,6 +101,8 @@ const statistics = readFileSync("apps/web/src/lib/research-survey-statistics.ts"
 const statisticsTests = readFileSync("apps/web/src/lib/research-survey-statistics.test.ts", "utf8");
 const analysis = readFileSync("apps/web/src/lib/research-survey-analysis.ts", "utf8");
 const resultsPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/page.tsx", "utf8");
+const resultsEditorial = readFileSync("apps/web/src/app/research/greek-retail-2026/results/ResearchResultsEditorial.tsx", "utf8");
+const resultsWorkbench = readFileSync("apps/web/src/app/research/greek-retail-2026/results/ResearchResultsWorkbench.tsx", "utf8");
 const methodologyPage = readFileSync("apps/web/src/app/research/greek-retail-2026/methodology/page.tsx", "utf8");
 const observatoryPage = readFileSync("apps/web/src/app/research/page.tsx", "utf8");
 const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
@@ -690,13 +692,16 @@ if (!statistics.includes("benjaminiHochbergAdjustedPValues")) errors.push("pairw
 if (!analysis.includes('adjustedPValueMethod: "benjamini_hochberg"')) errors.push("pairwise FDR-adjusted q-value persistence missing");
 if (!methodologyPage.includes("Πριν από την ανάλυση")) errors.push("public methodology does not explain that primary analysis is defined before final results");
 if (!methodologyPage.includes("Τα βασικά ερωτήματα ορίζονται πριν δούμε τα τελικά αποτελέσματα.")) errors.push("public methodology does not explain advance analysis planning");
-if (!resultsPage.includes("Ανά περιοχή") || !resultsPage.includes("Ανά κλάδο")) errors.push("public results do not expose understandable subgroup results");
-if (!methodologyPage.includes("Πρόσθετες αναλύσεις που γίνονται αργότερα παρουσιάζονται ως διερευνητικές")) errors.push("public methodology does not distinguish later additional analyses");
-if (!methodologyPage.includes("δεν συγχέονται με τα αρχικά ερευνητικά ερωτήματα")) errors.push("public methodology does not distinguish original questions from later analyses");
-if (!resultsPage.includes("Περιορισμοί")) errors.push("public results do not provide an understandable limitations section");
-if (!resultsPage.includes("n={estimate.unweightedN.toLocaleString")) errors.push("public results do not disclose sample size alongside results");
-if (!resultsPage.includes("95% διάστημα εμπιστοσύνης")) errors.push("public results do not explain confidence intervals in public language");
-if (!resultsPage.includes("μεθοδολογία της μελέτης")) errors.push("public results do not link readers to methodology context");
+// The current public Results page is componentized: the page must render the
+// release-gated editorial and workbench, and these child modules must supply
+// real subgroup, n, uncertainty and methodology explanations. Check the
+// actual rendered source rather than stale pre-redesign inline JSX tokens.
+if (!resultsPage.includes("<ResearchResultsEditorial") || !resultsPage.includes('<ResearchResultsWorkbench mode="published"')) errors.push("public results do not mount the approved released editorial/workbench");
+if (!resultsWorkbench.includes('title:"Κατά κλάδο"') || !resultsWorkbench.includes('id:"county"')) errors.push("public results do not expose understandable subgroup results");
+if (!resultsEditorial.includes("Οι περιγραφικές διαφορές δεν αποδεικνύουν αιτιότητα") || !resultsEditorial.includes("περιορισμοί")) errors.push("public results do not provide an understandable limitations section");
+if (!resultsEditorial.includes("n={whole.format(lead.point.n)}") || !resultsEditorial.includes("n={whole.format(point.n)}")) errors.push("public results do not disclose sample size alongside results");
+if (!resultsEditorial.includes("διάστημα εμπιστοσύνης εκφράζει την αβεβαιότητα") || !resultsWorkbench.includes("Διάστημα αβεβαιότητας μη διαθέσιμο")) errors.push("public results do not explain confidence intervals and missing uncertainty in public language");
+if (!resultsEditorial.includes('href="/research/greek-retail-2026/methodology"')) errors.push("public results do not link readers to methodology context");
 if (!observatoryPage.includes("ολοκληρωμένες απαντήσεις")) errors.push("public observatory does not disclose understandable participation progress");
 if (!methodologyPage.includes("Τι θα συνοδεύει τα αποτελέσματα")) errors.push("public methodology does not explain what context accompanies results");
 if (!observatoryPage.includes("Πέντε απλά στάδια.")) errors.push("permanent Retail Observatory landing does not explain the study lifecycle in public language");
