@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PUBLIC_RESULTS_CHAPTERS, publicMetricLabel } from "../../../../lib/research-public-results-sections";
 import { GREECE_PREFECTURES } from "../../../../lib/research-prefectures";
@@ -96,6 +96,9 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
 
   const index = Math.min(active, Math.max(layers.length - 1, 0));
   const layer = layers[index];
+  const smallBaseCount = layer?.kind === "survey"
+    ? [...layer.entries.values()].filter(value => typeof value !== "number" && value.n >= 5 && value.n < 30).length
+    : 0;
   const values = layer ? [...layer.entries.values()].map(v => typeof v === "number" ? v : v.value) : [];
   const min = layer?.format === "proportion" ? 0 : values.length ? Math.min(...values) : 0;
   const max = layer?.format === "proportion" ? 1 : values.length ? Math.max(...values) : 1;
@@ -133,7 +136,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
         <div className={styles.legend} aria-label="Κλίμακα χρωμάτων">
           <span>Χαμηλότερη τιμή</span><i aria-hidden="true" /><span>Υψηλότερη τιμή</span>
         </div>
-        <p className={styles.mapCaveat}>Οι χρωματικές κλίμακες προσαρμόζονται ξεχωριστά σε κάθε δείκτη. Οι μη εγκεκριμένοι ή ανεπαρκώς καλυμμένοι νομοί εμφανίζονται γκρίζοι.</p>
+        <p className={styles.mapCaveat}>Οι χρωματικές κλίμακες προσαρμόζονται ξεχωριστά σε κάθε δείκτη. Οι μη εγκεκριμένοι ή ανεπαρκώς καλυμμένοι νομοί εμφανίζονται γκρίζοι. {layer?.kind === "survey" && smallBaseCount > 0 ? `${smallBaseCount} από τους ${layer.entries.size} νομούς με τιμή βασίζονται σε μόλις 5–29 απαντήσεις· δεν αποτελούν αξιόπιστη κατάταξη των νομών.` : ""}</p>
       </div>
       <div className={styles.mapVisual}>
         {failed ? <p role="alert">Ο χάρτης δεν φορτώθηκε. Χρησιμοποιήστε τα αναλυτικά γραφήματα παρακάτω.</p>
@@ -170,7 +173,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
   </section>;
 }
 
-export function ResearchResultsEditorial({ points, geography }: { points: readonly SafePublicResultPoint[]; geography?: SafeParticipationGeography }) {
+export function ResearchResultsEditorial({ points, geography, children }: { points: readonly SafePublicResultPoint[]; geography?: SafeParticipationGeography; children?: ReactNode }) {
   const overall = points.filter(point => Object.keys(point.segment).length === 0);
   const find = (key: string) => overall.find(p => p.metricKey === key);
   const selected = HIGHLIGHT_GROUPS.map(group => ({
@@ -193,6 +196,7 @@ export function ResearchResultsEditorial({ points, geography }: { points: readon
       <nav className={styles.quickNav} aria-label="Περιεχόμενα αποτελεσμάτων">
         <a href="#results-highlights">Κύρια ευρήματα</a>
         <a href="#results-map">Χάρτης Ελλάδας</a>
+        <a href="#results-science">Ερμηνεία &amp; μεθοδολογία</a>
         <a href="#results-areas">Θεματικές ενότητες</a>
         <a href="#research-workbench">Αναλυτική εξερεύνηση</a>
         <Link href="/research/greek-retail-2026/methodology">Μεθοδολογία ↗</Link>
@@ -212,8 +216,9 @@ export function ResearchResultsEditorial({ points, geography }: { points: readon
       </div> : <p>Δεν υπάρχουν διαθέσιμες εγκεκριμένες συνολικές εκτιμήσεις.</p>}
     </section>
     <EditorialMap points={points} geography={geography} />
+    {children}
     <section id="results-areas" className={styles.areas} aria-labelledby="results-areas-title">
-      <div className={styles.sectionHeading}><div><span className={styles.eyebrow}>03 / Η ΠΛΗΡΗΣ ΕΙΚΟΝΑ</span>
+      <div className={styles.sectionHeading}><div><span className={styles.eyebrow}>04 / Η ΠΛΗΡΗΣ ΕΙΚΟΝΑ</span>
         <h2 id="results-areas-title">Έξι περιοχές. Μία ενιαία ιστορία.</h2>
         <p>Διαβάστε τις βασικές θεματικές και συνεχίστε στα διαγράμματα για αναλυτικές συγκρίσεις.</p></div></div>
       <nav className={styles.chapterNav} aria-label="Μετάβαση σε θεματική ενότητα">
