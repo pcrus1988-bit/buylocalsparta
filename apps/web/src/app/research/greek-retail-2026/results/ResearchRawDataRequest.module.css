@@ -29,3 +29,24 @@
 .honeypot{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 @media(max-width:860px){.section{grid-template-columns:1fr;gap:22px;margin:24px 12px 36px;padding:23px}.formCard{padding:23px}}
 @media(max-width:480px){.section{padding:17px}.formCard{padding:18px}.intro h2{font-size:30px}.process{flex-direction:column;align-items:flex-start}}
+
+
+/* Comfortable data access form within the results reading column. */
+.section{max-width:100%;margin:35px 0 56px;padding:clamp(24px,3vw,38px);gap:clamp(24px,3vw,44px);box-shadow:none}
+.eyebrow{font-size:12px;letter-spacing:.08em;color:#476c50}
+.intro h2{font-size:clamp(31px,3vw,43px);line-height:1.2;letter-spacing:-.027em}
+.intro p{font-size:15px;line-height:1.8;color:#365841}
+.intro .small{font-size:13px;color:#4c6955;line-height:1.75}
+.process span{font-size:12px;line-height:1.45;padding:10px 13px;color:#28513a}
+.formCard{box-shadow:none;border-color:#d6e3d6}
+.formCard h3{font-size:28px;line-height:1.24}
+.formCard>p{font-size:14px;color:#45614d;line-height:1.75}
+.form>label:not(.agreement){font-size:14px}
+.form input[type=email],.form textarea{font-size:15px;line-height:1.55;border-color:#b8d0bc}
+.agreement{font-size:14px;line-height:1.7;color:#35533f}
+.agreement input{width:19px;height:19px}
+.submit{font-size:15px;min-height:48px}
+.form small,.error,.success span{font-size:13px;line-height:1.6}
+.submit:focus-visible,.success button:focus-visible{outline:3px solid #235b3d;outline-offset:3px}
+@media(max-width:860px){.section{margin:30px 0 42px}}
+@media(max-width:480px){.section{padding:20px 15px}.formCard{padding:21px 17px}}
