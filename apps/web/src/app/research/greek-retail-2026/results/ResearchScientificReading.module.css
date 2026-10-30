@@ -1,0 +1,49 @@
+/* Source-backed scientific reading: calm, legible and fully responsive. */
+.shell{width:min(100% - 36px,1240px);margin:0 auto;padding:72px 0 82px;box-sizing:border-box;color:#173f30;scroll-margin-top:90px}
+.heading{max-width:840px;margin-bottom:29px}
+.eyebrow,.chartEyebrow{font-size:10px;letter-spacing:.13em;color:#5b8169;font-weight:800}
+.heading h2{font:500 clamp(32px,4.6vw,57px)/1.12 Georgia,"Times New Roman",serif;letter-spacing:-.05em;margin:14px 0 16px}
+.heading p{font-size:15px;color:#647a6b;line-height:1.75;margin:0}
+.chartGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.chartCard{border:1px solid #dde7de;background:#fff;border-radius:19px;padding:26px 22px 22px;display:flex;flex-direction:column;min-width:0}
+.chartCard h3{font:500 clamp(23px,2.5vw,31px)/1.23 Georgia,"Times New Roman",serif;letter-spacing:-.036em;margin:13px 0 9px}
+.chartCard header p{color:#718375;font-size:13px;line-height:1.65;min-height:64px;margin:0}
+.barList{margin-top:26px;display:grid;gap:24px}
+.barLabels{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.barLabels span{font-size:13px;line-height:1.45;color:#355f47;font-weight:650}
+.barLabels strong{white-space:nowrap;font:500 25px/1 Georgia,"Times New Roman",serif;color:#235740;font-variant-numeric:tabular-nums}
+.track{height:10px;border-radius:12px;background:#eaf0e9;overflow:hidden;margin:11px 0 7px}
+.bar{height:100%;border-radius:12px;background:linear-gradient(90deg,#31795d,#73ab8a)}
+.barItem small{font-size:11px;color:#819385}
+.chartNote{font-size:12px;line-height:1.65;color:#6c806f;border-top:1px solid #e5ece3;margin:27px 0 0;padding-top:16px;margin-top:auto}
+.indices{border-top:1px solid #dae5da;margin-top:50px;padding-top:36px}
+.miniHeading{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:21px}
+.miniHeading h3{font:500 26px Georgia,serif;letter-spacing:-.03em;margin:0}
+.miniHeading p{font-size:12px;color:#799081;margin:0}
+.indexGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.indexCard{background:#f1f5ef;border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:14px}
+.indexCard>span{font-size:13px;font-weight:750;color:#42644f}
+.indexCard>strong{font:500 37px Georgia,serif;color:#28543e;font-variant-numeric:tabular-nums}
+.indexCard>strong small{font:500 13px system-ui,sans-serif;color:#72917a}
+.indexCard>small{font-size:11px;color:#78937f}
+.indexTrack{height:5px;background:#d5e4d4;border-radius:10px;overflow:hidden}
+.indexTrack>div{height:100%;background:#568f6b;border-radius:10px}
+.methods{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.45fr);gap:clamp(22px,4vw,60px);margin-top:70px;padding:clamp(26px,4vw,52px);background:#eef2eb;border-radius:22px}
+.methodsIntro h3{font:500 clamp(27px,3.5vw,42px)/1.16 Georgia,serif;letter-spacing:-.04em;margin:14px 0}
+.methodsIntro p{font-size:14px;line-height:1.8;color:#637d6b}
+.methodsIntro a{display:inline-block;font-size:13px;color:#2c6245;font-weight:800;text-decoration:underline;text-underline-offset:4px;margin-top:12px}
+.funnel{background:#fff;border:1px solid #dce7d9;border-radius:16px;padding:23px;margin-bottom:16px}
+.funnel h4{font-size:14px;color:#31553b;margin:0 0 15px}
+.funnel dl{margin:0;display:grid}
+.funnel dl>div{display:flex;justify-content:space-between;gap:14px;align-items:baseline;padding:10px 0;border-bottom:1px solid #edf1eb}
+.funnel dt{font-size:12px;color:#5f7663;line-height:1.4}
+.funnel dd{font-size:17px;color:#224e36;font-weight:750;margin:0;font-variant-numeric:tabular-nums}
+.funnel p{font-size:12px;color:#627a69;line-height:1.65;margin:15px 0 0}
+.methodPoints{display:grid;gap:0}
+.methodPoints>div{padding:16px 0;border-bottom:1px solid #d8e3d7}
+.methodPoints>div:last-child{border-bottom:0}
+.methodPoints strong{font-size:14px;color:#2b543b}
+.methodPoints p{font-size:13px;line-height:1.75;color:#647a69;margin:7px 0 0}
+@media(max-width:1040px){.chartGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.chartCard:last-child{grid-column:1/-1}.chartCard header p{min-height:auto}.methods{grid-template-columns:1fr}}
+@media(max-width:650px){.shell{width:calc(100% - 18px);padding:55px 8px 60px}.chartGrid,.indexGrid{grid-template-columns:1fr}.chartCard:last-child{grid-column:auto}.chartCard{padding:22px}.chartCard header p{min-height:0}.methods{margin-top:45px;padding:24px 18px}.heading h2{font-size:36px}.indexCard>strong{font-size:34px}}
+@media(prefers-reduced-motion:reduce){.bar,.indexTrack>div{transition:none}}
