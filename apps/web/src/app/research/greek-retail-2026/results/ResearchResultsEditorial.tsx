@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PUBLIC_RESULTS_CHAPTERS, publicMetricLabel } from "../../../../lib/research-public-results-sections";
 import { GREECE_PREFECTURES } from "../../../../lib/research-prefectures";
@@ -170,7 +170,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
   </section>;
 }
 
-export function ResearchResultsEditorial({ points, geography }: { points: readonly SafePublicResultPoint[]; geography?: SafeParticipationGeography }) {
+export function ResearchResultsEditorial({ points, geography, children }: { points: readonly SafePublicResultPoint[]; geography?: SafeParticipationGeography; children?: ReactNode }) {
   const overall = points.filter(point => Object.keys(point.segment).length === 0);
   const find = (key: string) => overall.find(p => p.metricKey === key);
   const selected = HIGHLIGHT_GROUPS.map(group => ({
@@ -193,6 +193,7 @@ export function ResearchResultsEditorial({ points, geography }: { points: readon
       <nav className={styles.quickNav} aria-label="Περιεχόμενα αποτελεσμάτων">
         <a href="#results-highlights">Κύρια ευρήματα</a>
         <a href="#results-map">Χάρτης Ελλάδας</a>
+        <a href="#results-science">Ερμηνεία &amp; μεθοδολογία</a>
         <a href="#results-areas">Θεματικές ενότητες</a>
         <a href="#research-workbench">Αναλυτική εξερεύνηση</a>
         <Link href="/research/greek-retail-2026/methodology">Μεθοδολογία ↗</Link>
@@ -212,8 +213,9 @@ export function ResearchResultsEditorial({ points, geography }: { points: readon
       </div> : <p>Δεν υπάρχουν διαθέσιμες εγκεκριμένες συνολικές εκτιμήσεις.</p>}
     </section>
     <EditorialMap points={points} geography={geography} />
+    {children}
     <section id="results-areas" className={styles.areas} aria-labelledby="results-areas-title">
-      <div className={styles.sectionHeading}><div><span className={styles.eyebrow}>03 / Η ΠΛΗΡΗΣ ΕΙΚΟΝΑ</span>
+      <div className={styles.sectionHeading}><div><span className={styles.eyebrow}>04 / Η ΠΛΗΡΗΣ ΕΙΚΟΝΑ</span>
         <h2 id="results-areas-title">Έξι περιοχές. Μία ενιαία ιστορία.</h2>
         <p>Διαβάστε τις βασικές θεματικές και συνεχίστε στα διαγράμματα για αναλυτικές συγκρίσεις.</p></div></div>
       <nav className={styles.chapterNav} aria-label="Μετάβαση σε θεματική ενότητα">
