@@ -2337,6 +2337,50 @@ async function transitionResearchStudyInternal(
  * One bounded study and small-count query, without scanning contact points or
  * the 250k+ population frame. All values shown here come from live SQL.
  */
+/**
+ * Lifecycle is a control surface, not an analytics dashboard. Read only the
+ * selected study and its latest instrument, locked plan and release snapshot.
+ * Never aggregate frame, invitation, contact or response tables on navigation.
+ */
+export async function researchSurveyAdminLifecycleOverview(principal: SessionPrincipal, slug: string) {
+  assertAdminPermission(principal, "research.read");
+  if (!productionDatabaseConfigured()) return undefined;
+  const result = await getAdminResearchOverviewPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT s.slug, s.title, s.status,
+      instrument.status AS instrument_status,
+      plan.version AS analysis_plan_version,
+      plan.status AS analysis_plan_status,
+      release.release_version AS latest_release_version,
+      release.published_at AS latest_release_published_at
+    FROM research_studies s
+    LEFT JOIN LATERAL (
+      SELECT id, status FROM research_instruments
+      WHERE study_id=s.id ORDER BY created_at DESC LIMIT 1
+    ) instrument ON true
+    LEFT JOIN LATERAL (
+      SELECT version, status FROM research_analysis_plans
+      WHERE study_id=s.id AND instrument_id=instrument.id
+      ORDER BY created_at DESC LIMIT 1
+    ) plan ON true
+    LEFT JOIN LATERAL (
+      SELECT release_version, published_at FROM research_release_snapshots
+      WHERE study_id=s.id ORDER BY created_at DESC LIMIT 1
+    ) release ON true
+    WHERE s.slug=$1 LIMIT 1
+  `, [slug]);
+  const row = result.rows[0];
+  return row ? {
+    slug: text(row.slug),
+    title: text(row.title),
+    status: text(row.status),
+    instrumentStatus: optionalText(row.instrument_status),
+    analysisPlanVersion: optionalText(row.analysis_plan_version),
+    analysisPlanStatus: optionalText(row.analysis_plan_status),
+    latestReleaseVersion: optionalText(row.latest_release_version),
+    latestReleasePublishedAt: optionalText(row.latest_release_published_at)
+  } : undefined;
+}
+
 export async function researchSurveyAdminFastOverview(principal: SessionPrincipal, slug: string) {
   assertAdminPermission(principal, "research.read");
   if (!productionDatabaseConfigured()) {
