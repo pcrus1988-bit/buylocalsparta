@@ -950,6 +950,8 @@ export async function researchReleaseArtifactIntegrity(
   storedSha256: string;
   computedSha256: string;
   integrityOk: boolean;
+  /** Private canonical bytes for independently verified archival; never expose before release. */
+  canonicalJson: string;
 }> | undefined> {
   const releaseResult = await executor.query<SqlRow>(`
     SELECT
@@ -1007,11 +1009,13 @@ export async function researchReleaseArtifactIntegrity(
     estimates
   };
   const storedSha256 = text(release.artifact_sha256);
-  const computedSha256 = sha256Canonical(artifact);
+  const canonicalJson = canonical(artifact);
+  const computedSha256 = createHash("sha256").update(canonicalJson, "utf8").digest("hex");
   return {
     storedSha256,
     computedSha256,
-    integrityOk: Boolean(storedSha256) && storedSha256 === computedSha256
+    integrityOk: Boolean(storedSha256) && storedSha256 === computedSha256,
+    canonicalJson
   };
 }
 
