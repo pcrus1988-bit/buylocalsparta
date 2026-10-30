@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { PUBLIC_RESULTS_CHAPTERS } from "../../../../lib/research-public-results-sections";
+import { RESULTS_EXPLORER_VIEWS, readResultsExplorerHash, resultsExplorerAnchor, type ResultsExplorerView } from "./ResultsExplorerViews";
 import styles from "./ResultsNavigation.module.css";
 
 const sections = [
@@ -16,6 +17,8 @@ export function ResultsNavigation() {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState("results-map");
   const [selectedChapter, setSelectedChapter] = useState<string | null>(null);
+  const [selectedView, setSelectedView] = useState<ResultsExplorerView>("chapters");
+  const [chaptersExpanded, setChaptersExpanded] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
 
@@ -28,6 +31,20 @@ export function ResultsNavigation() {
     }, { rootMargin: "-12% 0px -58% 0px", threshold: 0 });
     nodes.forEach(node => observer.observe(node));
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const initialView = readResultsExplorerHash(window.location.hash);
+    if (initialView) {
+      setSelectedView(initialView);
+      setCurrent("research-workbench");
+    }
+    const updateView = (event: Event) => {
+      const view = (event as CustomEvent<ResultsExplorerView>).detail;
+      if (RESULTS_EXPLORER_VIEWS.some(item => item.id === view)) setSelectedView(view);
+    };
+    window.addEventListener("research:workbench-tab-changed", updateView);
+    return () => window.removeEventListener("research:workbench-tab-changed", updateView);
   }, []);
 
   useEffect(() => {
@@ -64,9 +81,13 @@ export function ResultsNavigation() {
     toggleRef.current?.focus();
   };
 
-  const go = (section: string, chapter?: string) => {
+  const go = (section: string, chapter?: string, view?: ResultsExplorerView) => {
     setCurrent(section);
     setOpen(false);
+    if (view) {
+      setSelectedView(view);
+      window.dispatchEvent(new CustomEvent("research:select-workbench-tab", { detail: view }));
+    }
     if (chapter) {
       setSelectedChapter(chapter);
       window.dispatchEvent(new CustomEvent("research:select-chapter", { detail: chapter }));
@@ -88,20 +109,36 @@ export function ResultsNavigation() {
       </div>
       <span className={styles.groupLabel}>ΠΕΡΙΕΧΟΜΕΝΑ</span>
       <nav className={styles.nav} aria-label="Ενότητες σελίδας αποτελεσμάτων">
-        {sections.slice(0, 3).map(section => <a key={section.id} href={`#${section.id}`}
+        {sections.slice(0, 2).map(section => <a key={section.id} href={`#${section.id}`}
           aria-current={current === section.id ? "location" : undefined}
           className={current === section.id ? styles.active : styles.navLink}
           onClick={() => go(section.id)}>
           <span className={styles.navNumber}>{section.number}</span>{section.title}
         </a>)}
-        <span className={styles.subLabel}>6 ΘΕΜΑΤΙΚΕΣ · ΕΞΕΡΕΥΝΗΣΗ</span>
-        <div className={styles.chapters}>
-          {PUBLIC_RESULTS_CHAPTERS.map(chapter => <a key={chapter.id} href="#research-workbench"
-            className={selectedChapter === chapter.id ? styles.chapterSelected : undefined}
-            aria-current={selectedChapter === chapter.id ? "location" : undefined}
-            onClick={() => go("research-workbench", chapter.id)}>
-            <span>{chapter.number}</span>{chapter.name}
-          </a>)}
+        <span className={styles.subLabel}>03 · ΔΙΑΔΡΑΣΤΙΚΗ ΕΞΕΡΕΥΝΗΣΗ</span>
+        <div className={styles.explorerLinks}>
+          {RESULTS_EXPLORER_VIEWS.map(view => <div key={view.id} className={styles.explorerEntry}>
+            <a href={`#${resultsExplorerAnchor(view.id)}`}
+              aria-current={current === "research-workbench" && selectedView === view.id ? "location" : undefined}
+              className={current === "research-workbench" && selectedView === view.id ? styles.explorerActive : styles.explorerLink}
+              onClick={() => go("research-workbench", undefined, view.id)}>
+              <span className={styles.explorerNumber}>{view.number}</span>{view.nav}
+            </a>
+            {view.id === "chapters" && <>
+              <button type="button" className={styles.chapterToggle} aria-expanded={chaptersExpanded}
+                aria-controls="research-results-chapters" onClick={() => setChaptersExpanded(value => !value)}>
+                6 θεματικές ενότητες <span aria-hidden="true">{chaptersExpanded ? "−" : "+"}</span>
+              </button>
+              {chaptersExpanded && <div id="research-results-chapters" className={styles.chapters}>
+                {PUBLIC_RESULTS_CHAPTERS.map(chapter => <a key={chapter.id} href={`#${resultsExplorerAnchor("chapters")}`}
+                  className={selectedChapter === chapter.id ? styles.chapterSelected : undefined}
+                  aria-current={selectedChapter === chapter.id ? "location" : undefined}
+                  onClick={() => go("research-workbench", chapter.id, "chapters")}>
+                  <span>{chapter.number}</span>{chapter.name}
+                </a>)}
+              </div>}
+            </>}
+          </div>)}
         </div>
         <a href="#results-data-request" className={current === "results-data-request" ? styles.active : styles.navLink}
           onClick={() => go("results-data-request")}>
@@ -111,7 +148,7 @@ export function ResultsNavigation() {
       <div className={styles.divider} />
       <span className={styles.groupLabel}>ΣΧΕΤΙΚΕΣ ΣΕΛΙΔΕΣ</span>
       <nav className={styles.nav} aria-label="Σχετικές σελίδες έρευνας">
-        <Link href="/research/greek-retail-2026/results/voices" onClick={() => setOpen(false)} className={styles.related}>Η φωνή της Ελλάδας <span aria-hidden="true">↗</span></Link>
+        <Link href="/research/greek-retail-2026/results/voices" onClick={() => setOpen(false)} className={styles.related}>Η φωνή της Ελλάδας · πλήρης σελίδα <span aria-hidden="true">↗</span></Link>
         <Link href="/research/greek-retail-2026/methodology" onClick={() => setOpen(false)} className={styles.related}>Πλήρης μεθοδολογία <span aria-hidden="true">↗</span></Link>
         <Link href="/research/greek-retail-2026" onClick={() => setOpen(false)} className={styles.related}>Επισκόπηση μελέτης <span aria-hidden="true">↗</span></Link>
       </nav>
