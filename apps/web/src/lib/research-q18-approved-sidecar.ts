@@ -14,7 +14,7 @@ const BUCKET="greek-retail-2026-backups";
 const APPROVAL_AT="2026-10-30T16:55:00.000Z";
 const MAX_ANSWERS=2000;
 const MAX_BYTES=1_500_000;
-const objectKey=(sha:string)=>`research/voices/${sha}/approved-v1.json`;
+const objectKey=(sha:string)=>`research/voices/${sha}/approved-v2.json`;
 const sha256=(bytes:Uint8Array)=>createHash("sha256").update(bytes).digest("hex");
 const STORAGE_SHA=/^[a-f0-9]{64}$/;
 
@@ -106,22 +106,31 @@ export async function archiveApprovedGreekRetailQ18(){
     return text?[{text,tags:categorizeResearchFreeText(text)}]:[];
   });
   // Categories are multi-label: counts match actually displayed quotes.
-  const categories=[...RESEARCH_FREE_TEXT_CATEGORIES,RESEARCH_FREE_TEXT_OTHER].map(item=>({
+  // Themes with fewer than 30 safe answers remain undisclosed as themes.
+  // Their approved, deidentified quotes can still appear in the sufficiently
+  // populated "other" category, so censoring never turns into silent deletion.
+  const primary=[...RESEARCH_FREE_TEXT_CATEGORIES].map(item=>({
     key:item.key,label:item.label,count:candidates.filter(c=>c.tags.includes(item.key)).length
   })).filter(c=>c.count>=30);
-  const allowed=new Set(categories.map(c=>c.key));
-  const quotes=candidates.flatMap((candidate,i)=>
-    candidate.tags.filter(category=>allowed.has(category)).map(category=>({
+  const allowed=new Set<string>(primary.map(c=>c.key));
+  const quotes=candidates.flatMap((candidate,i)=>{
+    const largeThemes=candidate.tags.filter(category=>allowed.has(category));
+    const visibleThemes=largeThemes.length?largeThemes:["other"];
+    return visibleThemes.map(category=>({
       id:`approved-q18-${i+1}-${category}`,category,text:candidate.text,
       publicApproved:true,deidentified:true
-    }))
-  );
+    }));
+  });
+  const categories=[...RESEARCH_FREE_TEXT_CATEGORIES,RESEARCH_FREE_TEXT_OTHER].map(item=>({
+    key:item.key,label:item.label,count:quotes.filter(quote=>quote.category===item.key).length
+  })).filter(c=>c.count>=30);
+  if(quotes.some(q=>/λα[ίι]λαπα/iu.test(q.text)))throw Error("RESEARCH_Q18_UNREDACTED_PHRASE");
   if(!quotes.length||!categories.length)throw Error("RESEARCH_Q18_NO_SAFE_QUOTES");
   const projection={
     schema:"kontamou.research.q18-public-voices.v1",
     reviewStatus:"approved",privacyReviewed:true,geographySuppressed:true,
     approvedAt:APPROVAL_AT,releaseArtifactSha256:release.artifact_sha256,
-    taxonomyVersion:"q18-themes-v2.2026-10-24",categories,quotes,geography:[]
+    taxonomyVersion:"q18-themes-v2.2026-10-24",displayPolicyVersion:"n30-other-fallback-v2",categories,quotes,geography:[]
   };
   const body=Buffer.from(JSON.stringify(projection),"utf8");
   if(!publicVoiceDataFromRelease(projection))throw Error("RESEARCH_Q18_PROJECTION_INVALID");
