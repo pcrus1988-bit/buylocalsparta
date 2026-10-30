@@ -72,3 +72,17 @@
 @media(max-width:1050px){.highlightGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.mapLayout{grid-template-columns:1fr}.mapNarrative{padding:12px 0}.layerControls{grid-template-columns:repeat(2,minmax(0,1fr))}.mapVisual{max-width:780px;width:100%;box-sizing:border-box;margin-inline:auto}}
 @media(max-width:640px){.hero,.highlights,.mapSection,.areas,.readingNote{width:calc(100% - 18px)}.hero{padding:38px 22px 0;border-radius:0 0 20px 20px}.heroKicker{margin-top:60px}.hero h1{font-size:clamp(38px,11.2vw,64px)}.heroIntro{font-size:15px}.quickNav{margin-top:38px;gap:0 16px}.quickNav a{font-size:11px;min-height:45px}.highlights{padding-top:55px;padding-bottom:64px}.sectionHeading{display:block}.sectionHeading h2{font-size:33px}.highlightGrid,.areaGrid{grid-template-columns:1fr}.highlightCard{min-height:168px}.highlightCard>strong{font-size:52px;margin:14px 0}.mapSection{padding:30px 17px;border-radius:17px}.mapLayout{gap:20px}.layerControls{grid-template-columns:1fr}.mapVisual{padding:8px;border-radius:14px}.mapBottom{align-items:start;padding:12px 5px}.mapBottom label{width:100%}.mapBottom select{width:100%;max-width:100%}.mapDetail{text-align:left}.areas{padding-top:65px;padding-bottom:40px}.readingNote{padding:25px;margin-bottom:30px}.areaCard h3{margin-top:20px}}
 @media(prefers-reduced-motion:reduce){.county,.countySelected,.layerButton,.layerActive,.quickNav a{transition:none!important}}
+
+
+/* Calm, publication-safe waiting state until the release gate opens. */
+.pending{width:min(100% - 36px,1240px);margin:0 auto 60px;box-sizing:border-box;border-radius:0 0 28px 28px;padding:clamp(52px,8vw,110px) clamp(26px,6vw,86px) 56px;background:#f3f5ef;color:#183d2f}
+.pending h1{font:500 clamp(44px,6.5vw,90px)/1.08 Georgia,"Times New Roman",serif;letter-spacing:-.065em;margin:38px 0 22px}
+.pending h1 em{font-weight:400;color:#6a9274}
+.pending>p{max-width:720px;color:#647968;line-height:1.75;font-size:clamp(15px,1.8vw,19px)}
+.pendingStatus{display:inline-block;color:#315c42;border-radius:30px;background:#dfe9dc;padding:12px 17px;font-size:12px;font-weight:800;margin:17px 0 30px}
+.pendingDates{border-top:1px solid #ccdcca;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding-top:28px}
+.pendingDates>div{display:grid;gap:10px}.pendingDates small{color:#75907b;font-size:10px;letter-spacing:.12em;font-weight:800}
+.pendingDates strong{font:500 clamp(23px,3vw,37px) Georgia,serif}.pendingDates span{font-size:12px;color:#6f8675}
+.pendingLinks{display:flex;flex-wrap:wrap;gap:22px;margin-top:38px}
+.pendingLinks a{color:#315e46;text-decoration:none;font-size:13px;font-weight:800}.pendingLinks a:hover{text-decoration:underline}
+@media(max-width:640px){.pending{width:calc(100% - 18px);padding:46px 23px;margin-bottom:28px}.pending h1{font-size:47px}.pendingDates{grid-template-columns:1fr;gap:28px}}
