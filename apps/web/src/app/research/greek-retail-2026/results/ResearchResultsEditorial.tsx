@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PUBLIC_RESULTS_CHAPTERS, publicMetricLabel } from "../../../../lib/research-public-results-sections";
 import { GREECE_PREFECTURES } from "../../../../lib/research-prefectures";
@@ -45,7 +45,9 @@ function heat(value: number | undefined, min: number, max: number): string {
   return "rgb(" + low.map((v, i) => Math.round(v + (high[i]! - v) * strength)).join(",") + ")";
 }
 
-function EditorialMap({ points, geography, countyAvailability=[] }: { points: readonly SafePublicResultPoint[]; geography?: SafeParticipationGeography; countyAvailability?: readonly SafeCountyAvailability[] }) {
+const CountyAvailabilityContext = createContext<readonly SafeCountyAvailability[]>([]);
+function EditorialMap({ points, geography }: { points: readonly SafePublicResultPoint[]; geography?: SafeParticipationGeography }) {
+  const countyAvailability=useContext(CountyAvailabilityContext);
   const [geo, setGeo] = useState<Geography | null>(null);
   const [failed, setFailed] = useState(false);
   const [active, setActive] = useState(0);
@@ -194,7 +196,7 @@ export function ResearchResultsEditorial({ points, geography, countyAvailability
   }));
   const lead = HEADLINES.map(item => ({ ...item, point: find(item.key) }))
     .find((item): item is typeof item & { point: SafePublicResultPoint } => Boolean(item.point && item.point.format === "proportion"));
-  return <>
+  return <CountyAvailabilityContext.Provider value={countyAvailability??[]}>
     <header id="results-top" className={styles.hero}>
       <div className={styles.heroTop}><span className={styles.eyebrow}>KONTA MOY / ΕΛΛΗΝΙΚΟ ΛΙΑΝΕΜΠΟΡΙΟ 2026</span>
         <span className={styles.releaseLabel}>ΔΗΜΟΣΙΕΥΜΕΝΗ ΕΡΕΥΝΑ</span></div>
@@ -224,7 +226,7 @@ export function ResearchResultsEditorial({ points, geography, countyAvailability
         </article>)}
       </div> : <p>Δεν υπάρχουν διαθέσιμες εγκεκριμένες συνολικές εκτιμήσεις.</p>}
     </section>
-    <EditorialMap points={points} geography={geography} countyAvailability={countyAvailability} />
+    <EditorialMap points={points} geography={geography} />
     {children}
     <section id="results-areas" className={styles.areas} aria-labelledby="results-areas-title">
       <div className={styles.sectionHeading}><div><span className={styles.eyebrow}>04 / Η ΠΛΗΡΗΣ ΕΙΚΟΝΑ</span>
@@ -256,5 +258,5 @@ export function ResearchResultsEditorial({ points, geography, countyAvailability
       <p>Το n είναι οι απαντήσεις που χρησιμοποιήθηκαν για κάθε εκτίμηση. Όπου υπάρχει, το διάστημα εμπιστοσύνης εκφράζει την αβεβαιότητα της εκτίμησης. Οι περιγραφικές διαφορές δεν αποδεικνύουν αιτιότητα ή στατιστική σημαντικότητα, και μικρές γεωγραφικές βάσεις απαιτούν προσοχή.</p>
       <Link href="/research/greek-retail-2026/methodology">Πλήρης μεθοδολογία και περιορισμοί ↗</Link>
     </section>
-  </>;
+  </CountyAvailabilityContext.Provider>;
 }
