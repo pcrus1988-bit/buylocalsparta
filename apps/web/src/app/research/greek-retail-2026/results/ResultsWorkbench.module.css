@@ -257,3 +257,13 @@
 
 /* At tablet/phone widths keep the map readable instead of squeezing it beside the county list. */
 @media(max-width:1000px){.mapNationalOverview{grid-template-columns:minmax(0,1fr)}.nationalHeadline .mapSvg{min-height:300px}}
+
+
+/* Compact explorer navigation; chapter content remains available without hiding data. */
+.shell{width:min(100% - 36px,1240px);box-sizing:border-box;box-shadow:none}
+.menu{display:flex;align-items:stretch;overflow-x:auto;scrollbar-width:thin;gap:6px;padding:6px;border-radius:15px}
+.menuButton,.menuActive{flex:1 0 165px;padding:12px;border-radius:10px;gap:8px}
+.menuButton>b,.menuActive>b{font-size:13px}
+.menuButton strong,.menuActive strong{font-size:12px}
+.menuButton small,.menuActive small{font-size:9px}
+@media(max-width:640px){.shell{width:calc(100% - 18px)}.menu{display:flex;grid-template-columns:none}.menuButton,.menuActive{flex:0 0 auto;min-width:150px;padding:11px}.menuButton small,.menuActive small{display:none}}
