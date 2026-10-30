@@ -36,7 +36,8 @@ function safePublicText(id:number,raw:string):string|null {
 async function fetchObject(sha:string):Promise<string|undefined>{
   if(!STORAGE_SHA.test(sha))return undefined;
   const storage=serverObjectStorageFromEnv({defaultBucket:BUCKET});
-  if(!await storage.head(objectKey(sha)))return undefined;
+  const present=await storage.head(objectKey(sha)).catch(error => { if(error instanceof Error && error.message.includes("HTTP 400"))return undefined; throw error; });
+  if(!present)return undefined;
   const result=await storage.read(objectKey(sha));
   if(result.contentType?.split(";")[0].trim()!=="application/json")throw Error("RESEARCH_Q18_OBJECT_CONTENT_TYPE");
   const chunks:Uint8Array[]=[];
