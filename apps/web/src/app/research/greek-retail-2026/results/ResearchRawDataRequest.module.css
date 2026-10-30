@@ -1,0 +1,31 @@
+.section{max-width:1220px;margin:40px auto 58px;padding:36px;display:grid;grid-template-columns:minmax(0,1.06fr) minmax(320px,.94fr);gap:36px;align-items:center;border:1px solid rgba(29,66,43,.13);border-radius:28px;background:linear-gradient(120deg,#f0f4e9,#faf9f3 58%,#e6ecdf);box-shadow:0 16px 44px rgba(23,58,36,.07)}
+.eyebrow{display:inline-block;font-size:11px;letter-spacing:.13em;font-weight:850;color:#5f785d}
+.intro h2{max-width:590px;font:500 clamp(30px,3.2vw,46px)/1.12 Georgia,"Times New Roman",serif;letter-spacing:-.035em;color:#193a2c;margin:16px 0 20px}
+.intro p{color:#43584a;font-size:15px;line-height:1.8;max-width:590px}
+.intro strong{color:#1d4933}
+.process{display:flex;gap:9px;flex-wrap:wrap;margin:23px 0}
+.process span{border:1px solid #d2dfd0;background:#fff9;border-radius:999px;padding:9px 12px;color:#31523d;font-size:11px;font-weight:800}
+.intro .small{font-size:12px;color:#627267;line-height:1.65}
+.formCard{background:#fff;border:1px solid #e2e9dc;padding:27px;border-radius:22px;box-shadow:0 12px 36px rgba(24,55,36,.09)}
+.formCard h3{margin:0 0 8px;font:500 26px/1.2 Georgia,"Times New Roman",serif;color:#193e2a}
+.formCard>p{font-size:13px;color:#6c7b70;line-height:1.6;margin:0 0 22px}
+.form{display:flex;flex-direction:column;gap:10px;position:relative}
+.form>label:not(.agreement){font-size:13px;font-weight:800;color:#314d3a;margin-top:8px}
+.form>label span[aria-hidden]{color:#a25c3f}
+.form input[type=email],.form textarea{width:100%;box-sizing:border-box;background:#fbfcf8;color:#1f382a;border:1px solid #cbd9cc;border-radius:11px;font:inherit;font-size:14px;padding:13px 14px;outline-offset:3px}
+.form input:focus-visible,.form textarea:focus-visible{outline:2px solid #406b4d}
+.form textarea{resize:vertical;min-height:145px}
+.agreement{display:flex;align-items:flex-start;gap:10px;margin:8px 0 3px;color:#495c4f;font-size:12px;line-height:1.6}
+.agreement input{accent-color:#28593d;margin-top:4px;flex-shrink:0}
+.agreement a{color:#1b6542;text-decoration:underline}
+.submit{min-height:49px;background:#1d5136;color:#fff;border:0;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;transition:background .16s}
+.submit:hover:not(:disabled){background:#113924}
+.submit:disabled{opacity:.6;cursor:wait}
+.form small{font-size:11px;color:#677b6b;line-height:1.6}
+.error{border-radius:10px;padding:11px 13px;background:#fff0ed;color:#9b352b;font-size:12px;margin:0}
+.success{border-radius:15px;padding:20px;background:#edf6ed;border:1px solid #bdd8c4;display:flex;flex-direction:column;gap:12px;color:#215336;line-height:1.6}
+.success strong{font-size:16px}.success span{font-size:13px}
+.success button{align-self:flex-start;border:1px solid #adcab3;border-radius:9px;background:white;padding:8px 13px;color:#235037;cursor:pointer;font-weight:700}
+.honeypot{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+@media(max-width:860px){.section{grid-template-columns:1fr;gap:22px;margin:24px 12px 36px;padding:23px}.formCard{padding:23px}}
+@media(max-width:480px){.section{padding:17px}.formCard{padding:18px}.intro h2{font-size:30px}.process{flex-direction:column;align-items:flex-start}}
