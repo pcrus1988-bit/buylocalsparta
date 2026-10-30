@@ -120,3 +120,4 @@ export async function archiveApprovedGreekRetailQ18(){
     approvedAt:APPROVAL_AT,releaseArtifactSha256:release.artifact_sha256,
     taxonomyVersion:"q18-themes-v2.2026-10-24",categories,quotes,geography:[]
   };
+  const body=Buffer.from(JSON.stringify(projection),"utf8");
