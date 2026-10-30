@@ -398,7 +398,7 @@ export async function runGreekRetailAnalysis(
     CALIBRATION_DIMENSIONS.every((dimension) => planCalibrationDimensions.includes(dimension))
   );
   if (
-    planMinimumBase !== PRESPECIFIED_PUBLIC_BASE ||
+    planMinimumBase !== MIN_PUBLIC_BASE ||
     planConfidenceLevel !== 0.95 ||
     planVarianceMethod !== VARIANCE_METHOD ||
     planNonresponseAdjustment !== "within_sampling_stratum" ||
