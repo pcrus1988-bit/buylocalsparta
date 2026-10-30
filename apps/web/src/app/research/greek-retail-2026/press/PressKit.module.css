@@ -67,7 +67,7 @@
 @media(max-width:1000px){.hero{grid-template-columns:1fr 43%;min-height:510px}.heroText{padding:35px}.cover{padding:30px}.numbers{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:740px){.container{padding:10px 14px 42px}.kicker{margin-top:18px}.hero{grid-template-columns:1fr}.heroText{padding:35px 24px}.hero h1{font-size:clamp(44px,9vw,62px)}.cover{min-height:330px}.cover strong{font-size:clamp(32px,7vw,45px)}.section{padding:55px 0 30px}.sectionHeading{grid-template-columns:1fr;gap:12px}.numbers{grid-template-columns:1fr 1fr}.storyGrid{grid-template-columns:1fr}.aboutSection{grid-template-columns:1fr;gap:14px}.downloadItem{grid-template-columns:36px minmax(0,1fr);gap:12px}.downloadItem a,.disabledLink{grid-column:2;justify-self:start;text-align:left}}
 @media(max-width:480px){.numbers{grid-template-columns:1fr}.numberCard{min-height:unset}.inPageNav{gap:15px}.inPageNav a{font-size:12px}.cover{min-height:295px}.contact{padding:44px 20px}.downloadItem h3{font-size:18px}}
-@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+@media(prefers-reduced-motion:reduce){.shell{scroll-behavior:auto!important}}
 
 .graphicLink{margin-top:10px!important;color:#2c6d47;text-decoration:none;font-size:11px;font-weight:800;align-self:start}
 .graphicLink:hover,.graphicLink:focus-visible{text-decoration:underline}
