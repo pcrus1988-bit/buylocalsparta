@@ -10,10 +10,11 @@ import { ResearchVoiceOfGreece } from "./ResearchVoiceOfGreece";
 import type { PublicVoiceData } from "../../../../lib/research-public-voices-data";
 import { GREECE_PREFECTURES } from "../../../../lib/research-prefectures";
 import { researchSectorLabel, sortResearchSectors } from "../../../../lib/research-sector-labels";
+import { RESULTS_EXPLORER_VIEWS, readResultsExplorerHash, resultsExplorerAnchor, type ResultsExplorerView } from "./ResultsExplorerViews";
 import styles from "./ResultsWorkbench.module.css";
 
 type GroupBy="overall"|"sectorCode"|"sizeBand"|"prefectureCode";
-type Menu="chapters"|"graphs"|"map"|"county"|"voices";
+type Menu=ResultsExplorerView;
 type SortMode="high"|"low"|"label";
 const options:ReadonlyArray<Readonly<{id:GroupBy;title:string}>>=[
  {id:"overall",title:"Σύνολο Ελλάδας"},
@@ -66,6 +67,27 @@ export function ResearchResultsWorkbench({
   window.addEventListener("research:select-chapter",select);
   return ()=>window.removeEventListener("research:select-chapter",select);
  },[]);
+
+ useEffect(()=>{
+  const readHash=()=>{
+   const view=readResultsExplorerHash(window.location.hash);
+   if(view&&(!restrictedViewer||view!=="voices"))setMenu(view);
+  };
+  const selectView=(event:Event)=>{
+   const id=(event as CustomEvent<string>).detail;
+   if(RESULTS_EXPLORER_VIEWS.some(tab=>tab.id===id)&&(!restrictedViewer||id!=="voices"))setMenu(id as Menu);
+  };
+  readHash();
+  window.addEventListener("hashchange",readHash);
+  window.addEventListener("research:select-workbench-tab",selectView);
+  return ()=>{
+   window.removeEventListener("hashchange",readHash);
+   window.removeEventListener("research:select-workbench-tab",selectView);
+  };
+ },[restrictedViewer]);
+ useEffect(()=>{
+  window.dispatchEvent(new CustomEvent("research:workbench-tab-changed",{detail:menu}));
+ },[menu]);
 
  const [subId,setSubId]=useState(PUBLIC_RESULTS_CHAPTERS[0]!.subchapters[0]!.id);
  const [group,setGroup]=useState<GroupBy>("overall");
@@ -152,6 +174,7 @@ export function ResearchResultsWorkbench({
   const a=document.createElement("a");a.href=url;a.download=demo?"research-demo-graph.csv":mode==="live"?"greek-retail-2026-live-preview.csv":"greek-retail-2026-approved-graph.csv";a.click();URL.revokeObjectURL(url);
  };
  return <section id="research-workbench" className={styles.shell}>
+  {RESULTS_EXPLORER_VIEWS.map(view=><span key={view.id} id={resultsExplorerAnchor(view.id)} className={styles.anchor} aria-hidden="true"/>)}
   <header className={styles.heading}>
    <div><span className={styles.eyebrow}>KONTA MOY RESEARCH · INTERACTIVE EXPLORER</span>
     <h2>{mode==="published" ? "Έξι περιοχές. Μία ενιαία ιστορία." : "Εξερευνήστε την έρευνα σε βάθος."}</h2>
@@ -160,15 +183,14 @@ export function ResearchResultsWorkbench({
    <span className={demo?styles.demoFlag:styles.dataFlag}>{demo?"DEMO · ΕΝΔΕΙΚΤΙΚΑ":mode==="live"?"LIVE · ΠΡΟΚΑΤΑΡΚΤΙΚΑ":mode==="published"?"ΕΓΚΕΚΡΙΜΕΝΗ ΕΚΔΟΣΗ":"ΑΝΑΜΟΝΗ ΑΠΟΤΕΛΕΣΜΑΤΩΝ"}</span>
   </header>
   <nav className={styles.menu} aria-label="Μενού αποτελεσμάτων">
-   {([{id:"chapters",name:"Ερευνητικές ενότητες",icon:"01",detail:"6 κεφάλαια · 18 υποενότητες"},
-      {id:"graphs",name:"Graph Explorer",icon:"02",detail:"Γραφήματα & πίνακες"},
-      {id:"map",name:"Heatmap Ελλάδας",icon:"03",detail:"Διαδραστικός χάρτης"},
-      {id:"county",name:"Νομός",icon:"04",detail:"Επιστημονική αναφορά ανά νομό"},
-      {id:"voices",name:"Η φωνή της Ελλάδας",icon:"05",detail:"Q18 · Θεματικές & μαρτυρίες"}] as const).filter(tab=>!restrictedViewer || tab.id!=="voices").map(tab=>
+   {RESULTS_EXPLORER_VIEWS.filter(tab=>!restrictedViewer || tab.id!=="voices").map(tab=>
     <button key={tab.id} type="button" aria-current={menu===tab.id?"page":undefined}
-     aria-pressed={menu===tab.id} onClick={()=>setMenu(tab.id)}
+     aria-pressed={menu===tab.id} onClick={()=>{
+      setMenu(tab.id);
+      window.history.replaceState(null,"",`#${resultsExplorerAnchor(tab.id)}`);
+     }}
      className={menu===tab.id?styles.menuActive:styles.menuButton}>
-      <b>{tab.icon}</b><span><strong>{tab.name}</strong><small>{tab.detail}</small></span>
+      <b>{tab.number}</b><span><strong>{tab.name}</strong><small>{tab.detail}</small></span>
     </button>)}
   </nav>
   {mode==="live"&&<div className={styles.warning} role="note">

@@ -41,3 +41,17 @@
   .close{width:44px;height:44px;flex:0 0 44px}
 }
 @media(max-width:480px){.mobileToggle{top:114px}}
+
+/* Explorer modes are first-class destinations; chapters stay discoverable without a long mobile drawer. */
+.explorerLinks{display:grid;gap:3px;margin:0 0 8px 9px;padding-left:10px;border-left:1px solid #dce6d9}
+.explorerEntry{min-width:0}
+.explorerLink,.explorerActive{display:flex;align-items:center;gap:10px;padding:11px 10px;border-radius:10px;text-decoration:none;color:#4c6a54;font-size:13px;font-weight:700;line-height:1.45;min-height:44px;box-sizing:border-box}
+.explorerActive{background:#e6efe3;color:#1b5938;font-weight:800}
+.explorerLink:hover,.explorerLink:focus-visible{background:#f0f5ee;color:#174b2d}
+.explorerNumber{font:500 13px Georgia,serif;opacity:.72;flex:0 0 26px}
+.chapterToggle{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 35px);margin:0 0 7px 35px;padding:7px 10px;background:transparent;border:1px solid transparent;border-radius:8px;color:#617b65;font-size:11px;font-weight:700;line-height:1.5;text-align:left;cursor:pointer}
+.chapterToggle:hover,.chapterToggle:focus-visible{background:#f0f5ee;color:#174b2d}
+.chapterToggle span{font-size:16px}
+.explorerEntry .chapters{margin:0 0 8px 35px;padding:0 0 0 8px}
+.explorerEntry .chapters a{min-height:38px;font-size:12px}
+.explorerLink:focus-visible,.explorerActive:focus-visible,.chapterToggle:focus-visible{outline:3px solid #245d3c;outline-offset:3px}
