@@ -36,7 +36,7 @@ function safePublicText(id:number,raw:string):string|null {
 async function fetchObject(sha:string):Promise<string|undefined>{
   if(!STORAGE_SHA.test(sha))return undefined;
   const storage=serverObjectStorageFromEnv({defaultBucket:BUCKET});
-  const present=await storage.head(objectKey(sha)).catch(error => { if(error instanceof Error && error.message.includes("HTTP 400"))return undefined; throw error; });
+  const present=await storage.head(objectKey(sha)).catch(error => { if(error instanceof Error && (error.message.includes("HTTP 400") || error.message.includes("HTTP 404")))return undefined; throw error; });
   if(!present)return undefined;
   const result=await storage.read(objectKey(sha));
   if(result.contentType?.split(";")[0].trim()!=="application/json")throw Error("RESEARCH_Q18_OBJECT_CONTENT_TYPE");
@@ -79,7 +79,7 @@ export async function archiveApprovedGreekRetailQ18(){
     const parsed=JSON.parse(existing) as Record<string,unknown>;
     if(parsed.releaseArtifactSha256!==release.artifact_sha256 ||
        !publicVoiceDataFromRelease(parsed))throw Error("RESEARCH_Q18_EXISTING_INVALID");
-    return {state:"already_verified",releaseSnapshotId:release.id};
+    return {state:"already_verified",releaseSnapshotId:release.id,sha256:sha256(Buffer.from(existing,"utf8"))};
   }
   const results=await pool.query<{answer_id:number;answer_text:string}>(`
     WITH latest AS (
@@ -105,14 +105,17 @@ export async function archiveApprovedGreekRetailQ18(){
     const text=safePublicText(Number(row.answer_id),String(row.answer_text??""));
     return text?[{text,tags:categorizeResearchFreeText(text)}]:[];
   });
+  // Categories are multi-label: counts match actually displayed quotes.
   const categories=[...RESEARCH_FREE_TEXT_CATEGORIES,RESEARCH_FREE_TEXT_OTHER].map(item=>({
     key:item.key,label:item.label,count:candidates.filter(c=>c.tags.includes(item.key)).length
   })).filter(c=>c.count>=30);
   const allowed=new Set(categories.map(c=>c.key));
-  const quotes=candidates.flatMap((candidate,i)=>{
-    const category=candidate.tags.find(t=>allowed.has(t));
-    return category?[{id:`approved-q18-${i+1}`,category,text:candidate.text,publicApproved:true,deidentified:true}]:[];
-  });
+  const quotes=candidates.flatMap((candidate,i)=>
+    candidate.tags.filter(category=>allowed.has(category)).map(category=>({
+      id:`approved-q18-${i+1}-${category}`,category,text:candidate.text,
+      publicApproved:true,deidentified:true
+    }))
+  );
   if(!quotes.length||!categories.length)throw Error("RESEARCH_Q18_NO_SAFE_QUOTES");
   const projection={
     schema:"kontamou.research.q18-public-voices.v1",
@@ -129,5 +132,5 @@ export async function archiveApprovedGreekRetailQ18(){
   if(!readback || sha256(Buffer.from(readback,"utf8"))!==sha256(body)){
     throw Error("RESEARCH_Q18_SIDECAR_READBACK_MISMATCH");
   }
-  return {state:"verified",releaseSnapshotId:release.id,quotes:quotes.length,categories:categories.length};
+  return {state:"verified",releaseSnapshotId:release.id,quotes:quotes.length,categories:categories.length,sha256:sha256(body)};
 }

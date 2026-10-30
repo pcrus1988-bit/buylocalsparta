@@ -10,6 +10,7 @@ export async function GET(request:Request){
   }
   try{
     const result=await archiveApprovedGreekRetailQ18();
+    console.info(JSON.stringify({event:"research.q18_approved_archive",...result}));
     return Response.json({ok:true,...result},{headers:{"Cache-Control":"no-store"}});
   }catch(error){
     const reason=error instanceof Error?error.message:"Q18_ARCHIVE_FAILED";

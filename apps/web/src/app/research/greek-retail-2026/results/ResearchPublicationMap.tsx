@@ -4,7 +4,7 @@ import { useEffect,useMemo,useState } from "react";
 import { GREECE_REGIONS } from "../../../../lib/research-geographic-core";
 import { GREECE_PREFECTURES,PREFECTURE_NAMES } from "../../../../lib/research-prefectures";
 import { researchSectorLabel, sortResearchSectors } from "../../../../lib/research-sector-labels";
-import type { SafePublicResultPoint,SafeParticipationGeography,InternalResearchGeographicCoverage } from "../../../../lib/research-public-results-data";
+import type { SafePublicResultPoint,SafeParticipationGeography,InternalResearchGeographicCoverage,SafeCountyAvailability } from "../../../../lib/research-public-results-data";
 import { PUBLIC_MAP_QUESTIONS,mapAnswers,mapLegendDomain,mapColorStrength,safeMapSelection } from "../../../../lib/research-public-map-questions";
 import styles from "./ResultsWorkbench.module.css";
 import {
@@ -55,12 +55,13 @@ function heat(value:number|undefined,domain:{minimum:number;maximum:number},pale
 }
 
 export function ResearchPublicationMap({
- points,geography,isDemo,internalCoverage
+ points,geography,isDemo,internalCoverage,countyAvailability=[]
 }:{
  points:readonly SafePublicResultPoint[];
  geography?:SafeParticipationGeography;
  isDemo:boolean;
  internalCoverage?:InternalResearchGeographicCoverage;
+ countyAvailability?:readonly SafeCountyAvailability[];
 }){
  const [geo,setGeo]=useState<MapData|null>(null);
  const [granularity]=useState<"prefecture"|"region">("prefecture");
@@ -88,6 +89,14 @@ export function ResearchPublicationMap({
  const visibleAnswers=mapAnswers(question);
  const sectors=sortResearchSectors([...new Set(points.flatMap(p=>p.segment.sectorCode?[p.segment.sectorCode]:[]))]);
  const hasApprovedCrossSections=points.some(p=>p.segment.sectorCode&&p.segment.prefectureCode);
+ const publicCountyBands=new Map(countyAvailability.map(c=>[c.key,c.band] as const));
+ const bandDescription=(key:string)=>publicCountyBands.get(key)==="under5"?"Βάση 1–4 · χωρίς δημοσιεύσιμη εκτίμηση":
+  publicCountyBands.get(key)==="5to9"?"Βάση 5–9 · δεν διατίθεται τιμή για τον δείκτη":
+  publicCountyBands.get(key)==="10to29"?"Βάση 10–29 · δεν διατίθεται τιμή για τον δείκτη":
+  publicCountyBands.get(key)==="30plus"?"Καταγεγραμμένες απαντήσεις · χωρίς τιμή για τον δείκτη":"Χωρίς διαθέσιμη εκτίμηση";
+ const fallbackCountyColor=(key:string)=>publicCountyBands.get(key)==="under5"?"#fff1b4":
+  publicCountyBands.get(key)==="5to9"?"#ffe0a1":
+  publicCountyBands.get(key)==="10to29"?"#f4d7a5":"#dfe3dc";
  const regionalApproved=new Set(points.filter(p=>typeof p.segment.prefectureCode==="string").map(p=>p.metricKey));
  const regionValues=useMemo(()=>{
   const byKey=new Map(internalCoverage?internalCoverage.regions.filter(x=>x.eligibleN!==null).map(x=>[x.key,x.eligibleN!] as const):(geography?.regions.map(x=>[x.key,x.started] as const)??[]));
@@ -154,7 +163,7 @@ export function ResearchPublicationMap({
  const nationalDisplay=hasMetric?display(nationalValue):nationalStarted!==undefined?"100%":"Μη διαθέσιμο";
  const regionalParticipationValue=(v:number|undefined)=>regionalParticipationShare(v,nationalStarted);
  const showGeoValue=(cell:{value:number|undefined;key?:string})=>
-  cell.value===undefined?(cell.key&&internalCoverage?coverageDescription(cell.key):"Χωρίς δημοσιεύσιμα στοιχεία"):
+  cell.value===undefined?(cell.key&&internalCoverage?coverageDescription(cell.key):cell.key?bandDescription(cell.key):"Χωρίς δημοσιεύσιμα στοιχεία"):
   hasMetric?display(cell.value):
   regionalParticipationValue(cell.value)!==undefined?fmt(regionalParticipationValue(cell.value)!*100)+"%":"Χωρίς εθνική βάση";
  const nationalDiff=(value:number|undefined)=>hasMetric?
@@ -185,7 +194,7 @@ export function ResearchPublicationMap({
      </option>)}
     </select>
    </label>}
-   {hasMetric&&<label>Κλάδος (όπου έχει εγκριθεί διασταύρωση)<select value={sector} onChange={e=>{setSector(e.target.value);setSelected("");}}>
+   {hasMetric&&hasApprovedCrossSections&&<label>Κλάδος (όπου έχει εγκριθεί διασταύρωση)<select value={sector} onChange={e=>{setSector(e.target.value);setSelected("");}}>
      <option value="">Όλοι οι κλάδοι</option>{sectors.map(v=><option key={v} value={v}>{researchSectorLabel(v)}</option>)}
     </select></label>}
    <label>Ταξινόμηση περιοχών
@@ -247,13 +256,14 @@ export function ResearchPublicationMap({
       </defs>
       {geo.features.map(feature=>{
        const region=currentValues.find(x=>x.key===feature.properties.name);
-       const fill=region&&region.value!==undefined?heat(region.value,domain,palette):"#dfe3dc";
+       const fill=region&&region.value!==undefined?heat(region.value,domain,palette):fallbackCountyColor(feature.properties.name);
        return <path key={feature.properties.name} d={polygonPath(feature.geometry)}
         fill={density?"#dfe3dc":fill} stroke="#f8efcf" strokeWidth={1.2/zoom}
+        strokeDasharray={region?.value===undefined&&publicCountyBands.has(feature.properties.name)?"4 2":undefined}
         opacity={selected&&selected!==feature.properties.name?.95:1}
         fillRule="evenodd" className={styles.mapRegion}
         onClick={()=>setSelected(s=>s===feature.properties.name?"":feature.properties.name)}>
-        <title>{names.get(feature.properties.name)??feature.properties.name}: {region?.value!==undefined?legendValue(region.value):coverageDescription(feature.properties.name)||display(undefined)}</title>
+        <title>{names.get(feature.properties.name)??feature.properties.name}: {region?.value!==undefined?legendValue(region.value):internalCoverage?coverageDescription(feature.properties.name):bandDescription(feature.properties.name)}</title>
        </path>;
       })}
       {density&&<image href={density} x="0" y="0" width="810" height="650" preserveAspectRatio="none"
@@ -287,7 +297,7 @@ export function ResearchPublicationMap({
    <div className={styles.nationalDetails}>
     <span className={styles.nationalTag}>ΑΠΑΝΤΗΣΕΙΣ ΑΝΑ ΝΟΜΟ</span>
     <strong>{internalCoverage?anyQA:regionalCoverage} / 55 νομοί με {internalCoverage?"ολοκληρωμένες απαντήσεις":"διαθέσιμη τιμή"}</strong>
-    <p>{hasMetric?"Κάθε ποσοστό βασίζεται στις ολοκληρωμένες απαντήσεις του αντίστοιχου νομού. Τα ποσοστά των νομών δεν αθροίζονται σε 100%.":"Οι νομοί με λίγες ολοκληρωμένες απαντήσεις εμφανίζονται ως γεωγραφική κάλυψη χωρίς δημοσίευση μικρών κελιών. Η συνολική βάση περιλαμβάνει όλες τις ολοκληρωμένες απαντήσεις."}</p>
+    <p>{hasMetric?"Κάθε ποσοστό βασίζεται στις ολοκληρωμένες απαντήσεις του αντίστοιχου νομού. Τα ποσοστά των νομών δεν αθροίζονται σε 100%.":"Οι νομοί με πολύ μικρές βάσεις (1–4) εμφανίζονται ως ξεχωριστή χρωματική κατηγορία, χωρίς αποκάλυψη ατομικών αποτελεσμάτων. Η συνολική βάση περιλαμβάνει όλες τις ολοκληρωμένες απαντήσεις."}</p>
     {hasMetric&&nationalValue!==undefined&&<p>{internalCoverage?"Οι συγκρίσεις είναι περιγραφικές και μη σταθμισμένες· δεν αποτελούν στατιστικά τεστ.":"Η σύγκριση γίνεται με την ξεχωριστά σταθμισμένη εθνική εκτίμηση. Δεν αποτελεί από μόνη της έλεγχο στατιστικής σημαντικότητας."}</p>}
     <div className={styles.allRegionsGrid}>
      {prefectureValues.map(cell=><div key={cell.key} className={styles.allRegionsRow}>
@@ -308,7 +318,7 @@ export function ResearchPublicationMap({
      {sorted.map(region=><button type="button" key={region.key} aria-pressed={selected===region.key}
        className={selected===region.key?styles.selectedRegion:styles.regionButton}
        onClick={()=>setSelected(s=>s===region.key?"":region.key)}>
-      <span><i style={{background:region.value===undefined?"#d9dfd6":heat(region.value,domain,palette)}}/>{region.label}</span>
+      <span><i style={{background:region.value===undefined?fallbackCountyColor(region.key):heat(region.value,domain,palette)}}/>{region.label}</span>
       <span className={styles.regionalNumbers}><strong>{showGeoValue(region)}</strong>
         {hasMetric&&region.value!==undefined&&<small>n={region.n??"—"} · Ελλάδα {formatDiff(nationalDiff(region.value))}</small>}
         {!hasMetric&&region.value!==undefined&&<small>{Math.round(region.value).toLocaleString("el-GR")} {internalCoverage?"QA απαντήσεις":"ενάρξεις"}</small>}
@@ -332,7 +342,7 @@ export function ResearchPublicationMap({
    Τα δεδομένα προέρχονται από δημοσίως διαθέσιμα γεωγραφικά συγκεντρωτικά στοιχεία, όχι από θέσεις συσκευών.
    {available.length===0?" Δεν διατίθενται προς το παρόν επαρκή δημοσιεύσιμα γεωγραφικά στοιχεία.":""}
   </p>}
-  <p className={styles.note}>Η μόνη γεωγραφική μονάδα είναι ο νομός. Η αντιστοίχιση πραγματοποιείται στο διακομιστή από τον Τ.Κ. και δεν αποκαλύπτει Τ.Κ. ή στοιχεία επιχειρήσεων. Οι περιοχές χωρίς διαθέσιμους δείκτες μένουν γκρίζες.
+  <p className={styles.note}>Η μόνη γεωγραφική μονάδα είναι ο νομός. Η αντιστοίχιση πραγματοποιείται στο διακομιστή από τον Τ.Κ. και δεν αποκαλύπτει Τ.Κ. ή στοιχεία επιχειρήσεων. Οι νομοί με περιορισμένη βάση 1–4, 5–9 ή 10–29 αλλά χωρίς δημοσιεύσιμο αποτέλεσμα εμφανίζονται με ανοιχτούς τόνους και διακεκομμένο περίγραμμα, όχι ως τιμές της χρωματικής κλίμακας. Οι περιοχές χωρίς καταγραφή μένουν γκρίζες.
    Τα επιμέρους δεδομένα μικρών ομάδων δεν μεταφέρονται στον φυλλομετρητή.</p>
  </section>;
 }

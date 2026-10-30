@@ -3,7 +3,7 @@
 import { useEffect,useMemo,useState } from "react";
 import Link from "next/link";
 import { PUBLIC_RESULTS_CHAPTERS,PUBLIC_RESULTS_METRICS,publicMetricLabel } from "../../../../lib/research-public-results-sections";
-import { demoResultPoints,type SafeParticipationGeography,type SafePublicResultPoint,type InternalResearchGeographicCoverage } from "../../../../lib/research-public-results-data";
+import { demoResultPoints,type SafeParticipationGeography,type SafePublicResultPoint,type InternalResearchGeographicCoverage, type SafeCountyAvailability } from "../../../../lib/research-public-results-data";
 import { ResearchPublicationMap } from "./ResearchPublicationMap";
 import { ResearchCountyReport } from "./ResearchCountyReport";
 import { ResearchVoiceOfGreece } from "./ResearchVoiceOfGreece";
@@ -38,17 +38,22 @@ const matches=(p:SafePublicResultPoint,dimension:GroupBy,level:string)=>
 function csvValue(s:string){const safe=/^[=+@\\-\\t\\r]/.test(s)?"'"+s:s;return '"'+safe.replaceAll('"','""')+'"';}
 
 export function ResearchResultsWorkbench({
- mode,points:publishedPoints=[],geography,coverage,voices,restrictedViewer=false
+ mode,points:publishedPoints=[],geography,coverage,countyAvailability=[],voices,restrictedViewer=false
 }:{
  mode:"preview"|"live"|"published"|"unpublished";
  points?:readonly SafePublicResultPoint[];
  geography?:SafeParticipationGeography;
  coverage?:InternalResearchGeographicCoverage;
+ countyAvailability?:readonly SafeCountyAvailability[];
  voices?:PublicVoiceData;
  restrictedViewer?:boolean;
 }){
  const demo=mode==="preview";
  const points=useMemo(()=>demo?demoResultPoints():publishedPoints,[demo,publishedPoints]);
+ const countyBands=new Map(countyAvailability.map(c=>[c.key,c.band] as const));
+ const smallCountyMessage=(key:string)=>countyBands.get(key)==="under5"?"Βάση 1–4 · εκτίμηση μη δημοσιεύσιμη":undefined;
+ // Cross-tab selectors must not appear unless an approved joint estimate exists.
+ const hasAvailableCrossTabs=points.some(p=>p.segment.sectorCode&&(p.segment.prefectureCode||p.segment.regionCode));
  const [menu,setMenu]=useState<Menu>("chapters");
  const [chapterId,setChapterId]=useState(PUBLIC_RESULTS_CHAPTERS[0]!.id);
  useEffect(()=>{
@@ -221,7 +226,7 @@ export function ResearchResultsWorkbench({
     </tbody></table></div>:<p className={styles.empty}>Δεν υπάρχουν επαρκή, εγκεκριμένα κοινώς συγκρίσιμα στοιχεία για αυτό το ζεύγος.</p>}
     <p className={styles.note}>Οι διαφορές είναι περιγραφικές, όχι αυτόματες δοκιμές σημαντικότητας. Δεν υπολογίζονται συσχετίσεις ή κοινές διασταυρώσεις από περιθωριακά αποτελέσματα.</p>
    </section>}
-   <section className={styles.crossFilterPanel} aria-label="Διασταύρωση κλάδου και περιοχής">
+   {hasAvailableCrossTabs&&<section className={styles.crossFilterPanel} aria-label="Διασταύρωση κλάδου και περιοχής">
     <div className={styles.graphHeading}><h3>Κλάδος × γεωγραφία</h3><p>Εξειδικευμένη ανάλυση του ίδιου δείκτη ανά κλάδο και νομό, μόνο όπου υπάρχουν αρκετές πραγματικές απαντήσεις και οι απαραίτητες εγκρίσεις.</p></div>
     <div className={styles.filters}>
      <label>Κλάδος<select value={crossSector} onChange={e=>setCrossSector(e.target.value)}><option value="">Επιλέξτε κλάδο</option>{sectorValues.map(v=><option key={v} value={v}>{groupLabel(v,"sectorCode")}</option>)}</select></label>
@@ -232,14 +237,14 @@ export function ResearchResultsWorkbench({
      {crossRows.map(({key,left,right})=><tr key={key}><td>{publicMetricLabel(key)}</td><td>{format(left)} · n={left.n}</td><td>{right?format(right)+" · n="+right.n:"n="+left.n}</td><td>{right&&right.format===left.format?difference(left,right):"—"}</td></tr>)}
     </tbody></table></div>:<p className={styles.empty}>Δεν υπάρχει εγκεκριμένη εκτίμηση για τον επιλεγμένο συνδυασμό. Δεν ανασυνθέτουμε κλαδικές και γεωγραφικές τομές από ανεξάρτητα ποσοστά.</p>)}
     <p className={styles.note}>{mode==="live"?"Εσωτερικές περιγραφικές διασταυρώσεις από n=1. Για n<10 απαιτείται ιδιαίτερη προσοχή λόγω κινδύνου ταυτοποίησης· δεν αποτελούν δημόσια ευρήματα ή αντιπροσωπευτικές εκτιμήσεις.":"Για δημοσίευση διπλής διασταύρωσης απαιτούνται ρητή επιστημονική έγκριση και n≥50 σε κάθε εμφανιζόμενο κελί."}</p>
-   </section>
+   </section>}
    <div className={styles.analysisGrid}>
-    <article><span className={styles.articleTag}>ΠΡΟΤΕΙΝΟΜΕΝΗ ΔΙΑΣΤΑΥΡΩΣΗ</span><h4>{sub.relation}</h4>
+    {hasAvailableCrossTabs&&<article><span className={styles.articleTag}>ΠΡΟΤΕΙΝΟΜΕΝΗ ΔΙΑΣΤΑΥΡΩΣΗ</span><h4>{sub.relation}</h4>
       <p>Η σχέση απαιτεί κοινή βάση ερωτώμενων και ξεχωριστό επιστημονικό υπολογισμό. Δεν μπορεί να εξαχθεί από δύο ανεξάρτητα ποσοστά.</p>
       <button type="button" onClick={()=>{setMenu("graphs");setGraphKey(sub.metrics[0]??"digital_readiness.mean");}}>
        Προβολή σχετικών αριθμών <span aria-hidden="true">↗</span>
       </button>
-    </article>
+    </article>}
     <article><span className={styles.articleTag}>ΕΠΙΣΤΗΜΟΝΙΚΗ ΑΝΑΓΝΩΣΗ</span><h4>Τι μπορεί να συμπεράνει ο αναγνώστης;</h4>
       <p>{sub.interpretation}</p><p>Διαθεσιμότητα: {chapterRows.length} / {activeMetricKeys.length} δείκτες στην επιλεγμένη ομάδα, με βάση τουλάχιστον n={minN}. Κάθε πραγματική βάση απαντήσεων εξετάζεται χωριστά.</p><p>Οι διαφορές παρουσιάζονται περιγραφικά· η στατιστική σημαντικότητα απαιτεί ξεχωριστό έλεγχο και όχι απλή επικάλυψη διαστημάτων.</p>
     </article>
@@ -275,12 +280,12 @@ export function ResearchResultsWorkbench({
     <button type="button" onClick={exportData} disabled={graphEntries.length===0}>Εξαγωγή συγκεντρωτικών CSV ↓</button>
    </div>
    {graphDimension==="prefectureCode"&&<p className={styles.note}>Εμφανίζονται και οι 55 νομοί. Το «—» και η διακεκομμένη μπάρα σημαίνουν ότι δεν υπάρχει διαθέσιμη τιμή για τον επιλεγμένο δείκτη και τα φίλτρα — όχι μηδενική επίδοση.</p>}
-   {mode!=="live"&&graphDimension==="prefectureCode"&&<p className={styles.note}>Δημοσιεύονται περιγραφικά αποτελέσματα ανά νομό από τουλάχιστον 5 απαντήσεις. Οι βάσεις n=5–29 είναι ιδιαίτερα μικρές και ασταθείς: δεν αντιπροσωπεύουν κατ’ ανάγκη τον νομό και δεν επιτρέπουν ασφαλείς γενικεύσεις. Οι διασταυρώσεις νομού × κλάδου διατηρούν αυστηρότερους ελέγχους.</p>}
+   {mode!=="live"&&graphDimension==="prefectureCode"&&<p className={styles.note}>Όλοι οι νομοί εμφανίζονται δημόσια, ακόμη και με βάση 1–4 (χωρίς τιμή κατασταλμένης εκτίμησης). Οι βάσεις n=5–29 είναι ιδιαίτερα μικρές και ασταθείς: δεν αντιπροσωπεύουν κατ’ ανάγκη τον νομό και δεν επιτρέπουν ασφαλείς γενικεύσεις. Οι διασταυρώσεις νομού × κλάδου διατηρούν αυστηρότερους ελέγχους.</p>}
    {graphEntries.length===0?<div className={styles.empty} role="status">Δεν υπάρχουν εγκεκριμένοι συγκεντρωτικοί αριθμοί με αυτά τα φίλτρα.</div>:
     graphKind==="table"?<div className={styles.tableScroll}><table className={styles.table}>
       <thead><tr><th>Ομάδα</th><th>Εκτίμηση</th><th>n</th><th>95% ΔΕ</th></tr></thead>
       <tbody>{graphEntries.map(({id,point})=><tr key={id}><td>{groupLabel(id,graphDimension)}</td>
-       <td>{point?format(point):"—"}</td><td>{point?point.n.toLocaleString("el-GR"):"—"}</td>
+       <td>{point?format(point):smallCountyMessage(id)??"—"}</td><td>{point?point.n.toLocaleString("el-GR"):countyBands.get(id)==="under5"?"1–4":"—"}</td>
        <td>{point&&point.ciLower!==null&&point.ciUpper!==null?
         point.format==="proportion"?pct(point.ciLower*100)+"% – "+pct(point.ciUpper*100)+"%":
           pct(point.ciLower)+" – "+pct(point.ciUpper):"—"}</td></tr>)}</tbody></table></div>:
@@ -291,7 +296,7 @@ export function ResearchResultsWorkbench({
        aria-label={point?undefined:"Δεν υπάρχει διαθέσιμη τιμή"}>
        {point&&(graphKind==="dots"?<i className={styles.graphDot} style={{left:Math.min(98,point.value/graphMaximum*98)+"%"}}/>:
         <i className={styles.graphBar} style={{width:Math.min(100,point.value/graphMaximum*100)+"%"}}/>)}
-      </div><strong>{point?format(point):"—"}</strong><small>{point?"n="+point.n:"Χωρίς τιμή"}</small>
+      </div><strong>{point?format(point):"—"}</strong><small>{point?"n="+point.n:smallCountyMessage(id)??"Χωρίς τιμή"}</small>
      </div>)}
     </div>}
    {mode==="live"&&graphDimension==="prefectureCode"&&coverage&&<section aria-label="Κάλυψη όλων των 55 νομών" style={{marginTop:24}}>
@@ -317,9 +322,9 @@ export function ResearchResultsWorkbench({
   {menu==="map"&&<section className={styles.mapSection}>
    <div className={styles.graphHeading}><span className={styles.eyebrow}>ΓΕΩΓΡΑΦΙΚΟ ΠΑΡΑΤΗΡΗΤΗΡΙΟ</span>
     <h3>Heatmap Ελλάδας</h3><p>Εξερευνήστε τις ολοκληρωμένες απαντήσεις ανά νομό ή επιλέξτε διαθέσιμους δείκτες από πραγματικές απαντήσεις.</p></div>
-   <ResearchPublicationMap points={points} geography={geography} isDemo={demo} internalCoverage={mode==="live"?coverage:undefined}/>
+   <ResearchPublicationMap points={points} geography={geography} isDemo={demo} internalCoverage={mode==="live"?coverage:undefined} countyAvailability={countyAvailability}/>
   </section>}
-  {menu==="county"&&<ResearchCountyReport points={points} coverage={mode==="live"?coverage:undefined} mode={mode}/>}
+  {menu==="county"&&<ResearchCountyReport points={points} coverage={mode==="live"?coverage:undefined} countyAvailability={countyAvailability} mode={mode}/>}
   {menu==="voices"&&(mode==="live"
     ? <section className={styles.voiceOpenLink} aria-label="Η φωνή της Ελλάδας — ζωντανή εσωτερική προεπισκόπηση">
       <p>Οι πραγματικές απαντήσεις Q18 εμφανίζονται μόνο στη χωριστή, προστατευμένη εσωτερική σελίδα.</p>
