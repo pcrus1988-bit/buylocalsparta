@@ -105,6 +105,7 @@ const scientificReadingPage = readFileSync("apps/web/src/app/research/greek-reta
 const scientificReadingData = readFileSync("apps/web/src/lib/research-scientific-reading.ts", "utf8");
 const resultsEditorial = readFileSync("apps/web/src/app/research/greek-retail-2026/results/ResearchResultsEditorial.tsx", "utf8");
 const resultsWorkbench = readFileSync("apps/web/src/app/research/greek-retail-2026/results/ResearchResultsWorkbench.tsx", "utf8");
+const resultsExplorerViews = readFileSync("apps/web/src/app/research/greek-retail-2026/results/ResultsExplorerViews.ts", "utf8");
 const methodologyPage = readFileSync("apps/web/src/app/research/greek-retail-2026/methodology/page.tsx", "utf8");
 const observatoryPage = readFileSync("apps/web/src/app/research/page.tsx", "utf8");
 const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
@@ -701,7 +702,7 @@ if (!methodologyPage.includes("Τα βασικά ερωτήματα ορίζον
 if (!resultsPage.includes("<ResearchResultsEditorial") || !resultsPage.includes('<ResearchResultsWorkbench mode="published"')) errors.push("public results do not mount the approved released editorial/workbench");
 if (!resultsPage.includes("<ResultsNavigation />") || !resultsEditorial.includes("styles.layerControls")) errors.push("public results lost map-first thematic navigation");
 if (resultsEditorial.includes("Οι αριθμοί που αξίζει να προσέξουμε.") || resultsEditorial.includes("results-highlights")) errors.push("removed duplicate highlights were restored");
-if (!resultsWorkbench.includes('title:"Κατά κλάδο"') || !resultsWorkbench.includes('id:"county"')) errors.push("public results do not expose understandable subgroup results");
+if (!resultsWorkbench.includes('title:"Κατά κλάδο"') || !resultsExplorerViews.includes('id:"county"')) errors.push("public results do not expose understandable subgroup results");
 if (!resultsEditorial.includes("Οι περιγραφικές διαφορές δεν αποδεικνύουν αιτιότητα") || !resultsEditorial.includes("περιορισμοί")) errors.push("public results do not provide an understandable limitations section");
 if (!resultsEditorial.includes("n={whole.format(point.n)}") || !scientificReadingPage.includes("n={integer.format(row.n)}") || !scientificReadingPage.includes("n={integer.format(index.n)}")) errors.push("public results do not disclose a real denominator for each displayed estimate");
 if (!resultsEditorial.includes("διάστημα εμπιστοσύνης εκφράζει την αβεβαιότητα") || !resultsWorkbench.includes("Διάστημα αβεβαιότητας μη διαθέσιμο")) errors.push("public results do not explain confidence intervals and missing uncertainty in public language");
@@ -721,9 +722,9 @@ if (!scientificReadingPage.includes("n={integer.format(row.n)}") ||
 if (!scientificReadingPage.includes("summary.hasConventionalSamplingIntervals") ||
     !scientificReadingPage.includes("Δεν παρουσιάζονται τεχνητά διαστήματα")) errors.push("scientific reading must explain unsupported uncertainty");
 if (!scientificReadingPage.includes('href="/research/greek-retail-2026/methodology"')) errors.push("scientific reading must retain methodology navigation");
-if (!observatoryPage.includes("ολοκληρωμένες απαντήσεις")) errors.push("public observatory does not disclose understandable participation progress");
+if (!observatoryPage.includes("Απαντήσεις από επιχειρήσεις") || !observatoryPage.includes("βάση απαντήσεων (n)")) errors.push("public observatory does not disclose understandable participation context");
 if (!methodologyPage.includes("Τι θα συνοδεύει τα αποτελέσματα")) errors.push("public methodology does not explain what context accompanies results");
-if (!observatoryPage.includes("Πέντε απλά στάδια.")) errors.push("permanent Retail Observatory landing does not explain the study lifecycle in public language");
+if (!observatoryPage.includes("Ο ΟΔΗΓΟΣ ΤΗΣ ΕΡΕΥΝΑΣ") || !observatoryPage.includes("steps.map(step") || !observatoryPage.includes("Κατανοήστε τη μέθοδο")) errors.push("permanent Retail Observatory landing does not guide readers through results and methodology");
 if (
   !researchPrivacyPage.includes("Η συμμετοχή στην έρευνα είναι ξεχωριστή από την εμπορική επικοινωνία.") &&
   !researchPrivacyPage.includes("Η συμμετοχή στην έρευνα δεν αποτελεί συγκατάθεση για marketing.")
