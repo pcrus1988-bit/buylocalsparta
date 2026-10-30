@@ -15,12 +15,12 @@ export type ResultsChapter = Readonly<{
 export const PUBLIC_RESULTS_CHAPTERS: readonly ResultsChapter[] = [
  {id:"economy",number:"01",name:"Οικονομικές πιέσεις",subtitle:"Η οικονομική πραγματικότητα των επιχειρήσεων",subchapters:[
   {id:"costs",title:"Λειτουργικό κόστος και κερδοφορία",questionCodes:["Q21"],metrics:["business_financial_trends_12m.operating_costs.share.increased","business_financial_trends_12m.profitability.share.decreased","business_financial_divergence.share.turnover_up_profit_down"],relation:"Αύξηση κόστους × Μείωση κερδοφορίας",interpretation:"Αυτοαναφερόμενες μεταβολές. Η συνύπαρξη τάσεων δεν αποδεικνύει αιτιότητα."},
-  {id:"pressures",title:"Πιέσεις στη βιωσιμότητα",questionCodes:["Q27"],metrics:["economic_viability_pressures.share.purchasing_power","economic_viability_pressures.share.suppliers","economic_viability_pressures.share.energy","economic_viability_pressures.share.liquidity"],relation:"Πίεση ρευστότητας × Επιχειρηματική απαισιοδοξία",interpretation:"Πολλαπλές επιλογές έως τρεις: τα ποσοστά δεν αθροίζονται στο 100%."},
+  {id:"pressures",title:"Πιέσεις στη βιωσιμότητα",questionCodes:["Q27"],metrics:["economic_viability_pressures.share.purchasing_power","economic_viability_pressures.share.taxation","economic_viability_pressures.share.suppliers","economic_viability_pressures.share.energy","economic_viability_pressures.share.liquidity"],relation:"Πίεση ρευστότητας × Επιχειρηματική απαισιοδοξία",interpretation:"Πολλαπλές επιλογές έως τρεις: τα ποσοστά δεν αθροίζονται στο 100%."},
   {id:"structure",title:"Μικρές έναντι μεγαλύτερων επιχειρήσεων",questionCodes:["Q02","Q21"],metrics:["business_financial_trends_12m.turnover.share.decreased","business_financial_trends_12m.profitability.share.decreased"],relation:"Μέγεθος × Πτώση κερδοφορίας",interpretation:"Οι διαφορές κατά μέγεθος μπορεί να συγχέονται με τον κλάδο και τη γεωγραφική σύνθεση."}
  ]},
  {id:"digital",number:"02",name:"Ψηφιακή μετάβαση",subtitle:"Πωλήσεις και τεχνολογικές δυνατότητες",subchapters:[
   {id:"reach",title:"Κανάλια και online πωλήσεις",questionCodes:["Q03","Q04"],metrics:["sales_channels.share.own_eshop","sales_channels.share.social","digital_sales_share.share.0","digital_sales_share.share.26_50"],relation:"E-shop × Προσδοκίες πωλήσεων",interpretation:"Η ύπαρξη καναλιού δεν αποδεικνύει αύξηση πωλήσεων."},
-  {id:"tools",title:"Ψηφιακά εργαλεία και συγχρονισμός",questionCodes:["Q05","Q06"],metrics:["digital_readiness.mean","digital_capabilities.catalog.share.yes","digital_capabilities.stock_sync.share.yes","catalog_update_frequency.share.realtime"],relation:"Ψηφιακή ετοιμότητα × Λειτουργική δυσκολία",interpretation:"Οι σύνθετοι δείκτες απαιτούν τον ακριβή δημοσιευμένο κανόνα βαθμολόγησης."},
+  {id:"tools",title:"Ψηφιακά εργαλεία και συγχρονισμός",questionCodes:["Q05","Q06"],metrics:["digital_readiness.mean","digital_capabilities.tax.share.yes","digital_capabilities.catalog.share.yes","digital_capabilities.stock_sync.share.yes","catalog_update_frequency.share.realtime"],relation:"Ψηφιακή ετοιμότητα × Λειτουργική δυσκολία",interpretation:"Οι σύνθετοι δείκτες απαιτούν τον ακριβή δημοσιευμένο κανόνα βαθμολόγησης."},
   {id:"obstacles",title:"Εμπόδια πρώτων ηλεκτρονικών πωλήσεων",questionCodes:["Q22","Q24"],metrics:["first_online_sale_barriers.share.setup_cost","first_online_sale_barriers.share.technical_skills","first_online_sale_barriers.share.time"],relation:"Απουσία online πωλήσεων × Ψηφιακά εμπόδια",interpretation:"Η Q24 αφορά μόνο την επιλέξιμη ομάδα χωρίς online πωλήσεις."}
  ]},
  {id:"customers",number:"03",name:"Πελάτες και τοπική αγορά",subtitle:"Πώς ανακαλύπτουν οι πελάτες τα καταστήματα",subchapters:[
@@ -48,6 +48,9 @@ export const PUBLIC_RESULTS_METRICS = [...new Set(PUBLIC_RESULTS_CHAPTERS.flatMa
 export function publicMetricLabel(key:string):string {
  const fixed:Record<string,string>={
   "digital_readiness.mean":"Δείκτης ψηφιακής ετοιμότητας",
+  "digital_capabilities.tax.share.yes":"Πλήρως ψηφιακές φορολογικές διαδικασίες",
+  "digital_capabilities.stock_sync.share.yes":"Πλήρης ψηφιακός συγχρονισμός αποθεμάτων",
+  "economic_viability_pressures.share.taxation":"Φορολογική πίεση",
   "retail_friction.mean":"Δείκτης λειτουργικών δυσκολιών",
   "retail_confidence.mean":"Δείκτης επιχειρηματικής εμπιστοσύνης",
   "business_financial_divergence.share.turnover_up_profit_down":"Αύξηση τζίρου αλλά πτώση κερδών",
