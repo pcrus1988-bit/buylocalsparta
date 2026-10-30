@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { RESEARCH_PUBLIC_MINIMUM_UNWEIGHTED_BASE, RESEARCH_EXPERIMENT_MINIMUM_ARM_BASE } from "./research-disclosure-policy";
 import { resolveResearchAdministrativeGeography } from "./research-postcode-geography-core";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
@@ -13,9 +14,9 @@ import {
 } from "./research-survey-statistics";
 import { scoreGreekRetail2026, type ResearchAnswerMap } from "./research-survey-model";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v8";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v9-public-n5";
 const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v2";
-const MIN_PUBLIC_BASE = 30;
+const MIN_PUBLIC_BASE = RESEARCH_PUBLIC_MINIMUM_UNWEIGHTED_BASE;
 const VARIANCE_METHOD = "stratified_srs_fpc_v1";
 const CALIBRATION_METHOD = "bounded_raking_frozen_frame_v1";
 const CALIBRATION_DIMENSIONS = ["region_code", "sector_code"] as const;
@@ -936,7 +937,8 @@ export async function runGreekRetailAnalysis(
           publicMinimumBase: MIN_PUBLIC_BASE,
           geographicSource: (segment.segment.regionCode || segment.segment.prefectureCode)
             ? "postcode_administrative_crosswalk_v1" : undefined,
-          publicPrefectureApproved: false,
+          publicPrefectureApproved: Boolean(segment.segment.prefectureCode && Object.keys(segment.segment).length === 1 && !suppressed),
+          smallBaseDescriptiveOnly: unweightedN >= MIN_PUBLIC_BASE && unweightedN < 30,
           varianceMethod: standardError === undefined ? "withheld" : VARIANCE_METHOD,
           varianceWithheldReason: standardError === undefined ? variance.reason ?? "unavailable" : null,
           finitePopulationCorrection: standardError !== undefined
@@ -997,8 +999,8 @@ export async function runGreekRetailAnalysis(
           result,
           pValue,
           suppressed:
-            result.levelClusterCount < MIN_PUBLIC_BASE ||
-            result.referenceClusterCount < MIN_PUBLIC_BASE
+            result.levelClusterCount < RESEARCH_EXPERIMENT_MINIMUM_ARM_BASE ||
+            result.referenceClusterCount < RESEARCH_EXPERIMENT_MINIMUM_ARM_BASE
         });
       }
     }
@@ -1061,7 +1063,7 @@ export async function runGreekRetailAnalysis(
         adjustmentFamily: "EXP01:all_attribute_level_contrasts",
         analysisClassification: "exploratory_not_preregistered",
         preregistered: false,
-        publicMinimumBasePerContrastArm: MIN_PUBLIC_BASE
+        publicMinimumBasePerContrastArm: RESEARCH_EXPERIMENT_MINIMUM_ARM_BASE
       })
     ]);
     estimateCount += 1;
