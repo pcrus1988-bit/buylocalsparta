@@ -73,3 +73,20 @@
 @media(prefers-reduced-motion: reduce) {
   .nav a { transition: none; }
 }
+
+/* Clear current section and comfortable touch navigation across Research pages. */
+.bar{border-color:rgba(63,93,70,.15)}
+.nav{scroll-snap-type:x proximity;overscroll-behavior-inline:contain;scroll-padding-inline:12px}
+.nav a{display:inline-flex;align-items:center;min-height:42px;box-sizing:border-box;scroll-snap-align:start;font-size:13px;font-weight:680;color:#365342;padding:9px 13px}
+.nav a[aria-current="page"]{background:#e4efe5;color:#17462c;font-weight:850}
+.researchTitle{font-size:14px;color:#28543a}
+.nav a:focus-visible{outline:3px solid #215a39;outline-offset:-2px}
+@media(max-width:850px){
+ .bar{gap:8px 12px}
+ .nav{scrollbar-width:thin}
+ .nav a{font-size:13px;min-height:44px}
+}
+@media(max-width:480px){
+ .nav a{font-size:13px;padding:9px 11px}
+ .researchTitle{font-size:13px}
+}
