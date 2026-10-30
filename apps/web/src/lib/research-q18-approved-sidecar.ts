@@ -121,3 +121,4 @@ export async function archiveApprovedGreekRetailQ18(){
     taxonomyVersion:"q18-themes-v2.2026-10-24",categories,quotes,geography:[]
   };
   const body=Buffer.from(JSON.stringify(projection),"utf8");
+  if(!publicVoiceDataFromRelease(projection))throw Error("RESEARCH_Q18_PROJECTION_INVALID");
