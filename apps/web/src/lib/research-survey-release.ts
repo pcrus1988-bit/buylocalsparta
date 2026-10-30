@@ -1032,13 +1032,28 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
   if (!productionDatabaseConfigured()) return undefined;
   const pool = getProductionPostgresRuntime().sqlPool;
   const release = await pool.query<SqlRow>(`
-    SELECT rs.release_version,rs.published_at,rs.dataset_sha256,rs.artifact_sha256,
+    SELECT rs.release_version,
+           CASE WHEN s.slug=$3::text AND rs.published_at > $2::timestamptz
+             THEN $2::timestamptz ELSE rs.published_at END AS published_at,
+           rs.dataset_sha256,rs.artifact_sha256,
            rs.methodology_json,rs.analysis_run_id,rs.wave_id
     FROM research_release_snapshots rs
     JOIN research_studies s ON s.id=rs.study_id
     JOIN research_waves w ON w.id=rs.wave_id AND w.study_id=s.id
     WHERE rs.published_at IS NOT NULL
-      AND rs.published_at <= now()
+      AND (
+        rs.published_at <= now()
+        OR (
+          s.slug=$3::text
+          AND now() >= $2::timestamptz
+          AND EXISTS (
+            SELECT 1 FROM research_release_archives a
+            WHERE a.release_snapshot_id=rs.id
+              AND a.artifact_sha256=rs.artifact_sha256
+              AND a.verified_at IS NOT NULL
+          )
+        )
+      )
       AND (s.slug <> $3::text OR now() >= $2::timestamptz)
       AND (w.slug=$1 OR (s.slug=$1 AND w.is_current))
     ORDER BY
