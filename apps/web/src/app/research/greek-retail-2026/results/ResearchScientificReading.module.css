@@ -47,3 +47,44 @@
 @media(max-width:1040px){.chartGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.chartCard:last-child{grid-column:1/-1}.chartCard header p{min-height:auto}.methods{grid-template-columns:1fr}}
 @media(max-width:650px){.shell{width:calc(100% - 18px);padding:55px 8px 60px}.chartGrid,.indexGrid{grid-template-columns:1fr}.chartCard:last-child{grid-column:auto}.chartCard{padding:22px}.chartCard header p{min-height:0}.methods{margin-top:45px;padding:24px 18px}.heading h2{font-size:36px}.indexCard>strong{font-size:34px}}
 @media(prefers-reduced-motion:reduce){.bar,.indexTrack>div{transition:none}}
+
+
+/* Reading-first published charts: improved scale and clear non-visual denominators. */
+.shell{width:100%;padding:clamp(52px,6vw,78px) 0 65px}
+.heading{max-width:830px;margin-bottom:35px}
+.heading h2{font-size:clamp(31px,3.7vw,50px);line-height:1.2;letter-spacing:-.035em;text-wrap:balance}
+.heading p{font-size:16px;line-height:1.8;color:#466451}
+.eyebrow,.chartEyebrow{font-size:12px;letter-spacing:.08em;color:#456b51}
+.chartGrid{gap:17px}
+.chartCard{background:#fffefa;border:1px solid #d5e3d7;border-radius:20px;padding:28px 25px;box-shadow:0 5px 20px rgba(31,64,42,.035)}
+.chartCard:first-child{border-top:3px solid #2d7951}
+.chartCard h3{font-size:clamp(24px,2.2vw,30px);line-height:1.26;letter-spacing:-.025em}
+.chartCard header p{min-height:0;font-size:14px;line-height:1.7;color:#4a6853}
+.barList{margin-top:30px;gap:25px}
+.barLabels{align-items:baseline;gap:13px}
+.barLabels span{font-size:15px;line-height:1.55;color:#274e37;font-weight:690}
+.barLabels strong{font-size:27px;color:#164d30}
+.track{height:12px;background:#e1ebe0;margin:12px 0 9px}
+.barItem small{display:block;font-size:12px;line-height:1.5;color:#527359}
+.chartNote{font-size:13px;line-height:1.75;color:#42614d;border-color:#d9e5da;padding-top:18px;margin-top:28px}
+.indices{padding-top:42px;margin-top:52px}
+.miniHeading h3{font-size:30px;line-height:1.2}
+.miniHeading p{font-size:13px;color:#50715a;line-height:1.6}
+.indexGrid{gap:15px}
+.indexCard{background:#edf4ed;border:1px solid #d9e7d8;border-radius:17px;padding:25px;gap:16px}
+.indexCard>span{font-size:15px;line-height:1.4}
+.indexCard>strong{font-size:40px}
+.indexCard>small{font-size:12px;color:#527258}
+.indexTrack{height:8px}
+@media(max-width:1280px){.chartGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.chartCard:last-child{grid-column:1/-1}}
+@media(max-width:700px){
+ .shell{padding:49px 0 55px}
+ .chartGrid,.indexGrid{grid-template-columns:1fr}
+ .chartCard:last-child{grid-column:auto}
+ .chartCard{padding:25px 20px}
+ .heading h2{font-size:35px}
+ .heading p{font-size:15px}
+ .barLabels span{font-size:14px}
+ .barLabels strong{font-size:26px}
+ .barList{gap:23px}
+}
