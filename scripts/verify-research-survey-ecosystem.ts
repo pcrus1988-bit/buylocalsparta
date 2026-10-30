@@ -101,6 +101,8 @@ const statistics = readFileSync("apps/web/src/lib/research-survey-statistics.ts"
 const statisticsTests = readFileSync("apps/web/src/lib/research-survey-statistics.test.ts", "utf8");
 const analysis = readFileSync("apps/web/src/lib/research-survey-analysis.ts", "utf8");
 const resultsPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/page.tsx", "utf8");
+const scientificReadingPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/ResearchScientificReading.tsx", "utf8");
+const scientificReadingData = readFileSync("apps/web/src/lib/research-scientific-reading.ts", "utf8");
 const resultsEditorial = readFileSync("apps/web/src/app/research/greek-retail-2026/results/ResearchResultsEditorial.tsx", "utf8");
 const resultsWorkbench = readFileSync("apps/web/src/app/research/greek-retail-2026/results/ResearchResultsWorkbench.tsx", "utf8");
 const methodologyPage = readFileSync("apps/web/src/app/research/greek-retail-2026/methodology/page.tsx", "utf8");
@@ -702,6 +704,21 @@ if (!resultsEditorial.includes("Οι περιγραφικές διαφορές �
 if (!resultsEditorial.includes("n={whole.format(lead.point.n)}") || !resultsEditorial.includes("n={whole.format(point.n)}")) errors.push("public results do not disclose sample size alongside results");
 if (!resultsEditorial.includes("διάστημα εμπιστοσύνης εκφράζει την αβεβαιότητα") || !resultsWorkbench.includes("Διάστημα αβεβαιότητας μη διαθέσιμο")) errors.push("public results do not explain confidence intervals and missing uncertainty in public language");
 if (!resultsEditorial.includes('href="/research/greek-retail-2026/methodology"')) errors.push("public results do not link readers to methodology context");
+const scientificReadingIsMounted =
+  resultsPage.includes("<ResearchScientificReading points={safePoints} summary={reading} />") &&
+  resultsPage.includes("scientificReadingSummary(published.methodology)") &&
+  resultsEditorial.includes("{children}") &&
+  resultsEditorial.includes("<EditorialMap points={points} geography={geography} />");
+if (!scientificReadingIsMounted) errors.push("publication scientific reading must remain mounted after the Greece map");
+if (!scientificReadingPage.includes("μεροληψία μη απόκρισης") ||
+    !scientificReadingPage.includes("Τι γίνεται με τους νομούς;") ||
+    !scientificReadingPage.includes("δεν σημαίνει μηδέν")) errors.push("scientific reading must disclose participation and geographic limitations");
+if (!scientificReadingPage.includes("n={integer.format(row.n)}") ||
+    !scientificReadingPage.includes("n={integer.format(index.n)}") ||
+    !scientificReadingData.includes("Object.keys(point.segment).length === 0")) errors.push("scientific charts must disclose item-specific n and show only national measures");
+if (!scientificReadingPage.includes("summary.hasConventionalSamplingIntervals") ||
+    !scientificReadingPage.includes("Δεν παρουσιάζονται τεχνητά διαστήματα")) errors.push("scientific reading must explain unsupported uncertainty");
+if (!scientificReadingPage.includes('href="/research/greek-retail-2026/methodology"')) errors.push("scientific reading must retain methodology navigation");
 if (!observatoryPage.includes("ολοκληρωμένες απαντήσεις")) errors.push("public observatory does not disclose understandable participation progress");
 if (!methodologyPage.includes("Τι θα συνοδεύει τα αποτελέσματα")) errors.push("public methodology does not explain what context accompanies results");
 if (!observatoryPage.includes("Πέντε απλά στάδια.")) errors.push("permanent Retail Observatory landing does not explain the study lifecycle in public language");
