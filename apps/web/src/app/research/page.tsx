@@ -1,221 +1,115 @@
-import { ResearchPublicNavigation } from "../../components/ResearchPublicNavigation";
-import { ResearchLiveProgress } from "../../components/ResearchLiveProgress";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ResearchPublicNavigation } from "../../components/ResearchPublicNavigation";
 import { SiteFooter } from "../../components/SiteFooter";
-import styles from "../../components/ResearchObservatory.module.css";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
-import { publicResearchObservatory, type PublicResearchStudySummary } from "../../lib/research-observatory-runtime";
+import styles from "./ResearchLanding.module.css";
 
-export const dynamic = "force-dynamic";
+const study = "/research/greek-retail-2026";
+const results = `${study}/results`;
+const methodology = `${study}/methodology`;
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/research", {
-    title: "Παρατηρητήριο Ελληνικού Λιανεμπορίου · KONTA MOY Research",
-    description: "Μελέτες, πρόοδος, μεθοδολογία, αποτελέσματα και συγκρίσεις για το ελληνικό λιανεμπόριο.",
-    keywords: ["Παρατηρητήριο Ελληνικού Λιανεμπορίου", "έρευνα ελληνικού λιανεμπορίου", "στοιχεία λιανεμπορίου Ελλάδα", "μελέτες εμπορικών επιχειρήσεων", "ψηφιακή ωριμότητα λιανεμπορίου"]
+    title: "Ελληνικό Λιανεμπόριο 2026 · Έρευνα KONTA MOY",
+    description: "Γνωρίστε την έρευνα Ελληνικό Λιανεμπόριο 2026. Διαβάστε τα ευρήματα, εξερευνήστε τον χάρτη της Ελλάδας και δείτε τη μεθοδολογία και τους περιορισμούς της μελέτης.",
+    keywords: ["Ελληνικό Λιανεμπόριο 2026", "έρευνα ελληνικού λιανεμπορίου", "KONTA MOY Research", "αποτελέσματα εμπορικών επιχειρήσεων", "μεθοδολογία έρευνας λιανεμπορίου"]
   });
 }
 
-function statusLabel(status: string): string {
-  return ({
-    draft: "Σχεδιασμός",
-    pilot: "Πιλοτική φάση",
-    fielding: "Σε εξέλιξη",
-    closed: "Η συλλογή ολοκληρώθηκε",
-    analysis: "Ανάλυση",
-    published: "Δημοσιευμένη",
-    archived: "Αρχείο"
-  } as Record<string, string>)[status] ?? "Ενημέρωση σε εξέλιξη";
-}
+const steps = [
+  {
+    number: "01 / ΕΥΡΗΜΑΤΑ",
+    title: "Διαβάστε τα αποτελέσματα",
+    description: "Ξεκινήστε από τα βασικά συμπεράσματα και συνεχίστε στις αναλυτικές θεματικές ενότητες.",
+    href: results
+  },
+  {
+    number: "02 / ΓΕΩΓΡΑΦΙΑ",
+    title: "Εξερευνήστε τον χάρτη",
+    description: "Δείτε τα διαθέσιμα στοιχεία ανά νομό και πώς διαφέρει η εικόνα της αγοράς σε όλη την Ελλάδα.",
+    href: `${results}#results-map`
+  },
+  {
+    number: "03 / ΕΠΙΣΤΗΜΟΝΙΚΗ ΒΑΣΗ",
+    title: "Κατανοήστε τη μέθοδο",
+    description: "Δείτε πώς συγκεντρώθηκαν και αναλύθηκαν οι απαντήσεις, με σαφείς βάσεις και περιορισμούς.",
+    href: methodology
+  }
+] as const;
 
-function date(value?: string): string {
-  return value ? new Date(value).toLocaleDateString("el-GR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-}
+const topics = [
+  "Οικονομικές πιέσεις και βιωσιμότητα",
+  "Ψηφιακή μετάβαση και ηλεκτρονικό εμπόριο",
+  "Πελάτες και τοπική αγορά",
+  "Εμπόδια, επενδύσεις και προοπτικές"
+] as const;
 
-function percent(value: number): string {
-  if (value > 0 && value < 0.00005) return "<0,01%";
-  return new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: value > 0 && value < 0.01 ? 2 : 1 }).format(value);
-}
-
-function StudyCard({ study, featured = false }: { study: PublicResearchStudySummary; featured?: boolean }) {
-  const isLive = study.status === "fielding" || study.status === "pilot";
-  const participationFocus = study.slug === "greek-retail-2026" && study.status === "fielding";
-  const progress = study.targetCompletes > 0 ? Math.min(Math.max(study.completionRate, 0), 1) : 0;
-
-  return <article className={[
-    styles.studyCard,
-    isLive ? styles.studyCardLive : "",
-    featured ? styles.featuredCard : ""
-  ].filter(Boolean).join(" ")}>
-    <div className={styles.cardTop}>
-      <span className={[styles.status, isLive ? styles.statusLive : ""].filter(Boolean).join(" ")}>
-        {isLive && <span className={styles.dot} aria-hidden="true" />}
-        {statusLabel(study.status)}
-      </span>
-      <span className={styles.eyebrow}>{study.programmeTitle}</span>
-    </div>
-
-    <h3>{study.title}</h3>
-    <p>{study.subtitle || study.methodologySummary}</p>
-
-    {participationFocus ? <div className={styles.publicCardParticipation}>
-      <strong>{study.started.toLocaleString("el-GR")} συμμετοχές που ξεκίνησαν</strong>
-      <span>Η συλλογή συνεχίζεται · {study.completed.toLocaleString("el-GR")} πλήρη ερωτηματολόγια έως τώρα{(study.administrativelyFinalized ?? 0) > 0 ? " (" + (study.participantConfirmed ?? 0).toLocaleString("el-GR") + " με υποβολή συμμετεχόντων, " + (study.administrativelyFinalized ?? 0).toLocaleString("el-GR") + " με τεκμηριωμένη διαχειριστική οριστικοποίηση)." : "."}</span>
-    </div> : null}
-    {study.targetCompletes > 0 && <>
-      <div className={styles.cardProgress} aria-label={"Πρόοδος " + percent(progress)}>
-        <div className={styles.cardProgressFill} style={{ width: (progress * 100).toFixed(1) + "%" }} />
-      </div>
-      <div className={styles.progressCaption}>
-        <span>{study.completed.toLocaleString("el-GR")} ολοκληρωμένες απαντήσεις</span>
-        <span>{percent(progress)} του στόχου</span>
-      </div>
-    </>}
-
-    <div className={styles.cardMeta}>
-      <div><span>Πληθυσμός</span><strong>{study.populationDefinition}</strong></div>
-      <div>
-        <span>{study.status === "published" ? "Δημοσιεύτηκε" : "Συλλογή έως"}</span>
-        <strong>{study.status === "published" ? date(study.releasePublishedAt) : date(study.fieldworkEndsAt)}</strong>
-      </div>
-    </div>
-
-    <div className={styles.cardFoot}>
-      <span className={styles.eyebrow}>KONTA MOY Research</span>
-      <Link className={styles.cardLink} href={"/research/" + study.waveSlug}>Άνοιγμα μελέτης →</Link>
-    </div>
-  </article>;
-}
-
-export default async function ResearchObservatoryPage() {
-  const snapshot = await publicResearchObservatory();
-  const active = snapshot.studies.filter((study) => ["draft","pilot","fielding","closed","analysis"].includes(study.status));
-  const published = snapshot.studies.filter((study) => study.status === "published");
-  const live = active.filter((study) => study.status === "fielding" || study.status === "pilot");
-  const lead = live[0] ?? active[0];
-  const remainingActive = lead ? active.filter((study) => study.waveId !== lead.waveId) : active;
-
+export default function ResearchLandingPage() {
   return <main className={styles.shell}>
-    <div className={styles.frame}>
+    <div className={styles.container}>
       <ResearchPublicNavigation active="studies" />
 
       <header className={styles.hero}>
         <div>
-          <div className={styles.eyebrow}>Παρατηρητήριο Ελληνικού Λιανεμπορίου</div>
-          <h1>Μελέτες για το ελληνικό λιανεμπόριο, από τη συλλογή ως τα αποτελέσματα.</h1>
-          <p>Παρακολουθήστε την πρόοδο των ενεργών μελετών, δείτε πώς πραγματοποιούνται και διαβάστε τα αποτελέσματα όταν ολοκληρωθεί η ανάλυση. Οι συγκρίσεις παρουσιάζονται μόνο όταν είναι επιστημονικά κατάλληλες.</p>
-
-          <div className={styles.heroBadges}>
-            {live.length > 0 && <span className={[styles.badge, styles.badgeLive].join(" ")}><span className={styles.dot} aria-hidden="true" /> {live.length} {live.length === 1 ? "μελέτη σε εξέλιξη" : "μελέτες σε εξέλιξη"}</span>}
-            <span className={styles.badge}>{published.length} δημοσιευμένες</span>
-            <span className={styles.badge}>Μεθοδολογία διαθέσιμη</span>
-          </div>
-
-          <div className={styles.sectionActions}>
-            {lead && <Link className={[styles.actionButton, styles.primaryButton].join(" ")} href={"/research/" + lead.waveSlug}>Δείτε την ενεργή μελέτη</Link>}
-            <Link className={styles.actionButton} href="/research/compare">Σύγκριση μελετών</Link>
-            <Link className={styles.actionButton} href="/research/market-sentiment">Έρευνες άλλων φορέων</Link>
+          <span className={styles.eyebrow}>KONTA MOY / ΠΑΡΑΤΗΡΗΤΗΡΙΟ ΛΙΑΝΕΜΠΟΡΙΟΥ</span>
+          <h1 className={styles.title}>Ελληνικό<br /><em>Λιανεμπόριο 2026.</em></h1>
+          <p className={styles.intro}>
+            Τι αντιμετωπίζουν οι επιχειρήσεις στην καθημερινότητά τους;
+            Μια έρευνα για το κόστος, την ψηφιακή μετάβαση, την τοπική αγορά
+            και το μέλλον του ελληνικού λιανεμπορίου.
+          </p>
+          <div className={styles.actions}>
+            <Link href={results} className={styles.primary}>Δείτε τα ευρήματα <span aria-hidden="true">&nbsp; ↗</span></Link>
+            <Link href={study} className={styles.secondary}>Γνωρίστε τη μελέτη</Link>
           </div>
         </div>
-
-        <aside className={styles.heroAside}>
-          <span>Σε εξέλιξη / υπό ανάλυση</span>
-          <strong>{active.length}</strong>
-          <hr />
-          <span>Δημοσιευμένες</span>
-          <strong>{published.length}</strong>
-          <hr />
-          <span>Σύνολο μελετών</span>
-          <strong>{snapshot.studies.length}</strong>
-          <span>Τελευταία ενημέρωση {new Date(snapshot.generatedAt).toLocaleString("el-GR")}</span>
+        <aside className={styles.heroNote} aria-label="Η έρευνα με μια ματιά">
+          <div className={styles.heroNoteTop}><span className={styles.heroYear}>’26</span></div>
+          <h2>Η αγορά, με τη δική της φωνή.</h2>
+          <p>Απαντήσεις από επιχειρήσεις, επιστημονική ανάλυση και ανοιχτή παρουσίαση των διαθέσιμων ευρημάτων.</p>
         </aside>
       </header>
 
-      <section className={styles.section}>
-        <div className={styles.quickGrid}>
-          <a className={styles.quickLink} href={lead?.status === "fielding" ? "#survey-progress" : "#studies"}>
-            <span className={styles.eyebrow}>01 · Πρόοδος</span>
-            <strong>Παρακολουθήστε τη συλλογή</strong>
-            <span>Δείτε το μέγεθος του δείγματος, τις προσκλήσεις και τις ολοκληρωμένες απαντήσεις.</span>
-          </a>
-          <Link className={styles.quickLink} href="/research/compare">
-            <span className={styles.eyebrow}>02 · Σύγκριση</span>
-            <strong>Συγκρίνετε μελέτες</strong>
-            <span>Δείτε πότε δύο αποτελέσματα μπορούν να συγκριθούν άμεσα και πότε χρειάζεται προσοχή.</span>
-          </Link>
-          <Link className={styles.quickLink} href="/research/greek-retail-2026/methodology">
-            <span className={styles.eyebrow}>03 · Μέθοδος</span>
-            <strong>Δείτε πώς έγινε η έρευνα</strong>
-            <span>Σκοπός, πληθυσμός, δείγμα, περίοδος συλλογής και βασικές αρχές ανάλυσης.</span>
-          </Link>
-          <Link className={styles.quickLink} href="/research/privacy">
-            <span className={styles.eyebrow}>04 · Ιδιωτικότητα</span>
-            <strong>Πώς προστατεύονται οι συμμετέχοντες</strong>
-            <span>Η συμμετοχή, οι απαντήσεις και οι επιλογές επικοινωνίας παραμένουν ξεχωριστές.</span>
-          </Link>
-        </div>
-      </section>
-
-      {lead?.status === "fielding" && <section className={styles.section} id="survey-progress">
-        <ResearchLiveProgress initialStudy={lead} showHeatmap={false} />
-      </section>}
-
-      <section className={styles.section} id="studies">
-        <div className={styles.sectionHead}>
+      <section className={styles.section} aria-labelledby="research-start-title">
+        <div className={styles.sectionTop}>
           <div>
-            <div className={styles.eyebrow}>Ενεργές μελέτες</div>
-            <h2>Μελέτες σε εξέλιξη</h2>
+            <span className={styles.eyebrow}>Ο ΟΔΗΓΟΣ ΤΗΣ ΕΡΕΥΝΑΣ</span>
+            <h2 id="research-start-title" className={styles.sectionTitle}>Από πού θέλετε να ξεκινήσετε;</h2>
           </div>
-          <p>Κατά τη διάρκεια της συλλογής εμφανίζουμε μόνο στοιχεία προόδου. Τα ευρήματα δημοσιεύονται αφού ολοκληρωθούν η συλλογή, οι έλεγχοι και η ανάλυση.</p>
+          <p className={styles.sectionHint}>Τρεις καθαρές διαδρομές για να βρείτε αυτό που σας ενδιαφέρει, χωρίς να χαθείτε στα δεδομένα.</p>
         </div>
-
-        {active.length > 0
-          ? <div className={styles.grid}>
-              {lead && <StudyCard study={lead} featured />}
-              {remainingActive.map((study) => <StudyCard study={study} key={study.waveId} />)}
-            </div>
-          : <div className={styles.empty}>
-              Δεν υπάρχει αυτή τη στιγμή ενεργή δημόσια μελέτη.
-              <br /><Link className={styles.cardLink} href="/research/greek-retail-2026">Άνοιγμα Ελληνικό Λιανεμπόριο 2026 →</Link>
-            </div>}
+        <nav className={styles.steps} aria-label="Πλοήγηση στη μελέτη Ελληνικό Λιανεμπόριο 2026">
+          {steps.map(step => <Link key={step.number} href={step.href} className={styles.step}>
+            <span className={styles.stepIndex}>{step.number}</span>
+            <h3>{step.title}</h3>
+            <p>{step.description}</p>
+            <span className={styles.stepArrow} aria-hidden="true">↗</span>
+          </Link>)}
+        </nav>
       </section>
 
-      <section className={styles.section}>
-        <div className={styles.sectionHead}>
-          <div>
-            <div className={styles.eyebrow}>Αποτελέσματα</div>
-            <h2>Δημοσιευμένες μελέτες</h2>
-          </div>
-          <p>Κάθε δημοσιευμένη μελέτη συνοδεύεται από τη μεθοδολογία της, το μέγεθος του δείγματος και τις πληροφορίες που χρειάζονται για σωστή ερμηνεία.</p>
+      <section className={[styles.section, styles.inside].join(" ")} aria-labelledby="research-themes-title">
+        <div>
+          <span className={styles.eyebrow}>ΤΟ ΠΕΡΙΕΧΟΜΕΝΟ</span>
+          <h2 id="research-themes-title" className={styles.sectionTitle}>Μια συνολική εικόνα της αγοράς.</h2>
+          <p className={styles.insideIntro}>Από την καθημερινή πίεση του λειτουργικού κόστους έως τις αποφάσεις για την επόμενη ημέρα. <Link className={styles.inlineLink} href={results}>Εξερευνήστε τις θεματικές ↗</Link></p>
         </div>
-        {published.length > 0
-          ? <div className={styles.grid}>{published.map((study) => <StudyCard study={study} key={study.waveId} />)}</div>
-          : <div className={styles.empty}>Δεν έχουν δημοσιευθεί ακόμη αποτελέσματα.</div>}
-      </section>
-
-      <section className={styles.section}>
-        <div className={styles.sectionHead}>
-          <div>
-            <div className={styles.eyebrow}>Πώς εξελίσσεται μια μελέτη</div>
-            <h2>Πέντε απλά στάδια.</h2>
-          </div>
-          <p>Η δημόσια σελίδα δείχνει σε ποιο στάδιο βρίσκεται κάθε μελέτη και τι είναι διαθέσιμο σε κάθε φάση.</p>
-        </div>
-        <div className={styles.process}>
-          <article className={styles.processStep}><span>01</span><strong>Σχεδιασμός</strong><p>Ορίζονται τα ερωτήματα, ο πληθυσμός και το δείγμα.</p></article>
-          <article className={styles.processStep}><span>02</span><strong>Πιλοτική δοκιμή</strong><p>Ελέγχουμε ότι το ερωτηματολόγιο λειτουργεί σωστά.</p></article>
-          <article className={styles.processStep}><span>03</span><strong>Συλλογή</strong><p>Συγκεντρώνονται οι απαντήσεις και εμφανίζεται μόνο η πρόοδος.</p></article>
-          <article className={styles.processStep}><span>04</span><strong>Ανάλυση</strong><p>Ελέγχονται τα δεδομένα και υπολογίζονται τα αποτελέσματα.</p></article>
-          <article className={styles.processStep}><span>05</span><strong>Δημοσίευση</strong><p>Τα αποτελέσματα παρουσιάζονται μαζί με τη μεθοδολογία και τους περιορισμούς τους.</p></article>
+        <div className={styles.topics} aria-label="Βασικοί άξονες έρευνας">
+          {topics.map((topic, index) => <div className={styles.topic} key={topic}>
+            <span>{String(index + 1).padStart(2, "0")}</span>{topic}
+          </div>)}
         </div>
       </section>
 
-      {!snapshot.databaseConfigured && <div className={styles.notice}>
-        Η ενημέρωση των μελετών δεν είναι προσωρινά διαθέσιμη. Παρακαλούμε δοκιμάστε ξανά αργότερα.
-      </div>}
-
-      <div className={styles.footer}>KONTA MOY Research · Μελέτες · Μεθοδολογία · Αποτελέσματα</div>
+      <div className={styles.disclaimer}>
+        <p>Τα ευρήματα περιγράφουν το δείγμα της έρευνας. Σε κάθε δημοσιευμένο δείκτη αναφέρεται η βάση απαντήσεων (n), ενώ η <Link className={styles.inlineLink} href={methodology}>μεθοδολογία</Link> εξηγεί πώς πρέπει να ερμηνεύονται οι εκτιμήσεις και οι περιορισμοί τους.</p>
+        <nav className={styles.more} aria-label="Περισσότερα από το Παρατηρητήριο">
+          <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
+          <Link href="/research/compare">Σύγκριση</Link>
+          <Link href="/research/privacy">Ιδιωτικότητα</Link>
+        </nav>
+      </div>
     </div>
     <SiteFooter />
   </main>;
