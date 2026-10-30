@@ -231,7 +231,7 @@ export function ResearchResultsEditorial({ points, geography }: { points: readon
               <dt>{point.label || publicMetricLabel(point.metricKey)} <small>n={whole.format(point.n)}</small></dt>
               <dd>{formatPoint(point)}</dd>
             </div>)}</dl> : <p className={styles.areaEmpty}>Δεν υπάρχουν δημοσιεύσιμες τιμές για αυτή την ενότητα.</p>}
-            <a href="#research-workbench" className={styles.areaLink}>Αναλυτική εξερεύνηση <span aria-hidden="true">↗</span></a>
+            <a href="#research-workbench" className={styles.areaLink} onClick={() => window.dispatchEvent(new CustomEvent("research:select-chapter", { detail: chapter.id }))}>Αναλυτική εξερεύνηση <span aria-hidden="true">↗</span></a>
           </article>;
         })}
       </div>
