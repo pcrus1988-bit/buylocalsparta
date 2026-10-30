@@ -33,7 +33,7 @@ export async function GET() {
         "Γραφείο Τύπου: research@kontamou.site\n"
       }
     ]);
-    return new Response(archive, { headers: {
+    return new Response(new Uint8Array(archive), { headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": 'attachment; filename="KONTA-MOY-Greek-Retail-2026-Press-Kit.zip"',
       "Cache-Control": "no-store",
