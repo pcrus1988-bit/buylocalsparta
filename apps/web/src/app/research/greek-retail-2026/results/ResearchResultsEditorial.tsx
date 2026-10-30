@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PUBLIC_RESULTS_CHAPTERS, publicMetricLabel } from "../../../../lib/research-public-results-sections";
 import { GREECE_PREFECTURES } from "../../../../lib/research-prefectures";
-import type { SafeParticipationGeography, SafePublicResultPoint } from "../../../../lib/research-public-results-data";
+import type { SafeParticipationGeography, SafePublicResultPoint, SafeCountyAvailability } from "../../../../lib/research-public-results-data";
 import styles from "./ResultsEditorial.module.css";
 
 type Feature = { properties: { name: string }; geometry: { type: string; coordinates: unknown } };
@@ -45,7 +45,9 @@ function heat(value: number | undefined, min: number, max: number): string {
   return "rgb(" + low.map((v, i) => Math.round(v + (high[i]! - v) * strength)).join(",") + ")";
 }
 
+const CountyAvailabilityContext = createContext<readonly SafeCountyAvailability[]>([]);
 function EditorialMap({ points, geography }: { points: readonly SafePublicResultPoint[]; geography?: SafeParticipationGeography }) {
+  const countyAvailability=useContext(CountyAvailabilityContext);
   const [geo, setGeo] = useState<Geography | null>(null);
   const [failed, setFailed] = useState(false);
   const [active, setActive] = useState(0);
@@ -94,6 +96,15 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
     return () => window.clearInterval(timer);
   }, [playing, layers.length]);
 
+  const countyBands = new Map(countyAvailability.map(c => [c.key, c.band] as const));
+  const underFive = countyAvailability.filter(c => c.band === "under5").length;
+  const countyBandText = (key:string) => countyBands.get(key)==="under5"?"Βάση 1–4 · χωρίς δημοσιεύσιμο αποτέλεσμα":
+    countyBands.get(key)==="5to9"?"Βάση 5–9 · χωρίς αποτέλεσμα για τον δείκτη":
+    countyBands.get(key)==="10to29"?"Βάση 10–29 · χωρίς αποτέλεσμα για τον δείκτη":
+    "Χωρίς δημοσιεύσιμα στοιχεία";
+  const countyBandColor = (key:string) => countyBands.get(key)==="under5"?"#fff1b4":
+    countyBands.get(key)==="5to9"?"#ffe0a1":
+    countyBands.get(key)==="10to29"?"#f4d7a5":"#e5e9e4";
   const index = Math.min(active, Math.max(layers.length - 1, 0));
   const layer = layers[index];
   const smallBaseCount = layer?.kind === "survey"
@@ -136,7 +147,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
         <div className={styles.legend} aria-label="Κλίμακα χρωμάτων">
           <span>Χαμηλότερη τιμή</span><i aria-hidden="true" /><span>Υψηλότερη τιμή</span>
         </div>
-        <p className={styles.mapCaveat}>Οι χρωματικές κλίμακες προσαρμόζονται ξεχωριστά σε κάθε δείκτη. Οι μη εγκεκριμένοι ή ανεπαρκώς καλυμμένοι νομοί εμφανίζονται γκρίζοι. {layer?.kind === "survey" && smallBaseCount > 0 ? `${smallBaseCount} από τους ${layer.entries.size} νομούς με τιμή βασίζονται σε μόλις 5–29 απαντήσεις· δεν αποτελούν αξιόπιστη κατάταξη των νομών.` : ""}</p>
+        <p className={styles.mapCaveat}>Οι χρωματικές κλίμακες προσαρμόζονται ξεχωριστά σε κάθε δείκτη. Νομοί με μικρό δείγμα αλλά χωρίς δημοσιεύσιμη εκτίμηση σημειώνονται με ανοιχτές αποχρώσεις και διακεκομμένο περίγραμμα, όχι ως τιμές του δείκτη. Περιοχές χωρίς καταγραφή παραμένουν γκρίζες. {underFive > 0 ? `${underFive} νομοί έχουν βάση 1–4· οι ατομικές απαντήσεις τους δεν δημοσιοποιούνται. ` : ""}{layer?.kind === "survey" && smallBaseCount > 0 ? `${smallBaseCount} από τους ${layer.entries.size} νομούς με τιμή βασίζονται σε μόλις 5–29 απαντήσεις· δεν αποτελούν αξιόπιστη κατάταξη των νομών.` : ""}</p>
       </div>
       <div className={styles.mapVisual}>
         {failed ? <p role="alert">Ο χάρτης δεν φορτώθηκε. Χρησιμοποιήστε τα αναλυτικά γραφήματα παρακάτω.</p>
@@ -146,12 +157,12 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
               const value = layer?.entries.get(feature.properties.name);
               const number = typeof value === "number" ? value : value?.value;
               return <path key={feature.properties.name} d={polygonPath(feature.geometry)} fillRule="evenodd"
-                fill={heat(number, min, max)} stroke="#fffdf7" strokeWidth="1.35"
+                fill={number === undefined ? countyBandColor(feature.properties.name) : heat(number, min, max)} stroke="#fffdf7" strokeWidth="1.35" strokeDasharray={number === undefined && countyBands.has(feature.properties.name) ? "4 2" : undefined}
                 className={chosen === feature.properties.name ? styles.countySelected : styles.county}
-                role="button" tabIndex={0} aria-label={`${keyNames.get(feature.properties.name) ?? feature.properties.name}: ${displayValue(value)}`}
+                role="button" tabIndex={0} aria-label={`${keyNames.get(feature.properties.name) ?? feature.properties.name}: ${value === undefined ? countyBandText(feature.properties.name) : displayValue(value)}`}
                 onClick={() => setChosen(feature.properties.name)}
                 onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setChosen(feature.properties.name); } }}>
-                <title>{keyNames.get(feature.properties.name) ?? feature.properties.name}: {displayValue(value)}</title>
+                <title>{keyNames.get(feature.properties.name) ?? feature.properties.name}: {value === undefined ? countyBandText(feature.properties.name) : displayValue(value)}</title>
               </path>;
             })}
           </svg>}
@@ -164,7 +175,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
           </label>
           <div aria-live="polite" className={styles.mapDetail}>
             <strong>{chosen ? (keyNames.get(chosen) ?? chosen) : "Σύνολο Ελλάδας"}</strong>
-            <span>{chosen ? displayValue(selected) : `${layer?.entries.size ?? 0} / 55 νομοί με διαθέσιμη τιμή`}</span>
+            <span>{chosen && selected === undefined ? countyBandText(chosen) : chosen ? displayValue(selected) : `${layer?.entries.size ?? 0} / 55 νομοί με διαθέσιμη τιμή`}</span>
             {typeof selected === "object" && <small>Βάση n={whole.format(selected.n)}</small>}
           </div>
         </div>
@@ -173,7 +184,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
   </section>;
 }
 
-export function ResearchResultsEditorial({ points, geography, children }: { points: readonly SafePublicResultPoint[]; geography?: SafeParticipationGeography; children?: ReactNode }) {
+export function ResearchResultsEditorial({ points, geography, countyAvailability, children }: { points: readonly SafePublicResultPoint[]; geography?: SafeParticipationGeography; countyAvailability?: readonly SafeCountyAvailability[]; children?: ReactNode }) {
   const overall = points.filter(point => Object.keys(point.segment).length === 0);
   const find = (key: string) => overall.find(p => p.metricKey === key);
   const selected = HIGHLIGHT_GROUPS.map(group => ({
@@ -185,7 +196,7 @@ export function ResearchResultsEditorial({ points, geography, children }: { poin
   }));
   const lead = HEADLINES.map(item => ({ ...item, point: find(item.key) }))
     .find((item): item is typeof item & { point: SafePublicResultPoint } => Boolean(item.point && item.point.format === "proportion"));
-  return <>
+  return <CountyAvailabilityContext.Provider value={countyAvailability??[]}>
     <header id="results-top" className={styles.hero}>
       <div className={styles.heroTop}><span className={styles.eyebrow}>KONTA MOY / ΕΛΛΗΝΙΚΟ ΛΙΑΝΕΜΠΟΡΙΟ 2026</span>
         <span className={styles.releaseLabel}>ΔΗΜΟΣΙΕΥΜΕΝΗ ΕΡΕΥΝΑ</span></div>
@@ -247,5 +258,5 @@ export function ResearchResultsEditorial({ points, geography, children }: { poin
       <p>Το n είναι οι απαντήσεις που χρησιμοποιήθηκαν για κάθε εκτίμηση. Όπου υπάρχει, το διάστημα εμπιστοσύνης εκφράζει την αβεβαιότητα της εκτίμησης. Οι περιγραφικές διαφορές δεν αποδεικνύουν αιτιότητα ή στατιστική σημαντικότητα, και μικρές γεωγραφικές βάσεις απαιτούν προσοχή.</p>
       <Link href="/research/greek-retail-2026/methodology">Πλήρης μεθοδολογία και περιορισμοί ↗</Link>
     </section>
-  </>;
+  </CountyAvailabilityContext.Provider>;
 }

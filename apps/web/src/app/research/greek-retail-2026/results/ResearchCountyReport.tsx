@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { GREECE_PREFECTURES } from "../../../../lib/research-prefectures";
 import { PUBLIC_RESULTS_CHAPTERS, publicMetricLabel } from "../../../../lib/research-public-results-sections";
-import type { InternalResearchGeographicCoverage, SafePublicResultPoint } from "../../../../lib/research-public-results-data";
+import type { InternalResearchGeographicCoverage, SafePublicResultPoint, SafeCountyAvailability } from "../../../../lib/research-public-results-data";
 import styles from "./ResultsWorkbench.module.css";
 
 type CountyMetricComparison = {
@@ -42,16 +42,19 @@ function scaleBar(p:SafePublicResultPoint,reference:SafePublicResultPoint){
 }
 
 export function ResearchCountyReport({
-  points,coverage,mode
+  points,coverage,countyAvailability=[],mode
 }:{
   points:readonly SafePublicResultPoint[];
   coverage?:InternalResearchGeographicCoverage;
+  countyAvailability?:readonly SafeCountyAvailability[];
   mode:"preview"|"live"|"published"|"unpublished";
 }){
   const [county,setCounty]=useState("");
   const [chapterFilter,setChapterFilter]=useState("all");
   const [onlyComparisons,setOnlyComparisons]=useState(false);
   const countyName=GREECE_PREFECTURES.find(x=>x.key===county)?.label??"";
+  const countyBand=countyAvailability.find(item=>item.key===county)?.band;
+  const countyBandLabel=countyBand==="under5"?"1–4":countyBand==="5to9"?"5–9":countyBand==="10to29"?"10–29":countyBand==="30plus"?"30+":null;
   const entries=useMemo(()=>buildCountyMetricComparisons(points,county),[points,county]);
   const byKey=useMemo(()=>new Map(entries.map(r=>[r.key,r])),[entries]);
   const counts=coverage?.prefectures.find(x=>x.key===county);
@@ -99,7 +102,7 @@ export function ResearchCountyReport({
             mode==="published"?"Εγκεκριμένα δημοσιευμένα στοιχεία":"Προεπισκόπηση διαθεσιμότητας"}</small>
         </div>
         <div><span>ΑΠΑΝΤΗΣΕΙΣ ΝΟΜΟΥ</span><strong>{countyTotal===null?"—":count(countyTotal)}</strong>
-          <small>{countyTotal===null?"Δεν διατίθεται δημόσιος αριθμός ολοκληρώσεων":"Ολοκληρωμένες υποβολές"}</small></div>
+          <small>{countyTotal===null?(countyBandLabel?`Ερευνητική βάση ${countyBandLabel} · χωρίς ατομικά αποτελέσματα`:"Δεν διατίθεται δημόσιος αριθμός ολοκληρώσεων"):"Ολοκληρωμένες υποβολές"}</small></div>
         <div><span>ΣΥΝΟΛΟ ΕΛΛΑΔΑΣ</span><strong>{nationalTotal===null?"—":count(nationalTotal)}</strong>
           <small>{nationalTotal===null?"Διαφέρει ανά ερώτηση":"Ολοκληρωμένες υποβολές"}</small></div>
         <div><span>ΔΙΑΘΕΣΙΜΟΙ ΣΥΓΚΡΙΣΙΜΟΙ ΔΕΙΚΤΕΣ</span><strong>{count(totalCompared)}</strong>
@@ -110,6 +113,7 @@ export function ResearchCountyReport({
           <span className={styles.eyebrow}>ΣΥΝΟΠΤΙΚΗ ΕΠΙΣΤΗΜΟΝΙΚΗ ΑΠΟΤΙΜΗΣΗ</span>
           <h4>Τι δείχνουν οι απαντήσεις του νομού {countyName};</h4>
         </div>
+        {countyBand === "under5" && <p className={styles.countyCaution}>Ο νομός περιλαμβάνεται δημόσια με τεκμηριωμένη πολύ μικρή ερευνητική βάση 1–4. Δεν δημοσιοποιούνται οι κατασταλμένες τιμές απαντήσεων, ώστε να αποφεύγεται η ταυτοποίηση των συμμετεχόντων.</p>}
         {totalCompared===0?<p>Δεν υπάρχουν αυτή τη στιγμή κοινά διαθέσιμοι, εγκεκριμένοι για εμφάνιση δείκτες
           αυτού του νομού και της Ελλάδας. Η έλλειψη δημοσιεύσιμου συγκριτικού αριθμού δεν σημαίνει μηδενικές απαντήσεις
           ούτε απουσία οικονομικών προβλημάτων.</p>:<>
