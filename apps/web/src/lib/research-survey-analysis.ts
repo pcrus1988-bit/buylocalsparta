@@ -475,7 +475,7 @@ export async function runGreekRetailAnalysis(
           'analysisPlanVersion',$12::text,
           'analysisPlanSha256',$13::text,
           'fieldworkPhase','main',
-          'waveId',$2::text
+          'waveId',$2::uuid::text
         ),
         'running',now()
       )
