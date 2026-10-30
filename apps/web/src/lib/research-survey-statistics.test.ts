@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   benjaminiHochbergAdjustedPValues,
   boundedRakeCalibration,
+  coarsenResearchCalibrationMargins,
+  pooledResearchNonresponseAdjustments,
   normal95ConfidenceInterval,
   normalTwoSidedPValue,
   proportionalStratumAllocation,
@@ -260,4 +262,52 @@ test("fieldwork outcome summary refuses to call progress-state dispositions seal
   assert.equal(result.latestDispositionTotal, 10);
   assert.equal(result.unresolved, 2);
   assert.equal(result.sealed, false);
+});
+
+test("sector-pooled adjustment carries empty original strata without fabricating responses", () => {
+  const result = pooledResearchNonresponseAdjustments([
+    { classCode: "fashion", representedWeight: 90 },
+    { classCode: "fashion", representedWeight: 10 }, // no respondent in this original stratum
+    { classCode: "beauty", representedWeight: 60 }
+  ], [
+    { responseId: "a", classCode: "fashion", baseWeight: 10 },
+    { responseId: "b", classCode: "fashion", baseWeight: 10 },
+    { responseId: "c", classCode: "beauty", baseWeight: 5 }
+  ]);
+  assert.equal(result.classCount, 2);
+  assert.equal(result.adjustments.fashion, 5);
+  assert.equal(result.adjustments.beauty, 12);
+  assert.equal(result.representedTotal, 160);
+  assert.equal(10 * result.adjustments.fashion! +
+    10 * result.adjustments.fashion! + 5 * result.adjustments.beauty!, 160);
+});
+
+test("pooled adjustment fails closed when a whole sector lacks respondents", () => {
+  assert.throws(() => pooledResearchNonresponseAdjustments([
+    { classCode: "fashion", representedWeight: 100 },
+    { classCode: "beauty", representedWeight: 50 }
+  ], [{ responseId: "r", classCode: "fashion", baseWeight: 20 }]),
+  /RESEARCH_NONRESPONSE_EMPTY_POOLED_CLASS:beauty/);
+});
+
+test("coarsening preserves every frozen population control including an empty prefecture", () => {
+  const margins = coarsenResearchCalibrationMargins([
+    { dimension: "region_code", category: "46", targetTotal: 200 },
+    { dimension: "region_code", category: "48", targetTotal: 609 }, // Φωκίδα, zero respondents
+    { dimension: "region_code", category: "0", targetTotal: 25 },
+    { dimension: "sector_code", category: "fashion", targetTotal: 500 },
+    { dimension: "sector_code", category: "beauty", targetTotal: 334 }
+  ], { "46": "CENTRAL GREECE", "48": "CENTRAL GREECE", "0": "UNKNOWN_FROZEN_PREFECTURE" });
+  assert.deepEqual(margins.filter(row=>row.dimension==="region_code"), [
+    { dimension: "region_code", category: "CENTRAL GREECE", targetTotal: 809 },
+    { dimension: "region_code", category: "UNKNOWN_FROZEN_PREFECTURE", targetTotal: 25 }
+  ]);
+  assert.equal(margins.filter(row=>row.dimension==="region_code").reduce((a,b)=>a+b.targetTotal,0), 834);
+  assert.equal(margins.filter(row=>row.dimension==="sector_code").reduce((a,b)=>a+b.targetTotal,0), 834);
+});
+
+test("unmapped frozen prefecture remains a hard calibration failure", () => {
+  assert.throws(() => coarsenResearchCalibrationMargins([
+    { dimension: "region_code", category: "48", targetTotal: 609 }
+  ], { "46": "CENTRAL GREECE" }), /RESEARCH_CALIBRATION_CROSSWALK_MISSING:region_code:48/);
 });
