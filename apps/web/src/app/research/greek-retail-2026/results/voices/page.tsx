@@ -5,6 +5,7 @@ import { SiteFooter } from "../../../../../components/SiteFooter";
 import { ResearchVoiceOfGreece } from "../ResearchVoiceOfGreece";
 import { getPublishedGreekRetailResults } from "../../../../../lib/research-survey-release";
 import { publicVoiceDataFromRelease } from "../../../../../lib/research-public-voices-data";
+import { loadApprovedGreekRetailQ18 } from "../../../../../lib/research-q18-approved-sidecar";
 
 export const dynamic="force-dynamic";
 export const metadata:Metadata={
@@ -14,7 +15,7 @@ export const metadata:Metadata={
 };
 export default async function GreeceVoicesPage(){
  const released=await getPublishedGreekRetailResults("greek-retail-2026");
- const voices=released?publicVoiceDataFromRelease(released.methodology.q18PublicVoices):undefined;
+ const voices=released?(publicVoiceDataFromRelease(released.methodology.q18PublicVoices) ?? await loadApprovedGreekRetailQ18(released.artifactSha256)):undefined;
  return <main style={{background:"#f3f6ef",minHeight:"100vh",overflowX:"hidden"}}>
   <ResearchPublicNavigation active="results" studySlug="greek-retail-2026"/>
   <div style={{maxWidth:1200,margin:"15px auto",padding:"10px 22px"}}>
