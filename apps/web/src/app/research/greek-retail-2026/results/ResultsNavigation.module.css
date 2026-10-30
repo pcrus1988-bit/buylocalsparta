@@ -1,0 +1,30 @@
+.sidebar{position:sticky;top:18px;height:calc(100dvh - 36px);overflow-y:auto;overscroll-behavior:contain;min-width:0;box-sizing:border-box;display:flex;flex-direction:column;padding:22px 15px;background:#fffdf9;border:1px solid #e0e8dc;box-shadow:0 12px 36px rgba(35,64,42,.05);border-radius:20px;scrollbar-width:thin;scrollbar-color:#bfd2c1 transparent;color:#234a32}
+.brand{display:flex;justify-content:space-between;gap:10px;padding:3px 8px 23px}
+.brand>div{display:grid;gap:5px}.brandMark{font-weight:950;letter-spacing:.105em;font-size:11px;color:#225339}.brandMark span{color:#ba8c54}
+.brand strong{font:500 23px/1.12 Georgia,serif;letter-spacing:-.025em;margin:6px 0;color:#1b4531}
+.brand small{font-size:10px;color:#708871}
+.groupLabel,.subLabel{font-size:9px;font-weight:850;letter-spacing:.14em;color:#859988;padding:0 10px;margin:8px 0 9px}
+.nav{display:grid;gap:3px}
+.navLink,.active{display:flex;align-items:center;gap:10px;border-radius:10px;color:#53735c;text-decoration:none;font-size:12px;font-weight:760;padding:12px 10px;transition:background .15s,color .15s}
+.active{background:#e6efe3;color:#1b5938}
+.navLink:hover,.navLink:focus-visible,.related:hover,.related:focus-visible{background:#f0f5ee;color:#174b2d}
+.navNumber{font:500 14px Georgia,serif;opacity:.58}
+.subLabel{display:block;margin:14px 0 5px;font-size:9px}
+.chapters{display:grid;gap:1px;padding-left:12px;border-left:1px solid #dce6d9;margin:0 0 9px 16px}
+.chapters a{display:flex;gap:10px;align-items:center;text-decoration:none;border-radius:8px;padding:8px 7px;color:#65816b;font-size:11px;line-height:1.4;font-weight:650}
+.chapters a span{font:500 11px Georgia,serif;color:#93aa94}
+.chapters a:hover,.chapters a:focus-visible{background:#eff5ed;color:#234d33}
+.divider{height:1px;background:#e3eae1;margin:20px 8px 15px}
+.related{display:flex;justify-content:space-between;gap:7px;padding:10px;border-radius:9px;text-decoration:none;font-size:12px;font-weight:700;color:#4e7059}
+.bottom{margin-top:auto;padding:23px 8px 4px;font-size:9px;letter-spacing:.055em;color:#92a195;line-height:1.6}
+.bottom span{color:#5e9473}
+.close,.mobileToggle,.backdrop{display:none}
+@media(max-width:850px){
+ .mobileToggle{position:sticky;top:8px;z-index:45;display:flex;align-items:center;justify-content:space-between;gap:11px;width:100%;border-radius:12px;border:1px solid #cbdcc9;background:#f7faf5;color:#23543a;font-size:12px;font-weight:800;padding:13px 15px;margin:0 0 13px;box-shadow:0 5px 15px rgba(29,71,43,.08)}
+ .mobileToggle span:first-child{font-size:17px}
+ .backdrop{display:block;position:fixed;inset:0;width:100vw;height:100dvh;background:rgba(17,37,26,.54);border:0;z-index:70;cursor:pointer}
+ .sidebar{position:fixed;top:0;bottom:0;left:0;height:100dvh;width:min(85vw,345px);z-index:71;overflow-y:auto;border-radius:0 20px 20px 0;transform:translateX(-106%);visibility:hidden;transition:transform .22s ease,visibility .22s ease;box-shadow:0 18px 60px rgba(6,30,15,.24);padding:24px 16px}
+ .sidebarOpen{visibility:visible;transform:translateX(0)}
+ .close{display:inline-flex;align-items:center;justify-content:center;background:#eef5eb;border:1px solid #d7e5d2;border-radius:10px;width:33px;height:33px;color:#345b40;font-size:25px;cursor:pointer}
+}
+@media(prefers-reduced-motion:reduce){.sidebar,.navLink,.active{transition:none}}
