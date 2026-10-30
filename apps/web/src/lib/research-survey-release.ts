@@ -553,10 +553,49 @@ export async function buildGreekRetailRelease(
     WHERE pe.study_id=$1 AND pe.wave_id=$2
     ORDER BY pe.occurred_at,pe.recorded_at,pe.id
   `, [studyId, waveId]);
+  // Four historical, append-only protocol rows were inserted with a legacy
+  // noncanonical evidence digest. Do not mutate their recorded evidence or
+  // bypass integrity checks globally. A separately appended audit amendment,
+  // pinned by both immutable event ID and canonical SHA-256, identifies the
+  // exact original and corrected digests that may be reconciled.
+  const reconciliationEvent = protocolEventsResult.rows.find(
+    (row) => text(row.id) === "7e9f5904-0f31-41fd-bc41-db383aa51bed"
+  );
+  const reconciliationEvidence = objectValue(reconciliationEvent?.evidence_json);
+  const reconciliationVerified = Boolean(
+    reconciliationEvent &&
+    text(reconciliationEvent.event_type) === "amendment" &&
+    text(reconciliationEvent.category) === "operations" &&
+    text(reconciliationEvent.content_sha256) === "026c18afeb8f68eb0be560f85f8ed5893a54ec7dd219e8410936cb3eec877d8c" &&
+    sha256Canonical(reconciliationEvidence) === "026c18afeb8f68eb0be560f85f8ed5893a54ec7dd219e8410936cb3eec877d8c" &&
+    reconciliationEvidence.reconciliationVersion === "greek-retail-2026-protocol-digest-reconciliation-v1" &&
+    reconciliationEvidence.sourceEvidenceModified === false &&
+    reconciliationEvidence.surveyResponsesModified === false &&
+    reconciliationEvidence.consentRecordsModified === false
+  );
+  const legacyDigestReconciliations = new Map<string, { storedHash: string; canonicalHash: string }>();
+  if (reconciliationVerified && Array.isArray(reconciliationEvidence.corrections)) {
+    for (const rawCorrection of reconciliationEvidence.corrections) {
+      const correction = objectValue(rawCorrection);
+      legacyDigestReconciliations.set(text(correction.eventId), {
+        storedHash: text(correction.storedHash),
+        canonicalHash: text(correction.canonicalHash)
+      });
+    }
+  }
+  const reconciledLegacyEventIds: string[] = [];
   const protocolEvents = protocolEventsResult.rows.map((row) => {
     const evidence = objectValue(row.evidence_json);
-    if (sha256Canonical(evidence) !== text(row.content_sha256)) {
-      throw new Error(`RESEARCH_RELEASE_PROTOCOL_EVIDENCE_INTEGRITY_FAILED:${text(row.id)}`);
+    const canonicalDigest = sha256Canonical(evidence);
+    if (canonicalDigest !== text(row.content_sha256)) {
+      const amendment = legacyDigestReconciliations.get(text(row.id));
+      if (!amendment ||
+          amendment.storedHash !== text(row.content_sha256) ||
+          amendment.canonicalHash !== canonicalDigest ||
+          text(row.id) === text(reconciliationEvent?.id)) {
+        throw new Error(`RESEARCH_RELEASE_PROTOCOL_EVIDENCE_INTEGRITY_FAILED:${text(row.id)}`);
+      }
+      reconciledLegacyEventIds.push(text(row.id));
     }
     return {
       id: text(row.id),
@@ -650,6 +689,7 @@ export async function buildGreekRetailRelease(
       schema: "kontamou.research.protocol-event.v1",
       eventCount: publicProtocolEvents.length,
       unresolvedMaterialOrCriticalCount: publicUnresolvedEvents.length,
+      reconciledLegacyEventIds,
       events: publicProtocolEvents
     },
     analysisPlan: {
