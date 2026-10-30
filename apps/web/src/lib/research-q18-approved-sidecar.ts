@@ -80,3 +80,27 @@ export async function archiveApprovedGreekRetailQ18(){
        !publicVoiceDataFromRelease(parsed))throw Error("RESEARCH_Q18_EXISTING_INVALID");
     return {state:"already_verified",releaseSnapshotId:release.id};
   }
+  const results=await pool.query<{answer_id:number;answer_text:string}>(`
+    WITH latest AS (
+      SELECT DISTINCT ON (response_id) response_id,decision
+      FROM research_response_quality_reviews
+      ORDER BY response_id,created_at DESC,id DESC
+    )
+    SELECT a.id AS answer_id,a.answer #>> '{}' AS answer_text
+    FROM research_answers a
+    JOIN research_responses r ON r.id=a.response_id
+    JOIN research_studies s ON s.id=r.study_id AND s.slug='greek-retail-2026'
+    JOIN research_questions q ON q.id=a.question_id AND q.instrument_id=r.instrument_id
+    JOIN research_invites i ON i.id=r.invite_id AND i.fieldwork_phase='main'
+    JOIN latest l ON l.response_id=r.id AND l.decision='include'
+    WHERE r.wave_id=s.current_wave_id AND r.status='completed'
+      AND r.withdrawn_at IS NULL AND q.code='Q18'
+      AND q.question_type IN ('text','textarea','open_text','free_text')
+      AND jsonb_typeof(a.answer)='string'
+    ORDER BY a.id
+  `);
+  if(results.rows.length>MAX_ANSWERS)throw Error("RESEARCH_Q18_TOO_MANY_ANSWERS");
+  const candidates=results.rows.flatMap(row=>{
+    const text=safePublicText(Number(row.answer_id),String(row.answer_text??""));
+    return text?[{text,tags:categorizeResearchFreeText(text)}]:[];
+  });
