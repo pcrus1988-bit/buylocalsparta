@@ -340,21 +340,33 @@ export async function buildGreekRetailRelease(
       JOIN research_responses rr ON rr.invite_id=ib.invite_id
       GROUP BY ib.stratum_id
     ),
+    -- Resolve membership once, not a correlated query for every frame unit.
+    -- DISTINCT preserves the original EXISTS semantics in both cases.
+    pilot_exposure_keys AS (
+      SELECT DISTINCT pfu.external_key_hash
+      FROM research_invites pri
+      JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+      JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
+      WHERE pri.study_id=$3
+        AND pri.fieldwork_phase='pilot'
+        AND pri.sent_at IS NOT NULL
+    ),
+    active_email_units AS (
+      SELECT DISTINCT cp.frame_unit_id
+      FROM research_contact_points cp
+      JOIN research_frame_units eligible_fu ON eligible_fu.id=cp.frame_unit_id
+      WHERE eligible_fu.frame_snapshot_id=$1
+        AND cp.contact_type='email'
+        AND cp.suppression_status='active'
+        AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+    ),
     frame_phase AS (
-      SELECT
-        fu.id,
-        fu.stratum_id,
-        EXISTS (
-          SELECT 1
-          FROM research_invites pri
-          JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
-          JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
-          WHERE pri.study_id=$3
-            AND pri.fieldwork_phase='pilot'
-            AND pri.sent_at IS NOT NULL
-            AND pfu.external_key_hash=fu.external_key_hash
-        ) AS pilot_exposed
+      SELECT fu.id,fu.stratum_id,
+             pek.external_key_hash IS NOT NULL AS pilot_exposed,
+             ae.frame_unit_id IS NOT NULL AS has_active_email
       FROM research_frame_units fu
+      LEFT JOIN pilot_exposure_keys pek ON pek.external_key_hash=fu.external_key_hash
+      LEFT JOIN active_email_units ae ON ae.frame_unit_id=fu.id
       WHERE fu.frame_snapshot_id=$1
     ),
     frame_phase_counts AS (
@@ -364,14 +376,7 @@ export async function buildGreekRetailRelease(
         count(*) FILTER (WHERE NOT fp.pilot_exposed)::int AS main_eligible_population_count,
         count(*) FILTER (
           WHERE NOT fp.pilot_exposed
-            AND EXISTS (
-              SELECT 1
-              FROM research_contact_points cp
-              WHERE cp.frame_unit_id=fp.id
-                AND cp.contact_type='email'
-                AND cp.suppression_status='active'
-                AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
-            )
+            AND fp.has_active_email
         )::int AS active_email_units
       FROM frame_phase fp
       GROUP BY fp.stratum_id
