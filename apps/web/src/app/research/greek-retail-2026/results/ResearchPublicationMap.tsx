@@ -94,7 +94,9 @@ export function ResearchPublicationMap({
   publicCountyBands.get(key)==="5to9"?"Βάση 5–9 · δεν διατίθεται τιμή για τον δείκτη":
   publicCountyBands.get(key)==="10to29"?"Βάση 10–29 · δεν διατίθεται τιμή για τον δείκτη":
   publicCountyBands.get(key)==="30plus"?"Καταγεγραμμένες απαντήσεις · χωρίς τιμή για τον δείκτη":"Χωρίς διαθέσιμη εκτίμηση";
- const fallbackCountyColor=(key:string)=>publicCountyBands.get(key)==="under5"?"#fff1b4":"#dfe3dc";
+ const fallbackCountyColor=(key:string)=>publicCountyBands.get(key)==="under5"?"#fff1b4":
+  publicCountyBands.get(key)==="5to9"?"#ffe0a1":
+  publicCountyBands.get(key)==="10to29"?"#f4d7a5":"#dfe3dc";
  const regionalApproved=new Set(points.filter(p=>typeof p.segment.prefectureCode==="string").map(p=>p.metricKey));
  const regionValues=useMemo(()=>{
   const byKey=new Map(internalCoverage?internalCoverage.regions.filter(x=>x.eligibleN!==null).map(x=>[x.key,x.eligibleN!] as const):(geography?.regions.map(x=>[x.key,x.started] as const)??[]));
@@ -257,6 +259,7 @@ export function ResearchPublicationMap({
        const fill=region&&region.value!==undefined?heat(region.value,domain,palette):fallbackCountyColor(feature.properties.name);
        return <path key={feature.properties.name} d={polygonPath(feature.geometry)}
         fill={density?"#dfe3dc":fill} stroke="#f8efcf" strokeWidth={1.2/zoom}
+        strokeDasharray={region?.value===undefined&&publicCountyBands.has(feature.properties.name)?"4 2":undefined}
         opacity={selected&&selected!==feature.properties.name?.95:1}
         fillRule="evenodd" className={styles.mapRegion}
         onClick={()=>setSelected(s=>s===feature.properties.name?"":feature.properties.name)}>
@@ -339,7 +342,7 @@ export function ResearchPublicationMap({
    Τα δεδομένα προέρχονται από δημοσίως διαθέσιμα γεωγραφικά συγκεντρωτικά στοιχεία, όχι από θέσεις συσκευών.
    {available.length===0?" Δεν διατίθενται προς το παρόν επαρκή δημοσιεύσιμα γεωγραφικά στοιχεία.":""}
   </p>}
-  <p className={styles.note}>Η μόνη γεωγραφική μονάδα είναι ο νομός. Η αντιστοίχιση πραγματοποιείται στο διακομιστή από τον Τ.Κ. και δεν αποκαλύπτει Τ.Κ. ή στοιχεία επιχειρήσεων. Οι νομοί με βάση 1–4 εμφανίζονται ανοιχτό κίτρινο, χωρίς αριθμητικό αποτέλεσμα. Οι περιοχές χωρίς καταγραφή μένουν γκρίζες.
+  <p className={styles.note}>Η μόνη γεωγραφική μονάδα είναι ο νομός. Η αντιστοίχιση πραγματοποιείται στο διακομιστή από τον Τ.Κ. και δεν αποκαλύπτει Τ.Κ. ή στοιχεία επιχειρήσεων. Οι νομοί με περιορισμένη βάση 1–4, 5–9 ή 10–29 αλλά χωρίς δημοσιεύσιμο αποτέλεσμα εμφανίζονται με ανοιχτούς τόνους και διακεκομμένο περίγραμμα, όχι ως τιμές της χρωματικής κλίμακας. Οι περιοχές χωρίς καταγραφή μένουν γκρίζες.
    Τα επιμέρους δεδομένα μικρών ομάδων δεν μεταφέρονται στον φυλλομετρητή.</p>
  </section>;
 }
