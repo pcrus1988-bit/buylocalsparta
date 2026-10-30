@@ -253,6 +253,89 @@ export function boundedRakeCalibration(
 }
 
 
+/**
+ * Contingency for sparse, post-fieldwork response cells.
+ *
+ * The respondent must inherit the sum of eligible design weights in its
+ * declared adjustment class, including design strata with zero respondents.
+ * No individual is fabricated, and there is never a division by zero.
+ * Pooling is a documented deviation from within-stratum adjustment and must
+ * be disclosed in the analysis and release, not silently called the planned
+ * estimator.
+ */
+export function pooledResearchNonresponseAdjustments(
+  representedClasses: readonly Readonly<{ classCode: string; representedWeight: number }>[],
+  respondentUnits: readonly Readonly<{ responseId: string; classCode: string; baseWeight: number }>[]
+): Readonly<{ adjustments: Readonly<Record<string, number>>; classCount: number; representedTotal: number }> {
+  const represented = new Map<string, number>();
+  for (const row of representedClasses) {
+    if (!row.classCode || !Number.isFinite(row.representedWeight) || row.representedWeight < 0) {
+      throw new Error("RESEARCH_NONRESPONSE_CLASS_INVALID");
+    }
+    represented.set(row.classCode, (represented.get(row.classCode) ?? 0) + row.representedWeight);
+  }
+  const responding = new Map<string, number>();
+  const seen = new Set<string>();
+  for (const row of respondentUnits) {
+    if (!row.responseId || seen.has(row.responseId) || !row.classCode ||
+        !Number.isFinite(row.baseWeight) || row.baseWeight <= 0 ||
+        !represented.has(row.classCode)) {
+      throw new Error("RESEARCH_NONRESPONSE_RESPONSE_INVALID");
+    }
+    seen.add(row.responseId);
+    responding.set(row.classCode, (responding.get(row.classCode) ?? 0) + row.baseWeight);
+  }
+  const adjustments: Record<string, number> = {};
+  let representedTotal = 0;
+  for (const [classCode, total] of represented) {
+    representedTotal += total;
+    const respondentBase = responding.get(classCode) ?? 0;
+    if (total > 0 && respondentBase <= 0) {
+      throw new Error(`RESEARCH_NONRESPONSE_EMPTY_POOLED_CLASS:${classCode}`);
+    }
+    if (respondentBase > total + Math.max(1e-8, total * 1e-8)) {
+      throw new Error(`RESEARCH_NONRESPONSE_CLASS_BASE_EXCEEDS_SAMPLE:${classCode}`);
+    }
+    if (respondentBase > 0) adjustments[classCode] = total / respondentBase;
+  }
+  if (!seen.size || !(representedTotal > 0)) throw new Error("RESEARCH_NONRESPONSE_NO_RESPONDENTS");
+  return { adjustments, classCount: Object.keys(adjustments).length, representedTotal };
+}
+
+/**
+ * Roll up frozen prefecture-level population margins to pre-existing
+ * administrative regions without moving a respondent between geographies.
+ * Unknown geographic-source cells stay in a separate "UNKNOWN" control,
+ * rather than being assigned an invented prefecture.
+ */
+export function coarsenResearchCalibrationMargins(
+  margins: readonly CalibrationMargin[],
+  categoryCrosswalk: Readonly<Record<string, string>>,
+  dimension = "region_code"
+): readonly CalibrationMargin[] {
+  const aggregated = new Map<string, CalibrationMargin>();
+  for (const margin of margins) {
+    if (!margin.dimension || !margin.category ||
+        !Number.isFinite(margin.targetTotal) || margin.targetTotal <= 0) {
+      throw new Error("RESEARCH_CALIBRATION_MARGIN_INVALID");
+    }
+    const category = margin.dimension === dimension
+      ? categoryCrosswalk[margin.category]
+      : margin.category;
+    if (!category) throw new Error(`RESEARCH_CALIBRATION_CROSSWALK_MISSING:${margin.dimension}:${margin.category}`);
+    const key = JSON.stringify([margin.dimension, category]);
+    const previous = aggregated.get(key);
+    aggregated.set(key, {
+      dimension: margin.dimension,
+      category,
+      targetTotal: (previous?.targetTotal ?? 0) + margin.targetTotal
+    });
+  }
+  return [...aggregated.values()].sort((a,b) =>
+    a.dimension.localeCompare(b.dimension) || a.category.localeCompare(b.category)
+  );
+}
+
 const Z_95 = 1.959963984540054;
 
 export function stratifiedSrsMeanVariance(

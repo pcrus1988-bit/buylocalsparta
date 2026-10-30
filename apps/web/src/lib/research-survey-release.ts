@@ -782,6 +782,11 @@ export async function buildGreekRetailRelease(
       weightDiagnostics: objectValue(parameters.weightDiagnostics)
     },
     disclosure: {
+      postFieldworkWeightingContingency: objectValue(parameters.weightDiagnostics).methodologicalDeviation || null,
+      weightingContingencyVersion: objectValue(parameters.weightDiagnostics).weightingContingencyVersion || null,
+      originalDesignStrata: objectValue(parameters.weightDiagnostics).originalDesignStrata ?? null,
+      zeroResponseDesignStrata: objectValue(parameters.weightDiagnostics).zeroResponseDesignStrata ?? null,
+      calibrationRegionResolution: objectValue(parameters.weightDiagnostics).calibrationRegionResolution || null,
       smallBaseSuppression: true,
       confidenceIntervalsPublished: varianceMethod !== "not_estimated",
       conventionalMarginOfErrorPublished: false,
@@ -791,7 +796,9 @@ export async function buildGreekRetailRelease(
       "The sampling frame depends on the frozen G.E.MI. source snapshot and the contact points available for that frame.",
       "Pilot participants form an explicit holdout. Pilot responses are excluded from analysis and businesses exposed during the pilot are excluded from the main fieldwork draw; the resulting main effective population is disclosed separately from the frozen frame population.",
       "Email contactability is reported for the frozen frame and by sampling stratum. Email-only fieldwork can still be biased if availability of a usable public email is related to survey outcomes after conditioning on the weighting strata.",
-      "Non-response adjustment is performed within the governed sampling strata.",
+      objectValue(parameters.weightDiagnostics).methodologicalDeviation === "post_fieldwork_sparse_strata_contingency"
+        ? "Post-fieldwork methodological deviation (not preregistered): because original design strata had no respondents, nonresponse adjustment was pooled across frozen sector classes; calibration used frozen population totals aggregated to the 13 administrative regions plus a separate unknown-prefecture class. The original questionnaire responses and inverse-inclusion design weights were retained. No estimates are made for prefectures without responses; weighting cannot eliminate nonresponse bias."
+        : "Non-response adjustment is performed within the governed sampling strata.",
       "Reminder and reissue emails are counted as contact attempts only; they reuse the canonical invite identity and therefore do not inflate sent-invitation or response-rate denominators.",
       "The locked pre-fieldwork analysis plan distinguishes pre-specified primary and secondary analyses from explicitly exploratory pairwise comparisons; later analytical additions must be labelled rather than silently back-dated into the plan.",
       varianceMethod === "not_estimated"

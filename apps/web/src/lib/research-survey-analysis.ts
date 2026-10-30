@@ -1,23 +1,32 @@
 import { createHash } from "node:crypto";
 import { RESEARCH_PUBLIC_MINIMUM_UNWEIGHTED_BASE, RESEARCH_EXPERIMENT_MINIMUM_ARM_BASE } from "./research-disclosure-policy.ts";
 import { resolveResearchAdministrativeGeography } from "./research-postcode-geography-core";
+import { greekRegionForPrefecture } from "./research-geographic-core";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import {
   benjaminiHochbergAdjustedPValues,
   boundedRakeCalibration,
+  coarsenResearchCalibrationMargins,
+  pooledResearchNonresponseAdjustments,
   normal95ConfidenceInterval,
   normalTwoSidedPValue,
   researchWeightDiagnostics,
-  stratifiedSrsMeanVariance,
   weightedClusteredDifferenceInMeans
 } from "./research-survey-statistics";
 import { scoreGreekRetail2026, type ResearchAnswerMap } from "./research-survey-model";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v9-public-n5";
-const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v2";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v10-public-n5-sparse-pool";
+const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v3";
+// Post-fieldwork contingency: preserve frozen design weights and avoid empty
+// adjustment cells by pooling nonresponse at sector level, then calibrate on
+// frozen-frame administrative regions rather than unsupported prefecture cells.
+const WEIGHTING_CONTINGENCY_VERSION = "sparse-strata-sector-pool-admin-region-calibration-v1";
+const EFFECTIVE_CALIBRATION_METHOD = "bounded_raking_admin_region_sector_v1";
 const MIN_PUBLIC_BASE = RESEARCH_PUBLIC_MINIMUM_UNWEIGHTED_BASE;
-const VARIANCE_METHOD = "stratified_srs_fpc_v1";
+const PRESPECIFIED_PUBLIC_BASE = 30; // Locked plan; later n=5 disclosure is a dated policy amendment.
+const VARIANCE_METHOD = "stratified_srs_fpc_v1"; // Locked pre-fieldwork plan.
+const EFFECTIVE_VARIANCE_METHOD = "not_estimated"; // Pooled nonresponse is not SRS-FPC.
 const CALIBRATION_METHOD = "bounded_raking_frozen_frame_v1";
 const CALIBRATION_DIMENSIONS = ["region_code", "sector_code"] as const;
 const CALIBRATION_OPTIONS = {
@@ -389,7 +398,7 @@ export async function runGreekRetailAnalysis(
     CALIBRATION_DIMENSIONS.every((dimension) => planCalibrationDimensions.includes(dimension))
   );
   if (
-    planMinimumBase !== MIN_PUBLIC_BASE ||
+    planMinimumBase !== PRESPECIFIED_PUBLIC_BASE ||
     planConfidenceLevel !== 0.95 ||
     planVarianceMethod !== VARIANCE_METHOD ||
     planNonresponseAdjustment !== "within_sampling_stratum" ||
@@ -443,7 +452,7 @@ export async function runGreekRetailAnalysis(
       datasetSha256: text(runResult.rows[0]?.dataset_sha256),
       includedResponses: numberValue(completed.rows[0]?.included_responses),
       estimateCount: numberValue(completed.rows[0]?.estimate_count),
-      varianceMethod: VARIANCE_METHOD,
+      varianceMethod: EFFECTIVE_VARIANCE_METHOD,
       publicMinimumBase: MIN_PUBLIC_BASE,
       analysisPlanVersion: text(analysisPlan.version),
       analysisPlanSha256: text(analysisPlan.content_sha256),
@@ -481,7 +490,7 @@ export async function runGreekRetailAnalysis(
       draw.id,
       draw.frame_snapshot_id,
       MIN_PUBLIC_BASE,
-      VARIANCE_METHOD,
+      EFFECTIVE_VARIANCE_METHOD,
       analysisPlan.id,
       analysisPlan.version,
       analysisPlan.content_sha256
@@ -506,7 +515,7 @@ export async function runGreekRetailAnalysis(
       draw.id,
       draw.frame_snapshot_id,
       MIN_PUBLIC_BASE,
-      VARIANCE_METHOD,
+      EFFECTIVE_VARIANCE_METHOD,
       analysisPlan.version,
       analysisPlan.content_sha256
     ]);
@@ -517,29 +526,10 @@ export async function runGreekRetailAnalysis(
   // this run's not-yet-released weight version before reconstructing it.
   await pool.query("DELETE FROM research_weights WHERE version=$1", [weightVersion]);
 
-  const eligibleByStratum = await pool.query<SqlRow>(`
-    WITH latest_disposition AS (
-      SELECT DISTINCT ON (e.sample_unit_id)
-        e.sample_unit_id,
-        e.disposition_code
-      FROM research_sample_disposition_events e
-      JOIN research_sample_units su ON su.id=e.sample_unit_id
-      WHERE su.sample_draw_id=$1
-      ORDER BY e.sample_unit_id, e.occurred_at DESC, e.id DESC
-    )
-    SELECT
-      su.stratum_id,
-      sum(su.base_weight)::numeric AS represented_weight
-    FROM research_sample_units su
-    LEFT JOIN latest_disposition d ON d.sample_unit_id=su.id
-    WHERE su.sample_draw_id=$1
-      AND COALESCE(d.disposition_code,'') NOT IN ('ineligible','duplicate','out_of_scope')
-    GROUP BY su.stratum_id
-  `, [draw.id]);
-  const representedByStratum = new Map(
-    eligibleByStratum.rows.map((row) => [text(row.stratum_id), numberValue(row.represented_weight)] as const)
-  );
-
+  // Empty original sampling strata cannot be inverted individually. Pool only
+  // the nonresponse-rate adjustment across the pre-existing frozen-frame
+  // sector classes; retain each respondent's original design base weight.
+  // This is an explicit, post-fieldwork methodological contingency.
   const responseResult = await pool.query<SqlRow>(`
     WITH latest_quality AS (
       SELECT DISTINCT ON (qr.response_id)
@@ -587,22 +577,71 @@ export async function runGreekRetailAnalysis(
     baseWeight: numberValue(row.base_weight)
   }));
 
-  const responseBaseByStratum = new Map<string, number>();
-  for (const response of baseResponses) {
-    responseBaseByStratum.set(
-      response.stratumId,
-      (responseBaseByStratum.get(response.stratumId) ?? 0) + response.baseWeight
-    );
-  }
+  const representedClasses = await pool.query<SqlRow>(`
+    WITH latest_disposition AS (
+      SELECT DISTINCT ON (e.sample_unit_id) e.sample_unit_id,e.disposition_code
+      FROM research_sample_disposition_events e
+      JOIN research_sample_units su ON su.id=e.sample_unit_id
+      WHERE su.sample_draw_id=$1
+      ORDER BY e.sample_unit_id,e.occurred_at DESC,e.id DESC
+    )
+    SELECT st.dimensions->>'sectorCode' AS sector_code,
+           SUM(su.base_weight)::numeric AS represented_weight
+    FROM research_sample_units su
+    JOIN research_strata st ON st.id=su.stratum_id
+    LEFT JOIN latest_disposition d ON d.sample_unit_id=su.id
+    WHERE su.sample_draw_id=$1
+      AND COALESCE(d.disposition_code,'') NOT IN ('ineligible','duplicate','out_of_scope')
+    GROUP BY st.dimensions->>'sectorCode'
+  `, [draw.id]);
 
-  const adjustmentByStratum = new Map<string, number>();
-  for (const [stratumId, representedWeight] of representedByStratum) {
-    const respondentBase = responseBaseByStratum.get(stratumId) ?? 0;
-    if (representedWeight > 0 && respondentBase <= 0) {
-      throw new Error(`RESEARCH_WEIGHTING_EMPTY_RESPONSE_STRATUM:${stratumId}`);
+  const sampledStrata = await pool.query<SqlRow>(`
+    SELECT DISTINCT stratum_id FROM research_sample_units WHERE sample_draw_id=$1
+  `, [draw.id]);
+  const responseStrata = new Set(baseResponses.map((response) => response.stratumId));
+  const zeroResponseStrata = sampledStrata.rows.filter(
+    (row) => !responseStrata.has(text(row.stratum_id))
+  ).length;
+
+  const pooled = pooledResearchNonresponseAdjustments(
+    representedClasses.rows.map((row) => ({
+      classCode: text(row.sector_code),
+      representedWeight: numberValue(row.represented_weight)
+    })),
+    baseResponses.map((response) => ({
+      responseId: response.responseId,
+      classCode: response.sectorCode,
+      baseWeight: response.baseWeight
+    }))
+  );
+  const adjustmentBySector = pooled.adjustments;
+
+  // The source region codes are historic prefectures; use immutable frozen
+  // frame labels to aggregate all 56 population controls to 13 peripheries
+  // (plus an explicit unknown-source group). Fokida and other empty original
+  // cells therefore retain their population weight without invented answers.
+  const frameRegionLabels = await pool.query<SqlRow>(`
+    SELECT region_code,
+           MIN(sampling_attributes->>'prefecture') AS first_prefecture,
+           MAX(sampling_attributes->>'prefecture') AS last_prefecture
+    FROM research_frame_units
+    WHERE frame_snapshot_id=$1
+    GROUP BY region_code
+  `, [draw.frame_snapshot_id]);
+  const regionCrosswalk: Record<string,string> = {};
+  for (const row of frameRegionLabels.rows) {
+    const code = text(row.region_code);
+    const first = text(row.first_prefecture);
+    if (!code || !first || first !== text(row.last_prefecture)) {
+      throw new Error(`RESEARCH_WEIGHTING_FROZEN_REGION_AMBIGUOUS:${code}`);
     }
-    if (respondentBase > 0) adjustmentByStratum.set(stratumId, representedWeight / respondentBase);
+    const administrativeRegion = greekRegionForPrefecture(first);
+    if (!administrativeRegion && code !== "0") {
+      throw new Error(`RESEARCH_WEIGHTING_FROZEN_REGION_UNMAPPED:${code}`);
+    }
+    regionCrosswalk[code] = administrativeRegion ?? "UNKNOWN_FROZEN_PREFECTURE";
   }
+  if (!Object.keys(regionCrosswalk).length) throw new Error("RESEARCH_WEIGHTING_REGION_CROSSWALK_EMPTY");
 
   const marginSetResult = await pool.query<SqlRow>(`
     SELECT id,source_ref,source_sha256,methodology_version
@@ -637,9 +676,10 @@ export async function runGreekRetailAnalysis(
     throw new Error("RESEARCH_CALIBRATION_MARGINS_INCOMPLETE");
   }
 
+  const effectiveMargins = coarsenResearchCalibrationMargins(calibrationMargins, regionCrosswalk);
   const calibration = boundedRakeCalibration(
     baseResponses.map((response) => {
-      const nonresponseAdjustment = adjustmentByStratum.get(response.stratumId);
+      const nonresponseAdjustment = adjustmentBySector[response.sectorCode];
       if (!nonresponseAdjustment || !Number.isFinite(nonresponseAdjustment)) {
         throw new Error(`RESEARCH_WEIGHTING_STRATUM_UNRESOLVED:${response.stratumId}`);
       }
@@ -647,12 +687,12 @@ export async function runGreekRetailAnalysis(
         id: response.responseId,
         baseWeight: response.baseWeight * nonresponseAdjustment,
         dimensions: {
-          region_code: response.regionCode,
+          region_code: regionCrosswalk[response.regionCode] ?? "UNMAPPED",
           sector_code: response.sectorCode
         }
       };
     }),
-    calibrationMargins,
+    effectiveMargins,
     CALIBRATION_OPTIONS
   );
   if (!calibration.converged) {
@@ -662,7 +702,7 @@ export async function runGreekRetailAnalysis(
   }
 
   for (const response of baseResponses) {
-    const nonresponseAdjustment = adjustmentByStratum.get(response.stratumId);
+    const nonresponseAdjustment = adjustmentBySector[response.sectorCode];
     const calibrationAdjustment = calibration.adjustments[response.responseId];
     const finalWeight = calibration.finalWeights[response.responseId];
     if (
@@ -682,12 +722,15 @@ export async function runGreekRetailAnalysis(
       VALUES (
         $1,$2,$3,$4,$5,$6,
         jsonb_build_object(
-          'method','within_stratum_nonresponse_plus_bounded_raking',
+          'method','pooled_sector_nonresponse_plus_admin_region_bounded_raking',
           'analysisRunId',$7::text,
           'stratumId',$8::text,
           'populationMarginSetId',$9::text,
           'populationMarginSourceSha256',$10::text,
-          'calibrationMethod',$11::text
+          'calibrationMethod',$11::text,
+          'adjustmentClass',$12::text,
+          'calibrationRegion',$13::text,
+          'contingencyVersion',$14::text
         )
       )
     `, [
@@ -701,7 +744,10 @@ export async function runGreekRetailAnalysis(
       response.stratumId,
       marginSet.id,
       marginSet.source_sha256,
-      CALIBRATION_METHOD
+      EFFECTIVE_CALIBRATION_METHOD,
+      response.sectorCode,
+      regionCrosswalk[response.regionCode],
+      WEIGHTING_CONTINGENCY_VERSION
     ]);
   }
 
@@ -817,7 +863,7 @@ export async function runGreekRetailAnalysis(
     });
   }
 
-  const adjustmentValues = [...adjustmentByStratum.values()]
+  const adjustmentValues = Object.values(adjustmentBySector)
     .filter((value) => Number.isFinite(value) && value > 0);
   const calibrationAdjustmentValues = Object.values(calibration.adjustments)
     .filter((value) => Number.isFinite(value) && value > 0);
@@ -826,8 +872,18 @@ export async function runGreekRetailAnalysis(
     nonresponseAdjustmentMin: adjustmentValues.length ? Math.min(...adjustmentValues) : null,
     nonresponseAdjustmentMax: adjustmentValues.length ? Math.max(...adjustmentValues) : null,
     adjustmentStrata: adjustmentValues.length,
-    calibrationMethod: CALIBRATION_METHOD,
+    originalDesignStrata: sampledStrata.rows.length,
+    zeroResponseDesignStrata: zeroResponseStrata,
+    nonresponseMethod: "pooled_frozen_sector_class",
+    preregisteredNonresponseMethod: "within_sampling_stratum",
+    methodologicalDeviation: "post_fieldwork_sparse_strata_contingency",
+    weightingContingencyVersion: WEIGHTING_CONTINGENCY_VERSION,
+    calibrationMethod: EFFECTIVE_CALIBRATION_METHOD,
+    preregisteredCalibrationMethod: CALIBRATION_METHOD,
     calibrationDimensions: [...CALIBRATION_DIMENSIONS],
+    originalRegionMarginCount: calibrationMargins.filter(row=>row.dimension==="region_code").length,
+    effectiveRegionMarginCount: effectiveMargins.filter(row=>row.dimension==="region_code").length,
+    calibrationRegionResolution: "administrative_region_plus_unknown_frozen_prefecture",
     calibrationAdjustmentMin: calibrationAdjustmentValues.length ? Math.min(...calibrationAdjustmentValues) : null,
     calibrationAdjustmentMax: calibrationAdjustmentValues.length ? Math.max(...calibrationAdjustmentValues) : null,
     calibrationConverged: calibration.converged,
@@ -887,22 +943,13 @@ export async function runGreekRetailAnalysis(
       if (result.estimate === undefined) continue;
       const unweightedN = segment.observations.length;
       const suppressed = unweightedN < MIN_PUBLIC_BASE;
-      // Postcode geographies are descriptive domains, not original design strata.
-      const domainVarianceUnsupported = Boolean(segment.segment.sizeBand || segment.segment.regionCode || segment.segment.prefectureCode);
-      const designResponses = designResponsesForSegment(segment.segment, weightedResponses);
-      const variance = domainVarianceUnsupported
-        ? { reason: "unsupported_non_stratification_domain" as const }
-        : stratifiedSrsMeanVariance(
-            segment.observations.map((observation) => ({
-              stratumId: observation.response.stratumId,
-              value: observation.value
-            })),
-            designResponses.map((response) => ({
-              stratumId: response.stratumId,
-              finalWeight: response.finalWeight
-            }))
-          );
-      const standardError = "standardError" in variance ? variance.standardError : undefined;
+      // Pooling nonresponse cells changes the stratified-SRS variance model.
+      // No design-valid variance estimator for these adjusted weights has been
+      // verified, so withhold confidence intervals rather than guessing.
+      const variance: { standardError?: number; reason: string } = {
+        reason: "pooled_nonresponse_calibration_variance_not_estimated"
+      };
+      const standardError = variance.standardError;
       const confidence = standardError === undefined
         ? undefined
         : normal95ConfidenceInterval(
@@ -938,8 +985,8 @@ export async function runGreekRetailAnalysis(
           geographicSource: (segment.segment.regionCode || segment.segment.prefectureCode)
             ? "postcode_administrative_crosswalk_v1" : undefined,
           publicPrefectureApproved: Boolean(segment.segment.prefectureCode && Object.keys(segment.segment).length === 1 && !suppressed),
-          smallBaseDescriptiveOnly: unweightedN >= MIN_PUBLIC_BASE && unweightedN < 30,
-          varianceMethod: standardError === undefined ? "withheld" : VARIANCE_METHOD,
+          smallBaseDescriptiveOnly: unweightedN >= MIN_PUBLIC_BASE && unweightedN < PRESPECIFIED_PUBLIC_BASE,
+          varianceMethod: EFFECTIVE_VARIANCE_METHOD,
           varianceWithheldReason: standardError === undefined ? variance.reason ?? "unavailable" : null,
           finitePopulationCorrection: standardError !== undefined
         })
@@ -1264,7 +1311,7 @@ export async function runGreekRetailAnalysis(
     datasetSha256,
     includedResponses: weightedResponses.length,
     estimateCount,
-    varianceMethod: VARIANCE_METHOD,
+    varianceMethod: EFFECTIVE_VARIANCE_METHOD,
     publicMinimumBase: MIN_PUBLIC_BASE,
     analysisPlanVersion: text(analysisPlan.version),
     analysisPlanSha256: text(analysisPlan.content_sha256),
