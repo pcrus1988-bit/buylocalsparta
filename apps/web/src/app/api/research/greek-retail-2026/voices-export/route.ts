@@ -1,5 +1,6 @@
 import {getPublishedGreekRetailResults} from "../../../../../lib/research-survey-release";
 import {publicVoiceDataFromRelease} from "../../../../../lib/research-public-voices-data";
+import {loadApprovedGreekRetailQ18} from "../../../../../lib/research-q18-approved-sidecar";
 import {renderResearchVoicesPdf} from "../../../../../lib/research-voice-pdf";
 
 export const runtime="nodejs";
@@ -10,7 +11,7 @@ export const maxDuration=60;
 export async function GET(){
   try {
     const release=await getPublishedGreekRetailResults("greek-retail-2026");
-    const data=release?publicVoiceDataFromRelease(release.methodology.q18PublicVoices):undefined;
+    const data=release?(publicVoiceDataFromRelease(release.methodology.q18PublicVoices) ?? await loadApprovedGreekRetailQ18(release.artifactSha256)):undefined;
     if(!data || !data.quotes.length)return new Response("Not available",{status:404,
       headers:{"Cache-Control":"no-store","X-Robots-Tag":"noindex"}});
     const pdf=await renderResearchVoicesPdf({

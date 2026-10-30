@@ -14,6 +14,7 @@ import { ResearchScientificReading } from "./ResearchScientificReading";
 import { ResearchRawDataRequest } from "./ResearchRawDataRequest";
 import { scientificReadingSummary } from "../../../../lib/research-scientific-reading";
 import { publicVoiceDataFromRelease } from "../../../../lib/research-public-voices-data";
+import { loadApprovedGreekRetailQ18 } from "../../../../lib/research-q18-approved-sidecar";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,8 @@ export default async function GreekRetailResultsPage() {
   const safePoints = publicResultPoints(published.estimates);
   const countyAvailability = publicCountyAvailability(published.estimates);
   const reading = scientificReadingSummary(published.methodology);
+  const voices = publicVoiceDataFromRelease(published.methodology.q18PublicVoices)
+    ?? await loadApprovedGreekRetailQ18(published.artifactSha256);
   let geography: SafeParticipationGeography | undefined;
   try {
     const publicStudy = await publicResearchStudy("greek-retail-2026");
@@ -77,7 +80,7 @@ export default async function GreekRetailResultsPage() {
       <ResearchScientificReading points={safePoints} summary={reading} />
     </ResearchResultsEditorial>
     <ResearchResultsWorkbench mode="published" points={safePoints} geography={geography} countyAvailability={countyAvailability}
-      voices={publicVoiceDataFromRelease(published.methodology.q18PublicVoices)} />
+      voices={voices} />
     <ResearchRawDataRequest />
     <SiteFooter />
   </main>;
