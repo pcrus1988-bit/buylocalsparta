@@ -113,3 +113,9 @@ export async function archiveApprovedGreekRetailQ18(){
     return category?[{id:`approved-q18-${i+1}`,category,text:candidate.text,publicApproved:true,deidentified:true}]:[];
   });
   if(!quotes.length||!categories.length)throw Error("RESEARCH_Q18_NO_SAFE_QUOTES");
+  const projection={
+    schema:"kontamou.research.q18-public-voices.v1",
+    reviewStatus:"approved",privacyReviewed:true,geographySuppressed:true,
+    approvedAt:APPROVAL_AT,releaseArtifactSha256:release.artifact_sha256,
+    taxonomyVersion:"q18-themes-v2.2026-10-24",categories,quotes,geography:[]
+  };
