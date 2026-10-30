@@ -1,0 +1,63 @@
+import { createHash } from "node:crypto";
+import { serverObjectStorageFromEnv } from "@buy-local-sparta/object-storage";
+import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { GREEK_RETAIL_RESULTS_PUBLICATION_AT } from "./research-results-publication";
+import {
+  RESEARCH_FREE_TEXT_CATEGORIES, RESEARCH_FREE_TEXT_OTHER,
+  categorizeResearchFreeText
+} from "./research-free-text-categories";
+import { publicResearchQ18DisplayText } from "./research-q18-publication-moderation";
+import { scrubResearchAnswerForInternalPdf } from "./research-voices-private-export";
+import { publicVoiceDataFromRelease, type PublicVoiceData } from "./research-public-voices-data";
+
+const BUCKET="greek-retail-2026-backups";
+const APPROVAL_AT="2026-10-30T16:55:00.000Z";
+const MAX_ANSWERS=2000;
+const MAX_BYTES=1_500_000;
+const objectKey=(sha:string)=>`research/voices/${sha}/approved-v1.json`;
+const sha256=(bytes:Uint8Array)=>createHash("sha256").update(bytes).digest("hex");
+const STORAGE_SHA=/^[a-f0-9]{64}$/;
+
+// In addition to the explicit editorial exclusion/censorship list, omit any
+// comments that may carry personal identifiers or other sensitive details.
+// Private originals are never modified; only approved deidentified sidecars
+// can become public after the publication cutoff.
+function safePublicText(id:number,raw:string):string|null {
+  const moderated=publicResearchQ18DisplayText(id,raw.trim());
+  if(!moderated)return null;
+  const value=scrubResearchAnswerForInternalPdf(moderated).replace(/\s+/g," ").trim();
+  if(value.length<12||value.length>900)return null;
+  if(/@|https?:\/\/|www\.|\b(?:afm|a\.f\.m\.|αφμ|γεμη|γ\.ε\.μ\.η\.)\b/iu.test(value))return null;
+  if(/ονομαζομαι|ονομάζομαι|το ονομα μου|το όνομά μου|οδό[ςυ]|διευθυνση|διεύθυνση|τηλέφωνο|κινητό μου/iu.test(value))return null;
+  if(/\b\d{5,}\b/.test(value))return null;
+  return value;
+}
+
+async function fetchObject(sha:string):Promise<string|undefined>{
+  if(!STORAGE_SHA.test(sha))return undefined;
+  const storage=serverObjectStorageFromEnv({defaultBucket:BUCKET});
+  if(!await storage.head(objectKey(sha)))return undefined;
+  const result=await storage.read(objectKey(sha));
+  if(result.contentType?.split(";")[0].trim()!=="application/json")throw Error("RESEARCH_Q18_OBJECT_CONTENT_TYPE");
+  const chunks:Uint8Array[]=[];
+  let size=0;
+  for await(const chunk of result.stream){
+    size+=chunk.byteLength;
+    if(size>MAX_BYTES)throw Error("RESEARCH_Q18_OBJECT_TOO_LARGE");
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+/** Public access requires a separately released research snapshot and the
+ * validated immutable, approved qualitative annex. Never query raw answers
+ * or private participant metadata in a public page.
+ */
+export async function loadApprovedGreekRetailQ18(artifactSha:string):Promise<PublicVoiceData|undefined>{
+  if(Date.now()<new Date(GREEK_RETAIL_RESULTS_PUBLICATION_AT).getTime())return undefined;
+  const json=await fetchObject(artifactSha);
+  if(!json)return undefined;
+  const projection=JSON.parse(json) as Record<string,unknown>;
+  if(projection.releaseArtifactSha256!==artifactSha)return undefined;
+  return publicVoiceDataFromRelease(projection);
+}
