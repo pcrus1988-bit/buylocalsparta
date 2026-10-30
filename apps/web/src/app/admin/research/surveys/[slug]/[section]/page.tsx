@@ -27,6 +27,7 @@ import {
   researchProtocolEvents,
   researchSurveyAdminOverview,
   researchSurveyAdminFastOverview,
+  researchSurveyAdminLifecycleOverview,
   researchSurveyAdminFieldworkOverview,
   researchSurveyAdminCohortOverview,
   researchSurveyOperationsOverview
@@ -55,6 +56,56 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
   const { slug, section: rawSection } = await params;
   if (!VALID_SECTIONS.has(rawSection as ResearchSurveyAdminSection)) notFound();
   const section = rawSection as Exclude<ResearchSurveyAdminSection, "overview">;
+
+  // Lifecycle must render without the expensive multi-study overview, whose
+  // full frame/invitation/quality aggregates can time out under pooler load.
+  // Keep the authenticated control panel readable while survey jobs run.
+  if (section === "lifecycle") {
+    let study: Awaited<ReturnType<typeof researchSurveyAdminLifecycleOverview>>;
+    try {
+      study = await researchSurveyAdminLifecycleOverview(principal, slug);
+    } catch (error) {
+      console.error("research.admin_lifecycle_unavailable", error);
+      return <main className="vendor-app admin-app">
+        <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research · Lifecycle" />
+        <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
+          <div className="eyebrow">Research · Lifecycle</div>
+          <h1>Lifecycle &amp; publication</h1>
+          <p className="lead">The research database is temporarily unavailable. No lifecycle transition was attempted. Reload to retry.</p>
+          <a className="button button-secondary" href={`/admin/research/surveys/${encodeURIComponent(slug)}/lifecycle`}>Retry Lifecycle</a>
+        </section>
+        <ResearchSurveyAdminNav slug={slug} current="lifecycle" />
+      </main>;
+    }
+    if (!study) notFound();
+    const canManage = hasAdminPermission(principal, "research.manage");
+    return <main className="vendor-app admin-app">
+      <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel={"Research · " + study.title} />
+      <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
+        <div className="eyebrow">Research · Lifecycle &amp; publication</div>
+        <h1>{study.title}</h1>
+        <p className="lead">Controlled state transitions and publication readiness, without loading survey-wide statistics.</p>
+      </div></section>
+      <ResearchSurveyAdminNav slug={study.slug} current="lifecycle" />
+      <section className="shell vendor-section">
+        <WorkspaceSectionHeading eyebrow="Lifecycle" title="Lifecycle & publication" note="Controlled state transitions live on this page only." />
+        <div className="workspace-queue-card">
+          <div className="workspace-action-bar"><span>Study</span><WorkspaceStatusBadge status={study.status} label={study.status} /></div>
+          <div className="workspace-action-bar"><span>Instrument</span><WorkspaceStatusBadge status={study.instrumentStatus ?? "missing"} label={study.instrumentStatus ?? "missing"} /></div>
+          <div className="workspace-action-bar"><span>Analysis plan</span><strong>{study.analysisPlanVersion ?? "missing"} · {study.analysisPlanStatus ?? "not locked"}</strong></div>
+          {canManage && <ResearchStudyLifecycleControls
+            slug={study.slug}
+            csrfToken={principal.csrfToken}
+            studyStatus={study.status}
+            instrumentStatus={study.instrumentStatus}
+            analysisPlanStatus={study.analysisPlanStatus}
+            latestReleaseVersion={study.latestReleaseVersion}
+            latestReleasePublishedAt={study.latestReleasePublishedAt}
+          />}
+        </div>
+      </section>
+    </main>;
+  }
 
   // Directory navigation never executes the expensive global survey overview.
   // No contact or invitation rows are fetched until the Admin submits Search.
@@ -313,24 +364,6 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
       {canManage
         ? <ResearchStudyProtocolControls slug={study.slug} csrfToken={principal.csrfToken} studyStatus={study.status} events={events} />
         : <div className="workspace-inline-note">{events.length} protocol event(s) recorded. Changes require Research management permission.</div>}
-    </section>;
-  } else if (section === "lifecycle") {
-    content = <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Lifecycle" title="Lifecycle & publication" note="Controlled state transitions live on this page only." />
-      <div className="workspace-queue-card">
-        <div className="workspace-action-bar"><span>Study</span><WorkspaceStatusBadge status={study.status} label={study.status} /></div>
-        <div className="workspace-action-bar"><span>Instrument</span><WorkspaceStatusBadge status={study.instrumentStatus ?? "missing"} label={study.instrumentStatus ?? "missing"} /></div>
-        <div className="workspace-action-bar"><span>Analysis plan</span><strong>{study.analysisPlanVersion ?? "missing"} · {study.analysisPlanStatus ?? "not locked"}</strong></div>
-        {canManage && <ResearchStudyLifecycleControls
-          slug={study.slug}
-          csrfToken={principal.csrfToken}
-          studyStatus={study.status}
-          instrumentStatus={study.instrumentStatus}
-          analysisPlanStatus={study.analysisPlanStatus}
-          latestReleaseVersion={study.latestReleaseVersion}
-          latestReleasePublishedAt={study.latestReleasePublishedAt}
-        />}
-      </div>
     </section>;
   } else if (section === "evidence") {
     content = <section className="shell vendor-section">
