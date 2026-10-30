@@ -96,6 +96,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
     countyBands.get(key)==="10to29"?"#f4d7a5":"#e5e9e4";
   const index = Math.min(active, Math.max(layers.length - 1, 0));
   const layer = layers[index];
+  const point = points.find(entry => entry.format === "proportion" && Object.keys(entry.segment).length === 0);
 
   // Keep the chosen topic visible without jumping the entire page to the chip rail.
   useEffect(() => {
@@ -217,6 +218,14 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
       <p className={styles.mapCaveat}>Οι κλίμακες προσαρμόζονται σε κάθε δείκτη. Οι νομοί χωρίς δημοσιεύσιμη εκτίμηση δεν έχουν τιμή μηδέν. {underFive > 0 ? `${underFive} νομοί έχουν βάση 1–4, χωρίς δημοσιοποίηση ατομικών απαντήσεων. ` : ""}{layer?.kind === "survey" && smallBaseCount > 0 ? `${smallBaseCount} από τους ${layer.entries.size} νομούς με τιμή έχουν βάση n=5–29. Δεν συνιστούν αξιόπιστη κατάταξη.` : ""}</p>
       <Link href="#research-workbench" className={styles.textLink}>Εξερεύνηση όλων των ευρημάτων <span aria-hidden="true">↗</span></Link>
     </div>
+    <details className={styles.compactReadingGuide}>
+      <summary>Τι σημαίνουν οι αριθμοί και ποιοι είναι οι περιορισμοί;</summary>
+      <div>
+        <p>Το <strong>n</strong> είναι οι έγκυρες απαντήσεις για κάθε συγκεκριμένο δείκτη, όχι το σύνολο της αγοράς.{point ? <> Ενδεικτικά, βάση n={whole.format(point.n)} για τον δείκτη «{publicMetricLabel(point.metricKey)}».</> : null}</p>
+        <p>Οι περιγραφικές διαφορές δεν αποδεικνύουν αιτιότητα ή στατιστική σημαντικότητα. Το διάστημα εμπιστοσύνης εκφράζει την αβεβαιότητα μιας εκτίμησης όταν έχει υπολογιστεί με τεκμηριωμένο τρόπο· δεν δημοσιεύουμε τεχνητά διαστήματα. Ιδιαίτερη προσοχή χρειάζεται σε νομούς με μικρό n.</p>
+        <Link href="/research/greek-retail-2026/methodology">Δείτε την πλήρη μεθοδολογία και τους περιορισμούς ↗</Link>
+      </div>
+    </details>
   </section>;
 }
 
