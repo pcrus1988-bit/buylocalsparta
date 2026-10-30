@@ -24,7 +24,8 @@ const groups = [
     { id: "faq", label: "Συχνές ερωτήσεις" }
   ] }
 ] as const;
-const flatSections = groups.flatMap(group => group.items);
+const flatSections: Array<{ id: string; label: string }> = [];
+for (const group of groups) for (const item of group.items) flatSections.push({ id: item.id, label: item.label });
 
 export function MethodologyNavigation() {
   const [open, setOpen] = useState(false);
