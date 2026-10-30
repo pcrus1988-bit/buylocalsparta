@@ -154,8 +154,8 @@ export function ResearchResultsWorkbench({
  return <section id="research-workbench" className={styles.shell}>
   <header className={styles.heading}>
    <div><span className={styles.eyebrow}>KONTA MOY RESEARCH · INTERACTIVE EXPLORER</span>
-    <h2>Εξερευνήστε την έρευνα σε βάθος.</h2>
-    <p>18 υποενότητες, δείκτες με τεκμηρίωση, αντιπαραβολή κλάδων και περιοχών, χάρτης και θεματικές φωνές της αγοράς.</p>
+    <h2>{mode==="published" ? "Έξι περιοχές. Μία ενιαία ιστορία." : "Εξερευνήστε την έρευνα σε βάθος."}</h2>
+    <p>{mode==="published" ? "Τα έξι κεφάλαια βρίσκονται εδώ, μαζί με τα γραφήματα, τους νομούς και τις θεματικές φωνές. Επιλέξτε ενότητα και εξερευνήστε τους εγκεκριμένους δείκτες." : "18 υποενότητες, δείκτες με τεκμηρίωση, αντιπαραβολή κλάδων και περιοχών, χάρτης και θεματικές φωνές της αγοράς."}</p>
    </div>
    <span className={demo?styles.demoFlag:styles.dataFlag}>{demo?"DEMO · ΕΝΔΕΙΚΤΙΚΑ":mode==="live"?"LIVE · ΠΡΟΚΑΤΑΡΚΤΙΚΑ":mode==="published"?"ΕΓΚΕΚΡΙΜΕΝΗ ΕΚΔΟΣΗ":"ΑΝΑΜΟΝΗ ΑΠΟΤΕΛΕΣΜΑΤΩΝ"}</span>
   </header>
