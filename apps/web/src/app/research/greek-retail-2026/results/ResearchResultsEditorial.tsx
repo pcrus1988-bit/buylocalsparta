@@ -41,6 +41,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
   const [playing, setPlaying] = useState(true);
   const [chosen, setChosen] = useState("");
   const swipeStart = useRef<number | null>(null);
+  const layerRail = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -77,12 +78,12 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
   useEffect(() => {
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (motion.matches) { setPlaying(false); return; }
-    if (!playing || layers.length < 2) return;
+    if (!playing || chosen || layers.length < 2) return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") { setActive(index => (index + 1) % layers.length); setChosen(""); }
-    }, 6500);
+    }, 9000);
     return () => window.clearInterval(timer);
-  }, [playing, layers.length]);
+  }, [playing, chosen, layers.length]);
 
   const countyBands = new Map(countyAvailability.map(c => [c.key, c.band] as const));
   const underFive = countyAvailability.filter(c => c.band === "under5").length;
@@ -95,6 +96,16 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
     countyBands.get(key)==="10to29"?"#f4d7a5":"#e5e9e4";
   const index = Math.min(active, Math.max(layers.length - 1, 0));
   const layer = layers[index];
+
+  // Keep the chosen topic visible without jumping the entire page to the chip rail.
+  useEffect(() => {
+    const rail = layerRail.current;
+    const button = rail?.querySelectorAll<HTMLButtonElement>("button")[index];
+    if (!rail || !button) return;
+    const left = Math.max(0, button.offsetLeft - rail.offsetLeft - (rail.clientWidth - button.clientWidth) / 2);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    rail.scrollTo({ left, behavior: reducedMotion ? "auto" : "smooth" });
+  }, [index]);
   const smallBaseCount = layer?.kind === "survey"
     ? [...layer.entries.values()].filter(value => typeof value !== "number" && value.n >= 5 && value.n < 30).length
     : 0;
@@ -107,6 +118,10 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
     return typeof value === "number" ? whole.format(value) + " ενάρξεις" : formatPoint(value);
   };
 
+  const selectCounty = (county: string) => {
+    setChosen(county);
+    setPlaying(false);
+  };
   const changeLayer = (next: number) => {
     if (!layers.length) return;
     setActive((next + layers.length) % layers.length);
@@ -147,7 +162,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
         <div className={styles.layerToolbar} aria-label="Επιλογή θεματικού επιπέδου χάρτη">
           <button type="button" className={styles.layerArrow} onClick={() => changeLayer(index - 1)}
             aria-label="Προηγούμενο θέμα" disabled={layers.length < 2}>‹</button>
-          <div className={styles.layerControls}
+          <div ref={layerRail} className={styles.layerControls}
             onTouchStart={event => { swipeStart.current = event.touches[0]?.clientX ?? null; }}
             onTouchEnd={event => swipeEnd(event.changedTouches[0]?.clientX ?? 0)}
             onTouchCancel={() => { swipeStart.current = null; }}>
@@ -161,6 +176,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
           <button type="button" className={styles.layerArrow} onClick={() => changeLayer(index + 1)}
             aria-label="Επόμενο θέμα" disabled={layers.length < 2}>›</button>
         </div>
+        <span className={styles.mapControlHint}>Θέμα {index + 1} από {layers.length} · Σύρετε ή επιλέξτε θέμα · Αγγίξτε έναν νομό για τα στοιχεία του.</span>
       </div>
       {failed ? <p role="alert" className={styles.mapLoading}>Ο χάρτης δεν φορτώθηκε. Τα δημοσιευμένα στοιχεία παραμένουν διαθέσιμα στα αναλυτικά γραφήματα.</p>
         : !geo ? <p role="status" className={styles.mapLoading}>Φόρτωση χάρτη Ελλάδας…</p>
@@ -174,17 +190,17 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
               stroke="#fffdf7" strokeWidth="1.35"
               strokeDasharray={number === undefined && countyBands.has(feature.properties.name) ? "4 2" : undefined}
               className={chosen === feature.properties.name ? styles.countySelected : styles.county}
-              role="button" tabIndex={0}
+              role="button" tabIndex={0} aria-pressed={chosen === feature.properties.name}
               aria-label={`${keyNames.get(feature.properties.name) ?? feature.properties.name}: ${value === undefined ? countyBandText(feature.properties.name) : displayValue(value)}`}
-              onClick={() => setChosen(feature.properties.name)}
-              onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setChosen(feature.properties.name); } }}>
+              onClick={() => selectCounty(feature.properties.name)}
+              onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectCounty(feature.properties.name); } }}>
               <title>{keyNames.get(feature.properties.name) ?? feature.properties.name}: {value === undefined ? countyBandText(feature.properties.name) : displayValue(value)}</title>
             </path>;
           })}
         </svg>}
       <div className={styles.mapBottom}>
         <label htmlFor="results-county">Επιλέξτε νομό
-          <select id="results-county" value={chosen} onChange={e => setChosen(e.target.value)}>
+          <select id="results-county" value={chosen} onChange={e => selectCounty(e.target.value)}>
             <option value="">Όλη η Ελλάδα</option>
             {GREECE_PREFECTURES.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
           </select>
