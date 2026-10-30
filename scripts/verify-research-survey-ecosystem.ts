@@ -699,9 +699,11 @@ if (!methodologyPage.includes("Τα βασικά ερωτήματα ορίζον
 // real subgroup, n, uncertainty and methodology explanations. Check the
 // actual rendered source rather than stale pre-redesign inline JSX tokens.
 if (!resultsPage.includes("<ResearchResultsEditorial") || !resultsPage.includes('<ResearchResultsWorkbench mode="published"')) errors.push("public results do not mount the approved released editorial/workbench");
+if (!resultsPage.includes("<ResultsNavigation />") || !resultsEditorial.includes("styles.layerControls")) errors.push("public results lost map-first thematic navigation");
+if (resultsEditorial.includes("Οι αριθμοί που αξίζει να προσέξουμε.") || resultsEditorial.includes("results-highlights")) errors.push("removed duplicate highlights were restored");
 if (!resultsWorkbench.includes('title:"Κατά κλάδο"') || !resultsWorkbench.includes('id:"county"')) errors.push("public results do not expose understandable subgroup results");
 if (!resultsEditorial.includes("Οι περιγραφικές διαφορές δεν αποδεικνύουν αιτιότητα") || !resultsEditorial.includes("περιορισμοί")) errors.push("public results do not provide an understandable limitations section");
-if (!resultsEditorial.includes("n={whole.format(lead.point.n)}") || !resultsEditorial.includes("n={whole.format(point.n)}")) errors.push("public results do not disclose sample size alongside results");
+if (!resultsEditorial.includes("n={whole.format(point.n)}") || !scientificReadingPage.includes("n={integer.format(row.n)}") || !scientificReadingPage.includes("n={integer.format(index.n)}")) errors.push("public results do not disclose a real denominator for each displayed estimate");
 if (!resultsEditorial.includes("διάστημα εμπιστοσύνης εκφράζει την αβεβαιότητα") || !resultsWorkbench.includes("Διάστημα αβεβαιότητας μη διαθέσιμο")) errors.push("public results do not explain confidence intervals and missing uncertainty in public language");
 if (!resultsEditorial.includes('href="/research/greek-retail-2026/methodology"')) errors.push("public results do not link readers to methodology context");
 const scientificReadingIsMounted =
