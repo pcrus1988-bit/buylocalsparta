@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { RESEARCH_PUBLIC_MINIMUM_UNWEIGHTED_BASE, RESEARCH_EXPERIMENT_MINIMUM_ARM_BASE } from "./research-disclosure-policy.ts";
 import { resolveResearchAdministrativeGeography } from "./research-postcode-geography-core";
 import { greekRegionForPrefecture } from "./research-geographic-core";
 import type { SqlRow } from "@buy-local-sparta/core";
@@ -15,14 +16,15 @@ import {
 } from "./research-survey-statistics";
 import { scoreGreekRetail2026, type ResearchAnswerMap } from "./research-survey-model";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v9";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v10-public-n5-sparse-pool";
 const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v3";
 // Post-fieldwork contingency: preserve frozen design weights and avoid empty
 // adjustment cells by pooling nonresponse at sector level, then calibrate on
 // frozen-frame administrative regions rather than unsupported prefecture cells.
 const WEIGHTING_CONTINGENCY_VERSION = "sparse-strata-sector-pool-admin-region-calibration-v1";
 const EFFECTIVE_CALIBRATION_METHOD = "bounded_raking_admin_region_sector_v1";
-const MIN_PUBLIC_BASE = 30;
+const MIN_PUBLIC_BASE = RESEARCH_PUBLIC_MINIMUM_UNWEIGHTED_BASE;
+const PRESPECIFIED_PUBLIC_BASE = 30; // Locked plan; later n=5 disclosure is a dated policy amendment.
 const VARIANCE_METHOD = "stratified_srs_fpc_v1"; // Locked pre-fieldwork plan.
 const EFFECTIVE_VARIANCE_METHOD = "not_estimated"; // Pooled nonresponse is not SRS-FPC.
 const CALIBRATION_METHOD = "bounded_raking_frozen_frame_v1";
@@ -396,7 +398,7 @@ export async function runGreekRetailAnalysis(
     CALIBRATION_DIMENSIONS.every((dimension) => planCalibrationDimensions.includes(dimension))
   );
   if (
-    planMinimumBase !== MIN_PUBLIC_BASE ||
+    planMinimumBase !== PRESPECIFIED_PUBLIC_BASE ||
     planConfidenceLevel !== 0.95 ||
     planVarianceMethod !== VARIANCE_METHOD ||
     planNonresponseAdjustment !== "within_sampling_stratum" ||
@@ -982,7 +984,8 @@ export async function runGreekRetailAnalysis(
           publicMinimumBase: MIN_PUBLIC_BASE,
           geographicSource: (segment.segment.regionCode || segment.segment.prefectureCode)
             ? "postcode_administrative_crosswalk_v1" : undefined,
-          publicPrefectureApproved: false,
+          publicPrefectureApproved: Boolean(segment.segment.prefectureCode && Object.keys(segment.segment).length === 1 && !suppressed),
+          smallBaseDescriptiveOnly: unweightedN >= MIN_PUBLIC_BASE && unweightedN < PRESPECIFIED_PUBLIC_BASE,
           varianceMethod: EFFECTIVE_VARIANCE_METHOD,
           varianceWithheldReason: standardError === undefined ? variance.reason ?? "unavailable" : null,
           finitePopulationCorrection: standardError !== undefined
@@ -1043,8 +1046,8 @@ export async function runGreekRetailAnalysis(
           result,
           pValue,
           suppressed:
-            result.levelClusterCount < MIN_PUBLIC_BASE ||
-            result.referenceClusterCount < MIN_PUBLIC_BASE
+            result.levelClusterCount < RESEARCH_EXPERIMENT_MINIMUM_ARM_BASE ||
+            result.referenceClusterCount < RESEARCH_EXPERIMENT_MINIMUM_ARM_BASE
         });
       }
     }
@@ -1107,7 +1110,7 @@ export async function runGreekRetailAnalysis(
         adjustmentFamily: "EXP01:all_attribute_level_contrasts",
         analysisClassification: "exploratory_not_preregistered",
         preregistered: false,
-        publicMinimumBasePerContrastArm: MIN_PUBLIC_BASE
+        publicMinimumBasePerContrastArm: RESEARCH_EXPERIMENT_MINIMUM_ARM_BASE
       })
     ]);
     estimateCount += 1;
