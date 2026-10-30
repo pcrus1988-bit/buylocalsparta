@@ -36,7 +36,7 @@ export async function archiveGreekRetailSealedRelease() {
   if (body.byteLength<1 || body.byteLength>75_000_000) throw new Error("RESEARCH_ARCHIVE_SIZE_INVALID");
   const key = `research/releases/${row.id}/${row.artifact_sha256}.json`;
   const storage = serverObjectStorageFromEnv({ defaultBucket: BUCKET });
-  const previous = await storage.head(key);
+  const previous = await storage.head(key).catch(error => { if (error instanceof Error && error.message.includes("HTTP 400")) return undefined; throw error; });
   if (previous && previous.byteSize !== body.byteLength) throw new Error("RESEARCH_ARCHIVE_EXISTING_LENGTH_MISMATCH");
   if (!previous) {
     try {
