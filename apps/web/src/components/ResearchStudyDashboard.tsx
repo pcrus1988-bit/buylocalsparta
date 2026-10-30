@@ -123,6 +123,10 @@ export function ResearchStudyDashboard({ study, compactIntro = false }: { study:
 
       {study.slug === "greek-retail-2026" && <ResearchFieldworkInsights studyId={study.id} waveId={study.waveId} />}
 
+      {/* After the Greek Retail 2026 fieldwork, the overview is dedicated to
+          participation behaviour and process. Legacy explainer panels are still
+          relevant on other research programme pages. */}
+      {study.slug !== "greek-retail-2026" && <>
       <section className={styles.section}>
         <div className={styles.sectionHead}>
           <div>
@@ -186,6 +190,8 @@ export function ResearchStudyDashboard({ study, compactIntro = false }: { study:
           <Link className={styles.actionButton} href="/research/privacy">Πώς προστατεύονται τα δεδομένα</Link>
         </div>
       </section>
+
+      </>}
 
       {isLive && <div className={styles.notice}>
         Η ζωντανή πρόοδος δείχνει μόνο πώς προχωρά η συλλογή. Δεν αποτελεί προσωρινό αποτέλεσμα της μελέτης.
