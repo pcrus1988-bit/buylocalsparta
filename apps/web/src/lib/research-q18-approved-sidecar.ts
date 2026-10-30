@@ -56,7 +56,7 @@ async function fetchObject(sha:string):Promise<string|undefined>{
  */
 export async function loadApprovedGreekRetailQ18(artifactSha:string):Promise<PublicVoiceData|undefined>{
   if(Date.now()<new Date(GREEK_RETAIL_RESULTS_PUBLICATION_AT).getTime())return undefined;
-  const json=await fetchObject(artifactSha);
+  const json=await fetchObject(artifactSha).catch(() => undefined);
   if(!json)return undefined;
   const projection=JSON.parse(json) as Record<string,unknown>;
   if(projection.releaseArtifactSha256!==artifactSha)return undefined;
