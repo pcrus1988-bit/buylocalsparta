@@ -11,6 +11,7 @@ import { publicResearchStudy } from "../../../../lib/research-observatory-runtim
 import { publicResultPoints, type SafeParticipationGeography } from "../../../../lib/research-public-results-data";
 import { ResearchResultsWorkbench } from "./ResearchResultsWorkbench";
 import { ResearchScientificReading } from "./ResearchScientificReading";
+import { ResearchRawDataRequest } from "./ResearchRawDataRequest";
 import { scientificReadingSummary } from "../../../../lib/research-scientific-reading";
 import { publicVoiceDataFromRelease } from "../../../../lib/research-public-voices-data";
 
@@ -76,6 +77,7 @@ export default async function GreekRetailResultsPage() {
     </ResearchResultsEditorial>
     <ResearchResultsWorkbench mode="published" points={safePoints} geography={geography}
       voices={publicVoiceDataFromRelease(published.methodology.q18PublicVoices)} />
+    <ResearchRawDataRequest />
     <SiteFooter />
   </main>;
 }
