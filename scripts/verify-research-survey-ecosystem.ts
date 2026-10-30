@@ -101,6 +101,15 @@ const statistics = readFileSync("apps/web/src/lib/research-survey-statistics.ts"
 const statisticsTests = readFileSync("apps/web/src/lib/research-survey-statistics.test.ts", "utf8");
 const analysis = readFileSync("apps/web/src/lib/research-survey-analysis.ts", "utf8");
 const resultsPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/page.tsx", "utf8");
+const resultsEditorial = readFileSync("apps/web/src/app/research/greek-retail-2026/results/ResearchResultsEditorial.tsx", "utf8");
+const resultsWorkbench = readFileSync("apps/web/src/app/research/greek-retail-2026/results/ResearchResultsWorkbench.tsx", "utf8");
+const scientificReadingPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/ResearchScientificReading.tsx", "utf8");
+const scientificReadingData = readFileSync("apps/web/src/lib/research-scientific-reading.ts", "utf8");
+const scientificReaderMounted = resultsPage.includes("<ResearchScientificReading points={safePoints} summary={reading} />")
+  && resultsPage.includes("scientificReadingSummary(published.methodology)")
+  && resultsPage.includes("getPublishedGreekRetailResults")
+  && resultsEditorial.includes("{children}")
+  && resultsEditorial.includes("<EditorialMap points={points} geography={geography} />");
 const methodologyPage = readFileSync("apps/web/src/app/research/greek-retail-2026/methodology/page.tsx", "utf8");
 const observatoryPage = readFileSync("apps/web/src/app/research/page.tsx", "utf8");
 const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
@@ -690,13 +699,25 @@ if (!statistics.includes("benjaminiHochbergAdjustedPValues")) errors.push("pairw
 if (!analysis.includes('adjustedPValueMethod: "benjamini_hochberg"')) errors.push("pairwise FDR-adjusted q-value persistence missing");
 if (!methodologyPage.includes("Πριν από την ανάλυση")) errors.push("public methodology does not explain that primary analysis is defined before final results");
 if (!methodologyPage.includes("Τα βασικά ερωτήματα ορίζονται πριν δούμε τα τελικά αποτελέσματα.")) errors.push("public methodology does not explain advance analysis planning");
-if (!resultsPage.includes("Ανά περιοχή") || !resultsPage.includes("Ανά κλάδο")) errors.push("public results do not expose understandable subgroup results");
+if (!scientificReaderMounted || !resultsEditorial.includes("results-areas") ||
+    !resultsWorkbench.includes("Κατά κλάδο") || !resultsWorkbench.includes("Νομοί"))
+  errors.push("public results do not expose understandable subgroup results");
 if (!methodologyPage.includes("Πρόσθετες αναλύσεις που γίνονται αργότερα παρουσιάζονται ως διερευνητικές")) errors.push("public methodology does not distinguish later additional analyses");
 if (!methodologyPage.includes("δεν συγχέονται με τα αρχικά ερευνητικά ερωτήματα")) errors.push("public methodology does not distinguish original questions from later analyses");
-if (!resultsPage.includes("Περιορισμοί")) errors.push("public results do not provide an understandable limitations section");
-if (!resultsPage.includes("n={estimate.unweightedN.toLocaleString")) errors.push("public results do not disclose sample size alongside results");
-if (!resultsPage.includes("95% διάστημα εμπιστοσύνης")) errors.push("public results do not explain confidence intervals in public language");
-if (!resultsPage.includes("μεθοδολογία της μελέτης")) errors.push("public results do not link readers to methodology context");
+if (!scientificReaderMounted || !scientificReadingPage.includes("μεροληψία μη απόκρισης") ||
+    !scientificReadingPage.includes("Τι γίνεται με τους νομούς;") ||
+    !scientificReadingPage.includes("δεν σημαίνει μηδέν"))
+  errors.push("public results do not provide an understandable limitations section");
+if (!scientificReaderMounted || !scientificReadingPage.includes("n={integer.format(row.n)}") ||
+    !scientificReadingPage.includes("n={integer.format(index.n)}") ||
+    !scientificReadingData.includes("Object.keys(point.segment).length === 0"))
+  errors.push("public results do not disclose sample size alongside results");
+if (!scientificReaderMounted || !scientificReadingPage.includes("summary.hasConventionalSamplingIntervals") ||
+    !scientificReadingPage.includes("διαστημάτων εμπιστοσύνης") ||
+    !scientificReadingPage.includes("Δεν παρουσιάζονται τεχνητά διαστήματα"))
+  errors.push("public results do not explain confidence intervals in public language");
+if (!scientificReaderMounted || !scientificReadingPage.includes("href=\"/research/greek-retail-2026/methodology\""))
+  errors.push("public results do not link readers to methodology context");
 if (!observatoryPage.includes("ολοκληρωμένες απαντήσεις")) errors.push("public observatory does not disclose understandable participation progress");
 if (!methodologyPage.includes("Τι θα συνοδεύει τα αποτελέσματα")) errors.push("public methodology does not explain what context accompanies results");
 if (!observatoryPage.includes("Πέντε απλά στάδια.")) errors.push("permanent Retail Observatory landing does not explain the study lifecycle in public language");
