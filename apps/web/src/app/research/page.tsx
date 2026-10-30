@@ -62,6 +62,7 @@ export default function ResearchLandingPage() {
           <div className={styles.actions}>
             <Link href={results} className={styles.primary}>Δείτε τα ευρήματα <span aria-hidden="true">&nbsp; ↗</span></Link>
             <Link href={study} className={styles.secondary}>Γνωρίστε τη μελέτη</Link>
+            <Link href={study + "/press"} className={styles.secondary}>Υλικό για ΜΜΕ</Link>
           </div>
         </div>
         <aside className={styles.heroNote} aria-label="Η έρευνα με μια ματιά">
