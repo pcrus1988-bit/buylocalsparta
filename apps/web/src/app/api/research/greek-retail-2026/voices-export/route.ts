@@ -1,5 +1,6 @@
 import {getPublishedGreekRetailResults} from "../../../../../lib/research-survey-release";
 import {publicVoiceDataFromRelease} from "../../../../../lib/research-public-voices-data";
+import {loadApprovedGreekRetailQ18} from "../../../../../lib/research-q18-approved-sidecar";
 import {renderResearchVoicesPdf} from "../../../../../lib/research-voice-pdf";
 
 export const runtime="nodejs";
