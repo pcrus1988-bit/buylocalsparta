@@ -104,3 +104,12 @@ export async function archiveApprovedGreekRetailQ18(){
     const text=safePublicText(Number(row.answer_id),String(row.answer_text??""));
     return text?[{text,tags:categorizeResearchFreeText(text)}]:[];
   });
+  const categories=[...RESEARCH_FREE_TEXT_CATEGORIES,RESEARCH_FREE_TEXT_OTHER].map(item=>({
+    key:item.key,label:item.label,count:candidates.filter(c=>c.tags.includes(item.key)).length
+  })).filter(c=>c.count>=30);
+  const allowed=new Set(categories.map(c=>c.key));
+  const quotes=candidates.flatMap((candidate,i)=>{
+    const category=candidate.tags.find(t=>allowed.has(t));
+    return category?[{id:`approved-q18-${i+1}`,category,text:candidate.text,publicApproved:true,deidentified:true}]:[];
+  });
+  if(!quotes.length||!categories.length)throw Error("RESEARCH_Q18_NO_SAFE_QUOTES");
