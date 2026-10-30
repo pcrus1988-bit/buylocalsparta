@@ -19,13 +19,13 @@
 .layerControls{display:flex;min-width:0;flex:1;gap:7px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:x proximity;scrollbar-width:thin;scrollbar-color:#bdd0bc transparent;padding:4px 2px 9px;touch-action:pan-x}
 .layerControls::-webkit-scrollbar{height:4px}
 .layerControls::-webkit-scrollbar-thumb{background:#c8d8c8;border-radius:20px}
-.layerButton,.layerActive{flex:0 0 auto;display:inline-flex;align-items:center;gap:10px;max-width:230px;min-height:45px;scroll-snap-align:start;border-radius:12px;border:1px solid #d7e2d6;background:#fff;color:#57735d;text-align:left;padding:9px 13px;font:700 11px/1.4 inherit;cursor:pointer;transition:background .2s,border-color .2s,color .2s}
+.layerButton,.layerActive{flex:0 0 auto;display:inline-flex;align-items:center;gap:10px;max-width:230px;min-height:45px;scroll-snap-align:start;border-radius:12px;border:1px solid #d7e2d6;background:#fff;color:#57735d;text-align:left;padding:9px 13px;font-family:inherit;font-size:11px;font-weight:700;line-height:1.4;cursor:pointer;transition:background .2s,border-color .2s,color .2s}
 .layerActive{background:#214e37;border-color:#214e37;color:#fff}
 .layerButton:hover,.layerButton:focus-visible{border-color:#608b6a;color:#204a35}
 .layerNumber{font:500 16px/1 Georgia,serif;opacity:.65}
 .layerArrow{flex:0 0 31px;height:39px;border:1px solid #d9e6d7;background:#fff;color:#355f44;border-radius:10px;font-size:23px;cursor:pointer}
 .layerArrow:disabled{opacity:.35;cursor:not-allowed}
-.playButton{border:1px solid #bed4c1;background:#fff;border-radius:100px;color:#37644a;font:800 10px/1.2 inherit;padding:9px 12px;white-space:nowrap;cursor:pointer}
+.playButton{border:1px solid #bed4c1;background:#fff;border-radius:100px;color:#37644a;font-family:inherit;font-size:10px;font-weight:800;line-height:1.2;padding:9px 12px;white-space:nowrap;cursor:pointer}
 .greeceSvg{display:block;width:100%;height:auto;max-height:580px;margin:6px auto 0;overflow:visible}
 .county,.countySelected{cursor:pointer;transition:fill 1.1s ease,stroke-width .2s ease,filter .2s}
 .county:hover,.county:focus-visible,.countySelected{stroke:#214f39;stroke-width:2.7;filter:drop-shadow(0 1px 2px rgba(21,55,35,.25));outline:none}
