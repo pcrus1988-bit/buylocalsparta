@@ -46,3 +46,18 @@ export function pressKitHighlights(points: readonly SafePublicResultPoint[]): Pr
     }];
   });
 }
+
+function csvCell(value: string | number): string {
+  return '"' + String(value).replaceAll('"', '""') + '"';
+}
+
+export function pressKitFactsCsv(figures: readonly PressKitHighlight[], releaseVersion: string): string {
+  const rows = [
+    ["Δείκτης", "Ποσοστό", "Βάση n", "Ερώτηση", "Επεξήγηση", "Πηγή", "Έκδοση δημοσίευσης"],
+    ...figures.map(item => [
+      item.title, item.formatted, String(item.n), item.question, item.insight,
+      "https://kontamou.site" + PRESS_KIT_RESULTS, releaseVersion
+    ])
+  ];
+  return "\uFEFF" + rows.map(row => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
+}

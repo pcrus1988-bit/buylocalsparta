@@ -75,7 +75,7 @@ export default async function ResearchPressKitPage() {
           <h1>Η αγορά έχει <em>μια ιστορία</em> να πει.</h1>
           <p className={styles.lead}>Τα στοιχεία, οι άνθρωποι και το πλαίσιο πίσω από την έρευνα «Ελληνικό Λιανεμπόριο 2026» — σε έναν χώρο σχεδιασμένο για δημοσιογράφους και συντάκτες.</p>
           <div className={styles.ctas}>
-            {published ? <a className={styles.primary} href="/research/greek-retail-2026/press/press-release.pdf">Λήψη Δελτίου Τύπου (PDF) <span aria-hidden="true">↗</span></a> : null}
+            {published && highlights.length ? <a className={styles.primary} href="/research/greek-retail-2026/press/kit.zip">Λήψη πλήρους Press Kit (ZIP) <span aria-hidden="true">↓</span></a> : null}
             <a className={styles.secondary} href="#downloads">Όλο το υλικό <span aria-hidden="true">↓</span></a>
           </div>
           <p className={styles.sourceNote}>{published ? "Δημοσιευμένη μελέτη · " + publishedLabel : "Τα επιβεβαιωμένα αρχεία της δημοσίευσης δεν είναι προσωρινά διαθέσιμα."} · <Link href={PRESS_KIT_RESULTS}>Πηγή δεδομένων</Link></p>
@@ -101,6 +101,7 @@ export default async function ResearchPressKitPage() {
           {highlights.slice(0, 6).map(item => <article className={styles.numberCard} key={item.key}>
             <strong>{item.formatted}</strong><h3>{item.title}</h3><p>{item.insight}</p>
             <span>Βάση: n={item.n.toLocaleString("el-GR")} · {item.question}</span>
+            <a className={styles.graphicLink} href={"/research/greek-retail-2026/press/figure.svg?metric=" + encodeURIComponent(item.key)}>Λήψη γραφήματος SVG ↓</a>
           </article>)}
         </div> : <div className={styles.notice}>Τα επαληθευμένα δημοσιευμένα ποσοστά δεν είναι διαθέσιμα αυτή τη στιγμή. Δεν εμφανίζουμε πρόχειρα ή δοκιμαστικά στοιχεία. <Link href={PRESS_KIT_RESULTS}>Δείτε την κατάσταση της μελέτης.</Link></div>}
         <p className={styles.caveat}>Τα ποσοστά προέρχονται από απαντήσεις συμμετεχουσών επιχειρήσεων, όχι από απογραφή ή αποδεδειγμένα αντιπροσωπευτικό δείγμα όλων των ελληνικών καταστημάτων. Ερωτήσεις πολλαπλών επιλογών μπορεί να υπερβαίνουν συνολικά το 100%. <Link href={PRESS_KIT_STUDY + "/methodology"}>Μεθοδολογική τεκμηρίωση →</Link></p>
@@ -126,6 +127,10 @@ export default async function ResearchPressKitPage() {
           <p>Αρχεία και επίσημες πηγές για άμεση χρήση σε άρθρα, εκπομπές και παρουσιάσεις.</p>
         </div>
         <div className={styles.downloads}>
+          <div className={styles.downloadItem}>
+            <span className={styles.downloadIndex}>00</span><div><span className={styles.resourceType}>ΠΛΗΡΕΣ ΠΑΚΕΤΟ</span><h3>Press Kit · ZIP</h3><p>Δελτίο Τύπου PDF, βασικοί δείκτες CSV, έτοιμα διανυσματικά γραφήματα και οδηγός πηγών.</p></div>
+            {published && highlights.length ? <a href="/research/greek-retail-2026/press/kit.zip">Λήψη ZIP ↓</a> : <span className={styles.disabledLink}>Μη διαθέσιμο</span>}
+          </div>
           <div className={styles.downloadItem}>
             <span className={styles.downloadIndex}>01</span><div><span className={styles.resourceType}>ΔΕΛΤΙΟ ΤΥΠΟΥ</span><h3>Επίσημο Δελτίο Τύπου</h3><p>Δημοσιογραφική σύνοψη της έρευνας, με ποσοστά και πραγματικές βάσεις.</p></div>
             {published ? <a href="/research/greek-retail-2026/press/press-release.pdf">Λήψη PDF ↓</a> : <span className={styles.disabledLink}>Μη διαθέσιμο</span>}
