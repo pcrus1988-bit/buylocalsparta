@@ -122,3 +122,5 @@ export async function archiveApprovedGreekRetailQ18(){
   };
   const body=Buffer.from(JSON.stringify(projection),"utf8");
   if(!publicVoiceDataFromRelease(projection))throw Error("RESEARCH_Q18_PROJECTION_INVALID");
+  if(body.byteLength>MAX_BYTES)throw Error("RESEARCH_Q18_SIDECAR_TOO_LARGE");
+  const storage=serverObjectStorageFromEnv({defaultBucket:BUCKET});
