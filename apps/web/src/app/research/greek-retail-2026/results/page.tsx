@@ -8,7 +8,7 @@ import { ResearchResultsEditorial } from "./ResearchResultsEditorial";
 import { getPublishedGreekRetailResults } from "../../../../lib/research-survey-release";
 import { governedStaticSeoMetadata } from "../../../../lib/seo-metadata";
 import { publicResearchStudy } from "../../../../lib/research-observatory-runtime";
-import { publicResultPoints, type SafeParticipationGeography } from "../../../../lib/research-public-results-data";
+import { publicResultPoints, publicCountyAvailability, type SafeParticipationGeography } from "../../../../lib/research-public-results-data";
 import { ResearchResultsWorkbench } from "./ResearchResultsWorkbench";
 import { ResearchScientificReading } from "./ResearchScientificReading";
 import { ResearchRawDataRequest } from "./ResearchRawDataRequest";
@@ -53,6 +53,7 @@ export default async function GreekRetailResultsPage() {
   // Public reader is already gated by the immutable Athens publication cutoff.
   // Only already-published and privacy-suppressed aggregate estimates reach the browser.
   const safePoints = publicResultPoints(published.estimates);
+  const countyAvailability = publicCountyAvailability(published.estimates);
   const reading = scientificReadingSummary(published.methodology);
   let geography: SafeParticipationGeography | undefined;
   try {
@@ -72,10 +73,10 @@ export default async function GreekRetailResultsPage() {
   }
   return <main className={styles.shell}>
     <ResearchPublicNavigation active="results" studySlug="greek-retail-2026" />
-    <ResearchResultsEditorial points={safePoints} geography={geography}>
+    <ResearchResultsEditorial points={safePoints} geography={geography} countyAvailability={countyAvailability}>
       <ResearchScientificReading points={safePoints} summary={reading} />
     </ResearchResultsEditorial>
-    <ResearchResultsWorkbench mode="published" points={safePoints} geography={geography}
+    <ResearchResultsWorkbench mode="published" points={safePoints} geography={geography} countyAvailability={countyAvailability}
       voices={publicVoiceDataFromRelease(published.methodology.q18PublicVoices)} />
     <ResearchRawDataRequest />
     <SiteFooter />
