@@ -12,7 +12,7 @@ type Geography = { type: string; features: Feature[] };
 type MapLayer = { key: string; title: string; kind: "survey" | "participation"; format: "proportion" | "mean" | "count"; entries: Map<string, SafePublicResultPoint | number> };
 const fmt = new Intl.NumberFormat("el-GR", { maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat("el-GR", { maximumFractionDigits: 0 });
-const keyNames = new Map(GREECE_PREFECTURES.map(p => [p.key, p.label]));
+const keyNames: ReadonlyMap<string, string> = new Map<string, string>(GREECE_PREFECTURES.map(p => [p.key, p.label]));
 
 const HEADLINES: readonly { key: string; statement: string }[] = [
   { key: "business_financial_trends_12m.operating_costs.share.increased", statement: "των επιχειρήσεων δηλώνει αύξηση του λειτουργικού κόστους." },
