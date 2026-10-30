@@ -61,3 +61,22 @@ export async function loadApprovedGreekRetailQ18(artifactSha:string):Promise<Pub
   if(projection.releaseArtifactSha256!==artifactSha)return undefined;
   return publicVoiceDataFromRelease(projection);
 }
+export async function archiveApprovedGreekRetailQ18(){
+  if(!productionDatabaseConfigured())return {state:"not_ready"};
+  const pool=getProductionPostgresRuntime().sqlPool;
+  const releaseRows=await pool.query<{id:string;artifact_sha256:string}>(`
+    SELECT rs.id,rs.artifact_sha256 FROM research_release_snapshots rs
+    JOIN research_studies s ON s.id=rs.study_id
+    JOIN research_release_archives a ON a.release_snapshot_id=rs.id
+    WHERE s.slug='greek-retail-2026' AND s.status='published'
+    ORDER BY rs.created_at DESC LIMIT 1
+  `);
+  const release=releaseRows.rows[0];
+  if(!release||!STORAGE_SHA.test(release.artifact_sha256))return {state:"not_ready"};
+  const existing=await fetchObject(release.artifact_sha256);
+  if(existing){
+    const parsed=JSON.parse(existing) as Record<string,unknown>;
+    if(parsed.releaseArtifactSha256!==release.artifact_sha256 ||
+       !publicVoiceDataFromRelease(parsed))throw Error("RESEARCH_Q18_EXISTING_INVALID");
+    return {state:"already_verified",releaseSnapshotId:release.id};
+  }
