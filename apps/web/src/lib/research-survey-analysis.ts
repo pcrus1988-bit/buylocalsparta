@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { RESEARCH_PUBLIC_MINIMUM_UNWEIGHTED_BASE, RESEARCH_EXPERIMENT_MINIMUM_ARM_BASE } from "./research-disclosure-policy";
+import { RESEARCH_PUBLIC_MINIMUM_UNWEIGHTED_BASE, RESEARCH_EXPERIMENT_MINIMUM_ARM_BASE } from "./research-disclosure-policy.ts";
 import { resolveResearchAdministrativeGeography } from "./research-postcode-geography-core";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
