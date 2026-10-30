@@ -694,7 +694,7 @@ if (!analysis.includes("pairwise_independent_strata_difference_v1")) errors.push
 if (!statistics.includes("benjaminiHochbergAdjustedPValues")) errors.push("pairwise FDR adjustment helper missing");
 if (!analysis.includes('adjustedPValueMethod: "benjamini_hochberg"')) errors.push("pairwise FDR-adjusted q-value persistence missing");
 if (!methodologyPage.includes("Πριν από την ανάλυση")) errors.push("public methodology does not explain that primary analysis is defined before final results");
-if (!methodologyPage.includes("Τα βασικά ερωτήματα ορίζονται πριν δούμε τα τελικά αποτελέσματα.")) errors.push("public methodology does not explain advance analysis planning");
+if (!methodologyPage.includes("Τα βασικά ερευνητικά ερωτήματα είχαν οριστεί πριν γίνουν γνωστά τα τελικά αποτελέσματα.")) errors.push("public methodology must describe the pre-registered questions retrospectively");
 // The current public Results page is componentized: the page must render the
 // release-gated editorial and workbench, and these child modules must supply
 // real subgroup, n, uncertainty and methodology explanations. Check the
@@ -723,10 +723,28 @@ if (!scientificReadingPage.includes("summary.hasConventionalSamplingIntervals") 
     !scientificReadingPage.includes("Δεν παρουσιάζονται τεχνητά διαστήματα")) errors.push("scientific reading must explain unsupported uncertainty");
 if (!scientificReadingPage.includes('href="/research/greek-retail-2026/methodology"')) errors.push("scientific reading must retain methodology navigation");
 if (!observatoryPage.includes("Απαντήσεις από επιχειρήσεις") || !observatoryPage.includes("βάση απαντήσεων (n)")) errors.push("public observatory does not disclose understandable participation context");
-if (!methodologyPage.includes("Τι συνοδεύει τα δημοσιευμένα αποτελέσματα")) errors.push("public methodology does not explain the context accompanying published results");
+if (!methodologyPage.includes("Τι συμπεριλήφθηκε στη δημοσιευμένη παρουσίαση")) errors.push("public methodology must retrospectively describe the contents of the release");
 if (!methodologyPage.includes("<MethodologyNavigation />") || !methodologyPage.includes('id="fieldwork-audit"')) errors.push("published methodology lost its sidebar or fieldwork audit");
 if (!methodologyPage.includes("650") || !methodologyPage.includes("656") || !methodologyPage.includes("137.359")) errors.push("final methodology must distinguish analyzed, completed and delivered counts");
-if (!methodologyPage.includes("Η Ομάδα Α ολοκληρώθηκε") || !methodologyPage.includes("Η Ομάδα Β αποτελεί προγραμματισμένη επέκταση")) errors.push("methodology must distinguish completed wave A from prospective wave B");
+if (!methodologyPage.includes("Η Ομάδα Α ολοκληρώθηκε") || !methodologyPage.includes("Η Ομάδα Β είχε προβλεφθεί ως επέκταση")) errors.push("retrospective methodology must distinguish completed wave A from planned-only wave B");
+
+for (const futureTensePlanningText of [
+  "Η μελέτη καταγράφει",
+  "Αφετηρία είναι το επιχειρηματικό μητρώο",
+  "Πώς προχωρά η διαδικασία",
+  "Τι ακριβώς κάνει η πιλοτική δοκιμή;",
+  "Πώς αποστέλλεται η πρόσκληση;",
+  "Οι ενότητες οργανώνονται ώστε",
+  "Τι θα συνοδεύει τα αποτελέσματα",
+  "Τα βασικά ερωτήματα ορίζονται",
+  "Κατά τη συλλογή εμφανίζονταν μόνο συγκεντρωτικοί δείκτες προόδου. Μετά την ολοκλήρωση και τον έλεγχο, η δημοσιευμένη έκδοση τεκμηριώνει:",
+  "Αφού καλούνται όλες οι διαθέσιμες επιχειρήσεις"
+]) {
+  if (methodologyPage.includes(futureTensePlanningText)) errors.push("published methodology still contains planning-stage narration: " + futureTensePlanningText);
+}
+if (!methodologyPage.includes("Η μελέτη ολοκληρώθηκε και δημοσιεύθηκε") ||
+    !methodologyPage.includes("Η συλλογή έληξε με εντολή του φορέα") ||
+    !methodologyPage.includes("656 / 5.202 (12,61%)")) errors.push("methodology flashback lost final fieldwork milestones or denominator context");
 if (!observatoryPage.includes("Ο ΟΔΗΓΟΣ ΤΗΣ ΕΡΕΥΝΑΣ") || !observatoryPage.includes("steps.map(step") || !observatoryPage.includes("Κατανοήστε τη μέθοδο")) errors.push("permanent Retail Observatory landing does not guide readers through results and methodology");
 if (
   !researchPrivacyPage.includes("Η συμμετοχή στην έρευνα είναι ξεχωριστή από την εμπορική επικοινωνία.") &&
