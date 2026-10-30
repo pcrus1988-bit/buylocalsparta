@@ -1,4 +1,5 @@
 import { advanceGreekRetailDeadline } from "../../../../lib/research-survey-deadline-automation";
+import { archiveGreekRetailSealedRelease } from "../../../../lib/research-release-archive";
 import { ensureGreekRetailB2cFrameOnboarded } from "../../../../lib/research-b2c-frame-onboarding";
 import {
   processResearchStudyJobs,
@@ -57,8 +58,18 @@ export async function GET(request: Request) {
     // GEMI imports can take minutes. Invitation sending is handled only by
     // /api/cron/research-study-email-jobs, independently of this operational lane.
     const operational = await processResearchStudyJobs(3, OPERATIONAL_JOB_TYPES);
+    // The private archive is idempotent and does not alter the publication cutoff.
+    // Failure is visible in the cron result, but must not strand unrelated jobs.
+    let archive: {state:string;reason?:string} = {state:"unavailable"};
+    try {
+      archive = await archiveGreekRetailSealedRelease();
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "release_archive_failed";
+      archive = {state:"failed",reason};
+      console.error(JSON.stringify({level:"error",event:"research.release_archive_failed",reason}));
+    }
     return Response.json(
-      { ok: true, lane: "operational", lifecycle, frameOnboarding, ...operational },
+      { ok: true, lane: "operational", lifecycle, frameOnboarding, archive, ...operational },
       { headers: { "cache-control": "no-store" } }
     );
   } catch (error) {
