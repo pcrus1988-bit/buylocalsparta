@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { PUBLIC_RESULTS_CHAPTERS } from "../../../../lib/research-public-results-sections";
 import styles from "./ResultsNavigation.module.css";
@@ -15,6 +15,9 @@ const sections = [
 export function ResultsNavigation() {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState("results-map");
+  const [selectedChapter, setSelectedChapter] = useState<string | null>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const nodes = sections.map(section => document.getElementById(section.id)).filter((node): node is HTMLElement => Boolean(node));
@@ -29,29 +32,59 @@ export function ResultsNavigation() {
 
   useEffect(() => {
     if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    // Focus stays inside the mobile navigation and returns to its toggle on Escape.
+    const drawer = drawerRef.current;
+    drawer?.querySelector<HTMLButtonElement>('button[aria-label="Κλείσιμο μενού"]')?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        toggleRef.current?.focus();
+      }
+      if (event.key !== "Tab" || !drawer) return;
+      const focusables = [...drawer.querySelectorAll<HTMLElement>('a[href],button:not([disabled])')]
+        .filter(element => element.getClientRects().length > 0);
+      if (!focusables.length) return;
+      const first = focusables[0]!;
+      const last = focusables[focusables.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
+
+  const dismiss = () => {
+    setOpen(false);
+    toggleRef.current?.focus();
+  };
 
   const go = (section: string, chapter?: string) => {
     setCurrent(section);
     setOpen(false);
-    if (chapter) window.dispatchEvent(new CustomEvent("research:select-chapter", { detail: chapter }));
+    if (chapter) {
+      setSelectedChapter(chapter);
+      window.dispatchEvent(new CustomEvent("research:select-chapter", { detail: chapter }));
+    }
   };
 
   return <>
-    <button type="button" className={styles.mobileToggle} aria-controls="research-results-sidebar"
+    <button ref={toggleRef} type="button" className={styles.mobileToggle} aria-controls="research-results-sidebar"
       aria-expanded={open} onClick={() => setOpen(value => !value)}>
-      <span aria-hidden="true">☰</span> Πλοήγηση στα αποτελέσματα <span aria-hidden="true">{open ? "−" : "+"}</span>
+      <span aria-hidden="true">☰</span> Ενότητες αποτελεσμάτων <span aria-hidden="true">{open ? "−" : "+"}</span>
     </button>
-    {open && <button type="button" className={styles.backdrop} aria-label="Κλείσιμο πλοήγησης" onClick={() => setOpen(false)} />}
-    <aside id="research-results-sidebar" aria-label="Γρήγορη πλοήγηση στα αποτελέσματα"
+    {open && <button type="button" className={styles.backdrop} aria-label="Κλείσιμο πλοήγησης" onClick={dismiss} />}
+    <aside ref={drawerRef} id="research-results-sidebar" role={open ? "dialog" : undefined} aria-modal={open ? true : undefined} aria-label="Γρήγορη πλοήγηση στα αποτελέσματα"
       className={styles.sidebar + (open ? " " + styles.sidebarOpen : "")}>
       <div className={styles.brand}>
         <div><span className={styles.brandMark}>K<span>O</span>NTA MOY</span>
           <strong>Αποτελέσματα έρευνας</strong><small>Ελληνικό Λιανεμπόριο · 2026</small></div>
-        <button type="button" className={styles.close} onClick={() => setOpen(false)} aria-label="Κλείσιμο μενού">×</button>
+        <button type="button" className={styles.close} onClick={dismiss} aria-label="Κλείσιμο μενού">×</button>
       </div>
       <span className={styles.groupLabel}>ΠΕΡΙΕΧΟΜΕΝΑ</span>
       <nav className={styles.nav} aria-label="Ενότητες σελίδας αποτελεσμάτων">
@@ -64,6 +97,8 @@ export function ResultsNavigation() {
         <span className={styles.subLabel}>6 ΘΕΜΑΤΙΚΕΣ · ΕΞΕΡΕΥΝΗΣΗ</span>
         <div className={styles.chapters}>
           {PUBLIC_RESULTS_CHAPTERS.map(chapter => <a key={chapter.id} href="#research-workbench"
+            className={selectedChapter === chapter.id ? styles.chapterSelected : undefined}
+            aria-current={selectedChapter === chapter.id ? "location" : undefined}
             onClick={() => go("research-workbench", chapter.id)}>
             <span>{chapter.number}</span>{chapter.name}
           </a>)}

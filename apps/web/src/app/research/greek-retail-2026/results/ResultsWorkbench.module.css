@@ -267,3 +267,109 @@
 .menuButton strong,.menuActive strong{font-size:12px}
 .menuButton small,.menuActive small{font-size:9px}
 @media(max-width:640px){.shell{width:calc(100% - 18px)}.menu{display:flex;grid-template-columns:none}.menuButton,.menuActive{flex:0 0 auto;min-width:150px;padding:11px}.menuButton small,.menuActive small{display:none}}
+
+
+/* Published research explorer: generous reading scale, clear selection, no hidden mobile n. */
+.shell{width:100%;max-width:none;margin:28px 0 48px;padding:clamp(21px,3vw,38px);border:1px solid #d2e2d5;background:#fffefb;border-radius:23px}
+.heading{gap:16px;margin-bottom:29px}
+.heading h2{font-size:clamp(31px,3.5vw,46px);line-height:1.2;letter-spacing:-.035em;text-wrap:balance}
+.heading p,.graphHeading p{font-size:15px;line-height:1.8;color:#486550}
+.eyebrow{font-size:12px;letter-spacing:.085em;color:#486c52}
+.dataFlag,.demoFlag{font-size:11px;letter-spacing:.025em;line-height:1.45;white-space:normal}
+.menu{gap:8px;padding:9px;background:#eff4ec;scroll-padding:9px}
+.menuButton,.menuActive{min-height:68px;flex:1 0 175px;padding:13px 15px;border:1px solid transparent}
+.menuActive{border-color:#81ae8a;background:#fff;box-shadow:inset 0 -3px #36794f,0 3px 12px rgba(23,69,41,.05)}
+.menuButton strong,.menuActive strong{font-size:14px;line-height:1.45}
+.menuButton small,.menuActive small{font-size:12px;line-height:1.4;color:#526d56}
+.menuButton>b,.menuActive>b{font-size:16px;color:#5b8061}
+.chapterGrid{gap:12px}
+.chapterButton,.chapterActive{min-height:78px;padding:17px;gap:13px;border-radius:13px}
+.chapterButton strong,.chapterActive strong{font-size:14px;line-height:1.5}
+.chapterButton span,.chapterActive span{font-size:29px}
+.chapterIntro{padding:32px 0 18px}
+.chapterIntro h3{font-size:clamp(28px,3vw,40px);line-height:1.2;letter-spacing:-.025em}
+.chapterIntro p{font-size:15px;line-height:1.7;color:#4c6a55}
+.chapterIntro>span,.subHeading span{font-size:12px;color:#496c52}
+.subchapterMenu{gap:10px;margin:16px 0 27px}
+.subButton,.subActive{min-height:44px;padding:11px 16px;font-size:13px;line-height:1.4}
+.subButton span,.subActive span{color:#456e50}
+.subHeading h4{font-size:27px;line-height:1.25}
+.filters,.mapFilters{grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:14px;margin:24px 0}
+.filters label,.mapFilters label,.mapSide>label{gap:8px;font-size:13px;line-height:1.5;color:#31563c}
+.filters select,.filters input,.mapFilters select,.mapSide input{min-height:46px;border-color:#b9cfbc;border-radius:10px;font-size:14px;line-height:1.45;padding:11px 12px;color:#173f2b}
+.info,.note{font-size:13px;line-height:1.75;color:#45634d;border-left-color:#82a78b}
+.metricGrid{gap:14px}
+.metricCard{background:#f4f8f1;border-color:#d6e5d5;border-radius:15px;padding:22px}
+.metricCard>span{font-size:14px;line-height:1.55;min-height:0}
+.metricCard>strong{font-size:37px}
+.metricCard>small{font-size:12px;line-height:1.55;color:#4e7058}
+.empty{font-size:14px;line-height:1.7;color:#456149}
+.analysisGrid{gap:15px;margin-top:24px}
+.analysisGrid article{padding:24px}
+.articleTag{font-size:11px;letter-spacing:.08em}
+.analysisGrid h4{font-size:25px;line-height:1.25}
+.analysisGrid p{font-size:14px;line-height:1.8;color:#45614c}
+.analysisGrid button{min-height:44px;font-size:13px}
+.graphHeading h3{line-height:1.2;letter-spacing:-.025em}
+.graphSummary{gap:13px;padding:19px 0}
+.graphSummary>strong{font-size:16px}
+.graphSummary>span{font-size:13px;color:#4c6b53}
+.graphSummary button{min-height:44px;padding:12px 17px;font-size:13px}
+.graphRow{gap:15px;padding:11px 0;border-bottom:1px solid #edf2ea}
+.graphRow>span{font-size:14px;line-height:1.55;color:#2d5139}
+.graphRow>strong{font-size:15px;color:#175238}
+.graphRow>small{font-size:12px;color:#54725c}
+.graphTrack{height:18px}
+.graphDot{width:19px;height:19px}
+.table{font-size:14px;line-height:1.5}
+.table th{font-size:13px;color:#375e43}
+.table td,.table th{padding:14px 13px}
+.warning,.demoStrip{font-size:13px;line-height:1.7}
+.mapQuestionSummary p,.mapSelectedAnswer>small,.nationalDetails>p,.nationalHeadline small{font-size:13px;line-height:1.65}
+.mapSelectedAnswer>span,.mapQuestionCode,.nationalTag{font-size:11px}
+.mapSelectedAnswer>strong{font-size:15px}
+.mapToolbar,.mapQuestionStats span,.regionFocus{font-size:13px}
+.regionButton,.selectedRegion{font-size:13px;min-height:46px}
+.regionButton strong,.selectedRegion strong{font-size:13px}
+.regionalNumbers>small{font-size:11px;line-height:1.5}
+.scientificFooter{font-size:13px;line-height:1.75}
+.mapCountyDirectory>summary{font-size:14px;line-height:1.5;padding:17px 19px}
+.allRegionsRow,.allRegionsRow>span{font-size:13px;line-height:1.5}
+.allRegionsRow>strong{font-size:15px}
+.allRegionsRow>small{font-size:12px;color:#506a54}
+.countyPicker label,.countyReportControls label{font-size:13px}
+.countyPicker select,.countyReportControls select{font-size:15px;min-height:46px}
+.countyScientificSummary>p,.countyMethodology>p,.countyFindings>p,.countyChapterInterpretation,.countyNoMetrics,.countyMethodology li{font-size:14px;line-height:1.75}
+.countyOverview span,.countyOverview small,.countyTable thead th{font-size:12px}
+.countyChapterHeader p,.countyChapterHeader>small,.countyFindings>div small{font-size:12px}
+.countyTable{font-size:14px}
+.countyTable th,.countyTable td{padding:14px 11px}
+.shell .voicePage{position:static;left:auto;transform:none;width:100%;min-height:0;margin:26px 0}
+.menuButton:focus-visible,.menuActive:focus-visible,.graphSummary button:focus-visible,.graphBar:focus-visible,
+.mapZoom button:focus-visible,.countyPicker select:focus-visible,.mapCountyDirectory>summary:focus-visible{outline:3px solid #255d3f;outline-offset:3px}
+@media(max-width:1080px){
+ .metricGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .chapterGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:740px){
+ .shell{padding:20px 16px;margin:24px 0 35px;border-radius:18px}
+ .heading h2{font-size:34px}
+ .heading p,.graphHeading p{font-size:14px}
+ .menuButton,.menuActive{flex:0 0 180px;min-height:52px}
+ .menuButton small,.menuActive small{display:none}
+ .chapterGrid,.metricGrid,.analysisGrid{grid-template-columns:1fr}
+ .chapterButton,.chapterActive{min-height:60px}
+ .subchapterMenu{display:flex}
+ .filters,.mapFilters,.mapPanel .mapFilters{grid-template-columns:1fr}
+ .graphRow{grid-template-columns:minmax(0,1fr) 100px;gap:8px 13px}
+ .graphRow>span{grid-column:1;grid-row:1;font-size:14px}
+ .graphRow>strong{grid-column:2;grid-row:1;text-align:right;font-size:15px}
+ .graphRow>.graphTrack{grid-column:1;grid-row:2;min-width:0}
+ .graphRow>small{display:block;grid-column:2;grid-row:2;font-size:12px;text-align:right}
+ .graphTrack{height:16px}
+ .mapLayout,.mapNationalOverview{grid-template-columns:1fr}
+ .regionButton,.selectedRegion{font-size:13px}
+ .allRegionsGrid{grid-template-columns:1fr}
+ .tableScroll{scrollbar-width:thin}
+ .shell .voicePage{padding:18px}
+}

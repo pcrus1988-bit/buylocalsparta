@@ -58,3 +58,70 @@
 .pendingLinks{display:flex;flex-wrap:wrap;gap:22px;margin-top:38px}
 .pendingLinks a{color:#315e46;text-decoration:none;font-size:13px;font-weight:800}.pendingLinks a:hover{text-decoration:underline}
 @media(max-width:640px){.pending{width:calc(100% - 18px);padding:46px 23px;margin-bottom:28px}.pending h1{font-size:47px}.pendingDates{grid-template-columns:1fr;gap:28px}}
+
+
+/* Editorial readability pass: one generous reading column and high-contrast map controls. */
+.resultsContent{font-size:16px}
+.resultsContent #results-science,.resultsContent #research-workbench,.resultsContent #results-data-request{scroll-margin-top:132px}
+.mapSection{scroll-margin-top:132px;background:#f1f5ed;border-color:#d8e4d7}
+.mapHeading{gap:22px;margin-bottom:27px}
+.mapHeading h1{max-width:880px;line-height:1.17;letter-spacing:-.035em;text-wrap:balance;color:#1a4030}
+.mapHeading p{font-size:16px;line-height:1.75;max-width:750px;color:#415f4a}
+.eyebrow{font-size:12px;letter-spacing:.085em;color:#476a52}
+.publishedLabel{font-size:12px;line-height:1.45}
+.mapVisual{background:#fffefb;border-color:#ceded0}
+.mapOverlay{padding:23px 24px 15px;background:#fbfcf9}
+.mapOverlayHead{gap:18px}
+.mapOverlayHead h2{margin:7px 0 9px;font-size:clamp(26px,2.7vw,36px);line-height:1.22}
+.mapOverlayHead p{font-size:15px;line-height:1.6;color:#496951}
+.layerControls{gap:9px;scroll-padding-inline:10px}
+.layerButton,.layerActive{font-size:13px;font-weight:760;min-height:49px;max-width:245px;padding:12px 15px;line-height:1.35;border-color:#cbddcf}
+.layerActive{background:#1d5035;box-shadow:0 3px 8px rgba(19,67,40,.12)}
+.layerButton{color:#315d40}
+.layerNumber{opacity:.85}
+.layerArrow{height:44px;flex-basis:44px;font-size:27px;border-radius:12px}
+.playButton{min-height:42px;padding:10px 15px;font-size:12px;font-weight:760}
+.mapControlHint{display:block;margin:7px 1px 2px;color:#506d57;font-size:12px;line-height:1.55}
+.layerButton:focus-visible,.layerActive:focus-visible,.layerArrow:focus-visible,.playButton:focus-visible,
+.mapBottom select:focus-visible,.textLink:focus-visible{outline:3px solid #1e6240;outline-offset:3px}
+.mapBottom{padding:19px 24px;gap:20px}
+.mapBottom label{font-size:12px;letter-spacing:0;color:#345f42}
+.mapBottom select{min-height:46px;min-width:210px;font-size:15px;padding:10px 13px;border-color:#b9d0bd}
+.mapDetail{gap:5px;max-width:400px;padding-left:15px;border-left:3px solid #abcab2}
+.mapDetail strong{font-size:17px}
+.mapDetail span{font-size:15px;line-height:1.45;color:#3b6247}
+.mapDetail small{font-size:13px;color:#587c62}
+.mapFoot{gap:14px 24px}
+.legend{font-size:12px;color:#405e47}
+.legend i{width:92px;height:10px}
+.mapCaveat{font-size:13px;line-height:1.7;color:#496653;flex-basis:100%}
+.textLink{font-size:14px;text-decoration:underline;text-underline-offset:4px}
+@media(max-width:850px){
+ .resultsContent #results-science,.resultsContent #research-workbench,.resultsContent #results-data-request{scroll-margin-top:180px}
+ .mapSection{scroll-margin-top:180px}
+ .mapHeading p{font-size:15px}
+}
+@media(max-width:640px){
+ .mapSection{padding:17px 12px}
+ .mapHeading{padding:7px 8px 0}
+ .mapHeading h1{font-size:clamp(32px,9vw,40px)}
+ .mapOverlay{padding:19px 13px 12px}
+ .mapOverlayHead h2{font-size:27px}
+ .mapOverlayHead p{font-size:14px}
+ .layerButton,.layerActive{min-height:46px;font-size:13px;max-width:195px;padding:10px 11px}
+ .layerArrow{flex-basis:35px;height:44px}
+ .mapControlHint{font-size:12px}
+ .mapBottom{padding:17px 14px}
+ .mapDetail{max-width:none}
+ .mapCaveat{font-size:12px}
+ .legend{font-size:11px}
+}
+
+
+/* Essential interpretation remains discoverable, without recreating the removed methodology section. */
+.compactReadingGuide{margin-top:18px;border-top:1px solid #d6e3d4;color:#3b6046;padding:15px 2px 0}
+.compactReadingGuide summary{font-size:13px;font-weight:820;line-height:1.65;cursor:pointer;padding:7px 3px;max-width:700px}
+.compactReadingGuide summary:focus-visible{outline:3px solid #2c6947;outline-offset:3px}
+.compactReadingGuide>div{max-width:790px;padding:7px 3px 13px;font-size:13px;line-height:1.8;color:#456653}
+.compactReadingGuide p{margin:5px 0 13px}
+.compactReadingGuide a{font-weight:800;color:#235b3c;text-underline-offset:4px}

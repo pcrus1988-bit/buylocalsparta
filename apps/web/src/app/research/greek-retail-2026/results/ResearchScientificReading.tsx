@@ -1,14 +1,16 @@
+import Link from "next/link";
 import type { SafePublicResultPoint } from "../../../../lib/research-public-results-data";
 import {
   scientificReadingCharts,
   scientificReadingIndices,
+  type ScientificReadingSummary,
 } from "../../../../lib/research-scientific-reading";
 import styles from "./ResearchScientificReading.module.css";
 
 const percent = new Intl.NumberFormat("el-GR", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 const integer = new Intl.NumberFormat("el-GR", { maximumFractionDigits: 0 });
 
-export function ResearchScientificReading({ points }: { points: readonly SafePublicResultPoint[] }) {
+export function ResearchScientificReading({ points, summary }: { points: readonly SafePublicResultPoint[]; summary: ScientificReadingSummary }) {
   const chapters = scientificReadingCharts(points);
   const indices = scientificReadingIndices(points);
   return <section className={styles.shell} id="results-science" aria-labelledby="results-science-title">
@@ -58,6 +60,18 @@ export function ResearchScientificReading({ points }: { points: readonly SafePub
         </div>)}
       </div>
     </section>}
+
+    <details className={styles.scientificContext}>
+      <summary>Πριν συγκρίνετε ευρήματα: τι χρειάζεται προσοχή;</summary>
+      <div>
+        <p>Η στάθμιση προσαρμόζει τη σύνθεση των {summary.analysed === null ? "εγκεκριμένων" : integer.format(summary.analysed)} απαντήσεων· δεν εξαλείφει τη <strong>μεροληψία μη απόκρισης</strong> ή το γεγονός ότι η συμμετοχή ήταν προαιρετική.</p>
+        <p><strong>Τι γίνεται με τους νομούς;</strong> Για n=5–29 οι περιγραφικές εκτιμήσεις είναι ιδιαίτερα ασταθείς. Οι νομοί με n=1–4 παραμένουν ορατοί ως περιοχές χωρίς δημοσιεύσιμη εκτίμηση. Η απουσία τιμής <strong>δεν σημαίνει μηδέν</strong>.</p>
+        <p>{summary.hasConventionalSamplingIntervals
+          ? "Διαστήματα αβεβαιότητας παρουσιάζονται μόνο όπου έχουν υπολογιστεί και εγκριθεί για τον συγκεκριμένο δείκτη, όχι για κάθε σύγκριση."
+          : "Δεν παρουσιάζονται τεχνητά διαστήματα εμπιστοσύνης ή συμβατικό περιθώριο σφάλματος για τις δημόσιες σταθμισμένες περιγραφικές εκτιμήσεις."}</p>
+        <Link href="/research/greek-retail-2026/methodology">Αναλυτική μεθοδολογία, περιορισμοί και τεκμηρίωση ↗</Link>
+      </div>
+    </details>
 
   </section>;
 }
