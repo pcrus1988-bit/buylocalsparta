@@ -1,5 +1,5 @@
 import type { PublishedResearchEstimate } from "./research-survey-release";
-import { RESEARCH_PUBLIC_MINIMUM_UNWEIGHTED_BASE } from "./research-disclosure-policy";
+import { RESEARCH_PUBLIC_MINIMUM_UNWEIGHTED_BASE } from "./research-disclosure-policy.ts";
 import { GREECE_REGIONS } from "./research-geographic-core.ts";
 import { GREECE_PREFECTURES } from "./research-prefectures.ts";
 import { PUBLIC_RESULTS_METRICS } from "./research-public-results-sections.ts";
