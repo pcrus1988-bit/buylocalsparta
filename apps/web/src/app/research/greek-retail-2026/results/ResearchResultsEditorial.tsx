@@ -96,6 +96,13 @@ function EditorialMap({ points, geography, countyAvailability=[] }: { points: re
 
   const countyBands = new Map(countyAvailability.map(c => [c.key, c.band] as const));
   const underFive = countyAvailability.filter(c => c.band === "under5").length;
+  const countyBandText = (key:string) => countyBands.get(key)==="under5"?"Βάση 1–4 · χωρίς δημοσιεύσιμο αποτέλεσμα":
+    countyBands.get(key)==="5to9"?"Βάση 5–9 · χωρίς αποτέλεσμα για τον δείκτη":
+    countyBands.get(key)==="10to29"?"Βάση 10–29 · χωρίς αποτέλεσμα για τον δείκτη":
+    "Χωρίς δημοσιεύσιμα στοιχεία";
+  const countyBandColor = (key:string) => countyBands.get(key)==="under5"?"#fff1b4":
+    countyBands.get(key)==="5to9"?"#ffe0a1":
+    countyBands.get(key)==="10to29"?"#f4d7a5":"#e5e9e4";
   const index = Math.min(active, Math.max(layers.length - 1, 0));
   const layer = layers[index];
   const smallBaseCount = layer?.kind === "survey"
@@ -138,7 +145,7 @@ function EditorialMap({ points, geography, countyAvailability=[] }: { points: re
         <div className={styles.legend} aria-label="Κλίμακα χρωμάτων">
           <span>Χαμηλότερη τιμή</span><i aria-hidden="true" /><span>Υψηλότερη τιμή</span>
         </div>
-        <p className={styles.mapCaveat}>Οι χρωματικές κλίμακες προσαρμόζονται ξεχωριστά σε κάθε δείκτη. Οι νομοί με μη δημοσιεύσιμες εκτιμήσεις αλλά τεκμηριωμένη πολύ μικρή βάση (1–4) χρωματίζονται ανοιχτό κίτρινο, χωρίς αριθμητικό αποτέλεσμα. Οι περιοχές χωρίς καταγραφή παραμένουν γκρίζες. {underFive > 0 ? `${underFive} νομοί έχουν βάση 1–4· οι ατομικές απαντήσεις τους δεν δημοσιοποιούνται. ` : ""}{layer?.kind === "survey" && smallBaseCount > 0 ? `${smallBaseCount} από τους ${layer.entries.size} νομούς με τιμή βασίζονται σε μόλις 5–29 απαντήσεις· δεν αποτελούν αξιόπιστη κατάταξη των νομών.` : ""}</p>
+        <p className={styles.mapCaveat}>Οι χρωματικές κλίμακες προσαρμόζονται ξεχωριστά σε κάθε δείκτη. Νομοί με μικρό δείγμα αλλά χωρίς δημοσιεύσιμη εκτίμηση σημειώνονται με ανοιχτές αποχρώσεις και διακεκομμένο περίγραμμα, όχι ως τιμές του δείκτη. Περιοχές χωρίς καταγραφή παραμένουν γκρίζες. {underFive > 0 ? `${underFive} νομοί έχουν βάση 1–4· οι ατομικές απαντήσεις τους δεν δημοσιοποιούνται. ` : ""}{layer?.kind === "survey" && smallBaseCount > 0 ? `${smallBaseCount} από τους ${layer.entries.size} νομούς με τιμή βασίζονται σε μόλις 5–29 απαντήσεις· δεν αποτελούν αξιόπιστη κατάταξη των νομών.` : ""}</p>
       </div>
       <div className={styles.mapVisual}>
         {failed ? <p role="alert">Ο χάρτης δεν φορτώθηκε. Χρησιμοποιήστε τα αναλυτικά γραφήματα παρακάτω.</p>
@@ -148,12 +155,12 @@ function EditorialMap({ points, geography, countyAvailability=[] }: { points: re
               const value = layer?.entries.get(feature.properties.name);
               const number = typeof value === "number" ? value : value?.value;
               return <path key={feature.properties.name} d={polygonPath(feature.geometry)} fillRule="evenodd"
-                fill={number === undefined && countyBands.get(feature.properties.name) === "under5" ? "#fff1b4" : heat(number, min, max)} stroke="#fffdf7" strokeWidth="1.35"
+                fill={number === undefined ? countyBandColor(feature.properties.name) : heat(number, min, max)} stroke="#fffdf7" strokeWidth="1.35" strokeDasharray={number === undefined && countyBands.has(feature.properties.name) ? "4 2" : undefined}
                 className={chosen === feature.properties.name ? styles.countySelected : styles.county}
-                role="button" tabIndex={0} aria-label={`${keyNames.get(feature.properties.name) ?? feature.properties.name}: ${value === undefined && countyBands.get(feature.properties.name) === "under5" ? "Βάση 1–4 · η αριθμητική εκτίμηση αποκρύπτεται" : displayValue(value)}`}
+                role="button" tabIndex={0} aria-label={`${keyNames.get(feature.properties.name) ?? feature.properties.name}: ${value === undefined ? countyBandText(feature.properties.name) : displayValue(value)}`}
                 onClick={() => setChosen(feature.properties.name)}
                 onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setChosen(feature.properties.name); } }}>
-                <title>{keyNames.get(feature.properties.name) ?? feature.properties.name}: {value === undefined && countyBands.get(feature.properties.name) === "under5" ? "Βάση 1–4 · η αριθμητική εκτίμηση αποκρύπτεται" : displayValue(value)}</title>
+                <title>{keyNames.get(feature.properties.name) ?? feature.properties.name}: {value === undefined ? countyBandText(feature.properties.name) : displayValue(value)}</title>
               </path>;
             })}
           </svg>}
@@ -166,7 +173,7 @@ function EditorialMap({ points, geography, countyAvailability=[] }: { points: re
           </label>
           <div aria-live="polite" className={styles.mapDetail}>
             <strong>{chosen ? (keyNames.get(chosen) ?? chosen) : "Σύνολο Ελλάδας"}</strong>
-            <span>{chosen && selected === undefined && countyBands.get(chosen) === "under5" ? "Βάση 1–4 · χωρίς δημοσιεύσιμη αριθμητική εκτίμηση" : chosen ? displayValue(selected) : `${layer?.entries.size ?? 0} / 55 νομοί με διαθέσιμη τιμή`}</span>
+            <span>{chosen && selected === undefined ? countyBandText(chosen) : chosen ? displayValue(selected) : `${layer?.entries.size ?? 0} / 55 νομοί με διαθέσιμη τιμή`}</span>
             {typeof selected === "object" && <small>Βάση n={whole.format(selected.n)}</small>}
           </div>
         </div>
