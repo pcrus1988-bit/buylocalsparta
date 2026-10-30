@@ -12,6 +12,28 @@ export type SafePublicResultPoint = Readonly<{
  segment: Readonly<Record<string,string>>; n:number;
  ciLower:number|null; ciUpper:number|null;
 }>;
+/** Public, non-identifying county coverage from the frozen released analysis.
+ * Low-n cells are represented ONLY by broad sample-size bands; their
+ * suppressed estimates, exact counts, and answer content remain private.
+ */
+export type SafeCountyAvailability = Readonly<{
+ key:string; band:"under5"|"5to9"|"10to29"|"30plus";
+}>;
+export function publicCountyAvailability(estimates:readonly PublishedResearchEstimate[]):SafeCountyAvailability[]{
+ const maxima=new Map<string,number>();
+ for(const e of estimates){
+  const seg=Object.entries(e.segment);
+  if(seg.length!==1||seg[0]?.[0]!=="prefectureCode"||
+     !METRIC_SET.has(e.metricKey)||RESTRICTED.test(e.metricKey)||RESTRICTED.test(e.method)||
+     !Number.isSafeInteger(e.unweightedN)||e.unweightedN<1)continue;
+  const key=seg[0][1];
+  if(!permittedPrefecture.has(key))continue;
+  maxima.set(key,Math.max(maxima.get(key)??0,e.unweightedN));
+ }
+ return [...maxima].map(([key,n])=>({
+  key,band:n<5?"under5":n<10?"5to9":n<30?"10to29":"30plus"
+ }));
+}
 /** Restricted Preview only: non-public descriptive QA coverage by county.
  * Exact county counts from n=1 are visible only to authenticated research staff.
  * Full postcode stays on server. Public disclosure rules are separate.
