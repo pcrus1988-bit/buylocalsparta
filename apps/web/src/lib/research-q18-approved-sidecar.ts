@@ -124,3 +124,4 @@ export async function archiveApprovedGreekRetailQ18(){
   if(!publicVoiceDataFromRelease(projection))throw Error("RESEARCH_Q18_PROJECTION_INVALID");
   if(body.byteLength>MAX_BYTES)throw Error("RESEARCH_Q18_SIDECAR_TOO_LARGE");
   const storage=serverObjectStorageFromEnv({defaultBucket:BUCKET});
+  await storage.put({objectKey:objectKey(release.artifact_sha256),contentType:"application/json",body});
