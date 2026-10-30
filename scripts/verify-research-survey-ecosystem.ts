@@ -723,7 +723,10 @@ if (!scientificReadingPage.includes("summary.hasConventionalSamplingIntervals") 
     !scientificReadingPage.includes("Δεν παρουσιάζονται τεχνητά διαστήματα")) errors.push("scientific reading must explain unsupported uncertainty");
 if (!scientificReadingPage.includes('href="/research/greek-retail-2026/methodology"')) errors.push("scientific reading must retain methodology navigation");
 if (!observatoryPage.includes("Απαντήσεις από επιχειρήσεις") || !observatoryPage.includes("βάση απαντήσεων (n)")) errors.push("public observatory does not disclose understandable participation context");
-if (!methodologyPage.includes("Τι θα συνοδεύει τα αποτελέσματα")) errors.push("public methodology does not explain what context accompanies results");
+if (!methodologyPage.includes("Τι συνοδεύει τα δημοσιευμένα αποτελέσματα")) errors.push("public methodology does not explain the context accompanying published results");
+if (!methodologyPage.includes("<MethodologyNavigation />") || !methodologyPage.includes('id="fieldwork-audit"')) errors.push("published methodology lost its sidebar or fieldwork audit");
+if (!methodologyPage.includes("650") || !methodologyPage.includes("656") || !methodologyPage.includes("137.359")) errors.push("final methodology must distinguish analyzed, completed and delivered counts");
+if (!methodologyPage.includes("Η Ομάδα Α ολοκληρώθηκε") || !methodologyPage.includes("Η Ομάδα Β αποτελεί προγραμματισμένη επέκταση")) errors.push("methodology must distinguish completed wave A from prospective wave B");
 if (!observatoryPage.includes("Ο ΟΔΗΓΟΣ ΤΗΣ ΕΡΕΥΝΑΣ") || !observatoryPage.includes("steps.map(step") || !observatoryPage.includes("Κατανοήστε τη μέθοδο")) errors.push("permanent Retail Observatory landing does not guide readers through results and methodology");
 if (
   !researchPrivacyPage.includes("Η συμμετοχή στην έρευνα είναι ξεχωριστή από την εμπορική επικοινωνία.") &&
