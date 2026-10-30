@@ -5,6 +5,7 @@ import { SiteFooter } from "../../../../components/SiteFooter";
 import styles from "../../../../components/ResearchSurveyPage.module.css";
 import editorialStyles from "./ResultsEditorial.module.css";
 import { ResearchResultsEditorial } from "./ResearchResultsEditorial";
+import { ResultsNavigation } from "./ResultsNavigation";
 import { getPublishedGreekRetailResults } from "../../../../lib/research-survey-release";
 import { governedStaticSeoMetadata } from "../../../../lib/seo-metadata";
 import { publicResearchStudy } from "../../../../lib/research-observatory-runtime";
@@ -12,7 +13,6 @@ import { publicResultPoints, publicCountyAvailability, type SafeParticipationGeo
 import { ResearchResultsWorkbench } from "./ResearchResultsWorkbench";
 import { ResearchScientificReading } from "./ResearchScientificReading";
 import { ResearchRawDataRequest } from "./ResearchRawDataRequest";
-import { scientificReadingSummary } from "../../../../lib/research-scientific-reading";
 import { publicVoiceDataFromRelease } from "../../../../lib/research-public-voices-data";
 import { loadApprovedGreekRetailQ18 } from "../../../../lib/research-q18-approved-sidecar";
 
@@ -55,7 +55,6 @@ export default async function GreekRetailResultsPage() {
   // Only already-published and privacy-suppressed aggregate estimates reach the browser.
   const safePoints = publicResultPoints(published.estimates);
   const countyAvailability = publicCountyAvailability(published.estimates);
-  const reading = scientificReadingSummary(published.methodology);
   const voices = publicVoiceDataFromRelease(published.methodology.q18PublicVoices)
     ?? await loadApprovedGreekRetailQ18(published.artifactSha256);
   let geography: SafeParticipationGeography | undefined;
@@ -76,12 +75,17 @@ export default async function GreekRetailResultsPage() {
   }
   return <main className={styles.shell}>
     <ResearchPublicNavigation active="results" studySlug="greek-retail-2026" />
-    <ResearchResultsEditorial points={safePoints} geography={geography} countyAvailability={countyAvailability}>
-      <ResearchScientificReading points={safePoints} summary={reading} />
-    </ResearchResultsEditorial>
-    <ResearchResultsWorkbench mode="published" points={safePoints} geography={geography} countyAvailability={countyAvailability}
-      voices={voices} />
-    <ResearchRawDataRequest />
+    <div className={editorialStyles.resultsLayout}>
+      <ResultsNavigation />
+      <div className={editorialStyles.resultsContent}>
+        <ResearchResultsEditorial points={safePoints} geography={geography} countyAvailability={countyAvailability}>
+          <ResearchScientificReading points={safePoints} />
+        </ResearchResultsEditorial>
+        <ResearchResultsWorkbench mode="published" points={safePoints} geography={geography} countyAvailability={countyAvailability}
+          voices={voices} />
+        <div id="results-data-request"><ResearchRawDataRequest /></div>
+      </div>
+    </div>
     <SiteFooter />
   </main>;
 }
