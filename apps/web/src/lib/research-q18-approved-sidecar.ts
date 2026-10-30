@@ -125,3 +125,9 @@ export async function archiveApprovedGreekRetailQ18(){
   if(body.byteLength>MAX_BYTES)throw Error("RESEARCH_Q18_SIDECAR_TOO_LARGE");
   const storage=serverObjectStorageFromEnv({defaultBucket:BUCKET});
   await storage.put({objectKey:objectKey(release.artifact_sha256),contentType:"application/json",body});
+  const readback=await fetchObject(release.artifact_sha256);
+  if(!readback || sha256(Buffer.from(readback,"utf8"))!==sha256(body)){
+    throw Error("RESEARCH_Q18_SIDECAR_READBACK_MISMATCH");
+  }
+  return {state:"verified",releaseSnapshotId:release.id,quotes:quotes.length,categories:categories.length};
+}
