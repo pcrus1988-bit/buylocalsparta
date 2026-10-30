@@ -74,6 +74,12 @@ export function ResearchStudyConsentDirectory({
       <Link prefetch={false} className="button button-secondary" href={root}>Επαναφορά</Link>
     </form>
 
+    {data.canViewEmail && <div className="workspace-action-bar" style={{ marginTop: 14 }}>
+      <a className="button button-secondary" href={"/api/admin/research/surveys/" + encodeURIComponent(slug) + "/consent-export"}>
+        Εξαγωγή όλων των opt-in σε CSV (email · ΓΕΜΗ · timestamps)
+      </a>
+    </div>}
+
     <p style={{ marginTop: 12, fontSize: "0.9rem" }}>
       {data.canViewEmail
         ? "Η πρόσβαση σε πλήρη email επιτρέπεται μόνο σε εξουσιοδοτημένους διαχειριστές και καταγράφεται στο ιστορικό πρόσβασης."
