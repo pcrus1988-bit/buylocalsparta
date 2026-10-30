@@ -78,7 +78,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
       if (result.length >= 5) break;
     }
     if (geography?.prefectures?.length) result.push({
-      key: "participation", title: "Συμμετοχή στη μελέτη", kind: "participation", format: "count",
+      key: "participation", title: "Ενάρξεις ερωτηματολογίου", kind: "participation", format: "count",
       entries: new Map(geography.prefectures.map(p => [p.key, p.started] as const))
     });
     return result;
@@ -102,7 +102,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
   const selected = chosen && layer ? layer.entries.get(chosen) : undefined;
   const displayValue = (value: SafePublicResultPoint | number | undefined): string => {
     if (value === undefined) return "Χωρίς δημοσιεύσιμα στοιχεία";
-    return typeof value === "number" ? whole.format(value) + " συμμετοχές" : formatPoint(value);
+    return typeof value === "number" ? whole.format(value) + " ενάρξεις" : formatPoint(value);
   };
 
   return <section id="results-map" className={styles.mapSection} aria-labelledby="results-map-title">
@@ -117,7 +117,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
         <span className={styles.eyebrow}>ΔΙΑΔΡΑΣΤΙΚΟΣ ΧΑΡΤΗΣ · 55 ΝΟΜΟΙ</span>
         <h3>{layer?.title ?? "Η γεωγραφία της έρευνας"}</h3>
         <p>{layer?.kind === "survey" ? publicMetricLabel(layer.key) : layer?.kind === "participation"
-          ? "Συμμετοχές ανά νομό — διαφορετική μέτρηση από τα αποτελέσματα των ερωτήσεων."
+          ? "Ενάρξεις ερωτηματολογίου ανά νομό — ξεχωριστή μέτρηση από τις ολοκληρωμένες απαντήσεις."
           : "Τα εγκεκριμένα στοιχεία ανά νομό θα εμφανιστούν όταν είναι διαθέσιμα."}</p>
         <div className={styles.layerControls} aria-label="Θεματικά επίπεδα χάρτη">
           {layers.map((item, i) => <button key={item.key} type="button" aria-pressed={i === index}
