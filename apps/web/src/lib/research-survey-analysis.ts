@@ -11,7 +11,6 @@ import {
   normal95ConfidenceInterval,
   normalTwoSidedPValue,
   researchWeightDiagnostics,
-  stratifiedSrsMeanVariance,
   weightedClusteredDifferenceInMeans
 } from "./research-survey-statistics";
 import { scoreGreekRetail2026, type ResearchAnswerMap } from "./research-survey-model";
@@ -24,7 +23,8 @@ const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v3";
 const WEIGHTING_CONTINGENCY_VERSION = "sparse-strata-sector-pool-admin-region-calibration-v1";
 const EFFECTIVE_CALIBRATION_METHOD = "bounded_raking_admin_region_sector_v1";
 const MIN_PUBLIC_BASE = 30;
-const VARIANCE_METHOD = "stratified_srs_fpc_v1";
+const VARIANCE_METHOD = "stratified_srs_fpc_v1"; // Locked pre-fieldwork plan.
+const EFFECTIVE_VARIANCE_METHOD = "not_estimated"; // Pooled nonresponse is not SRS-FPC.
 const CALIBRATION_METHOD = "bounded_raking_frozen_frame_v1";
 const CALIBRATION_DIMENSIONS = ["region_code", "sector_code"] as const;
 const CALIBRATION_OPTIONS = {
@@ -450,7 +450,7 @@ export async function runGreekRetailAnalysis(
       datasetSha256: text(runResult.rows[0]?.dataset_sha256),
       includedResponses: numberValue(completed.rows[0]?.included_responses),
       estimateCount: numberValue(completed.rows[0]?.estimate_count),
-      varianceMethod: VARIANCE_METHOD,
+      varianceMethod: EFFECTIVE_VARIANCE_METHOD,
       publicMinimumBase: MIN_PUBLIC_BASE,
       analysisPlanVersion: text(analysisPlan.version),
       analysisPlanSha256: text(analysisPlan.content_sha256),
@@ -488,7 +488,7 @@ export async function runGreekRetailAnalysis(
       draw.id,
       draw.frame_snapshot_id,
       MIN_PUBLIC_BASE,
-      VARIANCE_METHOD,
+      EFFECTIVE_VARIANCE_METHOD,
       analysisPlan.id,
       analysisPlan.version,
       analysisPlan.content_sha256
@@ -513,7 +513,7 @@ export async function runGreekRetailAnalysis(
       draw.id,
       draw.frame_snapshot_id,
       MIN_PUBLIC_BASE,
-      VARIANCE_METHOD,
+      EFFECTIVE_VARIANCE_METHOD,
       analysisPlan.version,
       analysisPlan.content_sha256
     ]);
@@ -894,22 +894,13 @@ export async function runGreekRetailAnalysis(
       if (result.estimate === undefined) continue;
       const unweightedN = segment.observations.length;
       const suppressed = unweightedN < MIN_PUBLIC_BASE;
-      // Postcode geographies are descriptive domains, not original design strata.
-      const domainVarianceUnsupported = Boolean(segment.segment.sizeBand || segment.segment.regionCode || segment.segment.prefectureCode);
-      const designResponses = designResponsesForSegment(segment.segment, weightedResponses);
-      const variance = domainVarianceUnsupported
-        ? { reason: "unsupported_non_stratification_domain" as const }
-        : stratifiedSrsMeanVariance(
-            segment.observations.map((observation) => ({
-              stratumId: observation.response.stratumId,
-              value: observation.value
-            })),
-            designResponses.map((response) => ({
-              stratumId: response.stratumId,
-              finalWeight: response.finalWeight
-            }))
-          );
-      const standardError = "standardError" in variance ? variance.standardError : undefined;
+      // Pooling nonresponse cells changes the stratified-SRS variance model.
+      // No design-valid variance estimator for these adjusted weights has been
+      // verified, so withhold confidence intervals rather than guessing.
+      const variance: { standardError?: number; reason: string } = {
+        reason: "pooled_nonresponse_calibration_variance_not_estimated"
+      };
+      const standardError = variance.standardError;
       const confidence = standardError === undefined
         ? undefined
         : normal95ConfidenceInterval(
@@ -945,7 +936,7 @@ export async function runGreekRetailAnalysis(
           geographicSource: (segment.segment.regionCode || segment.segment.prefectureCode)
             ? "postcode_administrative_crosswalk_v1" : undefined,
           publicPrefectureApproved: false,
-          varianceMethod: standardError === undefined ? "withheld" : VARIANCE_METHOD,
+          varianceMethod: EFFECTIVE_VARIANCE_METHOD,
           varianceWithheldReason: standardError === undefined ? variance.reason ?? "unavailable" : null,
           finitePopulationCorrection: standardError !== undefined
         })
@@ -1270,7 +1261,7 @@ export async function runGreekRetailAnalysis(
     datasetSha256,
     includedResponses: weightedResponses.length,
     estimateCount,
-    varianceMethod: VARIANCE_METHOD,
+    varianceMethod: EFFECTIVE_VARIANCE_METHOD,
     publicMinimumBase: MIN_PUBLIC_BASE,
     analysisPlanVersion: text(analysisPlan.version),
     analysisPlanSha256: text(analysisPlan.content_sha256),
