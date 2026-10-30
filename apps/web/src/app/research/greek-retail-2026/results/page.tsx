@@ -10,6 +10,8 @@ import { governedStaticSeoMetadata } from "../../../../lib/seo-metadata";
 import { publicResearchStudy } from "../../../../lib/research-observatory-runtime";
 import { publicResultPoints, type SafeParticipationGeography } from "../../../../lib/research-public-results-data";
 import { ResearchResultsWorkbench } from "./ResearchResultsWorkbench";
+import { ResearchScientificReading } from "./ResearchScientificReading";
+import { scientificReadingSummary } from "../../../../lib/research-scientific-reading";
 import { publicVoiceDataFromRelease } from "../../../../lib/research-public-voices-data";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +36,7 @@ export default async function GreekRetailResultsPage() {
         <p>Ετοιμάζουμε μια καθαρή, διαδραστική παρουσίαση με τα κύρια αποτελέσματα, τον χάρτη της Ελλάδας και τις θεματικές αναλύσεις. Θα εμφανιστούν μόνο τα επιστημονικά ελεγμένα και εγκεκριμένα ευρήματα.</p>
         <div className={editorialStyles.pendingStatus} role="status">Τα τελικά αποτελέσματα δεν έχουν δημοσιευθεί ακόμη.</div>
         <div className={editorialStyles.pendingDates}>
-          <div><small>ΟΛΟΚΛΗΡΩΣΗ ΣΥΛΛΟΓΗΣ</small><strong>30 Οκτωβρίου 2026</strong><span>18:00 · ώρα Ελλάδας</span></div>
+          <div><small>ΟΛΟΚΛΗΡΩΣΗ ΣΥΛΛΟΓΗΣ</small><strong>30 Οκτωβρίου 2026</strong><span>17:06 · πρόωρη ολοκλήρωση, ώρα Ελλάδας</span></div>
           <div><small>ΠΡΟΓΡΑΜΜΑΤΙΣΜΕΝΗ ΔΗΜΟΣΙΕΥΣΗ</small><strong>1 Νοεμβρίου 2026</strong><span>Υπό την προϋπόθεση των τελικών ελέγχων</span></div>
         </div>
         <nav className={editorialStyles.pendingLinks} aria-label="Σχετικές σελίδες μελέτης">
@@ -50,6 +52,7 @@ export default async function GreekRetailResultsPage() {
   // Public reader is already gated by the immutable Athens publication cutoff.
   // Only already-published and privacy-suppressed aggregate estimates reach the browser.
   const safePoints = publicResultPoints(published.estimates);
+  const reading = scientificReadingSummary(published.methodology);
   let geography: SafeParticipationGeography | undefined;
   try {
     const publicStudy = await publicResearchStudy("greek-retail-2026");
@@ -68,7 +71,9 @@ export default async function GreekRetailResultsPage() {
   }
   return <main className={styles.shell}>
     <ResearchPublicNavigation active="results" studySlug="greek-retail-2026" />
-    <ResearchResultsEditorial points={safePoints} geography={geography} />
+    <ResearchResultsEditorial points={safePoints} geography={geography}>
+      <ResearchScientificReading points={safePoints} summary={reading} />
+    </ResearchResultsEditorial>
     <ResearchResultsWorkbench mode="published" points={safePoints} geography={geography}
       voices={publicVoiceDataFromRelease(published.methodology.q18PublicVoices)} />
     <SiteFooter />
