@@ -81,6 +81,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/research-q18-approved",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/research-study-email-jobs",
       "schedule": "* * * * *"
     }
