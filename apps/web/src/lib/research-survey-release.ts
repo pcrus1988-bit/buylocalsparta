@@ -351,14 +351,25 @@ export async function buildGreekRetailRelease(
         AND pri.fieldwork_phase='pilot'
         AND pri.sent_at IS NOT NULL
     ),
+    -- The suppression helper is a last-event lookup for each email hash.
+    -- Resolve latest suppression once and hash-join it instead of issuing
+    -- hundreds of thousands of per-contact index probes.
+    latest_email_suppressions AS (
+      SELECT DISTINCT ON (e.contact_value_hash)
+        e.contact_value_hash,e.action
+      FROM research_contact_suppression_events e
+      WHERE e.contact_type='email'
+      ORDER BY e.contact_value_hash,e.occurred_at DESC,e.id DESC
+    ),
     active_email_units AS (
       SELECT DISTINCT cp.frame_unit_id
       FROM research_contact_points cp
       JOIN research_frame_units eligible_fu ON eligible_fu.id=cp.frame_unit_id
+      LEFT JOIN latest_email_suppressions s ON s.contact_value_hash=cp.contact_value_hash
       WHERE eligible_fu.frame_snapshot_id=$1
         AND cp.contact_type='email'
         AND cp.suppression_status='active'
-        AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+        AND s.action IS DISTINCT FROM 'suppress'
     ),
     frame_phase AS (
       SELECT fu.id,fu.stratum_id,
