@@ -46,10 +46,10 @@ const storyAngles = [
 ] as const;
 
 const resources = [
-  { number: "03", group: "ΕΡΕΥΝΑ", title: "Διαδραστικά αποτελέσματα", summary: "Διαγράμματα, νομοί και οι δημοσιευμένοι δείκτες με τις βάσεις τους.", href: PRESS_KIT_RESULTS, label: "Άνοιγμα αποτελεσμάτων" },
-  { number: "04", group: "ΕΡΕΥΝΑ", title: "Πλήρης μεθοδολογία", summary: "Δείγμα, επιλογή επιχειρήσεων, έλεγχοι ποιότητας, στάθμιση και περιορισμοί.", href: PRESS_KIT_STUDY + "/methodology", label: "Διαβάστε τη μεθοδολογία" },
-  { number: "05", group: "ΟΠΤΙΚΟ ΥΛΙΚΟ", title: "Επίσημο λογότυπο KONTA MOY", summary: "Αρχείο SVG του επίσημου λογοτύπου για δημοσιογραφική αναφορά.", href: "/brand/kontamou-logo.svg", label: "Λήψη λογοτύπου" },
-  { number: "06", group: "ΑΝΘΡΩΠΟΙ", title: "Η φωνή της Ελλάδας", summary: "Μόνο εγκεκριμένα, ανωνυμοποιημένα αποσπάσματα από την ανοικτή ερώτηση.", href: "/api/research/greek-retail-2026/voices-export", label: "Λήψη εγκεκριμένων απαντήσεων · PDF" }
+  { number: "04", group: "ΕΡΕΥΝΑ", title: "Διαδραστικά αποτελέσματα", summary: "Διαγράμματα, νομοί και οι δημοσιευμένοι δείκτες με τις βάσεις τους.", href: PRESS_KIT_RESULTS, label: "Άνοιγμα αποτελεσμάτων" },
+  { number: "05", group: "ΕΡΕΥΝΑ", title: "Πλήρης μεθοδολογία", summary: "Δείγμα, επιλογή επιχειρήσεων, έλεγχοι ποιότητας, στάθμιση και περιορισμοί.", href: PRESS_KIT_STUDY + "/methodology", label: "Διαβάστε τη μεθοδολογία" },
+  { number: "06", group: "ΟΠΤΙΚΟ ΥΛΙΚΟ", title: "Επίσημο λογότυπο KONTA MOY", summary: "Αρχείο SVG του επίσημου λογοτύπου για δημοσιογραφική αναφορά.", href: "/brand/kontamou-logo.svg", label: "Λήψη λογοτύπου" },
+  { number: "07", group: "ΑΝΘΡΩΠΟΙ", title: "Η φωνή της Ελλάδας", summary: "Μόνο εγκεκριμένα, ανωνυμοποιημένα αποσπάσματα από την ανοικτή ερώτηση.", href: "/api/research/greek-retail-2026/voices-export", label: "Λήψη εγκεκριμένων απαντήσεων · PDF" }
 ] as const;
 
 export default async function ResearchPressKitPage() {
@@ -128,15 +128,19 @@ export default async function ResearchPressKitPage() {
         </div>
         <div className={styles.downloads}>
           <div className={styles.downloadItem}>
-            <span className={styles.downloadIndex}>00</span><div><span className={styles.resourceType}>ΠΛΗΡΕΣ ΠΑΚΕΤΟ</span><h3>Press Kit · ZIP</h3><p>Δελτίο Τύπου PDF, βασικοί δείκτες CSV, έτοιμα διανυσματικά γραφήματα και οδηγός πηγών.</p></div>
+            <span className={styles.downloadIndex}>00</span><div><span className={styles.resourceType}>ΠΛΗΡΕΣ ΠΑΚΕΤΟ</span><h3>Press Kit · ZIP</h3><p>Και οι δύο ελληνικές εκδόσεις του Δελτίου Τύπου (αναλυτική και συνοπτική), βασικοί δείκτες CSV, γραφήματα και οδηγός πηγών.</p></div>
             {published && highlights.length ? <a href="/research/greek-retail-2026/press/kit.zip">Λήψη ZIP ↓</a> : <span className={styles.disabledLink}>Μη διαθέσιμο</span>}
           </div>
-          <div className={styles.downloadItem}>
-            <span className={styles.downloadIndex}>01</span><div><span className={styles.resourceType}>ΔΕΛΤΙΟ ΤΥΠΟΥ</span><h3>Επίσημο Δελτίο Τύπου</h3><p>Δημοσιογραφική σύνοψη της έρευνας, με ποσοστά και πραγματικές βάσεις.</p></div>
-            {published ? <a href="/research/greek-retail-2026/press/press-release.pdf">Λήψη PDF ↓</a> : <span className={styles.disabledLink}>Μη διαθέσιμο</span>}
+          <div className={[styles.downloadItem, styles.featuredRelease].join(" ")}>
+            <span className={styles.downloadIndex}>01</span><div><span className={styles.resourceType}>ΑΝΑΛΥΤΙΚΟ ΔΕΛΤΙΟ ΤΥΠΟΥ · ΕΛΛΗΝΙΚΑ</span><h3>Ψηφιακή επανάσταση στα χαρτιά. Αγώνας επιβίωσης πίσω από τις βιτρίνες.</h3><p>Τρισέλιδη δημοσιογραφική έκδοση: οικονομική πίεση, ψηφιακό παράδοξο, τοπική αγορά και πέντε κατευθύνσεις λύσεων.</p><span className={styles.editionMeta}>3 σελίδες · εκτενής παρουσίαση</span></div>
+            {published ? <a href="/research/greek-retail-2026/press/press-release-detailed.pdf">Λήψη αναλυτικού PDF ↓</a> : <span className={styles.disabledLink}>Μη διαθέσιμο</span>}
           </div>
           <div className={styles.downloadItem}>
-            <span className={styles.downloadIndex}>02</span><div><span className={styles.resourceType}>ΔΕΔΟΜΕΝΑ</span><h3>Βασικοί δείκτες · CSV</h3><p>Εθνικά αποτελέσματα για χρήση σε πίνακες, διαγράμματα και γραφήματα. Με n και πηγή.</p></div>
+            <span className={styles.downloadIndex}>02</span><div><span className={styles.resourceType}>ΣΥΝΟΠΤΙΚΟ ΔΕΛΤΙΟ ΤΥΠΟΥ · ΕΛΛΗΝΙΚΑ</span><h3>Τα βασικά αριθμητικά ευρήματα</h3><p>Δισέλιδη σύνοψη με δημοσιευμένα ποσοστά, βάσεις n, σύντομη ερμηνεία και πηγές.</p><span className={styles.editionMeta}>2 σελίδες · γρήγορη αναφορά</span></div>
+            {published ? <a href="/research/greek-retail-2026/press/press-release.pdf">Λήψη συνοπτικού PDF ↓</a> : <span className={styles.disabledLink}>Μη διαθέσιμο</span>}
+          </div>
+          <div className={styles.downloadItem}>
+            <span className={styles.downloadIndex}>03</span><div><span className={styles.resourceType}>ΔΕΔΟΜΕΝΑ</span><h3>Βασικοί δείκτες · CSV</h3><p>Εθνικά αποτελέσματα για χρήση σε πίνακες, διαγράμματα και γραφήματα. Με n και πηγή.</p></div>
             {published && highlights.length ? <a href="/research/greek-retail-2026/press/facts.csv">Λήψη CSV ↓</a> : <span className={styles.disabledLink}>Μη διαθέσιμο</span>}
           </div>
           {resources.map(resource => <div className={styles.downloadItem} key={resource.number}>
