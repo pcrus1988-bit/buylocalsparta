@@ -96,6 +96,9 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
 
   const index = Math.min(active, Math.max(layers.length - 1, 0));
   const layer = layers[index];
+  const smallBaseCount = layer?.kind === "survey"
+    ? [...layer.entries.values()].filter(value => typeof value !== "number" && value.n >= 5 && value.n < 30).length
+    : 0;
   const values = layer ? [...layer.entries.values()].map(v => typeof v === "number" ? v : v.value) : [];
   const min = layer?.format === "proportion" ? 0 : values.length ? Math.min(...values) : 0;
   const max = layer?.format === "proportion" ? 1 : values.length ? Math.max(...values) : 1;
@@ -133,7 +136,7 @@ function EditorialMap({ points, geography }: { points: readonly SafePublicResult
         <div className={styles.legend} aria-label="Κλίμακα χρωμάτων">
           <span>Χαμηλότερη τιμή</span><i aria-hidden="true" /><span>Υψηλότερη τιμή</span>
         </div>
-        <p className={styles.mapCaveat}>Οι χρωματικές κλίμακες προσαρμόζονται ξεχωριστά σε κάθε δείκτη. Οι μη εγκεκριμένοι ή ανεπαρκώς καλυμμένοι νομοί εμφανίζονται γκρίζοι.</p>
+        <p className={styles.mapCaveat}>Οι χρωματικές κλίμακες προσαρμόζονται ξεχωριστά σε κάθε δείκτη. Οι μη εγκεκριμένοι ή ανεπαρκώς καλυμμένοι νομοί εμφανίζονται γκρίζοι. {layer?.kind === "survey" && smallBaseCount > 0 ? `${smallBaseCount} από τους ${layer.entries.size} νομούς με τιμή βασίζονται σε μόλις 5–29 απαντήσεις· δεν αποτελούν αξιόπιστη κατάταξη των νομών.` : ""}</p>
       </div>
       <div className={styles.mapVisual}>
         {failed ? <p role="alert">Ο χάρτης δεν φορτώθηκε. Χρησιμοποιήστε τα αναλυτικά γραφήματα παρακάτω.</p>
