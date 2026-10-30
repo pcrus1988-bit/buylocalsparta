@@ -112,7 +112,7 @@ export async function archiveApprovedGreekRetailQ18(){
   const primary=[...RESEARCH_FREE_TEXT_CATEGORIES].map(item=>({
     key:item.key,label:item.label,count:candidates.filter(c=>c.tags.includes(item.key)).length
   })).filter(c=>c.count>=30);
-  const allowed=new Set(primary.map(c=>c.key));
+  const allowed=new Set<string>(primary.map(c=>c.key));
   const quotes=candidates.flatMap((candidate,i)=>{
     const largeThemes=candidate.tags.filter(category=>allowed.has(category));
     const visibleThemes=largeThemes.length?largeThemes:["other"];
