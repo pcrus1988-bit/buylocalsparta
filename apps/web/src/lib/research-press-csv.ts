@@ -4,7 +4,8 @@ export type PressCsvContact = Readonly<{ email: string; language: PressLanguage;
 export type PressCsvResult = Readonly<{
   contacts: PressCsvContact[]; duplicateCount: number; counts: { el: number; en: number };
 }>;
-export const MAX_PRESS_CONTACTS = 500;
+/** Campaign/list ceiling; the delivery rate is independently limited to 100 per manual batch. */
+export const MAX_PRESS_CONTACTS = 10_000;
 export const MAX_PRESS_CSV_BYTES = 1024 * 1024;
 const EMAIL_RE = /^[A-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?)+$/i;
 
@@ -60,7 +61,7 @@ export function parsePressCsv(text: string): PressCsvResult {
   if(emailIndex<0 || languageIndex<0 || emailIndex===languageIndex)
     throw new Error("CSV must contain email and language columns.");
   if(new Set(headers).size!==headers.length)throw new Error("Duplicate CSV headers are not allowed.");
-  if(rows.length>MAX_PRESS_CONTACTS+1)throw new Error("CSV has more than 500 rows. Split large distribution lists.");
+  if(rows.length>MAX_PRESS_CONTACTS*2+1)throw new Error(`CSV has more than ${MAX_PRESS_CONTACTS*2} data rows. Remove duplicates or split the import.`);
   const seen=new Map<string,PressCsvContact>(); let duplicateCount=0;
   rows.slice(1).forEach((cells,i)=>{
     const n=i+2;
@@ -81,7 +82,7 @@ export function parsePressCsv(text: string): PressCsvResult {
       duplicateCount++;
     } else seen.set(email,contact);
   });
-  if(seen.size>MAX_PRESS_CONTACTS)throw new Error("Maximum 500 unique contacts.");
+  if(seen.size>MAX_PRESS_CONTACTS)throw new Error(`Maximum ${MAX_PRESS_CONTACTS} unique contacts per campaign or list.`);
   const contacts=[...seen.values()];
   return {contacts,duplicateCount,counts:{
     el:contacts.filter(c=>c.language==="el").length,
@@ -101,7 +102,7 @@ export function combinePressContacts(
     }
     result.set(email,contact);
   }
-  if(result.size>MAX_PRESS_CONTACTS)throw new Error("Combined recipient list exceeds 500 contacts.");
+  if(result.size>MAX_PRESS_CONTACTS)throw new Error(`Combined recipient list exceeds ${MAX_PRESS_CONTACTS} unique contacts.`);
   return [...result.values()];
 }
 export function contactsFromLanguages(recipients:readonly string[], langs:Record<string,PressLanguage>):PressCsvContact[] {
