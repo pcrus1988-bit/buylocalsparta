@@ -66,7 +66,8 @@ export function ResearchPublicationMap({
  const [geo,setGeo]=useState<MapData|null>(null);
  const [granularity]=useState<"prefecture"|"region">("prefecture");
  const [failed,setFailed]=useState(false);
- const [mode,setMode]=useState<"answers"|"participation">("participation");
+ // The public heatmap shows answer metrics only; participation coverage is not selectable.
+ const [mode]=useState<"answers"|"participation">("answers");
  const [questionId,setQuestionId]=useState("Q09");
  const [answerKey,setAnswerKey]=useState("customer_acquisition_sources.share.word_of_mouth");
  const [selected,setSelected]=useState("");
@@ -175,11 +176,6 @@ export function ResearchPublicationMap({
  return <section aria-label="Διαδραστικός χάρτης Ελλάδας" className={styles.mapPanel}>
   <div className={styles.mapFilters}>
 
-   <label>Επίπεδο οπτικοποίησης
-    <select value={mode} onChange={e=>{setMode(e.target.value as typeof mode);setSelected("");}}>
-     <option value="answers">Απαντήσεις και δείκτες</option><option value="participation">Κάλυψη συμμετοχής</option>
-    </select>
-   </label>
    {hasMetric&&<label>1 · Επιλέξτε ερώτηση
     <select value={question.id} onChange={e=>{
       const next=PUBLIC_MAP_QUESTIONS.find(q=>q.id===e.target.value);
