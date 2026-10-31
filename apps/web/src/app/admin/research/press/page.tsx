@@ -28,7 +28,6 @@ const labels: Record<string,string> = {
   suppressed: "The email is now suppressed for subsequent press sends.",
   deleted: "The unsent draft was permanently deleted. Prepared and sent campaigns are never deleted."
 };
-const tally = (items: ReadonlyArray<{ status: string }>, status:string) => items.filter(d=>d.status===status).length;
 
 export default async function ResearchPressOfficePage({searchParams}: {searchParams:SearchParams}) {
   const principal = await getAdminSession();
@@ -39,18 +38,15 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
   const id = one(params.id);
   const safeId = /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id)?id:undefined;
   let error = one(params.error), workspace: Awaited<ReturnType<typeof pressWorkspace>> = {
-    releases: [],lists: [],current: null,deliveries: []
+    releases: [],lists: [],current: null,deliveries: [],
+    deliveryCounts: {pending:0,sending:0,sent:0,failed:0,suppressed:0}
   };
   try { workspace=await pressWorkspace(principal,safeId); }
   catch(cause) {error=error || (cause instanceof Error?cause.message:"Press Office data is not ready.");}
   const current = workspace.current;
   const releaseUrl = "/admin/research/press";
   const locked = current !== null && current.status !== "draft";
-  const pending = tally(workspace.deliveries,"pending");
-  const sent = tally(workspace.deliveries,"sent");
-  const failed = tally(workspace.deliveries,"failed");
-  const held = tally(workspace.deliveries,"sending");
-  const suppressed = tally(workspace.deliveries,"suppressed");
+  const {pending,sent,failed,sending:held,suppressed} = workspace.deliveryCounts;
   const batch = one(params.batch).split("/");
   const deliverySwitchEnabled=process.env.BLS_PRESS_SENDING_ENABLED==="true";
   let sesStatus:SesAccountSendingStatus|null=null;
@@ -200,7 +196,7 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
             Failed or held sends are never automatically retried. Inspect the SES mailbox/outbox before deciding on a new campaign.
           </p>}
           {workspace.deliveries.length>0&&<details className="press-recipients-detail">
-            <summary>View individual delivery records ({workspace.deliveries.length})</summary>
+            <summary>View individual delivery records ({workspace.deliveries.length} of {pending+sent+failed+held+suppressed}; first 500 shown)</summary>
             <div className="press-delivery-table-wrap"><table><thead><tr><th>Recipient</th><th>Language</th><th>Status</th><th>Sent</th><th>Details</th></tr></thead><tbody>
               {workspace.deliveries.map(d=><tr key={d.recipient}><td>{d.recipient}</td><td>{d.language==="el"?"Greek":"English"}</td><td>{d.status}</td><td>{date(d.sent_at)}</td><td>{d.error_message||"—"}</td></tr>)}
             </tbody></table></div>
@@ -221,7 +217,7 @@ export default async function ResearchPressOfficePage({searchParams}: {searchPar
           <p className="press-help"><code>email,language,outlet,name</code> — specify el or en for every contact.</p>
           <button className="button button-secondary" disabled={!editable} type="submit">Save / replace named list</button>
         </form>
-        <div className="press-saved-lists">{workspace.lists.map(l=><div key={l.id}><strong>{l.name}</strong><span>{l.recipients.length} contacts · 🇬🇷 {l.recipients.filter(a=>l.recipient_languages[a]==="el").length} / 🇬🇧 {l.recipients.filter(a=>l.recipient_languages[a]==="en").length}</span></div>)}</div>
+        <div className="press-saved-lists">{workspace.lists.map(l=><div key={l.id}><strong>{l.name}</strong><span>{l.recipient_count} contacts · 🇬🇷 {l.el_count} / 🇬🇧 {l.en_count}</span></div>)}</div>
       </section>
       <section className="press-card">
         <div className="press-panel-head"><div><strong>Do-not-contact list</strong><small>Respect explicit opt-outs and bounced press emails before any batch.</small></div></div>
