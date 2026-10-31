@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  parsePressCsv, combinePressContacts, normalizePressLanguage, contactsFromLanguages
+  parsePressCsv, combinePressContacts, normalizePressLanguage, contactsFromLanguages, MAX_PRESS_CONTACTS
 } from "../apps/web/src/lib/research-press-csv.ts";
 
 test("CSV groups Greek and English recipients and removes same-language duplicates", () => {
@@ -39,6 +39,27 @@ test("saved contacts require an explicit validated locale",()=>{
     [{email:"press@example.org",language:"en"}]);
   assert.throws(()=>contactsFromLanguages(["press@example.org"],{}),/missing an explicit language/);
 });
+test("campaigns over 500 contacts import and append without compromising deduplication",()=>{
+  const initial=Array.from({length:600},(_,i)=>`desk${i}@example.org,el`);
+  const incoming=Array.from({length:600},(_,i)=>`desk${i+500}@example.org,en`);
+  const first=parsePressCsv("email,language\n"+initial.join("\n")+"\n");
+  const second=parsePressCsv("email,language\n"+incoming.join("\n")+"\n");
+  assert.equal(first.contacts.length,600);
+  assert.equal(second.contacts.length,600);
+  // A same-address conflicting locale is still rejected when lists are appended.
+  assert.throws(()=>combinePressContacts(first.contacts,second.contacts,"append"),/Conflicting/);
+  const safeIncoming=second.contacts.map(c=>Number(c.email.match(/^desk(\d+)/)?.[1])<600
+    ? {...c,language:"el" as const}:c);
+  const combined=combinePressContacts(first.contacts,safeIncoming,"append");
+  assert.equal(combined.length,1100);
+  assert.equal(new Set(combined.map(c=>c.email)).size,1100);
+});
+
+test("oversized recipient collections are rejected against the new campaign ceiling",()=>{
+  const contacts=Array.from({length:MAX_PRESS_CONTACTS+1},(_,i)=>({email:`desk${i}@example.org`,language:"el" as const}));
+  assert.throws(()=>combinePressContacts([],contacts,"replace"),new RegExp(String(MAX_PRESS_CONTACTS)));
+});
+
 test("append honors existing locales and keeps unique recipients",()=>{
   const merged=combinePressContacts([{email:"a@example.org",language:"el"}],
     [{email:"a@example.org",language:"el"},{email:"b@example.org",language:"en"}],"append");
