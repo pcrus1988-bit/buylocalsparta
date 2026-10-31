@@ -6,9 +6,8 @@ import {getSesAccountSendingStatus,sesMailConfigFromEnv} from "./admin-mail-ses"
 import { validateCustomMailHtml } from "./admin-mail-template";
 import { pressHtmlFragment } from "./research-press-template";
 import { combinePressContacts, contactsFromLanguages, parsePressCsv, validatePressEmail,
-  MAX_PRESS_CSV_BYTES, type PressCsvContact, type PressLanguage } from "./research-press-csv";
+  MAX_PRESS_CSV_BYTES, MAX_PRESS_CONTACTS, type PressCsvContact, type PressLanguage } from "./research-press-csv";
 
-const MAX_RECIPIENTS = 500;
 export const PRESS_BATCH_SIZE = 100;
 const MAX_ATTACHMENT = 3 * 1024 * 1024;
 const FROM = "research@kontamou.site";
@@ -44,11 +43,13 @@ export type PressDelivery = {
   sent_at: string | Date | null;
 };
 export type PressList = { id: string; name: string; recipients: string[]; recipient_languages: Record<string,PressLanguage> };
+export type PressListSummary = { id: string; name: string; recipient_count: number; el_count: number; en_count: number };
+export type PressDeliveryCounts = Record<PressDelivery["status"],number>;
 
 export function parsePressRecipients(value: string): string[] {
   const raw = value.split(/[;,\n]+/).map((entry) => entry.trim().toLowerCase()).filter(Boolean);
   const unique = [...new Set(raw)];
-  if (unique.length > MAX_RECIPIENTS) throw new Error("Maximum 500 addresses per press release or list.");
+  if (unique.length > MAX_PRESS_CONTACTS) throw new Error(`Maximum ${MAX_PRESS_CONTACTS} addresses per press release or list.`);
   for (const address of unique) {
     if (address.length > 254 || !ADDRESSES.test(address) || /[\r\n\x00-\x1f\x7f]/.test(address)) {
       throw new Error("Invalid recipient email address: " + address.slice(0, 100));
@@ -70,7 +71,10 @@ export async function pressWorkspace(principal: SessionPrincipal, selectedId?: s
        created_at,updated_at,prepared_at,completed_at,cardinality(recipients)::int AS recipient_count
        FROM public.research_press_releases ORDER BY updated_at DESC LIMIT 40`
     ),
-    db.query<PressList>("SELECT id,name,recipients,recipient_languages FROM public.research_press_lists ORDER BY name LIMIT 100")
+    db.query<PressListSummary>(`SELECT id,name,cardinality(recipients)::int AS recipient_count,
+      (SELECT count(*)::int FROM unnest(recipients) AS r(address) WHERE recipient_languages ->> r.address = 'el') AS el_count,
+      (SELECT count(*)::int FROM unnest(recipients) AS r(address) WHERE recipient_languages ->> r.address = 'en') AS en_count
+      FROM public.research_press_lists ORDER BY name LIMIT 100`)
   ]);
   const current = selectedId
     ? await db.query<PressRelease>(
@@ -83,11 +87,21 @@ export async function pressWorkspace(principal: SessionPrincipal, selectedId?: s
         [selectedId]
       )
     : undefined;
+  // The 500 displayed records are a preview, never the source of campaign totals.
+  const totals = selectedId
+    ? await db.query<{status:PressDelivery["status"]; total:number}>(
+        "SELECT status,count(*)::int AS total FROM public.research_press_deliveries WHERE release_id=$1 GROUP BY status",
+        [selectedId]
+      )
+    : undefined;
+  const deliveryCounts:PressDeliveryCounts = {pending:0,sending:0,sent:0,failed:0,suppressed:0};
+  for(const row of totals?.rows??[]) deliveryCounts[row.status]=row.total;
   return {
     releases: releases.rows,
     lists: lists.rows,
     current: current?.rows[0] ?? null,
-    deliveries: deliveries?.rows ?? []
+    deliveries: deliveries?.rows ?? [],
+    deliveryCounts
   };
 }
 
