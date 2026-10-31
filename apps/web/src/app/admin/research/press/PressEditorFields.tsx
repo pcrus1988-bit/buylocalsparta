@@ -2,11 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { pressPreviewHtml } from "../../../../lib/research-press-template";
-import { parsePressCsv, type PressCsvResult, type PressLanguage } from "../../../../lib/research-press-csv";
+import { parsePressCsv, MAX_PRESS_CONTACTS, MAX_PRESS_CSV_BYTES, type PressCsvResult, type PressLanguage } from "../../../../lib/research-press-csv";
 
 type RecipientList = {
-  id:string; name:string; recipients:readonly string[];
-  recipient_languages:Readonly<Record<string,PressLanguage>>;
+  id:string; name:string; recipient_count:number; el_count:number; en_count:number;
 };
 type PreviewState = { result:PressCsvResult|null; error:string; filename:string };
 const emptyPreview:PreviewState = { result:null,error:"",filename:"" };
@@ -43,14 +42,14 @@ export function PressEditorFields(props: Readonly<{
 
   const selected=props.lists.find(l=>l.id===selectedList);
   const newCounts=csvPreview.result?.counts || (selected ? {
-    el:selected.recipients.filter(a=>selected.recipient_languages[a]==="el").length,
-    en:selected.recipients.filter(a=>selected.recipient_languages[a]==="en").length
+    el:selected.el_count,
+    en:selected.en_count
   } : null);
   const changeCsv=async(file:File|undefined)=>{
     if(!file){setCsvPreview(emptyPreview);return;}
     setSelectedList("");
-    if(!file.name.toLowerCase().endsWith(".csv") || file.size>1024*1024) {
-      setCsvPreview({result:null,error:"Upload a UTF-8 .csv file, maximum 1 MB.",filename:file.name});return;
+    if(!file.name.toLowerCase().endsWith(".csv") || file.size>MAX_PRESS_CSV_BYTES) {
+      setCsvPreview({result:null,error:`Upload a UTF-8 .csv file, maximum ${Math.round(MAX_PRESS_CSV_BYTES/1024/1024)} MB.`,filename:file.name});return;
     }
     try{setCsvPreview({result:parsePressCsv(await file.text()),error:"",filename:file.name});}
     catch(error){setCsvPreview({result:null,error:error instanceof Error?error.message:"CSV could not be read.",filename:file.name});}
@@ -149,7 +148,7 @@ export function PressEditorFields(props: Readonly<{
             <select id="press-select-list" name="selectedListId" value={selectedList}
               onChange={e=>setSelectedList(e.target.value)} disabled={Boolean(csvPreview.filename)}>
               <option value="">Choose list…</option>
-              {props.lists.map(l=><option key={l.id} value={l.id}>{l.name} ({l.recipients.length})</option>)}
+              {props.lists.map(l=><option key={l.id} value={l.id}>{l.name} ({l.recipient_count})</option>)}
             </select>
           </div>
         </div>
@@ -162,7 +161,7 @@ export function PressEditorFields(props: Readonly<{
       </>}
       {csvPreview.error && <p className="press-alert press-alert-error" role="alert">{csvPreview.error}</p>}
       {newCounts && <div className="press-csv-preview" role="status">
-        <strong>Import preview — {csvPreview.result?.contacts.length??selected?.recipients.length} unique</strong>
+        <strong>Import preview — {csvPreview.result?.contacts.length??selected?.recipient_count} unique</strong>
         <span>🇬🇷 {newCounts.el} Greek · 🇬🇧 {newCounts.en} English</span>
         {csvPreview.result?.duplicateCount ? <span>{csvPreview.result.duplicateCount} same-language duplicates ignored</span>:null}
         <small>Review and Save to persist. Any invalid or ambiguous CSV row blocks the entire import.</small>
@@ -177,14 +176,15 @@ export function PressEditorFields(props: Readonly<{
         <summary>Review saved recipient addresses and their languages ({props.recipients.length})</summary>
         <div className="press-delivery-table-wrap"><table>
           <thead><tr><th>Email</th><th>Language</th></tr></thead>
-          <tbody>{props.recipients.map(email=><tr key={email}>
+          <tbody>{props.recipients.slice(0,200).map(email=><tr key={email}>
             <td>{email}</td>
             <td>{props.recipientLanguages[email]==="el"?"🇬🇷 Greek":props.recipientLanguages[email]==="en"?"🇬🇧 English":"⚠ Missing language"}</td>
           </tr>)}</tbody>
         </table></div>
+        {props.recipients.length>200&&<p className="press-help">Showing the first 200 of {props.recipients.length} saved recipients. All unique addresses remain in the campaign.</p>}
       </details>}
       {!editable && <p className="press-help">Contact addresses are locked for this release.</p>}
-      <p className="press-help">Accepted values for language: el/en or Greek/English. Supports comma- or semicolon-separated CSV, quoted fields and UTF-8 BOM. Limit 500 contacts per release.</p>
+      <p className="press-help">Accepted values for language: el/en or Greek/English. Supports comma- or semicolon-separated CSV, quoted fields and UTF-8 BOM. Up to {MAX_PRESS_CONTACTS.toLocaleString("en-US")} unique contacts per release or list; batches are sent separately (100 at a time).</p>
     </section>
 
     {editable && <div className="press-save-row"><button className="button" type="submit" disabled={Boolean(csvPreview.error)}>Save press release draft</button><small>Saving never sends any email.</small></div>}
