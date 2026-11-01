@@ -5,6 +5,7 @@ import { renderResearchPressReleasePdf } from "../../../../../lib/research-press
 import { renderResearchDetailedPressReleasePdf } from "../../../../../lib/research-press-kit-editorial-pdf";
 import { pressKitFigureSvg } from "../../../../../lib/research-press-kit-graphic";
 import { zipMediaFiles } from "../../../../../lib/research-press-kit-zip";
+import { readMicrobusinessPressPdf } from "../../../../../lib/research-press-kit-microbusinesses";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,13 +17,17 @@ export async function GET() {
     if (!published) return new Response("Not published", { status: 404, headers: { "Cache-Control": "no-store" } });
     const figures = pressKitHighlights(publicResultPoints(published.estimates));
     if (!figures.length) return new Response("No public figures", { status: 404, headers: { "Cache-Control": "no-store" } });
-    const [summaryPdf, detailedPdf] = await Promise.all([
+    const [summaryPdf, detailedPdf, microEl, microEn] = await Promise.all([
       renderResearchPressReleasePdf(figures, published.publishedAt),
-      renderResearchDetailedPressReleasePdf()
+      renderResearchDetailedPressReleasePdf(),
+      readMicrobusinessPressPdf("el"),
+      readMicrobusinessPressPdf("en")
     ]);
     const archive = zipMediaFiles([
       { name: "PRESS-RELEASE-DETAILED-GR.pdf", data: detailedPdf },
       { name: "PRESS-RELEASE-SUMMARY-GR.pdf", data: summaryPdf },
+      { name: "PRESS-RELEASE-MICROBUSINESSES-GR-2026.pdf", data: microEl },
+      { name: "PRESS-RELEASE-MICROBUSINESSES-EN-2026.pdf", data: microEn },
       { name: "KEY-FIGURES.csv", data: pressKitFactsCsv(figures, published.releaseVersion) },
       ...figures.slice(0, 6).map((figure, i) => ({
         name: "FIGURE-" + String(i + 1).padStart(2, "0") + ".svg",
@@ -30,7 +35,7 @@ export async function GET() {
       })),
       { name: "README.txt", data:
         "KONTA MOY Research | Ελληνικό Λιανεμπόριο 2026\n" +
-        "Δελτία Τύπου: Αναλυτική έκδοση (3 σελίδες) + Συνοπτική έκδοση (2 σελίδες).\n" +
+        "Δελτία Τύπου: αναλυτική, συνοπτική και νέα έκδοση για μικροεπιχειρήσεις σε ελληνικά/αγγλικά.\n" +
         "Πηγή: https://kontamou.site/research/greek-retail-2026/results\n" +
         "Μεθοδολογία: https://kontamou.site/research/greek-retail-2026/methodology\n" +
         "Επίσημο λογότυπο: https://kontamou.site/brand/kontamou-logo.svg\n" +
