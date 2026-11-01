@@ -14,7 +14,7 @@ export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/research/greek-retail-2026/press", {
     title: "Γραφείο Τύπου & Media Kit | Ελληνικό Λιανεμπόριο 2026 · KONTA MOY",
     description: "Δελτίο Τύπου, βασικά ευρήματα με την πηγή και τη βάση απαντήσεων, γραφήματα, μεθοδολογία και υλικό προς δημοσίευση για την έρευνα Ελληνικό Λιανεμπόριο 2026.",
-    keywords: ["KONTA MOY press kit", "Ελληνικό Λιανεμπόριο 2026 δελτίο τύπου", "υλικό για ΜΜΕ", "έρευνα λιανεμπορίου 2026"]
+    keywords: ["KONTA MOY press kit", "Ελληνικό Λιανεμπόριο 2026 δελτίο τύπου", "υλικό για ΜΜΕ", "έρευνα λιανεμπορίου 2026", "πολύ μικρές επιχειρήσεις Ελλάδα", "ατομικές επιχειρήσεις 2024", "εκθέσεις λιανεμπορίου ανά νομό", "στατιστικά μικροεπιχειρήσεων", "Greek retail research press kit", "microbusinesses regional differences"]
   });
 }
 
