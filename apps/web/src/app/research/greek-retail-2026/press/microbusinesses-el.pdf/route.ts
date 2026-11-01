@@ -6,7 +6,7 @@ export const maxDuration = 30;
 export async function GET() {
   try {
     const bytes = await readMicrobusinessPressPdf("el");
-    return new Response(bytes, { headers: {
+    return new Response(new Uint8Array(bytes), { headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": 'attachment; filename="' + MICROBUSINESS_PRESS_FILES.el.filename + '"',
       "Cache-Control": "public, max-age=3600",
