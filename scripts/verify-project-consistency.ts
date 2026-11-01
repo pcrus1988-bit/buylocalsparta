@@ -369,13 +369,16 @@ function walk(dir: string): string[] {
 
 const appDir = join(root, "apps/web/src/app");
 const routes = new Set<string>(["/"]);
+const routeHandlers = new Set<string>();
 const dynamicRoutes: string[] = [];
 for (const file of walk(appDir)) {
-  if (!file.endsWith(`${sep}page.tsx`)) continue;
-  const rel = relative(appDir, file).split(sep).join("/").replace(/\/page\.tsx$/, "");
+  const isPage = file.endsWith(`${sep}page.tsx`);
+  const isHandler = file.endsWith(`${sep}route.ts`);
+  if (!isPage && !isHandler) continue;
+  const rel = relative(appDir, file).split(sep).join("/").replace(/\/(?:page\.tsx|route\.ts)$/, "");
   if (!rel) continue;
   if (rel.includes("[")) dynamicRoutes.push(`/${rel}`);
-  else routes.add(`/${rel}`);
+  else (isPage ? routes : routeHandlers).add(`/${rel}`);
 }
 
 // Dynamic Next.js pages are valid destinations for literal links too.
@@ -408,7 +411,7 @@ for (const file of walk(join(root, "apps/web/src")).filter((path) => path.endsWi
     const hostnameAlias = hospitalitySource && (pathname === "/drinkstock" || pathname.startsWith("/drinkstock/"))
       ? "/hospitality/drinkStock" + pathname.slice("/drinkstock".length)
       : undefined;
-    const resolves = routes.has(pathname) || matchesDynamicPage(pathname) ||
+    const resolves = routes.has(pathname) || routeHandlers.has(pathname) || matchesDynamicPage(pathname) ||
       (hostnameAlias !== undefined && (routes.has(hostnameAlias) || matchesDynamicPage(hostnameAlias)));
     if (!resolves) errors.push(`Broken static Next.js link ${href} in ${relative(root, file)} (no ${pathname} page)`);
   }
