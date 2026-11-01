@@ -48,6 +48,12 @@ function hasRegisteredPrivateParent(route: string, registered: ReadonlySet<strin
 const pageFiles = walk(appRoot).filter((path) => path.endsWith("/page.tsx") || path.endsWith("\\page.tsx"));
 const pageRoutes = pageFiles.map(routeFromPage).sort();
 const pageRouteSet = new Set(pageRoutes);
+// Route handlers exporting GET are also valid public document/download destinations.
+// They are not HTML pages and must not enter the indexable page registry.
+const getHandlerPaths = walk(appRoot).filter((path) => (path.endsWith("/route.ts") || path.endsWith("\\route.ts")) &&
+  /export\s+(?:async\s+)?function\s+GET\s*\(/.test(readFileSync(path, "utf8")));
+const getHandlerRoutes = new Set(getHandlerPaths.map((path) =>
+  `/${relative(appRoot, path).split(sep).join("/").replace(/\/route\.ts$/, "")}`));
 const indexableRoutes = new Set(INDEXABLE_STATIC_ROUTES.map((route) => route.href));
 const dynamicPublicRoutes = new Set<string>(PUBLIC_DYNAMIC_ROUTE_PATTERNS);
 const nonIndexableRoutes = new Set<string>(NON_INDEXABLE_PAGE_ROUTES);
@@ -116,7 +122,7 @@ for (const absolutePath of linkSources) {
       (pathname === "/drinkstock" || pathname.startsWith("/drinkstock/"))
       ? "/hospitality/drinkStock" + pathname.slice("/drinkstock".length)
       : undefined;
-    const routeExists = (target: string) => pageRouteSet.has(target) ||
+    const routeExists = (target: string) => pageRouteSet.has(target) || getHandlerRoutes.has(target) ||
       pageRoutes.some((pattern) => pattern !== PUBLIC_CMS_CATCH_ALL && pattern.includes("[") && patternMatches(pattern, target));
     const exists = routeExists(pathname) || (hospitalityAlias !== undefined && routeExists(hospitalityAlias));
     if (!exists) failures.push(`${displayPath} links to missing page ${pathname}`);
