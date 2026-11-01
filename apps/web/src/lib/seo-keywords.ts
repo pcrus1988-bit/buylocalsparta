@@ -262,6 +262,14 @@ const STATIC_SEARCH_INTENTS: Readonly<Record<string, readonly string[]>> = {
     "retail research results Greece",
     "αποτελέσματα έρευνας Σπάρτη"
   ],
+  "/research/greek-retail-2026/press": [
+    "press kit Ελληνικό Λιανεμπόριο 2026",
+    "δελτίο τύπου μικρές επιχειρήσεις",
+    "ελληνική έρευνα λιανεμπορίου ανά περιοχή",
+    "KONTA MOY Research media centre",
+    "Greek Retail 2026 press materials",
+    "έρευνα μικροεπιχειρήσεις Σπάρτη"
+  ],
   "/sitemap": [
     "χάρτης ιστοτόπου ΚΟΝΤΑ ΜΟΥ",
     "σελίδες ΚΟΝΤΑ ΜΟΥ",

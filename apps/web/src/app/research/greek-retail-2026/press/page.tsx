@@ -14,7 +14,7 @@ export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/research/greek-retail-2026/press", {
     title: "Γραφείο Τύπου & Media Kit | Ελληνικό Λιανεμπόριο 2026 · KONTA MOY",
     description: "Δελτίο Τύπου, βασικά ευρήματα με την πηγή και τη βάση απαντήσεων, γραφήματα, μεθοδολογία και υλικό προς δημοσίευση για την έρευνα Ελληνικό Λιανεμπόριο 2026.",
-    keywords: ["KONTA MOY press kit", "Ελληνικό Λιανεμπόριο 2026 δελτίο τύπου", "υλικό για ΜΜΕ", "έρευνα λιανεμπορίου 2026"]
+    keywords: ["KONTA MOY press kit", "Ελληνικό Λιανεμπόριο 2026 δελτίο τύπου", "υλικό για ΜΜΕ", "έρευνα λιανεμπορίου 2026", "πολύ μικρές επιχειρήσεις Ελλάδα", "ατομικές επιχειρήσεις 2024", "εκθέσεις λιανεμπορίου ανά νομό", "στατιστικά μικροεπιχειρήσεων", "Greek retail research press kit", "microbusinesses regional differences"]
   });
 }
 
@@ -128,7 +128,7 @@ export default async function ResearchPressKitPage() {
         </div>
         <div className={styles.downloads}>
           <div className={styles.downloadItem}>
-            <span className={styles.downloadIndex}>00</span><div><span className={styles.resourceType}>ΠΛΗΡΕΣ ΠΑΚΕΤΟ</span><h3>Press Kit · ZIP</h3><p>Και οι δύο ελληνικές εκδόσεις του Δελτίου Τύπου (αναλυτική και συνοπτική), βασικοί δείκτες CSV, γραφήματα και οδηγός πηγών.</p></div>
+            <span className={styles.downloadIndex}>00</span><div><span className={styles.resourceType}>ΠΛΗΡΕΣ ΠΑΚΕΤΟ</span><h3>Press Kit · ZIP</h3><p>Τα αρχικά δελτία Τύπου και οι νέες εκδόσεις για τις πολύ μικρές επιχειρήσεις (ελληνικά και αγγλικά), βασικοί δείκτες CSV, γραφήματα και οδηγός πηγών.</p></div>
             {published && highlights.length ? <a href="/research/greek-retail-2026/press/kit.zip">Λήψη ZIP ↓</a> : <span className={styles.disabledLink}>Μη διαθέσιμο</span>}
           </div>
           <div className={[styles.downloadItem, styles.featuredRelease].join(" ")}>
@@ -138,6 +138,14 @@ export default async function ResearchPressKitPage() {
           <div className={styles.downloadItem}>
             <span className={styles.downloadIndex}>02</span><div><span className={styles.resourceType}>ΣΥΝΟΠΤΙΚΟ ΔΕΛΤΙΟ ΤΥΠΟΥ · ΕΛΛΗΝΙΚΑ</span><h3>Τα βασικά αριθμητικά ευρήματα</h3><p>Δισέλιδη σύνοψη με δημοσιευμένα ποσοστά, βάσεις n, σύντομη ερμηνεία και πηγές.</p><span className={styles.editionMeta}>2 σελίδες · γρήγορη αναφορά</span></div>
             {published ? <a href="/research/greek-retail-2026/press/press-release.pdf">Λήψη συνοπτικού PDF ↓</a> : <span className={styles.disabledLink}>Μη διαθέσιμο</span>}
+          </div>
+          <div className={[styles.downloadItem, styles.featuredRelease].join(" ")}>
+            <span className={styles.downloadIndex}>02A</span><div><span className={styles.resourceType}>ΝΕΟ ΔΕΛΤΙΟ ΤΥΠΟΥ · ΕΛΛΗΝΙΚΑ · 01.11.2026</span><h3>Η Ελλάδα των 1–9 ανθρώπων: το 94,5% των επιχειρήσεων δεν είναι υποσημείωση</h3><p>Οι φωνές των πολύ μικρών επιχειρήσεων: πελάτες, στελέχωση, περιφερειακές και κλαδικές διαφορές.</p><span className={styles.editionMeta}>2 σελίδες · Ελληνικά</span></div>
+            <a href="/research/greek-retail-2026/press/microbusinesses-el.pdf">Λήψη ελληνικού PDF ↓</a>
+          </div>
+          <div className={styles.downloadItem}>
+            <span className={styles.downloadIndex}>02B</span><div><span className={styles.resourceType}>NEW PRESS RELEASE · ENGLISH · 01.11.2026</span><h3>Greece’s 1–9 Person Economy: 94.5% of Businesses Are Not a Footnote</h3><p>Original English PDF featuring participant accounts and regional and sector comparisons.</p><span className={styles.editionMeta}>2 pages · English</span></div>
+            <a href="/research/greek-retail-2026/press/microbusinesses-en.pdf">Download English PDF ↓</a>
           </div>
           <div className={styles.downloadItem}>
             <span className={styles.downloadIndex}>03</span><div><span className={styles.resourceType}>ΔΕΔΟΜΕΝΑ</span><h3>Βασικοί δείκτες · CSV</h3><p>Εθνικά αποτελέσματα για χρήση σε πίνακες, διαγράμματα και γραφήματα. Με n και πηγή.</p></div>
