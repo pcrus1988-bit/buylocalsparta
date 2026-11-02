@@ -1,3 +1,4 @@
+import {parsePublicFundReport,type PublicFundReport} from "./fund-transparency";
 import { createClient } from "./supabase/server";
 
 const base=process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/,"");
@@ -74,5 +75,148 @@ export async function maziPublicCycle():Promise<{status:string;starts_at:string;
   if(typeof c.status!=="string"||typeof c.starts_at!=="string"||
     typeof c.ends_at!=="string"||typeof c.title!=="string")return null;
   return {status:c.status,starts_at:c.starts_at,ends_at:c.ends_at,title:c.title};
+ }catch{return null;}
+}
+
+/** Public, non-personal financial disclosure. Network failures never become €0. */
+export async function maziPublicFundReport():Promise<PublicFundReport|null>{
+ if(!base||!key)return null;
+ try {
+  const res=await fetch(`${base}/functions/v1/mazi-fund-public`,{
+   method:"GET",headers:{apikey:key},next:{revalidate:60},signal:AbortSignal.timeout(8000)
+  });
+  if(!res.ok)return null;
+  const data:unknown=await res.json();
+  if(!isObject(data)||data.ok!==true)return null;
+  return parsePublicFundReport(data.report);
+ }catch{return null;}
+}
+
+export type MaziFundBallotState={
+ cycle:{id:string;title:string;status:string;starts_at:string;ends_at:string;funding_budget_cents:number}|null;
+ proposals:{id:string;title:string;details:string;category:string;amount_cents:number;first_time_support_request:boolean}[];
+ has_voted:boolean;voting_eligible:boolean;paid_eligible:boolean;
+ my_vote:{proposal_ids:string[];created_at:string}|null;
+ my_proposal:{id:string;title:string;status:string;amount_cents:number;minimum_useful_cents:number|null}|null;
+};
+/** Financial-round voting (not the nonfinancial founding survey). */
+export async function maziFundMemberRequest<T extends object>(operation:"state"|"vote"|"apply",
+ payload:Record<string,unknown>={}):Promise<Result<T>>{
+ if(!base||!key)return fail;
+ const supabase=await createClient();
+ const {data:{session}}=await supabase.auth.getSession();
+ if(!session?.access_token)return {ok:false,error:"not_authenticated"};
+ try{
+  const response=await fetch(`${base}/functions/v1/mazi-fund-member`,{
+   method:"POST",headers:{"content-type":"application/json",apikey:key,
+    authorization:`Bearer ${session.access_token}`},
+   body:JSON.stringify({operation,...payload}),cache:"no-store",signal:AbortSignal.timeout(8000)
+  });
+  const data:unknown=await response.json();
+  if(isObject(data)&&data.ok===true)return data as {ok:true}&T;
+  return {ok:false,error:isObject(data)&&typeof data.error==="string"?data.error:"service_unavailable"};
+ }catch{return fail;}
+}
+
+export type MaziPublicFundTally={
+ finalized:boolean;
+ cycle_slug?:string;title?:string;funding_budget_cents?:number;
+ total_ballots?:number;valid_ballots?:number;invalidated_ballots?:number;
+ electorate_count?:number;quorum_percent?:number;minimum_support_votes?:number;
+ max_awards?:number;project_cap_cents?:number;policy_version?:string;
+ rules_sha256?:string;public_policy_text?:string;finalized_at?:string;
+ proposals?:{id:string;title:string;amount_cents:number;minimum_useful_cents:number;
+ supporting_ballots:number;first_time_support_request:boolean}[];
+};
+export async function maziPublicFundTally(cycleSlug?:string):Promise<MaziPublicFundTally|null>{
+ if(cycleSlug&&!/^[a-z0-9][a-z0-9-]{2,90}$/.test(cycleSlug))return null;
+ if(!base||!key)return null;
+ try{
+  const response=await fetch(`${base}/functions/v1/mazi-fund-public?view=governance${cycleSlug?"&cycle="+encodeURIComponent(cycleSlug):""}`,{
+   method:"GET",headers:{apikey:key},next:{revalidate:60},signal:AbortSignal.timeout(8000)
+  });
+  if(!response.ok)return null;
+  const data:unknown=await response.json();
+  if(!isObject(data)||data.ok!==true||!isObject(data.report)||
+     typeof data.report.finalized!=="boolean")return null;
+  const v=data.report;
+  if(!v.finalized)return {finalized:false};
+  const safeInt=(x:unknown)=>typeof x==="number"&&Number.isSafeInteger(x)&&x>=0;
+  if(!["cycle_slug","title","policy_version","rules_sha256","public_policy_text","finalized_at"]
+      .every(k=>typeof v[k]==="string"&&(v[k] as string).length>0)
+    ||!["funding_budget_cents","total_ballots","valid_ballots",
+         "invalidated_ballots","electorate_count","quorum_percent",
+         "minimum_support_votes","max_awards","project_cap_cents"].every(k=>safeInt(v[k]))
+    ||!Array.isArray(v.proposals)||v.proposals.length>1000
+    ||v.proposals.some(p=>!isObject(p)||typeof p.id!=="string"||
+      typeof p.title!=="string"||typeof p.first_time_support_request!=="boolean"||
+      !safeInt(p.amount_cents)||!safeInt(p.minimum_useful_cents)||
+      !safeInt(p.supporting_ballots)))return null;
+  return v as unknown as MaziPublicFundTally;
+ }catch{return null;}
+}
+
+/** Public archive metadata only: no personal votes, recipients or accounts. */
+export type MaziFundArchiveItem={
+ cycle_slug:string;title:string;finalized_at:string;
+ funding_budget_cents:number;valid_ballots:number;invalidated_ballots:number;
+ electorate_count:number;quorum_percent:number;rules_sha256:string;project_count:number
+};
+export async function maziPublicFundArchive():Promise<MaziFundArchiveItem[]|null>{
+ if(!base||!key)return null;
+ try{
+  const response=await fetch(`${base}/functions/v1/mazi-fund-public?view=archive`,{
+   method:"GET",headers:{apikey:key},next:{revalidate:60},signal:AbortSignal.timeout(8000)
+  });
+  if(!response.ok)return null;
+  const payload:unknown=await response.json();
+  if(!isObject(payload)||payload.ok!==true||!Array.isArray(payload.report)||
+   payload.report.length>60)return null;
+  for(const row of payload.report){
+   if(!isObject(row)||typeof row.cycle_slug!=="string"||
+    !/^[a-z0-9][a-z0-9-]{2,90}$/.test(row.cycle_slug)||
+    typeof row.title!=="string"||row.title.length<1||
+    typeof row.finalized_at!=="string"||
+    !/^[a-f0-9]{64}$/.test(String(row.rules_sha256))||
+    !["funding_budget_cents","valid_ballots","invalidated_ballots",
+      "electorate_count","quorum_percent","project_count"].every(
+       x=>typeof row[x]==="number"&&Number.isSafeInteger(row[x])&&(row[x] as number)>=0
+      ))return null;
+  }
+  return payload.report as MaziFundArchiveItem[];
+ }catch{return null;}
+}
+
+/** Public project milestones, independently reviewed and pre-redacted by SQL. */
+export type MaziFundPublicProjectUpdate={
+ id:string;offer_id:string;cycle_slug:string;proposal_title:string;
+ assigned_amount_cents:number;update_kind:"milestone"|"evidence_verified"|"completion"|"correction";
+ summary:string;evidence_sha256:string|null;supersedes_id:string|null;published_at:string
+};
+export async function maziPublicFundProjectUpdates():Promise<MaziFundPublicProjectUpdate[]|null>{
+ if(!base||!key)return null;
+ try{
+  const response=await fetch(base+"/functions/v1/mazi-fund-public?view=projects",{
+   method:"GET",headers:{apikey:key},next:{revalidate:60},signal:AbortSignal.timeout(8000)
+  });
+  if(!response.ok)return null;
+  const payload:unknown=await response.json();
+  if(!isObject(payload)||payload.ok!==true||!Array.isArray(payload.report)||
+    payload.report.length>200)return null;
+  const allowed=new Set(["milestone","evidence_verified","completion","correction"]);
+  for(const event of payload.report){
+   if(!isObject(event)||typeof event.id!=="string"||typeof event.offer_id!=="string"||
+     typeof event.cycle_slug!=="string"||typeof event.proposal_title!=="string"||
+     event.proposal_title.length===0||event.proposal_title.length>300||
+     !allowed.has(String(event.update_kind))||
+     typeof event.summary!=="string"||event.summary.length<50||event.summary.length>750||
+     typeof event.published_at!=="string"||
+     typeof event.assigned_amount_cents!=="number"||
+     !Number.isSafeInteger(event.assigned_amount_cents)||event.assigned_amount_cents<0||
+     (event.evidence_sha256!==null&&
+       (typeof event.evidence_sha256!=="string"||!/^[a-f0-9]{64}$/.test(event.evidence_sha256)))||
+     (event.supersedes_id!==null&&typeof event.supersedes_id!=="string"))return null;
+  }
+  return payload.report as MaziFundPublicProjectUpdate[];
  }catch{return null;}
 }
