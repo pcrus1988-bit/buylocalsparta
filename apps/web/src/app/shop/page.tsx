@@ -30,6 +30,7 @@ import { isReadOnlyPublicCrawlerRequest } from "../../lib/request-audience";
 import { getCachedCrawlerCatalogCards, getCachedPublishedDropshipShopPage, hasLiveLocalShopProducts } from "../../lib/cached-public-shop-page";
 import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
 import { getCachedShopSupplierFacets } from "../../lib/shop-supplier-facets";
+import { shouldUseBalancedShopSources } from "../../lib/shop-source-balance";
 
 const SHOP_PAGE_SIZE = 30;
 const SHOP_INDEXABLE_QUERY_KEYS = new Set([
@@ -342,7 +343,22 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       products.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, remaining));
     }
   } else {
-    const mixedHubSearch = localProductsAvailable && allowDropship && Boolean(catalogQuery);
+    // The unfiltered landing page must give local and supplier-backed stock
+    // space together. Otherwise a full local first page can conceal much of
+    // the wider marketplace catalogue from new visitors.
+    const hasActiveBrowseFilter = Boolean(
+      category || subcategory || groupedSubcategories.length || brand || color
+      || size || fit || availability || sort || minPriceMinor !== undefined
+      || maxPriceMinor !== undefined || Object.keys(attributeFilters).length
+      || searchIntent.applied.length
+    );
+    const mixedHubSearch = shouldUseBalancedShopSources({
+      hasLocalProducts: localProductsAvailable,
+      includesSupplierProducts: allowDropship,
+      catalogQuery,
+      rawQuery: query,
+      hasActiveBrowseFilter
+    });
     if (mixedHubSearch) {
       // A global search is HUB-wide, not source-wide. Give current local-vendor stock
       // and supplier-backed stock deterministic space on every result page instead of
